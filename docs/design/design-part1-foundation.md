@@ -78,6 +78,9 @@ class PtyManager {
   // Sends SIGTERM, then SIGKILL after 3 seconds if still alive.
   kill(id: string): Promise<void>;
 
+  // Kills all active PTYs. Called on app quit to prevent orphaned processes.
+  killAll(): Promise<void>;
+
   list(): string[];
 }
 ```
@@ -87,6 +90,7 @@ class PtyManager {
 - **Shell resolution:** Uses `process.env.SHELL` on macOS/Linux, falling back to `/bin/zsh` on macOS and `/bin/bash` on Linux. On Windows (future): `process.env.COMSPEC` or `cmd.exe`.
 - Listens to `process.onData` and forwards output to renderer via IPC
 - Listens to `process.onExit` and notifies renderer with `{ code, signal }`
+- **Cleanup on quit:** `app.on('before-quit')` calls `ptyManager.killAll()` to terminate all active PTY processes, preventing orphaned shell processes after the app exits.
 
 **IPC channels (main → renderer):**
 - `pty:data` — terminal output bytes
@@ -314,8 +318,9 @@ function setupCSP(): void {
 The skeleton app should create a single `BrowserWindow` with explicit security settings rather than relying on Electron defaults:
 
 ```typescript
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { join } from 'node:path';
+import { is, optimizer } from '@electron-toolkit/utils';
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -335,14 +340,39 @@ function createMainWindow(): BrowserWindow {
 
   win.once('ready-to-show', () => win.show());
 
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  // electron-vite uses ELECTRON_RENDERER_URL env var for dev server
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
   return win;
 }
+
+// App lifecycle — required for correct macOS behavior
+app.whenReady().then(() => {
+  // Optimize window shortcuts (F12 devtools, etc.)
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window);
+  });
+
+  setupCSP();
+  createMainWindow();
+
+  // macOS: re-create window when dock icon clicked and no windows open
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow();
+    }
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
 ```
 
 This makes the Part 1 security posture concrete: the renderer stays isolated, all Node access stays in preload, and dev/prod loading behavior is explicit.
@@ -441,7 +471,8 @@ export default defineConfig({
     "better-sqlite3": "^12.6.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "electron-log": "^5.4.0"
+    "electron-log": "^5.4.0",
+    "@electron-toolkit/utils": "^4.0.0"
   },
   "scripts": {
     "dev": "electron-vite dev",
@@ -523,7 +554,7 @@ export default defineConfig({
 **Goal:** Spawn a real PTY, render it with xterm.js, type into it, see output. This validates the critical technical path: node-pty → IPC → xterm.js.
 
 **Build:**
-- `PtyManager` class: `spawn()`, `write()`, `resize()`, `kill()`
+- `PtyManager` class: `spawn()`, `write()`, `resize()`, `kill()`, `killAll()`
 - IPC bridge for PTY channels (preload exposes `window.mcode.pty`)
 - `TerminalInstance` React component with xterm.js + fit addon + WebGL addon
 - App.tsx renders a single full-screen `TerminalInstance`
