@@ -37,23 +37,32 @@ function App(): React.JSX.Element {
 
   if (error) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-bg-primary">
-        <span className="text-red-400">Failed to start terminal: {error}</span>
+      <div className="flex flex-col h-screen w-screen bg-bg-primary">
+        <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
+        <div className="flex flex-1 min-h-0 items-center justify-center">
+          <span className="text-red-400">Failed to start terminal: {error}</span>
+        </div>
       </div>
     );
   }
 
   if (!sessionId) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-bg-primary">
-        <span className="text-text-secondary">Starting terminal...</span>
+      <div className="flex flex-col h-screen w-screen bg-bg-primary">
+        <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
+        <div className="flex flex-1 min-h-0 items-center justify-center">
+          <span className="text-text-secondary">Starting terminal...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen w-screen bg-bg-primary">
-      <TerminalInstance sessionId={sessionId} />
+    <div className="flex flex-col h-screen w-screen bg-bg-primary">
+      <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
+      <div className="flex-1 min-h-0">
+        <TerminalInstance sessionId={sessionId} />
+      </div>
     </div>
   );
 }
