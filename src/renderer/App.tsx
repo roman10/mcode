@@ -60,7 +60,7 @@ function App(): React.JSX.Element {
   return (
     <div className="flex flex-col h-screen w-screen bg-bg-primary">
       <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 pl-3">
         <TerminalInstance sessionId={sessionId} />
       </div>
     </div>

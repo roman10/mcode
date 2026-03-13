@@ -16,5 +16,11 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react(), tailwindcss()],
+    server: {
+      watch: {
+        usePolling: true,
+        interval: 500,
+      },
+    },
   },
 });

@@ -38,4 +38,28 @@ contextBridge.exposeInMainWorld('mcode', {
       return () => ipcRenderer.removeListener('pty:exit', handler);
     },
   },
+
+  devtools: {
+    onQuery: (
+      cb: (
+        requestId: string,
+        type: string,
+        params: Record<string, unknown>,
+      ) => void,
+    ): void => {
+      ipcRenderer.on(
+        'devtools:query',
+        (
+          _e: Electron.IpcRendererEvent,
+          requestId: string,
+          type: string,
+          params: Record<string, unknown>,
+        ) => cb(requestId, type, params),
+      );
+    },
+
+    sendResponse: (requestId: string, data: unknown): void => {
+      ipcRenderer.send(`devtools:response:${requestId}`, data);
+    },
+  },
 });

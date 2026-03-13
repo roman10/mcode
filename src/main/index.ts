@@ -9,6 +9,12 @@ let ptyManager: PtyManager;
 
 function setupCSP(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    // Dev mode: Vite's React plugin injects an inline preamble script,
+    // so script-src needs 'unsafe-inline'. Production keeps it strict.
+    const scriptSrc = app.isPackaged
+      ? "script-src 'self'"
+      : "script-src 'self' 'unsafe-inline'";
+
     const connectSrc = app.isPackaged
       ? "connect-src 'self'"
       : "connect-src 'self' ws://localhost:* http://localhost:*";
@@ -17,7 +23,7 @@ function setupCSP(): void {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; ${connectSrc}`,
+          `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; ${connectSrc}`,
         ],
       },
     });
@@ -86,6 +92,12 @@ app.whenReady().then(() => {
   });
 
   registerPtyIpc();
+
+  if (is.dev) {
+    import('../devtools/mcp-server').then(({ startMcpServer }) => {
+      startMcpServer({ mainWindow: mainWindow!, ptyManager });
+    });
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

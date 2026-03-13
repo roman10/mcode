@@ -127,6 +127,19 @@ export class PtyManager {
     await Promise.all(ids.map((id) => this.kill(id)));
   }
 
+  getInfo(
+    id: string,
+  ): { id: string; pid: number; cols: number; rows: number } | null {
+    const handle = this.ptys.get(id);
+    if (!handle) return null;
+    return {
+      id: handle.id,
+      pid: handle.process.pid,
+      cols: handle.cols,
+      rows: handle.rows,
+    };
+  }
+
   list(): string[] {
     return Array.from(this.ptys.keys());
   }

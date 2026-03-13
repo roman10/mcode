@@ -5,6 +5,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { darkTheme } from '../../styles/theme';
 import { TERMINAL_FONT_SIZE, TERMINAL_FONT_FAMILY } from '../../../shared/constants';
+import { terminalRegistry } from '../../devtools/terminal-registry';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -31,6 +32,7 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     term.loadAddon(webLinksAddon);
 
     term.open(container);
+    terminalRegistry.set(sessionId, term);
 
     // WebGL addon must load AFTER term.open() (requires DOM attachment)
     let webglAddon: WebglAddon | null = null;
@@ -75,6 +77,7 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     resizeObserver.observe(container);
 
     return () => {
+      terminalRegistry.delete(sessionId);
       cancelAnimationFrame(resizeRaf);
       unsubData();
       unsubExit();

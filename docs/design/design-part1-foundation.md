@@ -278,6 +278,12 @@ import { app, session } from 'electron';
 
 function setupCSP(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    // Dev mode: @vitejs/plugin-react injects an inline preamble script,
+    // so script-src needs 'unsafe-inline'. Production keeps it strict.
+    const scriptSrc = app.isPackaged
+      ? "script-src 'self'"
+      : "script-src 'self' 'unsafe-inline'";
+
     const connectSrc = app.isPackaged
       ? "connect-src 'self'"
       : "connect-src 'self' ws://localhost:* http://localhost:*";
@@ -286,7 +292,7 @@ function setupCSP(): void {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; ${connectSrc}`,
+          `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; ${connectSrc}`,
         ],
       },
     });
@@ -294,7 +300,9 @@ function setupCSP(): void {
 }
 ```
 
-**Why not a `<meta>` tag?** A static meta tag with `connect-src 'self'` blocks Vite's HMR websocket in dev mode (`ws://localhost:*`), breaking hot reload. Setting CSP from the main process lets us relax `connect-src` in dev while keeping it strict in production.
+**Why not a `<meta>` tag?** A static meta tag with `connect-src 'self'` blocks Vite's HMR websocket in dev mode (`ws://localhost:*`), breaking hot reload. Setting CSP from the main process lets us relax both `connect-src` and `script-src` in dev while keeping them strict in production.
+
+> **Note:** `'unsafe-inline'` for `script-src` in dev mode is required because `@vitejs/plugin-react` injects an inline preamble script for React Fast Refresh. Without it, the CSP blocks the script and the renderer fails to load. In production builds, scripts are bundled as files, so `script-src 'self'` suffices.
 
 ```html
 <!-- src/renderer/index.html — no CSP meta tag, handled by main process -->

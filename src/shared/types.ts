@@ -11,6 +11,17 @@ export interface PtyExitPayload {
   signal?: number;
 }
 
+export interface ConsoleEntry {
+  level: 'log' | 'warn' | 'error' | 'info';
+  timestamp: number;
+  args: string[];
+}
+
+export interface HmrEvent {
+  type: string;
+  timestamp: number;
+}
+
 export interface MCodeAPI {
   pty: {
     spawn(options: PtySpawnOptions): Promise<string>;
@@ -19,5 +30,15 @@ export interface MCodeAPI {
     kill(sessionId: string): Promise<void>;
     onData(callback: (sessionId: string, data: string) => void): () => void;
     onExit(callback: (sessionId: string, payload: PtyExitPayload) => void): () => void;
+  };
+  devtools: {
+    onQuery(
+      cb: (
+        requestId: string,
+        type: string,
+        params: Record<string, unknown>,
+      ) => void,
+    ): void;
+    sendResponse(requestId: string, data: unknown): void;
   };
 }
