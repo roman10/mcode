@@ -34,7 +34,7 @@ Claude Code provides an HTTP hooks system that POSTs structured JSON (session_id
 | Panel layout | `react-mosaic` (tiling WM) or `rc-dock` (dockable tabs) |
 | State management | `zustand` |
 | Persistence | `better-sqlite3` |
-| Build tooling | `electron-forge` + `vite-plugin-electron` |
+| Build tooling | `electron-vite` + `electron-builder` + `electron-rebuild` |
 | IPC | Electron `contextBridge` + `ipcMain`/`ipcRenderer` |
 
 **Pros:**

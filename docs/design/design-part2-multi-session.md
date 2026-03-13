@@ -37,13 +37,15 @@ spawn ──► STARTING ──► ACTIVE ──► ENDED
 ### PTY Manager Updates
 
 The PTY manager from Part 1 gains:
-- `MCODE_SESSION_ID=<internal_uuid>` set in PTY environment (prep for hook correlation in Part 3)
+- Session creation moves to `SessionManager.create()`. The renderer still never proposes IDs directly; the main process generates `session_id`, persists the session row, then passes that ID into `PtyManager.spawn()`.
+- `MCODE_SESSION_ID=<mcode_session_id>` set in PTY environment (prep for hook correlation in Part 3)
 - Ring buffer (~100KB per session) for output replay when tiles are re-mounted
 - `permissionMode` option for `--permission-mode` CLI flag
 - `args` support for initial prompt as positional argument
 
 ```typescript
 spawn(options: {
+  // Supplied by SessionManager after it creates the session record.
   id: string;
   cwd: string;
   cols: number;
@@ -100,6 +102,12 @@ interface MCodeAPI {
   // ... pty (from Part 1)
 
   sessions: {
+    create(input: {
+      cwd: string;
+      label?: string;
+      initialPrompt?: string;
+      permissionMode?: string;
+    }): Promise<SessionInfo>;
     list(): Promise<SessionInfo[]>;
     get(sessionId: string): Promise<SessionInfo | null>;
     setLabel(sessionId: string, label: string): Promise<void>;
@@ -249,16 +257,20 @@ Triggered by "+" button:
 User clicks "New Session" in Sidebar
   │
   ▼
-Renderer: sessionStore.addSession() ──IPC──► Main: pty.spawn()
-  │                                            │
-  │                                            ├─ Spawns `claude` via node-pty
-  │                                            ├─ Inserts row into sessions table
-  │                                            └─ Returns session_id
+Renderer: window.mcode.sessions.create(...) ──IPC──► Main: sessionManager.create()
+  │                                                     │
+  │                                                     ├─ Generates `session_id`
+  │                                                     ├─ Inserts row into sessions table
+  │                                                     ├─ Calls pty.spawn({ id: session_id, ... })
+  │                                                     └─ Returns SessionInfo
   │
-  ◄─────────────── session_id ─────────────────┘
+  ◄──────────────── SessionInfo ───────────────┘
   │
   ▼
-Renderer: layoutStore.addTile(session_id)
+Renderer: sessionStore.addSession(session)
+  │
+  ├─ Stores label/cwd/status metadata locally
+  └─ layoutStore.addTile(session.session_id)
   │
   ├─ Inserts tile into mosaic tree
   ├─ TerminalInstance mounts, creates xterm.js

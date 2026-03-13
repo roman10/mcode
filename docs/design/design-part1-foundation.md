@@ -35,7 +35,7 @@ mcode/
 │   │   └── index.ts              # contextBridge for PTY channels
 │   │
 │   └── renderer/
-│       ├── index.html            # CSP meta tag lives here
+│       ├── index.html
 │       ├── env.d.ts              # Window.mcode type augmentation
 │       ├── main.tsx
 │       ├── App.tsx               # Full-screen terminal (Phase 2)
@@ -62,7 +62,7 @@ interface PtyHandle {
 class PtyManager {
   private ptys: Map<string, PtyHandle>;
 
-  // Main process generates the UUID. Renderer never provides an ID.
+  // In Part 1, the main process generates the session ID. The renderer never provides an ID.
   // Returns the PtyHandle (including the generated id).
   spawn(options: {
     cwd: string;
@@ -83,7 +83,7 @@ class PtyManager {
 ```
 
 **Key behaviors:**
-- **ID generation:** Main process generates a `crypto.randomUUID()` for each PTY. The renderer receives this ID as the return value of `pty:spawn`. This is the single source of truth — the renderer never proposes an ID.
+- **ID generation:** In Part 1, the main process generates a `crypto.randomUUID()` for each PTY and uses it as the session ID. The renderer receives this ID as the return value of `pty:spawn`. In Part 2+, `SessionManager` becomes the caller, but the renderer still never proposes an ID.
 - **Shell resolution:** Uses `process.env.SHELL` on macOS/Linux, falling back to `/bin/zsh` on macOS and `/bin/bash` on Linux. On Windows (future): `process.env.COMSPEC` or `cmd.exe`.
 - Listens to `process.onData` and forwards output to renderer via IPC
 - Listens to `process.onExit` and notifies renderer with `{ code, signal }`
@@ -266,18 +266,38 @@ declare global {
 
 ### Content Security Policy
 
-CSP is set via `<meta>` tag in `src/renderer/index.html`. This is the standard electron-vite approach and ensures it's active from first load:
+CSP is set programmatically in `src/main/index.ts` via `session.defaultSession.webRequest.onHeadersReceived`, **not** via a `<meta>` tag. This allows the policy to differ between dev and production:
+
+```typescript
+// In src/main/index.ts, called before window creation
+import { app, session } from 'electron';
+
+function setupCSP(): void {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const connectSrc = app.isPackaged
+      ? "connect-src 'self'"
+      : "connect-src 'self' ws://localhost:* http://localhost:*";
+
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; ${connectSrc}`,
+        ],
+      },
+    });
+  });
+}
+```
+
+**Why not a `<meta>` tag?** A static meta tag with `connect-src 'self'` blocks Vite's HMR websocket in dev mode (`ws://localhost:*`), breaking hot reload. Setting CSP from the main process lets us relax `connect-src` in dev while keeping it strict in production.
 
 ```html
-<!-- src/renderer/index.html -->
+<!-- src/renderer/index.html — no CSP meta tag, handled by main process -->
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'"
-    />
     <title>mcode</title>
   </head>
   <body>
@@ -288,6 +308,44 @@ CSP is set via `<meta>` tag in `src/renderer/index.html`. This is the standard e
 ```
 
 > **Note:** `'unsafe-inline'` is needed for `style-src` because xterm.js injects inline styles for cursor positioning and cell sizing. This is a known xterm.js requirement and does not compromise script safety (scripts remain strict).
+
+### Main Window (`src/main/index.ts`)
+
+The skeleton app should create a single `BrowserWindow` with explicit security settings rather than relying on Electron defaults:
+
+```typescript
+import { BrowserWindow } from 'electron';
+import { join } from 'node:path';
+
+function createMainWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    minWidth: 960,
+    minHeight: 640,
+    show: false,
+    backgroundColor: '#0d1117',
+    titleBarStyle: 'hiddenInset',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  win.once('ready-to-show', () => win.show());
+
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'));
+  }
+
+  return win;
+}
+```
+
+This makes the Part 1 security posture concrete: the renderer stays isolated, all Node access stays in preload, and dev/prod loading behavior is explicit.
 
 ### Theming
 
@@ -386,6 +444,11 @@ export default defineConfig({
     "electron-log": "^5.4.0"
   },
   "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "build": "electron-vite build",
+    "build:mac": "npm run build && electron-builder --mac",
+    "package": "npm run build && electron-builder",
     "postinstall": "electron-rebuild"
   },
   "devDependencies": {
@@ -439,7 +502,9 @@ export default defineConfig({
 - `electron-vite` project scaffolding with main/preload/renderer
 - Tailwind CSS v4 configured in renderer via `@tailwindcss/vite` plugin (CSS-based config, no `tailwind.config.ts`)
 - `node-pty` and `better-sqlite3` added as dependencies, `electron-rebuild` configured
+- `package.json` defines `dev`, `typecheck`, `build`, `build:mac`, and `package` scripts for the standard workflow
 - TypeScript strict mode across all three process targets
+- `src/main/index.ts` creates the app window with explicit `webPreferences` security settings and `ready-to-show` handling
 - `npm run dev` launches Electron with HMR for the renderer
 - `src/shared/types.ts` with initial type stubs
 
@@ -449,7 +514,7 @@ export default defineConfig({
 3. No console errors in Electron DevTools
 4. Changing a React component hot-reloads without restarting the app
 
-**Files created:** `package.json`, `electron.vite.config.ts`, `tsconfig*.json`, `src/main/index.ts`, `src/preload/index.ts`, `src/renderer/index.html` (includes CSP meta tag), `src/renderer/env.d.ts`, `src/renderer/main.tsx`, `src/renderer/App.tsx`, `src/renderer/styles/global.css` (Tailwind v4 `@theme` tokens + xterm.css import), `src/renderer/styles/theme.ts`, `src/shared/types.ts` (includes `PtySpawnOptions`, `PtyExitPayload`, `MCodeAPI`), `src/shared/constants.ts`
+**Files created:** `package.json`, `electron.vite.config.ts`, `tsconfig*.json`, `src/main/index.ts`, `src/preload/index.ts`, `src/renderer/index.html`, `src/renderer/env.d.ts`, `src/renderer/main.tsx`, `src/renderer/App.tsx`, `src/renderer/styles/global.css` (Tailwind v4 `@theme` tokens + xterm.css import), `src/renderer/styles/theme.ts`, `src/shared/types.ts` (includes `PtySpawnOptions`, `PtyExitPayload`, `MCodeAPI`), `src/shared/constants.ts`
 
 ---
 

@@ -18,7 +18,7 @@ A lightweight HTTP server (Node.js `http` module, no framework) running on `loca
 ```
 POST /hook
 Content-Type: application/json
-X-Mcode-Session-Id: <internal_uuid>    ← forwarded from PTY env via hook headers
+X-Mcode-Session-Id: <mcode_session_id>    ← forwarded from PTY env via hook headers
 
 {
   "session_id": "abc-123",              ← Claude Code's own session ID
@@ -86,9 +86,9 @@ Claude Code hooks are configured in `~/.claude/settings.json` using a structured
 
 ### Session ID Correlation
 
-The mapping between mcode's internal session ID and Claude Code's session ID works as follows:
+The mapping between mcode's session ID and Claude Code's session ID works as follows:
 
-1. mcode spawns PTY with env var `MCODE_SESSION_ID=<internal_uuid>`
+1. mcode spawns PTY with env var `MCODE_SESSION_ID=<mcode_session_id>`
 2. Claude Code inherits this env var
 3. Hook config includes `"headers": { "X-Mcode-Session-Id": "$MCODE_SESSION_ID" }` and `"allowedEnvVars": ["MCODE_SESSION_ID"]`
 4. Every hook POST to the server carries the `X-Mcode-Session-Id` header

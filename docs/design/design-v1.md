@@ -106,7 +106,8 @@ interface PtyHandle {
 class PtyManager {
   private ptys: Map<string, PtyHandle>;
 
-  // Spawn a new PTY running `claude` CLI
+  // Spawn a PTY for an existing session record.
+  // SessionManager generates the session ID; renderer code never supplies IDs to PtyManager directly.
   spawn(options: {
     id: string;
     cwd: string;
@@ -132,8 +133,9 @@ class PtyManager {
 ```
 
 **Key behaviors:**
+- `SessionManager.create()` is the public session-creation path for the renderer. It creates the `session_id`, persists session metadata, and then calls `ptyManager.spawn({ id, ... })`.
 - Spawns `claude` with the user's default shell environment so SSH keys, PATH, and tool configs work
-- Sets `MCODE_SESSION_ID=<internal_uuid>` in the PTY environment — Claude Code inherits this env var, and the HTTP hook config uses `allowedEnvVars` + `headers` to forward it as `X-Mcode-Session-Id` header to the hook server, enabling correlation with Claude Code's own `session_id` (see §2.3)
+- Sets `MCODE_SESSION_ID=<mcode_session_id>` in the PTY environment — Claude Code inherits this env var, and the HTTP hook config uses `allowedEnvVars` + `headers` to forward it as `X-Mcode-Session-Id` header to the hook server, enabling correlation with Claude Code's own `session_id` (see §2.3)
 - Listens to `process.onData` and forwards output to renderer via IPC
 - Listens to `process.onExit` and updates session status
 - PTY output is buffered (ring buffer, ~100KB per session) so that when a tile is re-mounted in the mosaic, recent output can be replayed without re-reading from disk
@@ -376,7 +378,7 @@ All communication between main and renderer goes through typed IPC channels expo
 // src/shared/types.ts — imported by main, preload, and renderer
 
 interface MCodeAPI {
-  // PTY operations
+  // Low-level PTY operations. UI code should use sessions.create() for new Claude sessions.
   pty: {
     spawn(options: PtySpawnOptions): Promise<string>;    // returns session_id
     write(sessionId: string, data: string): void;
@@ -388,6 +390,12 @@ interface MCodeAPI {
 
   // Session management
   sessions: {
+    create(input: {
+      cwd: string;
+      label?: string;
+      initialPrompt?: string;
+      permissionMode?: string;
+    }): Promise<SessionInfo>;
     list(): Promise<SessionInfo[]>;
     get(sessionId: string): Promise<SessionInfo | null>;
     setLabel(sessionId: string, label: string): Promise<void>;
@@ -677,16 +685,20 @@ The core UX differentiator: surfacing which sessions need human input.
 User clicks "New Session" in Sidebar
   │
   ▼
-Renderer: sessionStore.addSession() ──IPC──► Main: pty.spawn()
-  │                                            │
-  │                                            ├─ Spawns `claude` via node-pty
-  │                                            ├─ Inserts row into sessions table
-  │                                            └─ Returns session_id
+Renderer: window.mcode.sessions.create(...) ──IPC──► Main: sessionManager.create()
+  │                                                     │
+  │                                                     ├─ Generates `session_id`
+  │                                                     ├─ Inserts row into sessions table
+  │                                                     ├─ Calls pty.spawn({ id: session_id, ... })
+  │                                                     └─ Returns SessionInfo
   │
-  ◄─────────────── session_id ─────────────────┘
+  ◄──────────────── SessionInfo ───────────────┘
   │
   ▼
-Renderer: layoutStore.addTile(session_id)
+Renderer: sessionStore.addSession(session)
+  │
+  ├─ Stores label/cwd/status metadata locally
+  └─ layoutStore.addTile(session.session_id)
   │
   ├─ Inserts tile into mosaic tree
   ├─ TerminalInstance mounts, creates xterm.js
@@ -897,7 +909,22 @@ npm run build:mac
 npm run package
 ```
 
-### 9.3 `electron-vite` Config
+### 9.3 Recommended `package.json` Scripts
+
+```json
+{
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "build": "electron-vite build",
+    "build:mac": "npm run build && electron-builder --mac",
+    "package": "npm run build && electron-builder",
+    "postinstall": "electron-rebuild"
+  }
+}
+```
+
+### 9.4 `electron-vite` Config
 
 ```typescript
 // electron.vite.config.ts
@@ -923,7 +950,7 @@ export default defineConfig({
 });
 ```
 
-### 9.4 Key Dependencies
+### 9.5 Key Dependencies
 
 ```json
 {
@@ -939,6 +966,14 @@ export default defineConfig({
     "react-mosaic-component": "^6.1.1",
     "zustand": "^5.0.0",
     "electron-log": "^5.4.0"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "build": "electron-vite build",
+    "build:mac": "npm run build && electron-builder --mac",
+    "package": "npm run build && electron-builder",
+    "postinstall": "electron-rebuild"
   },
   "devDependencies": {
     "electron": "^41.0.0",
@@ -993,6 +1028,40 @@ Uses `electron-log` writing to `~/Library/Logs/mcode/main.log` (macOS standard).
 
 ### 12.1 Electron Security
 
+The main window should be created with explicit `BrowserWindow` security settings in `src/main/index.ts`:
+
+```typescript
+import { BrowserWindow } from 'electron';
+import { join } from 'node:path';
+
+function createMainWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    minWidth: 960,
+    minHeight: 640,
+    show: false,
+    backgroundColor: '#0d1117',
+    titleBarStyle: 'hiddenInset',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  win.once('ready-to-show', () => win.show());
+
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'));
+  }
+
+  return win;
+}
+```
+
 - **Context isolation:** Enabled — renderer cannot access Node.js
 - **Node integration in renderer:** Disabled — all Node access through contextBridge
 - **Preload script:** Minimal surface area — only expose typed IPC methods
@@ -1043,7 +1112,9 @@ Each phase produces a working build with specific, verifiable behaviors. Phases 
 - `electron-vite` project scaffolding with main/preload/renderer
 - Tailwind CSS v4 configured in renderer via `@tailwindcss/vite` plugin (CSS-based config, no `tailwind.config.ts`)
 - `node-pty` and `better-sqlite3` added as dependencies, `electron-rebuild` configured
+- `package.json` defines `dev`, `typecheck`, `build`, `build:mac`, and `package` scripts for the standard workflow
 - TypeScript strict mode across all three process targets
+- `src/main/index.ts` creates the app window with explicit `webPreferences` security settings and `ready-to-show` handling
 - `npm run dev` launches Electron with HMR for the renderer
 - `src/shared/types.ts` with initial type stubs
 
