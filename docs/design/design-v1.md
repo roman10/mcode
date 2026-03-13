@@ -70,7 +70,7 @@ mcode/
 │       │       └── ActivityFeed.tsx      # Real-time event stream from hook server
 │       │
 │       └── styles/
-│           ├── global.css        # Tailwind CSS base + xterm.js / mosaic overrides
+│           ├── global.css        # Tailwind v4 CSS entry (@import "tailwindcss", @theme tokens) + xterm.js / mosaic overrides
 │           └── theme.ts          # Color tokens, dark theme
 │
 ├── db/
@@ -84,7 +84,7 @@ mcode/
 **Key structural decisions:**
 - **`src/shared/`** — Types and constants importable by main, preload, and renderer. Avoids duplication and keeps IPC contracts in sync.
 - **IPC handlers co-located with domain modules** — Each module (pty-manager, session-manager, task-queue) registers its own IPC handlers in an `init(mainWindow)` function called from `index.ts`. No monolithic `ipc-handlers.ts` to become a dumping ground.
-- **Tailwind CSS** — Utility-first, zero runtime CSS. Avoids the overhead of CSS-in-JS and the naming burden of CSS modules. Works well for rapid iteration on a dark-themed UI.
+- **Tailwind CSS v4** — Utility-first, zero runtime CSS. Uses `@tailwindcss/vite` plugin and CSS-based configuration (`@theme` directives in `global.css`), no JS config file needed. Works well for rapid iteration on a dark-themed UI.
 - **Structured logging** — `logger.ts` wraps `electron-log` to write structured logs to `~/Library/Logs/mcode/`. Critical for debugging PTY and hook issues post-hoc.
 
 ---
@@ -112,9 +112,9 @@ class PtyManager {
     cwd: string;
     cols: number;
     rows: number;
-    args?: string[];             // e.g. ["--resume", sessionId] or ["--prompt", taskPrompt]
+    args?: string[];             // e.g. ["--resume", sessionId] or [taskPrompt] (positional arg)
     env?: Record<string, string>;
-    permissionMode?: string;     // e.g. "plan", "autoaccept"
+    permissionMode?: string;     // e.g. "plan", "default", "dontAsk", "acceptEdits", "auto"
   }): PtyHandle;
 
   // Write user input to PTY stdin
@@ -133,7 +133,7 @@ class PtyManager {
 
 **Key behaviors:**
 - Spawns `claude` with the user's default shell environment so SSH keys, PATH, and tool configs work
-- Sets `MCODE_SESSION_ID=<internal_uuid>` in the PTY environment — the hook server uses this to correlate Claude Code's `session_id` with our internal session ID (see §2.3)
+- Sets `MCODE_SESSION_ID=<internal_uuid>` in the PTY environment — Claude Code inherits this env var, and the HTTP hook config uses `allowedEnvVars` + `headers` to forward it as `X-Mcode-Session-Id` header to the hook server, enabling correlation with Claude Code's own `session_id` (see §2.3)
 - Listens to `process.onData` and forwards output to renderer via IPC
 - Listens to `process.onExit` and updates session status
 - PTY output is buffered (ring buffer, ~100KB per session) so that when a tile is re-mounted in the mosaic, recent output can be replayed without re-reading from disk
@@ -169,8 +169,8 @@ Manages the lifecycle state machine for each Claude Code session. Coordinates be
 |-------|---------|-------------|
 | `starting` | PTY spawned | Claude Code is initializing |
 | `active` | `SessionStart` hook or PTY output detected | Agent is working |
-| `idle` | `Stop` hook (reason: `end_turn`) | Agent finished current task, waiting for input |
-| `waiting` | `Stop` hook (reason: `permission`) or `Notification` hook | Needs human approval or attention |
+| `idle` | `Stop` hook (fires when Claude finishes responding; payload has `stop_hook_active` and `last_assistant_message`) | Agent finished current task, waiting for input |
+| `waiting` | `PermissionRequest` hook (fires when permission dialog appears) or `Notification` hook | Needs human approval or attention |
 | `ended` | PTY exit or `SessionEnd` hook | Session terminated |
 
 **Session metadata tracked in memory and persisted to SQLite:**
@@ -210,24 +210,43 @@ Content-Type: application/json
 3. Persist raw event to `events` table
 4. Update session state via Session Manager
 5. Emit event to renderer via IPC (`hook:event`)
-6. Return `200 OK` (or `{"decision": "approve"}` / `{"decision": "deny"}` for `PreToolUse` hooks when auto-approval rules are configured)
+6. Return `200 OK` (or `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow|deny", "permissionDecisionReason": "..."}}` for `PreToolUse` hooks when auto-approval rules are configured)
 
 **PreToolUse decision engine (future):**
 - Users can configure rules like "auto-approve Read in /src" or "deny Bash commands containing rm -rf"
 - Rules stored in SQLite, evaluated on each `PreToolUse` event
-- Default: pass through (no decision), letting Claude Code's own permission system handle it
+- Decision format: `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow|deny|ask", "permissionDecisionReason": "reason"}}`
+- Default: return plain `200 OK` with no body (pass through), letting Claude Code's own permission system handle it
 
 **Hook configuration strategy:**
 
-Claude Code hooks are configured in `~/.claude/settings.json`, not via environment variables. mcode must manage this config:
+Claude Code hooks are configured in `~/.claude/settings.json` using a structured format. mcode must manage this config:
 
 1. On first launch, read existing `~/.claude/settings.json`
-2. Merge mcode's hook entries (all events → `http://localhost:<port>/hook`) with any user-defined hooks, preserving user hooks
-3. Write merged config back
+2. Merge mcode's hook entries into the `hooks` object. Each event type maps to an array of `{ matcher?, hooks: [{ type: "http", url, headers, allowedEnvVars, timeout }] }` objects. Example for a single event:
+   ```json
+   {
+     "hooks": {
+       "PreToolUse": [
+         { "hooks": [{ "type": "http", "url": "http://localhost:7777/hook", "headers": { "X-Mcode-Session-Id": "$MCODE_SESSION_ID" }, "allowedEnvVars": ["MCODE_SESSION_ID"] }] }
+       ],
+       "PostToolUse": [ ... ],
+       "Stop": [ ... ],
+       "PermissionRequest": [ ... ],
+       "SessionStart": [ ... ],
+       "SessionEnd": [ ... ],
+       "Notification": [ ... ],
+       "PostToolUseFailure": [ ... ]
+     }
+   }
+   ```
+   Identical hooks are auto-deduplicated by Claude Code, so appending is safe.
+3. Write merged config back, preserving all existing user hooks
 4. On quit, remove mcode's hook entries (leave user hooks intact)
 5. Store a backup of the original settings before modification
+6. Must also ensure `"allowedHttpHookUrls"` includes `"http://localhost:*"` so the HTTP hooks are permitted
 
-This is implemented in a dedicated `hook-config.ts` module. If the user already has hooks for the same event types, mcode appends to the array rather than replacing.
+This is implemented in a dedicated `hook-config.ts` module. Claude Code captures hooks at startup (snapshot), so hooks must be written to settings.json **before** any Claude Code sessions are spawned.
 
 **Port selection:**
 - Default: 7777
@@ -258,7 +277,7 @@ interface Task {
    - Wait until that session is `idle`
    - Write the prompt to the PTY stdin
 3. For tasks targeting a new session:
-   - Spawn a new PTY with `claude --prompt "task prompt"`
+   - Spawn a new PTY with `claude "task prompt"` (positional argument)
    - If max concurrent sessions limit reached, keep in queue
 4. Mark as `dispatched` when sent, `completed` when session reaches `idle` or `ended` after dispatch
 5. Scheduled tasks (with `scheduledAt`) are held until the scheduled time
@@ -468,10 +487,11 @@ App
 **Session Store (`session-store.ts`):**
 
 ```typescript
+// Zustand v5: use plain objects instead of Map/Set (not supported by default)
 interface SessionState {
-  sessions: Map<string, SessionInfo>;
+  sessions: Record<string, SessionInfo>;
   selectedSessionId: string | null;
-  attentionSessionIds: Set<string>;     // Sessions needing human input
+  attentionSessionIds: string[];         // Sessions needing human input
 
   // Actions
   addSession(session: SessionInfo): void;
@@ -580,6 +600,7 @@ function TerminalInstance({ sessionId }: { sessionId: string }) {
 - WebGL addon for GPU-accelerated rendering (falls back to canvas)
 - `ResizeObserver` ensures terminal dimensions stay in sync with mosaic tile size
 - PTY data is binary-safe (node-pty emits Buffer, serialized as base64 over IPC, decoded in renderer)
+- Imports use `@xterm/xterm` (not legacy `xterm` package): `import { Terminal } from '@xterm/xterm'`, `import { FitAddon } from '@xterm/addon-fit'`, etc.
 - When a terminal tile is hidden (not in current mosaic view), PTY output still buffers in main process
 
 ### 4.4 Mosaic Layout
@@ -631,10 +652,10 @@ The core UX differentiator: surfacing which sessions need human input.
 **Attention triggers (from hook events):**
 | Hook Event | Condition | Attention Level | Visual Treatment |
 |---|---|---|---|
-| `Stop` | `reason: "permission"` | **High** — tool blocked | Red pulse on session card, tile border glow, dock badge |
+| `PermissionRequest` | Any (permission dialog shown) | **High** — tool blocked | Red pulse on session card, tile border glow, dock badge |
 | `Notification` | Any | **Medium** — agent wants to tell you something | Orange badge on session card |
-| `Stop` | `reason: "end_turn"` | **Low** — task complete | Blue dot on session card |
-| `PostToolUse` | Tool errored | **Medium** — possible failure | Yellow warning icon |
+| `Stop` | Any (Claude finished responding) | **Low** — task complete | Blue dot on session card |
+| `PostToolUseFailure` | Any (tool call failed) | **Medium** — possible failure | Yellow warning icon |
 
 **Visual treatment:**
 - **Session card in sidebar:** Colored left-border + animated attention icon + sort-to-top
@@ -837,7 +858,7 @@ Triggered by `Cmd+N` or the "+" button:
 │  │                              │   │
 │  └─────────────────────────────┘   │
 │                                     │
-│  Permission mode: [plan ▾]          │
+│  Permission mode: [default ▾]        │
 │                                     │
 │        [Cancel]  [Create Session]   │
 └─────────────────────────────────────┘
@@ -882,6 +903,7 @@ npm run package
 // electron.vite.config.ts
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   main: {
@@ -896,7 +918,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
   },
   renderer: {
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
   },
 });
 ```
@@ -906,31 +928,33 @@ export default defineConfig({
 ```json
 {
   "dependencies": {
-    "node-pty": "^1.0.0",
-    "xterm": "^5.3.0",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/addon-webgl": "^0.18.0",
-    "@xterm/addon-web-links": "^0.11.0",
-    "better-sqlite3": "^11.0.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "react-mosaic-component": "^6.1.0",
-    "zustand": "^4.5.0",
-    "electron-log": "^5.2.0"
+    "node-pty": "^1.1.0",
+    "@xterm/xterm": "^6.0.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "better-sqlite3": "^12.6.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-mosaic-component": "^6.1.1",
+    "zustand": "^5.0.0",
+    "electron-log": "^5.4.0"
   },
   "devDependencies": {
-    "electron": "^33.0.0",
-    "electron-vite": "^2.3.0",
-    "electron-builder": "^25.0.0",
-    "@electron/rebuild": "^3.6.0",
-    "typescript": "^5.5.0",
-    "@vitejs/plugin-react": "^4.3.0",
-    "vite": "^5.4.0",
-    "tailwindcss": "^4.0.0",
-    "@tailwindcss/vite": "^4.0.0"
+    "electron": "^41.0.0",
+    "electron-vite": "^5.0.0",
+    "electron-builder": "^26.8.0",
+    "@electron/rebuild": "^4.0.0",
+    "typescript": "^5.9.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "vite": "^8.0.0",
+    "tailwindcss": "^4.2.0",
+    "@tailwindcss/vite": "^4.2.0"
   }
 }
 ```
+
+> **Note:** `react-mosaic-component` 6.1.1 should be tested with React 19 — if incompatible, pin `react`/`react-dom` to `^18.3.0`. Zustand v5 has API changes from v4 (see store code below).
 
 ---
 
@@ -1017,7 +1041,7 @@ Each phase produces a working build with specific, verifiable behaviors. Phases 
 
 **Build:**
 - `electron-vite` project scaffolding with main/preload/renderer
-- Tailwind CSS configured in renderer
+- Tailwind CSS v4 configured in renderer via `@tailwindcss/vite` plugin (CSS-based config, no `tailwind.config.ts`)
 - `node-pty` and `better-sqlite3` added as dependencies, `electron-rebuild` configured
 - TypeScript strict mode across all three process targets
 - `npm run dev` launches Electron with HMR for the renderer
@@ -1029,7 +1053,7 @@ Each phase produces a working build with specific, verifiable behaviors. Phases 
 3. No console errors in Electron DevTools
 4. Changing a React component hot-reloads without restarting the app
 
-**Files created:** `package.json`, `electron.vite.config.ts`, `tsconfig*.json`, `tailwind.config.ts`, `src/main/index.ts`, `src/preload/index.ts`, `src/renderer/index.html`, `src/renderer/main.tsx`, `src/renderer/App.tsx`, `src/shared/types.ts`, `src/shared/constants.ts`
+**Files created:** `package.json`, `electron.vite.config.ts`, `tsconfig*.json`, `src/main/index.ts`, `src/preload/index.ts`, `src/renderer/index.html`, `src/renderer/main.tsx`, `src/renderer/App.tsx`, `src/renderer/styles/global.css` (Tailwind v4 uses CSS-based config via `@theme` directives, no `tailwind.config.ts`), `src/shared/types.ts`, `src/shared/constants.ts`
 
 ---
 
@@ -1116,9 +1140,9 @@ Each phase produces a working build with specific, verifiable behaviors. Phases 
 **Build:**
 - Hook HTTP server on localhost:7777 (with port fallback)
 - `hook-config.ts`: on startup, merge mcode hooks into `~/.claude/settings.json`; on quit, remove them
-- Session ID correlation: PTY sets `MCODE_SESSION_ID` env var, hook events carry Claude's `session_id` — first `SessionStart` event creates the mapping
+- Session ID correlation: PTY sets `MCODE_SESSION_ID` env var, HTTP hooks forward it as `X-Mcode-Session-Id` header (via `allowedEnvVars`), hook events carry Claude's `session_id` in body — first `SessionStart` event creates the mapping
 - Event persistence to `events` table
-- Session status driven by hooks: `active` (working), `idle` (end_turn), `waiting` (permission prompt), `ended`
+- Session status driven by hooks: `active` (SessionStart/PostToolUse), `idle` (Stop), `waiting` (PermissionRequest), `ended` (SessionEnd/PTY exit)
 - Sidebar cards update in real-time: status dot color, "last tool" indicator
 - `StatusBadge` component reused in sidebar cards and tile toolbars
 
@@ -1126,8 +1150,8 @@ Each phase produces a working build with specific, verifiable behaviors. Phases 
 1. Start a Claude Code session → within seconds, sidebar shows "active" (green)
 2. Ask Claude to read a file → sidebar briefly shows "Read" as last tool
 3. Claude finishes responding → status flips to "idle" (gray)
-4. Ask Claude to run a bash command in a mode that requires approval → status shows "waiting" (amber)
-5. Approve the tool → status returns to "active"
+4. Ask Claude to run a bash command in default permission mode → `PermissionRequest` hook fires → status shows "waiting" (amber)
+5. Approve the tool → `PostToolUse` hook fires → status returns to "active"
 6. End the session → status shows "ended"
 7. `curl http://localhost:7777/hook` with garbage → returns 400, app doesn't crash
 8. Quit mcode → check `~/.claude/settings.json` has no mcode hook entries left
@@ -1151,7 +1175,7 @@ Each phase produces a working build with specific, verifiable behaviors. Phases 
 - "Mark all read" button in sidebar
 
 **Verify:**
-1. Have Claude request a dangerous tool (Bash with rm, etc.) in permission mode → session card turns red, sorts to top
+1. Have Claude request a dangerous tool (Bash with rm, etc.) in default permission mode → `PermissionRequest` fires → session card turns red, sorts to top
 2. Dock icon shows badge "1"
 3. If mcode is in background → macOS notification appears: "Session 'myproject' needs approval"
 4. Click the session card → tile focused, red indicator clears, dock badge disappears
