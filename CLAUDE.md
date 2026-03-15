@@ -12,7 +12,12 @@ and be able to get into the flow.
 
 ## Status
 
-Not released yet.
+Not released yet. Skip backward compatibility when we can and aim for clean code.
+
+## Principles
+
+- For every new feature, it shall be exposed to coding agent like Claude Code such that it can be verified automatically. Use composition of existing capabilities when 
+possible, otherwise build new capabilities which can be combined with existing capabilities to automate the feature verification.
 
 ## Tech Stack
 
