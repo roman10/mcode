@@ -23,15 +23,17 @@ export function registerSessionTools(
       label: z.string().optional().describe('Optional label for the session'),
       initialPrompt: z.string().optional().describe('Optional initial prompt for Claude'),
       permissionMode: z.string().optional().describe('Permission mode: plan, autoEdit, fullAuto'),
+      command: z.string().optional().describe('Command to spawn (default: "claude")'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, command }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
         label,
         initialPrompt,
         permissionMode,
+        command,
       });
       // Notify renderer to add session to store (best-effort)
       try {
@@ -112,6 +114,73 @@ export function registerSessionTools(
     }
     return {
       content: [{ type: 'text', text: JSON.stringify(info) }],
+    };
+  });
+
+  server.registerTool('session_wait_for_status', {
+    description: 'Wait until a session reaches the specified status. Polls every 250ms.',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID'),
+      status: z.enum(['starting', 'active', 'ended']).describe('Target status to wait for'),
+      timeout_ms: z.number().int().positive().optional().describe('Timeout in milliseconds (default: 15000)'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ sessionId, status, timeout_ms }) => {
+    const timeout = timeout_ms ?? 15000;
+    const pollInterval = 250;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      const session = ctx.sessionManager.get(sessionId);
+      if (!session) {
+        return {
+          content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+          isError: true,
+        };
+      }
+      if (session.status === status) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify(session, null, 2) }],
+        };
+      }
+      await new Promise((r) => setTimeout(r, pollInterval));
+    }
+
+    // Final check
+    const session = ctx.sessionManager.get(sessionId);
+    if (session?.status === status) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify(session, null, 2) }],
+      };
+    }
+    return {
+      content: [{
+        type: 'text',
+        text: `Timeout after ${timeout}ms waiting for status "${status}". Current status: ${session?.status ?? 'not found'}`,
+      }],
+      isError: true,
+    };
+  });
+
+  server.registerTool('session_set_label', {
+    description: 'Set the label for a session',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID'),
+      label: z.string().describe('The new label'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, label }) => {
+    const session = ctx.sessionManager.get(sessionId);
+    if (!session) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+    ctx.sessionManager.setLabel(sessionId, label);
+    const updated = ctx.sessionManager.get(sessionId);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
     };
   });
 }

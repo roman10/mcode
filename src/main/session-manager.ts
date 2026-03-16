@@ -51,7 +51,9 @@ export class SessionManager {
     const label = input.label || basename(cwd);
     const startedAt = new Date().toISOString();
 
-    // Build args for claude CLI
+    const command = input.command ?? 'claude';
+
+    // Build args for CLI
     const args: string[] = [];
     if (input.permissionMode) {
       args.push('--permission-mode', input.permissionMode);
@@ -71,7 +73,7 @@ export class SessionManager {
     try {
       this.ptyManager.spawn({
         id: sessionId,
-        command: 'claude',
+        command,
         cwd,
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,

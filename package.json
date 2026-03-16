@@ -9,7 +9,8 @@
     "build": "electron-vite build",
     "build:mac": "npm run build && electron-builder --mac",
     "package": "npm run build && electron-builder",
-    "postinstall": "electron-rebuild"
+    "postinstall": "electron-rebuild",
+    "test:mcp": "vitest run --config vitest.config.mts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -40,6 +41,7 @@
     "tailwindcss": "^4.2.0",
     "typescript": "^5.9.0",
     "vite": "^7.3.0",
+    "vitest": "^4.1.0",
     "zod": "^4.3.6"
   }
 }

@@ -19,6 +19,7 @@ export interface SessionCreateInput {
   label?: string;
   initialPrompt?: string;
   permissionMode?: string;
+  command?: string;
 }
 
 export interface LayoutStateSnapshot {
