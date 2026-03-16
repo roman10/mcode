@@ -6,86 +6,83 @@ export function registerWindowTools(
   server: McpServer,
   ctx: McpServerContext,
 ): void {
-  server.tool(
-    'window_screenshot',
-    'Take a screenshot of the app window, returns a base64 PNG image',
-    {
+  server.registerTool('window_screenshot', {
+    description: 'Take a screenshot of the app window, returns a base64 PNG image',
+    inputSchema: {
       format: z
         .enum(['png', 'jpeg'])
         .optional()
         .describe('Image format (default: png)'),
     },
-    async ({ format }) => {
-      const win = ctx.mainWindow;
-      if (win.isDestroyed()) {
-        return {
-          content: [{ type: 'text', text: 'Window is destroyed' }],
-          isError: true,
-        };
-      }
-
-      const image = await win.webContents.capturePage();
-      const fmt = format ?? 'png';
-      const data =
-        fmt === 'jpeg' ? image.toJPEG(85) : image.toPNG();
-
+    annotations: { readOnlyHint: true },
+  }, async ({ format }) => {
+    const win = ctx.mainWindow;
+    if (win.isDestroyed()) {
       return {
-        content: [
-          {
-            type: 'image',
-            data: data.toString('base64'),
-            mimeType: fmt === 'jpeg' ? 'image/jpeg' : 'image/png',
-          },
-        ],
+        content: [{ type: 'text', text: 'Window is destroyed' }],
+        isError: true,
       };
-    },
-  );
+    }
 
-  server.tool(
-    'window_resize',
-    'Resize the app window to the specified dimensions',
-    {
+    const image = await win.webContents.capturePage();
+    const fmt = format ?? 'png';
+    const data =
+      fmt === 'jpeg' ? image.toJPEG(85) : image.toPNG();
+
+    return {
+      content: [
+        {
+          type: 'image',
+          data: data.toString('base64'),
+          mimeType: fmt === 'jpeg' ? 'image/jpeg' : 'image/png',
+        },
+      ],
+    };
+  });
+
+  server.registerTool('window_resize', {
+    description: 'Resize the app window to the specified dimensions',
+    inputSchema: {
       width: z.number().int().min(400).describe('Window width in pixels'),
       height: z.number().int().min(300).describe('Window height in pixels'),
     },
-    async ({ width, height }) => {
-      const win = ctx.mainWindow;
-      if (win.isDestroyed()) {
-        return {
-          content: [{ type: 'text', text: 'Window is destroyed' }],
-          isError: true,
-        };
-      }
-
-      win.setSize(width, height);
-      const [w, h] = win.getSize();
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  }, async ({ width, height }) => {
+    const win = ctx.mainWindow;
+    if (win.isDestroyed()) {
       return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ width: w, height: h }),
-          },
-        ],
+        content: [{ type: 'text', text: 'Window is destroyed' }],
+        isError: true,
       };
-    },
-  );
+    }
 
-  server.tool(
-    'window_get_bounds',
-    'Get the current window position and size',
-    async () => {
-      const win = ctx.mainWindow;
-      if (win.isDestroyed()) {
-        return {
-          content: [{ type: 'text', text: 'Window is destroyed' }],
-          isError: true,
-        };
-      }
+    win.setSize(width, height);
+    const [w, h] = win.getSize();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ width: w, height: h }),
+        },
+      ],
+    };
+  });
 
-      const bounds = win.getBounds();
+  server.registerTool('window_get_bounds', {
+    description: 'Get the current window position and size',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    const win = ctx.mainWindow;
+    if (win.isDestroyed()) {
       return {
-        content: [{ type: 'text', text: JSON.stringify(bounds) }],
+        content: [{ type: 'text', text: 'Window is destroyed' }],
+        isError: true,
       };
-    },
-  );
+    }
+
+    const bounds = win.getBounds();
+    return {
+      content: [{ type: 'text', text: JSON.stringify(bounds) }],
+    };
+  });
 }

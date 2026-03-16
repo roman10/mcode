@@ -6,32 +6,30 @@ export function registerSessionTools(
   server: McpServer,
   ctx: McpServerContext,
 ): void {
-  server.tool(
-    'session_list',
-    'List all active PTY session IDs',
-    async () => {
-      const ids = ctx.ptyManager.list();
-      return {
-        content: [{ type: 'text', text: JSON.stringify(ids) }],
-      };
-    },
-  );
+  server.registerTool('session_list', {
+    description: 'List all active PTY session IDs',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    const ids = ctx.ptyManager.list();
+    return {
+      content: [{ type: 'text', text: JSON.stringify(ids) }],
+    };
+  });
 
-  server.tool(
-    'session_info',
-    'Get metadata for a PTY session (id, pid, cols, rows)',
-    { sessionId: z.string().describe('The PTY session ID') },
-    async ({ sessionId }) => {
-      const info = ctx.ptyManager.getInfo(sessionId);
-      if (!info) {
-        return {
-          content: [{ type: 'text', text: `Session ${sessionId} not found` }],
-          isError: true,
-        };
-      }
+  server.registerTool('session_info', {
+    description: 'Get metadata for a PTY session (id, pid, cols, rows)',
+    inputSchema: { sessionId: z.string().describe('The PTY session ID') },
+    annotations: { readOnlyHint: true },
+  }, async ({ sessionId }) => {
+    const info = ctx.ptyManager.getInfo(sessionId);
+    if (!info) {
       return {
-        content: [{ type: 'text', text: JSON.stringify(info) }],
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
       };
-    },
-  );
+    }
+    return {
+      content: [{ type: 'text', text: JSON.stringify(info) }],
+    };
+  });
 }
