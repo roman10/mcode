@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { SessionCreateInput } from '../../../shared/types';
+import { PERMISSION_MODES, type PermissionMode } from '../../../shared/constants';
 
 interface NewSessionDialogProps {
   onClose(): void;
@@ -13,7 +14,7 @@ function NewSessionDialog({
   const [cwd, setCwd] = useState('');
   const [label, setLabel] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
-  const [permissionMode, setPermissionMode] = useState('');
+  const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [isCreating, setIsCreating] = useState(false);
 
   const handleBrowse = async (): Promise<void> => {
@@ -110,9 +111,11 @@ function NewSessionDialog({
               onChange={(e) => setPermissionMode(e.target.value)}
             >
               <option value="">default</option>
-              <option value="plan">plan</option>
-              <option value="autoEdit">autoEdit</option>
-              <option value="fullAuto">fullAuto</option>
+              {PERMISSION_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {mode}
+                </option>
+              ))}
             </select>
           </div>
         </div>

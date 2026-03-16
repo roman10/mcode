@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
+import { PERMISSION_MODES } from '../../shared/constants';
 
 export function registerSessionTools(
   server: McpServer,
@@ -22,7 +23,7 @@ export function registerSessionTools(
       cwd: z.string().describe('Working directory for the session'),
       label: z.string().optional().describe('Optional label for the session'),
       initialPrompt: z.string().optional().describe('Optional initial prompt for Claude'),
-      permissionMode: z.string().optional().describe('Permission mode: plan, autoEdit, fullAuto'),
+      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the Claude session'),
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
     },
     annotations: { readOnlyHint: false },

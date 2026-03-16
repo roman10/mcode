@@ -4,7 +4,7 @@ import type { WebContents } from 'electron';
 import type { PtyManager } from './pty-manager';
 import { getDb } from './db';
 import { logger } from './logger';
-import { DEFAULT_COLS, DEFAULT_ROWS } from '../shared/constants';
+import { DEFAULT_COLS, DEFAULT_ROWS, type PermissionMode } from '../shared/constants';
 import type {
   SessionInfo,
   SessionStatus,
@@ -27,7 +27,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     label: row.label,
     cwd: row.cwd,
     status: row.status as SessionStatus,
-    permissionMode: row.permission_mode ?? undefined,
+    permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
     startedAt: row.started_at,
     endedAt: row.ended_at,
   };

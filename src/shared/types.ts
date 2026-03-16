@@ -1,4 +1,5 @@
 import type { MosaicNode } from 'react-mosaic-component';
+import type { PermissionMode } from './constants';
 
 // --- Session ---
 
@@ -9,7 +10,7 @@ export interface SessionInfo {
   label: string;
   cwd: string;
   status: SessionStatus;
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
   startedAt: string; // ISO 8601
   endedAt: string | null;
 }
@@ -18,7 +19,7 @@ export interface SessionCreateInput {
   cwd: string;
   label?: string;
   initialPrompt?: string;
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
   command?: string;
 }
 

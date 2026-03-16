@@ -8,3 +8,13 @@ export const DEFAULT_SIDEBAR_WIDTH = 280;
 export const MIN_SIDEBAR_WIDTH = 200;
 export const MAX_SIDEBAR_WIDTH = 500;
 export const LAYOUT_PERSIST_DEBOUNCE_MS = 500;
+
+// Valid Claude Code --permission-mode values (excluding 'default' which means "no flag")
+export const PERMISSION_MODES = [
+  'plan',
+  'acceptEdits',
+  'auto',
+  'dontAsk',
+  'bypassPermissions',
+] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];

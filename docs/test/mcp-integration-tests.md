@@ -41,7 +41,8 @@ tests/
 │   ├── window-tools       # Screenshot, bounds, resize
 │   ├── app-introspection  # Version, console logs, HMR
 │   ├── error-cases        # Error responses for invalid inputs
-│   └── concurrent-sessions # Multi-session stress test
+│   ├── concurrent-sessions # Multi-session stress test
+│   └── permission-modes   # CLI permission mode validation
 └── vitest.config.mts      # Sequential execution, 30s timeout
 ```
 
@@ -231,6 +232,17 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 7 | kills all sessions and all transition to ended | `session_kill`, `session_wait_for_status`, `session_get_status` | All 4 reach `ended` with endedAt set |
 | 8 | tile count returns to baseline after kills | `layout_get_tile_count` | Tile count is non-negative |
 
+### 12. Permission Modes
+
+**File**: `tests/suites/permission-modes.test.ts`
+**What it verifies**: Our `PERMISSION_MODES` constant stays in sync with the Claude CLI's accepted `--permission-mode` values.
+
+**Note**: This suite does not use MCP tools — it runs `claude --permission-mode __invalid__` and parses the CLI error to extract valid modes.
+
+| # | Test | What it checks |
+|---|------|----------------|
+| 1 | PERMISSION_MODES matches Claude CLI allowed choices | Parses "Allowed choices are ..." from CLI error; verifies our constant has no missing or extra modes |
+
 ---
 
 ## Coverage Summary
@@ -243,7 +255,8 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | Terminal I/O | 6, 7, 10 | 12 | Send/read, buffer limits, dimensions, resize, Ctrl+C, timeout, sequential commands, error on missing |
 | Window | 8 | 3 | Screenshot, bounds, resize |
 | App introspection | 9 | 5 | Version, console logs (filter + limit), HMR events |
-| **Total** | **11** | **60** | |
+| Permission modes | 12 | 1 | PERMISSION_MODES constant matches Claude CLI |
+| **Total** | **12** | **61** | |
 
 ## Writing New Tests
 
