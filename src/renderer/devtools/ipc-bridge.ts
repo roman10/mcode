@@ -23,7 +23,12 @@ function readTerminalBuffer(sessionId: string, lines?: number): string {
   return result.join('\n');
 }
 
+let initialized = false;
+
 export function initDevtoolsBridge(): void {
+  if (initialized) return;
+  initialized = true;
+
   window.mcode.devtools.onQuery(async (requestId, type, params) => {
     let result: unknown = null;
 
@@ -44,6 +49,40 @@ export function initDevtoolsBridge(): void {
       case 'hmr-events': {
         const { getHmrEvents } = await import('./hmr-capture');
         result = getHmrEvents((params as { limit?: number }).limit);
+        break;
+      }
+      case 'layout-tree': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        result = useLayoutStore.getState().mosaicTree;
+        break;
+      }
+      case 'layout-add-tile': {
+        const { sessionId } = params as { sessionId: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().addTile(sessionId);
+        useLayoutStore.getState().persist();
+        result = true;
+        break;
+      }
+      case 'layout-remove-tile': {
+        const { sessionId } = params as { sessionId: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().removeTile(sessionId);
+        useLayoutStore.getState().persist();
+        result = true;
+        break;
+      }
+      case 'layout-tile-count': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        const { getLeaves } = await import('react-mosaic-component');
+        const tree = useLayoutStore.getState().mosaicTree;
+        result = tree ? getLeaves(tree).length : 0;
+        break;
+      }
+      case 'sidebar-sessions': {
+        const { useSessionStore } = await import('../stores/session-store');
+        const sessions = useSessionStore.getState().sessions;
+        result = Object.values(sessions);
         break;
       }
     }

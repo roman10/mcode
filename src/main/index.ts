@@ -1,16 +1,18 @@
-import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { app, BrowserWindow, ipcMain, session, dialog } from 'electron';
 import { join } from 'node:path';
 import { is, optimizer } from '@electron-toolkit/utils';
 import { PtyManager } from './pty-manager';
-import type { PtySpawnOptions } from '../shared/types';
+import { SessionManager } from './session-manager';
+import { getDb, closeDb } from './db';
+import { logger } from './logger';
+import type { SessionCreateInput } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
+let sessionManager: SessionManager;
 
 function setupCSP(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    // Dev mode: Vite's React plugin injects an inline preamble script,
-    // so script-src needs 'unsafe-inline'. Production keeps it strict.
     const scriptSrc = app.isPackaged
       ? "script-src 'self'"
       : "script-src 'self' 'unsafe-inline'";
@@ -57,11 +59,14 @@ function createMainWindow(): BrowserWindow {
   return win;
 }
 
-function registerPtyIpc(): void {
-  ipcMain.handle('pty:spawn', (_event, options: PtySpawnOptions) => {
-    return ptyManager.spawn(options);
-  });
+function getWebContents(): import('electron').WebContents | null {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow.webContents;
+  }
+  return null;
+}
 
+function registerPtyIpc(): void {
   ipcMain.on('pty:write', (_event, id: string, data: string) => {
     ptyManager.write(id, data);
   });
@@ -73,6 +78,60 @@ function registerPtyIpc(): void {
   ipcMain.handle('pty:kill', (_event, id: string) => {
     return ptyManager.kill(id);
   });
+
+  ipcMain.handle('pty:replay', (_event, sessionId: string) => {
+    return ptyManager.getReplayData(sessionId);
+  });
+}
+
+function registerSessionIpc(): void {
+  ipcMain.handle('session:create', (_event, input: SessionCreateInput) => {
+    return sessionManager.create(input);
+  });
+
+  ipcMain.handle('session:list', () => {
+    return sessionManager.list();
+  });
+
+  ipcMain.handle('session:get', (_event, sessionId: string) => {
+    return sessionManager.get(sessionId);
+  });
+
+  ipcMain.handle('session:kill', (_event, sessionId: string) => {
+    return sessionManager.kill(sessionId);
+  });
+
+  ipcMain.handle(
+    'session:set-label',
+    (_event, sessionId: string, label: string) => {
+      sessionManager.setLabel(sessionId, label);
+    },
+  );
+}
+
+function registerLayoutIpc(): void {
+  ipcMain.handle('layout:save', (_event, mosaicTree: unknown, sidebarWidth?: number) => {
+    sessionManager.saveLayout(mosaicTree, sidebarWidth);
+  });
+
+  ipcMain.handle('layout:load', () => {
+    return sessionManager.loadLayout() ?? null;
+  });
+}
+
+function registerAppIpc(): void {
+  ipcMain.handle('app:get-version', () => {
+    return app.getVersion();
+  });
+
+  ipcMain.handle('app:select-directory', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
 }
 
 app.whenReady().then(() => {
@@ -82,20 +141,22 @@ app.whenReady().then(() => {
 
   setupCSP();
 
+  // Initialize database
+  getDb();
+
   mainWindow = createMainWindow();
 
-  ptyManager = new PtyManager(() => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      return mainWindow.webContents;
-    }
-    return null;
-  });
+  ptyManager = new PtyManager(getWebContents);
+  sessionManager = new SessionManager(ptyManager, getWebContents);
 
   registerPtyIpc();
+  registerSessionIpc();
+  registerLayoutIpc();
+  registerAppIpc();
 
   if (is.dev) {
     import('../devtools/mcp-server').then(({ startMcpServer }) => {
-      startMcpServer({ mainWindow: mainWindow!, ptyManager });
+      startMcpServer({ mainWindow: mainWindow!, ptyManager, sessionManager });
     });
   }
 
@@ -106,18 +167,28 @@ app.whenReady().then(() => {
   });
 });
 
-// Await PTY cleanup before quitting
+// Graceful shutdown: persist layout, end sessions, kill PTYs, close DB
 let isQuitting = false;
 app.on('before-quit', (e) => {
-  if (!isQuitting && ptyManager?.list().length > 0) {
+  if (!isQuitting) {
     isQuitting = true;
     e.preventDefault();
-    ptyManager.killAll().finally(() => app.quit());
+
+    logger.info('app', 'Shutting down...');
+
+    // Mark all active sessions as ended
+    sessionManager.endAllActive();
+
+    // Kill all PTYs then quit
+    ptyManager
+      .killAll()
+      .finally(() => {
+        closeDb();
+        app.quit();
+      });
   }
 });
 
-// Part 1: quit on last window close on all platforms.
-// No session persistence yet, so staying resident on macOS would orphan PTYs.
 app.on('window-all-closed', () => {
   app.quit();
 });

@@ -1,11 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { PtySpawnOptions, PtyExitPayload } from '../shared/types';
+import type {
+  LayoutStateSnapshot,
+  PtyExitPayload,
+  SessionInfo,
+  SessionStatus,
+  SessionCreateInput,
+} from '../shared/types';
 
 contextBridge.exposeInMainWorld('mcode', {
   pty: {
-    spawn: (opts: PtySpawnOptions): Promise<string> =>
-      ipcRenderer.invoke('pty:spawn', opts),
-
     write: (id: string, data: string): void => {
       ipcRenderer.send('pty:write', id, data);
     },
@@ -36,6 +39,75 @@ contextBridge.exposeInMainWorld('mcode', {
       ): void => cb(id, payload);
       ipcRenderer.on('pty:exit', handler);
       return () => ipcRenderer.removeListener('pty:exit', handler);
+    },
+
+    getReplayData: (sessionId: string): Promise<string> =>
+      ipcRenderer.invoke('pty:replay', sessionId),
+  },
+
+  sessions: {
+    create: (input: SessionCreateInput): Promise<SessionInfo> =>
+      ipcRenderer.invoke('session:create', input),
+
+    list: (): Promise<SessionInfo[]> => ipcRenderer.invoke('session:list'),
+
+    get: (sessionId: string): Promise<SessionInfo | null> =>
+      ipcRenderer.invoke('session:get', sessionId),
+
+    kill: (sessionId: string): Promise<void> =>
+      ipcRenderer.invoke('session:kill', sessionId),
+
+    setLabel: (sessionId: string, label: string): Promise<void> =>
+      ipcRenderer.invoke('session:set-label', sessionId, label),
+
+    onStatusChange: (
+      cb: (sessionId: string, status: SessionStatus) => void,
+    ): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        sessionId: string,
+        status: SessionStatus,
+      ): void => cb(sessionId, status);
+      ipcRenderer.on('session:status-change', handler);
+      return () =>
+        ipcRenderer.removeListener('session:status-change', handler);
+    },
+
+    onCreated: (
+      cb: (session: SessionInfo) => void,
+    ): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        session: SessionInfo,
+      ): void => cb(session);
+      ipcRenderer.on('session:created', handler);
+      return () => ipcRenderer.removeListener('session:created', handler);
+    },
+  },
+
+  layout: {
+    save: (mosaicTree: unknown, sidebarWidth?: number): Promise<void> =>
+      ipcRenderer.invoke('layout:save', mosaicTree, sidebarWidth),
+
+    load: (): Promise<LayoutStateSnapshot | null> =>
+      ipcRenderer.invoke('layout:load'),
+  },
+
+  app: {
+    getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version'),
+
+    getPlatform: (): string => process.platform,
+
+    selectDirectory: (): Promise<string | null> =>
+      ipcRenderer.invoke('app:select-directory'),
+
+    onError: (cb: (error: string) => void): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        error: string,
+      ): void => cb(error);
+      ipcRenderer.on('app:error', handler);
+      return () => ipcRenderer.removeListener('app:error', handler);
     },
   },
 

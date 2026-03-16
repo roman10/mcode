@@ -45,6 +45,16 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
 
     fitAddon.fit();
 
+    // Replay buffered output before attaching live listener
+    window.mcode.pty
+      .getReplayData(sessionId)
+      .then((data) => {
+        if (data) term.write(data);
+      })
+      .catch(() => {
+        // Session may not exist yet or PTY already exited
+      });
+
     // PTY data → terminal
     const unsubData = window.mcode.pty.onData((id, data) => {
       if (id === sessionId) term.write(data);

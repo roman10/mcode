@@ -12,3 +12,35 @@
   --color-text-muted: #484f58;
   --color-accent: #58a6ff;
 }
+
+/* react-mosaic-component dark theme overrides */
+.mosaic-theme-dark.mosaic {
+  background: #0d1117;
+}
+
+.mosaic-theme-dark .mosaic-tile {
+  margin: 1px;
+}
+
+.mosaic-theme-dark .mosaic-window .mosaic-window-toolbar {
+  display: none;
+}
+
+.mosaic-theme-dark .mosaic-window .mosaic-window-body {
+  flex: 1;
+  background: #0d1117;
+}
+
+.mosaic-theme-dark .mosaic-split.-row,
+.mosaic-theme-dark .mosaic-split.-column {
+  background: #30363d;
+}
+
+.mosaic-theme-dark .mosaic-split:hover {
+  background: #58a6ff;
+}
+
+/* Mosaic zero-height fix */
+.mosaic.mosaic-theme-dark {
+  height: 100%;
+}

@@ -1,27 +1,16 @@
 import * as pty from 'node-pty';
-import { randomUUID } from 'node:crypto';
-import os from 'node:os';
 import type { WebContents } from 'electron';
 import type { PtySpawnOptions } from '../shared/types';
-import { PTY_KILL_TIMEOUT_MS } from '../shared/constants';
+import { PTY_KILL_TIMEOUT_MS, RING_BUFFER_MAX_BYTES } from '../shared/constants';
+import { logger } from './logger';
 
 interface PtyHandle {
   id: string;
   process: pty.IPty;
   cols: number;
   rows: number;
-  /** Resolves when the process exits. Set once in spawn(). */
+  ringBuffer: string;
   exitPromise: Promise<void>;
-}
-
-function resolveShell(): string {
-  if (process.platform === 'win32') {
-    return process.env.COMSPEC || 'cmd.exe';
-  }
-  return (
-    process.env.SHELL ||
-    (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash')
-  );
 }
 
 export class PtyManager {
@@ -33,26 +22,39 @@ export class PtyManager {
   }
 
   spawn(options: PtySpawnOptions): string {
-    const id = randomUUID();
-    const cwd = options.cwd || os.homedir();
-    const shell = resolveShell();
+    const { id, command, cwd, cols, rows, args, env, onFirstData, onExit: onExitCb } = options;
 
-    const proc = pty.spawn(shell, options.args || [], {
+    const proc = pty.spawn(command, args || [], {
       name: 'xterm-256color',
-      cols: options.cols,
-      rows: options.rows,
+      cols,
+      rows,
       cwd,
-      env: { ...process.env, ...options.env } as Record<string, string>,
+      env: { ...process.env, ...env } as Record<string, string>,
     });
 
-    // Single onExit listener — handles renderer notification, map cleanup,
-    // and provides a promise for kill() to await.
     let resolveExit: () => void;
     const exitPromise = new Promise<void>((r) => {
       resolveExit = r;
     });
 
+    let firstDataFired = false;
+
     proc.onData((data) => {
+      // Fire onFirstData callback once
+      if (!firstDataFired && onFirstData) {
+        firstDataFired = true;
+        onFirstData();
+      }
+
+      // Append to ring buffer
+      const handle = this.ptys.get(id);
+      if (handle) {
+        handle.ringBuffer += data;
+        if (handle.ringBuffer.length > RING_BUFFER_MAX_BYTES) {
+          handle.ringBuffer = handle.ringBuffer.slice(-RING_BUFFER_MAX_BYTES);
+        }
+      }
+
       const wc = this.getWebContents();
       if (wc && !wc.isDestroyed()) {
         wc.send('pty:data', id, data);
@@ -60,23 +62,27 @@ export class PtyManager {
     });
 
     proc.onExit(({ exitCode, signal }) => {
+      logger.info('pty', 'Process exited', { id, exitCode, signal });
       const wc = this.getWebContents();
       if (wc && !wc.isDestroyed()) {
         wc.send('pty:exit', id, { code: exitCode, signal });
       }
       this.ptys.delete(id);
+      if (onExitCb) onExitCb(exitCode, signal);
       resolveExit();
     });
 
     const handle: PtyHandle = {
       id,
       process: proc,
-      cols: options.cols,
-      rows: options.rows,
+      cols,
+      rows,
+      ringBuffer: '',
       exitPromise,
     };
 
     this.ptys.set(id, handle);
+    logger.info('pty', 'Spawned process', { id, command, cwd, pid: proc.pid });
     return id;
   }
 
@@ -101,14 +107,11 @@ export class PtyManager {
     if (!handle) return Promise.resolve();
 
     const proc = handle.process;
-
-    // Send SIGTERM
     proc.kill();
 
-    // Race: either the process exits gracefully, or we SIGKILL after timeout
     const forceKill = new Promise<void>((resolve) => {
       setTimeout(() => {
-        if (this.ptys.has(id)) {
+        if (this.ptys.has(id) && proc.pid > 0) {
           try {
             process.kill(proc.pid, 'SIGKILL');
           } catch {
@@ -138,6 +141,11 @@ export class PtyManager {
       cols: handle.cols,
       rows: handle.rows,
     };
+  }
+
+  getReplayData(id: string): string {
+    const handle = this.ptys.get(id);
+    return handle?.ringBuffer ?? '';
   }
 
   list(): string[] {

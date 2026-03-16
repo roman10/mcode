@@ -410,6 +410,8 @@ Renderer: sessionStore.addSession(session)
 - Close tile (X button) → PTY keeps running, session stays in sidebar
 - Kill session (explicit action) → PTY killed, session → `ended`
 - Layout state persisted to SQLite, restored on app restart with ended-session tiles pruned
+- Update `before-quit` handler: persist layout, mark active sessions as `ended` in SQLite, then kill all PTYs
+- Add `better-sqlite3` to `rollupOptions.external` in `electron.vite.config.ts` (native module, same as `node-pty`)
 
 **Verify:**
 1. Launch app → sidebar on left, mosaic on right
@@ -421,7 +423,7 @@ Renderer: sessionStore.addSession(session)
 7. Quit and relaunch → layout restored from SQLite with ended-session tiles pruned; ended sessions shown in sidebar
 
 **Files created:** `src/main/session-manager.ts`, `src/main/db.ts`, `src/main/logger.ts`, `db/migrations/001_initial.sql`, `src/renderer/components/Sidebar/Sidebar.tsx`, `src/renderer/components/Sidebar/SessionCard.tsx`, `src/renderer/components/Sidebar/SessionList.tsx`, `src/renderer/stores/session-store.ts`, `src/renderer/stores/layout-store.ts`
-**Files modified:** `src/renderer/App.tsx`, `src/main/index.ts`, `src/main/pty-manager.ts`, `src/preload/index.ts`, `src/shared/types.ts`
+**Files modified:** `src/renderer/App.tsx`, `src/main/index.ts`, `src/main/pty-manager.ts`, `src/preload/index.ts`, `src/shared/types.ts`, `electron.vite.config.ts`
 
 ---
 

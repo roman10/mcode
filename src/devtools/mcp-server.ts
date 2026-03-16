@@ -7,6 +7,7 @@ import { registerSessionTools } from './tools/session-tools';
 import { registerWindowTools } from './tools/window-tools';
 import { registerTerminalTools } from './tools/terminal-tools';
 import { registerAppTools } from './tools/app-tools';
+import { registerLayoutTools } from './tools/layout-tools';
 import type { McpServerContext } from './types';
 
 const DEFAULT_PORT = 7532;
@@ -21,6 +22,7 @@ function createServer(ctx: McpServerContext): McpServer {
   registerWindowTools(server, ctx);
   registerTerminalTools(server, ctx);
   registerAppTools(server, ctx);
+  registerLayoutTools(server, ctx);
 
   return server;
 }
