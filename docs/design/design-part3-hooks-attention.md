@@ -219,8 +219,9 @@ type SessionAttentionLevel = 'none' | 'low' | 'medium' | 'high';
 | PTY spawn | `starting` | `none` |
 | first PTY data in fallback mode only | `starting -> active` | unchanged |
 | `SessionStart` | `starting -> active` | unchanged |
-| `PostToolUse` | `waiting -> active` or stay `active` | clear `high`; keep lower levels only if explicitly re-raised later |
-| `Stop` | `active -> idle` or `waiting -> idle` if permission is no longer pending | set `low` unless a higher level already exists |
+| `PreToolUse` | stay `active` | unchanged; update `last_tool` to the requested tool |
+| `PostToolUse` | `waiting -> active` or stay `active` | unchanged (attention clears on explicit user focus, not on tool completion) |
+| `Stop` | `* -> idle` (any non-ended state) | set `low` only if session was `active`; skip if already `idle` or `waiting` |
 | `PermissionRequest` | `* -> waiting` | set `high` |
 | `Notification` | no status change | set `medium` unless current attention is `high` |
 | `PostToolUseFailure` | no status change | set `medium` unless current attention is `high` |
@@ -277,6 +278,7 @@ ALTER TABLE sessions ADD COLUMN last_tool TEXT;
 ALTER TABLE sessions ADD COLUMN last_event_at TEXT;
 ALTER TABLE sessions ADD COLUMN attention_level TEXT NOT NULL DEFAULT 'none';
 ALTER TABLE sessions ADD COLUMN attention_reason TEXT;
+ALTER TABLE sessions ADD COLUMN hook_mode TEXT NOT NULL DEFAULT 'live';
 
 -- Hook event log (append-only)
 CREATE TABLE events (
@@ -499,13 +501,14 @@ Per repo policy, this feature must be exposed to coding agents for automated ver
 
 1. `app_get_hook_runtime` returns `ready` or `degraded` after startup, never remains `initializing`
 2. Create a test session and inject `SessionStart` via `hook_inject_event` -> session becomes `active`
-3. Inject `PostToolUse` with `tool_name = Read` -> `session_get_status` shows `lastTool = Read`
-4. Inject `Stop` -> `session_wait_for_status` reaches `idle`
-5. Inject `PermissionRequest` -> `session_wait_for_status` reaches `waiting`
-6. Inject `PostToolUse` -> session returns to `active`
-7. Inject `SessionEnd` or kill the PTY -> session reaches `ended`
-8. POST garbage to `/hook` -> HTTP 400 and app remains healthy
-9. Unit-test `hook-config.ts` cleanup so only marker-owned hooks are removed
+3. Inject `PreToolUse` with `tool_name = Read` -> `session_get_status` shows `lastTool = Read`
+4. Inject `PostToolUse` with `tool_name = Read` -> session stays `active`, `lastTool` still `Read`
+5. Inject `Stop` -> `session_wait_for_status` reaches `idle`, attention becomes `low`
+6. Inject `PermissionRequest` -> `session_wait_for_status` reaches `waiting`, attention becomes `high`
+7. Inject `PostToolUse` -> session returns to `active`, attention remains `high` (only user focus clears it)
+8. Inject `SessionEnd` or kill the PTY -> session reaches `ended`, attention clears
+9. POST garbage to `/hook` -> HTTP 400 and app remains healthy
+10. Unit-test `hook-config.ts` cleanup so only marker-owned hooks are removed
 
 **Manual smoke:**
 
