@@ -33,7 +33,7 @@ X-Mcode-Session-Id: <mcode_session_id>    ← forwarded from PTY env via hook he
 **Processing pipeline:**
 
 1. Parse JSON body
-2. Read `X-Mcode-Session-Id` header → this is the internal session ID
+2. Read `x-mcode-session-id` header (Node.js `http` module lowercases all headers) → this is the internal session ID
 3. Read `session_id` from JSON body → this is Claude Code's session ID
 4. On first `SessionStart` event, store the mapping: internal ID ↔ Claude session ID
 5. Persist raw event to `events` table
@@ -57,8 +57,9 @@ Claude Code hooks are configured in `~/.claude/settings.json` using a structured
 
 **Strategy:**
 
-1. On first launch, read existing `~/.claude/settings.json`
-2. Merge mcode's hook entries into the `hooks` object:
+1. On startup, read existing `~/.claude/settings.json`
+2. **Remove any stale mcode hook entries** (identifiable by `localhost:77xx/hook` URL pattern) — crash recovery, since `before-quit` cleanup won't fire on force-quit or crash
+3. Merge mcode's hook entries into the `hooks` object:
    ```json
    {
      "hooks": {
@@ -77,12 +78,17 @@ Claude Code hooks are configured in `~/.claude/settings.json` using a structured
    }
    ```
    Identical hooks are auto-deduplicated by Claude Code, so appending is safe.
-3. Write merged config back, preserving all existing user hooks
-4. On quit, remove mcode's hook entries (leave user hooks intact)
-5. Store a backup of the original settings before modification
-6. Must ensure `"allowedHttpHookUrls"` includes `"http://localhost:*"`
+4. Write merged config back, preserving all existing user hooks
+5. On quit, remove mcode's hook entries (leave user hooks intact)
+6. Store a backup of the original settings before modification
+7. Must ensure `"allowedHttpHookUrls"` includes `"http://localhost:*"`
 
-**Critical:** Claude Code captures hooks at startup (snapshot), so hooks must be written to settings.json **before** any Claude Code sessions are spawned.
+**Startup ordering (critical):**
+1. Start hook HTTP server → determine actual port
+2. Write hook config to `~/.claude/settings.json` using actual port
+3. Only then allow session creation (Claude Code snapshots hooks at its startup)
+
+This ordering ensures the server is ready before any Claude Code process tries to POST to it, and the config references the correct port.
 
 ### Session ID Correlation
 
@@ -149,6 +155,7 @@ CREATE INDEX idx_events_type ON events(hook_event_name);
 **Data retention:**
 - Events table: auto-prune events older than 7 days (configurable)
 - Pruning runs on app startup and once per hour
+- Payload size cap: truncate `tool_input` fields to 4KB before storage; strip large binary/diff content. The event log drives status, not full audit.
 
 ### IPC Bridge Additions
 
