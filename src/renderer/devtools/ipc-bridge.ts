@@ -79,10 +79,35 @@ export function initDevtoolsBridge(): void {
         result = tree ? getLeaves(tree).length : 0;
         break;
       }
+      case 'layout-sidebar-width': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        result = useLayoutStore.getState().sidebarWidth;
+        break;
+      }
+      case 'layout-set-sidebar-width': {
+        const { width } = params as { width: number };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().setSidebarWidth(width);
+        useLayoutStore.getState().persist();
+        result = true;
+        break;
+      }
       case 'sidebar-sessions': {
         const { useSessionStore } = await import('../stores/session-store');
         const sessions = useSessionStore.getState().sessions;
         result = Object.values(sessions);
+        break;
+      }
+      case 'session-select': {
+        const { sessionId } = params as { sessionId: string | null };
+        const { useSessionStore } = await import('../stores/session-store');
+        useSessionStore.getState().selectSession(sessionId);
+        result = true;
+        break;
+      }
+      case 'session-get-selected': {
+        const { useSessionStore } = await import('../stores/session-store');
+        result = useSessionStore.getState().selectedSessionId;
         break;
       }
     }

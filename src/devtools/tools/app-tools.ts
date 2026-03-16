@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { app } from 'electron';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
 import type { ConsoleEntry, HmrEvent } from '../types';
@@ -8,6 +9,15 @@ export function registerAppTools(
   server: McpServer,
   ctx: McpServerContext,
 ): void {
+  server.registerTool('app_get_version', {
+    description: 'Get the application version',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    return {
+      content: [{ type: 'text', text: app.getVersion() }],
+    };
+  });
+
   server.registerTool('app_get_console_logs', {
     description: 'Get captured console log entries from the renderer process',
     inputSchema: {

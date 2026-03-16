@@ -114,6 +114,28 @@ export function registerTerminalTools(
     };
   });
 
+  server.registerTool('terminal_resize', {
+    description: 'Resize a terminal PTY to the specified dimensions',
+    inputSchema: {
+      sessionId: z.string().describe('The PTY session ID'),
+      cols: z.number().int().positive().describe('Number of columns'),
+      rows: z.number().int().positive().describe('Number of rows'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, cols, rows }) => {
+    const info = ctx.ptyManager.getInfo(sessionId);
+    if (!info) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+    ctx.ptyManager.resize(sessionId, cols, rows);
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ cols, rows }) }],
+    };
+  });
+
   server.registerTool('terminal_wait_for_content', {
     description: 'Wait until a regex pattern appears in the terminal buffer. Polls every 250ms.',
     inputSchema: {
