@@ -296,6 +296,8 @@ Test helpers should wrap these tools, and a dedicated integration suite should c
 **Goal:** Queue prompts for dispatch to sessions. This enables the async workflow: queue up work, walk away, come back to results.
 
 **Build:**
+- Add `onSessionUpdated(listener)` callback API to `SessionManager` for in-process session status subscriptions (TaskQueue needs main-process notification of status changes, not renderer IPC)
+- Expose `PtyManager.write(id, data)` as a public method for in-process callers (TaskQueue writes prompts to existing sessions directly)
 - `task_queue` SQLite table (with `target_session_id` + `session_id`)
 - `TaskQueue` class in main process: create, cancel, startup reconciliation, dispatch loop
 - Dispatch logic: two paths — new session (spawn) vs existing session (write to PTY when idle)
@@ -323,6 +325,6 @@ Test helpers should wrap these tools, and a dedicated integration suite should c
 11. Restart the app with a task stuck in `dispatched` → task becomes `failed` with restart error
 12. Verify all scenarios through MCP tools without manual UI interaction
 
-**Files created:** `src/main/task-queue.ts`, `db/migrations/004_task_queue.sql`, `src/renderer/components/Sidebar/TaskQueuePanel.tsx`, `src/renderer/stores/task-store.ts`
+**Files created:** `src/main/task-queue.ts`, `db/migrations/006_task_queue.sql`, `src/renderer/components/Sidebar/TaskQueuePanel.tsx`, `src/renderer/stores/task-store.ts`
 **Files modified:** `src/main/index.ts`, `src/main/session-manager.ts`, `src/preload/index.ts`, `src/shared/types.ts`, `src/renderer/components/Sidebar/Sidebar.tsx`, `src/devtools/mcp-server.ts`, `src/devtools/types.ts`, `tests/helpers.ts`
 **Files added for verification:** `src/devtools/tools/task-tools.ts`, `tests/suites/task-queue.test.ts`
