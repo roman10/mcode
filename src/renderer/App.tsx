@@ -114,6 +114,18 @@ function App(): React.JSX.Element {
     return unsub;
   }, [removeSession, removeTile, persist]);
 
+  // Listen for batch session deletions
+  useEffect(() => {
+    const unsub = window.mcode.sessions.onDeletedBatch((sessionIds) => {
+      for (const id of sessionIds) {
+        removeSession(id);
+        removeTile(id);
+      }
+      persist();
+    });
+    return unsub;
+  }, [removeSession, removeTile, persist]);
+
   // Dock badge: count of high-attention sessions
   useEffect(() => {
     return useSessionStore.subscribe((state) => {

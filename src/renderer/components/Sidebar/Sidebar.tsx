@@ -27,6 +27,11 @@ function Sidebar(): React.JSX.Element {
     Object.values(s.sessions).some((sess) => sess.attentionLevel !== 'none'),
   );
 
+  // Check if any sessions are ended
+  const hasEnded = useSessionStore((s) =>
+    Object.values(s.sessions).some((sess) => sess.status === 'ended'),
+  );
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -99,6 +104,22 @@ function Sidebar(): React.JSX.Element {
     }
   };
 
+  const handleDeleteAllEnded = async (): Promise<void> => {
+    const endedCount = Object.values(useSessionStore.getState().sessions).filter(
+      (s) => s.status === 'ended',
+    ).length;
+    if (endedCount === 0) return;
+    const confirmed = window.confirm(
+      `Delete ${endedCount} ended session${endedCount === 1 ? '' : 's'}? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    try {
+      await window.mcode.sessions.deleteAllEnded();
+    } catch (err) {
+      console.error('Failed to delete ended sessions:', err);
+    }
+  };
+
   return (
     <>
       <div
@@ -111,6 +132,15 @@ function Sidebar(): React.JSX.Element {
             Sessions
           </span>
           <div className="flex items-center gap-1">
+            {hasEnded && (
+              <button
+                className="text-xs text-text-muted hover:text-red-400 transition-colors px-1"
+                title="Delete all ended sessions"
+                onClick={handleDeleteAllEnded}
+              >
+                Delete ended
+              </button>
+            )}
             {hasAttention && (
               <button
                 className="text-xs text-text-muted hover:text-text-secondary transition-colors px-1"

@@ -110,6 +110,19 @@ export function registerSessionTools(
     };
   });
 
+  server.registerTool('session_delete_all_ended', {
+    description: 'Delete all ended sessions from mcode. Returns the list of deleted session IDs.',
+    inputSchema: {},
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    const ids = ctx.sessionManager.deleteAllEnded();
+    return {
+      content: [{ type: 'text', text: ids.length === 0
+        ? 'No ended sessions to delete'
+        : `Deleted ${ids.length} session(s): ${ids.join(', ')}` }],
+    };
+  });
+
   server.registerTool('session_get_status', {
     description: 'Get session status and metadata',
     inputSchema: {

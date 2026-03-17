@@ -111,6 +111,9 @@ contextBridge.exposeInMainWorld('mcode', {
     delete: (sessionId: string): Promise<void> =>
       ipcRenderer.invoke('session:delete', sessionId),
 
+    deleteAllEnded: (): Promise<string[]> =>
+      ipcRenderer.invoke('session:delete-all-ended'),
+
     onDeleted: (
       cb: (sessionId: string) => void,
     ): (() => void) => {
@@ -120,6 +123,17 @@ contextBridge.exposeInMainWorld('mcode', {
       ): void => cb(sessionId);
       ipcRenderer.on('session:deleted', handler);
       return () => ipcRenderer.removeListener('session:deleted', handler);
+    },
+
+    onDeletedBatch: (
+      cb: (sessionIds: string[]) => void,
+    ): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        sessionIds: string[],
+      ): void => cb(sessionIds);
+      ipcRenderer.on('session:deleted-batch', handler);
+      return () => ipcRenderer.removeListener('session:deleted-batch', handler);
     },
   },
 

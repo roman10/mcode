@@ -127,6 +127,10 @@ function registerSessionIpc(): void {
     sessionManager.delete(sessionId);
   });
 
+  ipcMain.handle('session:delete-all-ended', () => {
+    return sessionManager.deleteAllEnded();
+  });
+
   ipcMain.handle('session:get-last-defaults', () => {
     return sessionManager.getLastDefaults();
   });
