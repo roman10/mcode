@@ -22,6 +22,7 @@ import type {
   ExternalSessionInfo,
   HookEvent,
   HookRuntimeInfo,
+  TerminalConfig,
 } from '../shared/types';
 
 interface SessionRecord {
@@ -39,6 +40,7 @@ interface SessionRecord {
   attention_reason: string | null;
   hook_mode: string;
   session_type: string;
+  terminal_config: string;
 }
 
 function isClaudeCommand(command: string): boolean {
@@ -87,6 +89,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     attentionReason: row.attention_reason,
     hookMode: row.hook_mode as 'live' | 'fallback',
     sessionType: row.session_type as SessionType,
+    terminalConfig: JSON.parse(row.terminal_config || '{}'),
   };
 }
 
@@ -590,6 +593,20 @@ export class SessionManager {
     const db = getDb();
     db.prepare('UPDATE sessions SET label = ? WHERE session_id = ?').run(
       label,
+      sessionId,
+    );
+    this.broadcastSessionUpdate(sessionId);
+  }
+
+  setTerminalConfig(sessionId: string, partial: Partial<TerminalConfig>): void {
+    const db = getDb();
+    const row = db
+      .prepare('SELECT terminal_config FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { terminal_config: string } | undefined;
+    const existing: TerminalConfig = JSON.parse(row?.terminal_config || '{}');
+    const merged = { ...existing, ...partial };
+    db.prepare('UPDATE sessions SET terminal_config = ? WHERE session_id = ?').run(
+      JSON.stringify(merged),
       sessionId,
     );
     this.broadcastSessionUpdate(sessionId);

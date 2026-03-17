@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('mcode', {
     setLabel: (sessionId: string, label: string): Promise<void> =>
       ipcRenderer.invoke('session:set-label', sessionId, label),
 
+    setTerminalConfig: (sessionId: string, config: Record<string, unknown>): Promise<void> =>
+      ipcRenderer.invoke('session:set-terminal-config', sessionId, config),
+
     clearAttention: (sessionId: string): Promise<void> =>
       ipcRenderer.invoke('session:clear-attention', sessionId),
 

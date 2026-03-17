@@ -1,6 +1,12 @@
 import type { MosaicNode } from 'react-mosaic-component';
 import type { PermissionMode } from './constants';
 
+// --- Terminal Config ---
+
+export interface TerminalConfig {
+  scrollbackLines?: number; // undefined = use DEFAULT_SCROLLBACK_LINES
+}
+
 // --- Session ---
 
 export type SessionType = 'claude' | 'terminal';
@@ -23,6 +29,7 @@ export interface SessionInfo {
   attentionReason: string | null;
   hookMode: 'live' | 'fallback';
   sessionType: SessionType;
+  terminalConfig: TerminalConfig;
 }
 
 export interface SessionCreateInput {
@@ -119,6 +126,7 @@ export interface MCodeAPI {
     get(sessionId: string): Promise<SessionInfo | null>;
     kill(sessionId: string): Promise<void>;
     setLabel(sessionId: string, label: string): Promise<void>;
+    setTerminalConfig(sessionId: string, config: Partial<TerminalConfig>): Promise<void>;
     clearAttention(sessionId: string): Promise<void>;
     clearAllAttention(): Promise<void>;
     resume(sessionId: string): Promise<SessionInfo>;

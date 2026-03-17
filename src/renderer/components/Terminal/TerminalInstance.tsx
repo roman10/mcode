@@ -4,7 +4,12 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { darkTheme } from '../../styles/theme';
-import { TERMINAL_FONT_SIZE, TERMINAL_FONT_FAMILY } from '../../../shared/constants';
+import {
+  TERMINAL_FONT_SIZE,
+  TERMINAL_FONT_FAMILY,
+  DEFAULT_SCROLLBACK_LINES,
+  SCROLLBACK_PRESETS,
+} from '../../../shared/constants';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
@@ -13,12 +18,19 @@ import { useTerminalSearch } from '../../hooks/useTerminalSearch';
 interface TerminalInstanceProps {
   sessionId: string;
   sessionType?: string;
+  scrollbackLines?: number;
 }
 
-function TerminalInstance({ sessionId, sessionType }: TerminalInstanceProps): React.JSX.Element {
+function resolveScrollback(value: number | undefined): number {
+  const lines = value ?? DEFAULT_SCROLLBACK_LINES;
+  return lines === 0 ? Infinity : lines;
+}
+
+function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalInstanceProps): React.JSX.Element {
   const termRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [currentScrollback, setCurrentScrollback] = useState(scrollbackLines);
   const search = useTerminalSearch();
 
   useEffect(() => {
@@ -35,6 +47,7 @@ function TerminalInstance({ sessionId, sessionType }: TerminalInstanceProps): Re
       fontFamily: TERMINAL_FONT_FAMILY,
       theme: hideCursor ? { ...darkTheme, cursor: darkTheme.background } : darkTheme,
       allowProposedApi: true,
+      scrollback: resolveScrollback(scrollbackLines),
     });
 
     termInstanceRef.current = term;
@@ -184,6 +197,14 @@ function TerminalInstance({ sessionId, sessionType }: TerminalInstanceProps): Re
     const term = termInstanceRef.current;
     if (!term) return;
 
+    if (action.startsWith('scrollback:')) {
+      const value = parseInt(action.split(':')[1], 10);
+      term.options.scrollback = value === 0 ? Infinity : value;
+      setCurrentScrollback(value);
+      window.mcode.sessions.setTerminalConfig(sessionId, { scrollbackLines: value });
+      return;
+    }
+
     switch (action) {
       case 'copy': {
         const selection = term.getSelection();
@@ -202,12 +223,11 @@ function TerminalInstance({ sessionId, sessionType }: TerminalInstanceProps): Re
         term.clear();
         break;
     }
-
-    setContextMenu(null);
-  }, []);
+  }, [sessionId]);
 
   const handleContextClose = useCallback(() => setContextMenu(null), []);
 
+  const effectiveScrollback = currentScrollback ?? DEFAULT_SCROLLBACK_LINES;
   const contextMenuItems: MenuItem[] = contextMenu
     ? [
         { label: 'Copy', action: 'copy', enabled: !!termInstanceRef.current?.hasSelection() },
@@ -215,6 +235,16 @@ function TerminalInstance({ sessionId, sessionType }: TerminalInstanceProps): Re
         { label: 'Select All', action: 'selectAll' },
         { label: '', action: 'sep', separator: true },
         { label: 'Clear Terminal', action: 'clear' },
+        { label: '', action: 'sep2', separator: true },
+        {
+          label: 'Scrollback Lines',
+          action: 'scrollback',
+          children: SCROLLBACK_PRESETS.map((v) => ({
+            label: v === 0 ? 'Unlimited' : v.toLocaleString(),
+            action: `scrollback:${v}`,
+            checked: effectiveScrollback === v,
+          })),
+        },
       ]
     : [];
 

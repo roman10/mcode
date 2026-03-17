@@ -130,6 +130,13 @@ function registerSessionIpc(): void {
     },
   );
 
+  ipcMain.handle(
+    'session:set-terminal-config',
+    (_event, sessionId: string, config: Record<string, unknown>) => {
+      sessionManager.setTerminalConfig(sessionId, config);
+    },
+  );
+
   ipcMain.handle('session:clear-attention', (_event, sessionId: string) => {
     sessionManager.clearAttention(sessionId);
   });
