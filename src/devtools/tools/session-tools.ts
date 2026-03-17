@@ -82,6 +82,32 @@ export function registerSessionTools(
     };
   });
 
+  server.registerTool('session_delete', {
+    description: 'Delete an ended session from mcode (removes DB records, not Claude Code files). Session must be ended first.',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID to delete'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId }) => {
+    const session = ctx.sessionManager.get(sessionId);
+    if (!session) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+    if (session.status !== 'ended') {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} is not ended (status: ${session.status}). Kill it first.` }],
+        isError: true,
+      };
+    }
+    ctx.sessionManager.delete(sessionId);
+    return {
+      content: [{ type: 'text', text: `Session ${sessionId} deleted` }],
+    };
+  });
+
   server.registerTool('session_get_status', {
     description: 'Get session status and metadata',
     inputSchema: {

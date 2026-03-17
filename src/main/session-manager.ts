@@ -566,6 +566,28 @@ export class SessionManager {
     }
   }
 
+  delete(sessionId: string): void {
+    const db = getDb();
+    const row = db
+      .prepare('SELECT status FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string } | undefined;
+
+    if (!row) throw new Error(`Session not found: ${sessionId}`);
+    if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status}). Kill it first.`);
+
+    db.transaction(() => {
+      db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId);
+      db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId);
+    })();
+
+    logger.info('session', 'Deleted session', { sessionId });
+
+    const wc = this.getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('session:deleted', sessionId);
+    }
+  }
+
   async kill(sessionId: string): Promise<void> {
     // PTY's onExit callback handles the status transition to 'ended',
     // so we don't call updateStatus here (avoids double transition).

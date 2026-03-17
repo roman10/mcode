@@ -123,6 +123,10 @@ function registerSessionIpc(): void {
     return sessionManager.kill(sessionId);
   });
 
+  ipcMain.handle('session:delete', (_event, sessionId: string) => {
+    sessionManager.delete(sessionId);
+  });
+
   ipcMain.handle(
     'session:set-label',
     (_event, sessionId: string, label: string) => {

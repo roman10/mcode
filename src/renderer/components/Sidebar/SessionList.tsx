@@ -68,6 +68,18 @@ function SessionList(): React.JSX.Element {
     }
   };
 
+  const handleDelete = async (sessionId: string): Promise<void> => {
+    const session = sessions[sessionId];
+    if (!session) return;
+    const confirmed = window.confirm(`Delete session "${session.label}"? This cannot be undone.`);
+    if (!confirmed) return;
+    try {
+      await window.mcode.sessions.delete(sessionId);
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+    }
+  };
+
   const handleRename = async (
     sessionId: string,
     label: string,
@@ -131,6 +143,7 @@ function SessionList(): React.JSX.Element {
           onSelect={() => selectSession(session.sessionId)}
           onDoubleClick={() => handleDoubleClick(session.sessionId)}
           onKill={() => handleKill(session.sessionId)}
+          onDelete={() => handleDelete(session.sessionId)}
           onRename={(label) => handleRename(session.sessionId, label)}
         />
       ))}

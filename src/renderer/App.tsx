@@ -13,10 +13,12 @@ function App(): React.JSX.Element {
   const setExternalSessions = useSessionStore((s) => s.setExternalSessions);
   const upsertSession = useSessionStore((s) => s.upsertSession);
   const addSession = useSessionStore((s) => s.addSession);
+  const removeSession = useSessionStore((s) => s.removeSession);
   const setHookRuntime = useSessionStore((s) => s.setHookRuntime);
   const restore = useLayoutStore((s) => s.restore);
   const pruneTiles = useLayoutStore((s) => s.pruneTiles);
   const addTile = useLayoutStore((s) => s.addTile);
+  const removeTile = useLayoutStore((s) => s.removeTile);
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
 
@@ -101,6 +103,16 @@ function App(): React.JSX.Element {
     });
     return unsub;
   }, [addSession, addTile, persist]);
+
+  // Listen for sessions deleted (from UI or MCP devtools)
+  useEffect(() => {
+    const unsub = window.mcode.sessions.onDeleted((sessionId) => {
+      removeSession(sessionId);
+      removeTile(sessionId);
+      persist();
+    });
+    return unsub;
+  }, [removeSession, removeTile, persist]);
 
   // Dock badge: count of high-attention sessions
   useEffect(() => {

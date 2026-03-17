@@ -134,6 +134,8 @@ export interface MCodeAPI {
     importExternal(claudeSessionId: string, cwd: string): Promise<SessionInfo>;
     onUpdated(callback: (session: SessionInfo) => void): () => void;
     onCreated(callback: (session: SessionInfo) => void): () => void;
+    delete(sessionId: string): Promise<void>;
+    onDeleted(callback: (sessionId: string) => void): () => void;
   };
 
   hooks: {

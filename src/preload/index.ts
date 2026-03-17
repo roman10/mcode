@@ -103,6 +103,20 @@ contextBridge.exposeInMainWorld('mcode', {
       ipcRenderer.on('session:created', handler);
       return () => ipcRenderer.removeListener('session:created', handler);
     },
+
+    delete: (sessionId: string): Promise<void> =>
+      ipcRenderer.invoke('session:delete', sessionId),
+
+    onDeleted: (
+      cb: (sessionId: string) => void,
+    ): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        sessionId: string,
+      ): void => cb(sessionId);
+      ipcRenderer.on('session:deleted', handler);
+      return () => ipcRenderer.removeListener('session:deleted', handler);
+    },
   },
 
   hooks: {

@@ -10,6 +10,7 @@ interface SessionCardProps {
   onSelect(): void;
   onDoubleClick(): void;
   onKill(): void;
+  onDelete(): void;
   onRename(label: string): void;
 }
 
@@ -27,6 +28,7 @@ function SessionCard({
   onSelect,
   onDoubleClick,
   onKill,
+  onDelete,
   onRename,
 }: SessionCardProps): React.JSX.Element {
   const [isEditing, setIsEditing] = useState(false);
@@ -130,13 +132,24 @@ function SessionCard({
             +
           </button>
         )}
-        {session.status !== 'ended' && (
+        {session.status !== 'ended' ? (
           <button
             className="text-text-secondary hover:text-red-400 text-xs p-0.5"
             title="Kill session"
             onClick={(e) => {
               e.stopPropagation();
               onKill();
+            }}
+          >
+            x
+          </button>
+        ) : (
+          <button
+            className="text-text-secondary hover:text-red-400 text-xs p-0.5"
+            title="Delete session"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
             }}
           >
             x
