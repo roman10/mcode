@@ -7,6 +7,8 @@ import { darkTheme } from '../../styles/theme';
 import { TERMINAL_FONT_SIZE, TERMINAL_FONT_FAMILY } from '../../../shared/constants';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
+import SearchBar from './SearchBar';
+import { useTerminalSearch } from '../../hooks/useTerminalSearch';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -16,6 +18,7 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
   const termRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const search = useTerminalSearch();
 
   useEffect(() => {
     const container = termRef.current;
@@ -35,6 +38,7 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     const webLinksAddon = new WebLinksAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
+    search.attach(term);
 
     term.open(container);
     terminalRegistry.set(sessionId, term);
@@ -67,6 +71,11 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
         // --- Clear ---
         case 'k':
           term.clear();
+          return false;
+
+        // --- Find ---
+        case 'f':
+          search.open();
           return false;
 
         // --- Zoom ---
@@ -200,8 +209,20 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     : [];
 
   return (
-    <>
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={termRef} style={{ width: '100%', height: '100%' }} />
+      {search.isOpen && (
+        <SearchBar
+          onFindNext={search.findNext}
+          onFindPrevious={search.findPrevious}
+          onClose={() => {
+            search.close();
+            termInstanceRef.current?.focus();
+          }}
+          resultIndex={search.resultIndex}
+          resultCount={search.resultCount}
+        />
+      )}
       {contextMenu && (
         <ContextMenu
           items={contextMenuItems}
@@ -210,7 +231,7 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
           onClose={handleContextClose}
         />
       )}
-    </>
+    </div>
   );
 }
 
