@@ -8,6 +8,8 @@ import {
   getAttentionSummary,
   clearAttention,
   clearAllAttention,
+  getSidebarSessions,
+  selectSession,
   type SessionInfo,
 } from '../helpers';
 
@@ -120,5 +122,60 @@ describe('attention system', () => {
     );
     expect(updated.attentionLevel).toBe('medium');
     expect(updated.attentionReason).toContain('Bash');
+  });
+
+  it('user selection clears attention for that session only', async () => {
+    // Set up two sessions with attention
+    const s1 = await createTestSession(client);
+    const s2 = await createTestSession(client);
+    sessionIds.push(s1.sessionId, s2.sessionId);
+    await waitForActive(client, s1.sessionId);
+    await waitForActive(client, s2.sessionId);
+    await injectHookEvent(client, s1.sessionId, 'SessionStart');
+    await injectHookEvent(client, s2.sessionId, 'SessionStart');
+    await injectHookEvent(client, s1.sessionId, 'PermissionRequest');
+    await injectHookEvent(client, s2.sessionId, 'Notification');
+
+    // Simulate user selecting s1 via sidebar
+    await selectSession(client, s1.sessionId);
+
+    // Wait briefly for the async clearAttention call from the store
+    await new Promise((r) => setTimeout(r, 500));
+
+    // s1 attention should be cleared, s2 should still have medium
+    const s1Info = await client.callToolJson<SessionInfo>('session_get_status', { sessionId: s1.sessionId });
+    const s2Info = await client.callToolJson<SessionInfo>('session_get_status', { sessionId: s2.sessionId });
+    expect(s1Info.attentionLevel).toBe('none');
+    expect(s2Info.attentionLevel).toBe('medium');
+  });
+
+  it('sidebar sorts sessions by attention level (high first)', async () => {
+    // Clear all attention first
+    await clearAllAttention(client);
+
+    // Create 3 sessions with different attention levels
+    const sHigh = await createTestSession(client);
+    const sLow = await createTestSession(client);
+    const sMed = await createTestSession(client);
+    sessionIds.push(sHigh.sessionId, sLow.sessionId, sMed.sessionId);
+
+    for (const s of [sHigh, sLow, sMed]) {
+      await waitForActive(client, s.sessionId);
+      await injectHookEvent(client, s.sessionId, 'SessionStart');
+    }
+
+    // Set different attention levels
+    await injectHookEvent(client, sLow.sessionId, 'Stop'); // low
+    await injectHookEvent(client, sMed.sessionId, 'Notification'); // medium
+    await injectHookEvent(client, sHigh.sessionId, 'PermissionRequest'); // high
+
+    const sidebarSessions = await getSidebarSessions(client);
+    const ids = sidebarSessions.map((s: SessionInfo) => s.sessionId);
+    const highIdx = ids.indexOf(sHigh.sessionId);
+    const medIdx = ids.indexOf(sMed.sessionId);
+    const lowIdx = ids.indexOf(sLow.sessionId);
+
+    expect(highIdx).toBeLessThan(medIdx);
+    expect(medIdx).toBeLessThan(lowIdx);
   });
 });

@@ -95,7 +95,15 @@ export function initDevtoolsBridge(): void {
       case 'sidebar-sessions': {
         const { useSessionStore } = await import('../stores/session-store');
         const sessions = useSessionStore.getState().sessions;
-        result = Object.values(sessions);
+        // Return in attention-first sort order matching SessionList display
+        const attentionOrder: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 };
+        const statusOrder: Record<string, number> = { waiting: 0, active: 1, starting: 2, idle: 3, ended: 4 };
+        result = Object.values(sessions).sort(
+          (a, b) =>
+            (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||
+            (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
+            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        );
         break;
       }
       case 'session-select': {

@@ -453,6 +453,15 @@ Per repo policy, this feature must be exposed to coding agents for automated ver
 - `session_clear_all_attention`
   - clear all sessions' attention
 
+**Existing tools leveraged for attention verification:**
+
+- `sidebar_select_session`
+  - simulates explicit user selection, triggering attention dismissal (calls `selectSession(id, 'user')`)
+- `sidebar_get_sessions`
+  - returns sessions in attention-first sorted order matching the sidebar UI display
+- `session_get_status`
+  - returns full `SessionInfo` including all attention/hook fields
+
 **Test strategy:**
 
 - Hook state transitions are tested with `hook_inject_event`, not by launching a real Claude binary
@@ -508,7 +517,11 @@ Per repo policy, this feature must be exposed to coding agents for automated ver
 7. Inject `PostToolUse` -> session returns to `active`, attention remains `high` (only user focus clears it)
 8. Inject `SessionEnd` or kill the PTY -> session reaches `ended`, attention clears
 9. POST garbage to `/hook` -> HTTP 400 and app remains healthy
-10. Unit-test `hook-config.ts` cleanup so only marker-owned hooks are removed
+10. POST valid JSON with unknown event name -> HTTP 400
+11. POST valid event with unknown session header -> HTTP 404
+12. Inject `Stop` when already idle with no attention -> attention stays `none` (no noise)
+13. Kill PTY (session exit) -> session reaches `ended`, attention clears to `none`
+14. Unit-test `hook-config.ts` cleanup so only marker-owned hooks are removed
 
 **Manual smoke:**
 
@@ -549,7 +562,8 @@ Per repo policy, this feature must be exposed to coding agents for automated ver
 4. Inject `Stop` on a third session -> attention becomes `low`, status becomes `idle`
 5. Call `session_clear_attention` on the waiting session -> attention clears, status remains `waiting` until another execution event changes it
 6. Call `session_clear_all_attention` -> all attention indicators clear
-7. Simulate explicit user selection of a session tile/card -> attention for that session clears only
+7. Call `sidebar_select_session` to simulate explicit user selection -> attention clears for that session only, other sessions' attention unchanged
+8. `sidebar_get_sessions` returns sessions sorted attention-first (high → medium → low → none), verifiable via MCP
 
 **Manual smoke:**
 

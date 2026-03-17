@@ -8,7 +8,6 @@ import {
   getHookRuntime,
   getRecentEvents,
   type SessionInfo,
-  type HookRuntimeInfo,
 } from '../helpers';
 
 describe('hook integration', () => {
@@ -116,7 +115,6 @@ describe('hook integration', () => {
   it('POST garbage to hook server returns 400 (if runtime is ready)', async () => {
     const runtime = await getHookRuntime(client);
     if (runtime.state !== 'ready' || !runtime.port) {
-      // Skip if hooks are degraded
       return;
     }
 
@@ -126,5 +124,83 @@ describe('hook integration', () => {
       body: 'not-json{{{',
     });
     expect(res.status).toBe(400);
+  });
+
+  it('valid JSON but unknown event name returns 400', async () => {
+    const runtime = await getHookRuntime(client);
+    if (runtime.state !== 'ready' || !runtime.port) {
+      return;
+    }
+
+    const res = await fetch(`http://localhost:${runtime.port}/hook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hook_event_name: 'MadeUpEvent' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('valid event but unknown session returns 404', async () => {
+    const runtime = await getHookRuntime(client);
+    if (runtime.state !== 'ready' || !runtime.port) {
+      return;
+    }
+
+    const res = await fetch(`http://localhost:${runtime.port}/hook`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Mcode-Session-Id': 'nonexistent-session-id',
+      },
+      body: JSON.stringify({ hook_event_name: 'SessionStart' }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('Stop when already idle does not change attention', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+
+    // First Stop → idle + low
+    await injectHookEvent(client, session.sessionId, 'Stop');
+    const afterFirst = await client.callToolJson<SessionInfo>('session_get_status', {
+      sessionId: session.sessionId,
+    });
+    expect(afterFirst.status).toBe('idle');
+    expect(afterFirst.attentionLevel).toBe('low');
+
+    // Clear attention manually, then Stop again when already idle
+    await client.callTool('session_clear_attention', { sessionId: session.sessionId });
+    const afterClear = await client.callToolJson<SessionInfo>('session_get_status', {
+      sessionId: session.sessionId,
+    });
+    expect(afterClear.attentionLevel).toBe('none');
+
+    // Second Stop while already idle — should not set low again
+    const afterSecondStop = await injectHookEvent(client, session.sessionId, 'Stop');
+    expect(afterSecondStop.status).toBe('idle');
+    expect(afterSecondStop.attentionLevel).toBe('none');
+  });
+
+  it('PTY exit transitions to ended and clears attention', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+
+    // Set some attention via inject
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+    await injectHookEvent(client, session.sessionId, 'PermissionRequest');
+
+    // Kill the session (PTY exit)
+    await client.callTool('session_kill', { sessionId: session.sessionId });
+    const ended = await client.callToolJson<SessionInfo>('session_wait_for_status', {
+      sessionId: session.sessionId,
+      status: 'ended',
+      timeout_ms: 15000,
+    });
+    expect(ended.status).toBe('ended');
+    expect(ended.attentionLevel).toBe('none');
   });
 });

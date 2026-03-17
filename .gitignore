@@ -3,4 +3,5 @@ out/
 dist/
 *.tsbuildinfo
 .DS_Store
+*.swp
 .playwright-mcp/
