@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import * as RadixTooltip from '@radix-ui/react-tooltip';
 import Sidebar from './components/Sidebar/Sidebar';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import { useSessionStore } from './stores/session-store';
@@ -149,18 +150,20 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-bg-primary">
-      {/* Title bar drag region */}
-      <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
+    <RadixTooltip.Provider delayDuration={200}>
+      <div className="flex flex-col h-screen w-screen bg-bg-primary">
+        {/* Title bar drag region */}
+        <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
 
-      {/* Main content: sidebar + mosaic */}
-      <div className="flex flex-1 min-h-0">
-        <Sidebar />
-        <div className="flex-1 min-w-0">
-          <MosaicLayout />
+        {/* Main content: sidebar + mosaic */}
+        <div className="flex flex-1 min-h-0">
+          <Sidebar />
+          <div className="flex-1 min-w-0">
+            <MosaicLayout />
+          </div>
         </div>
       </div>
-    </div>
+    </RadixTooltip.Provider>
   );
 }
 

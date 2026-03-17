@@ -4,11 +4,10 @@
 [done] 3. cannot start a normal terminal
 4. doesn't remember the last selected options for Claude code
 5. no option to clean up existing sessions
-6. click on ended session doesn't load past history.
-7. resumed session remains starting state
+[done] 6. click on ended session doesn't load past history.
+7. resumed session remains starting state. state indicator can be incorrect.
 8. cursor on wrong position
-9. state indicator can be incorrect.
 [done]10. right click menu
-11. Cmd + F (find)
-12. line wrap not properly done for long lines when there are multiple terminal tiles
+[done] 11. Cmd + F (find)
+[] 12. line wrap not properly done for long lines when there are multiple terminal tiles left and right (need to measure available width for each tile and wrap accordingly). Happens when type comments to the claude code design session.
 13. scroll history

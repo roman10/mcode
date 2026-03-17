@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { SessionInfo } from '../../../shared/types';
+import Tooltip from '../shared/Tooltip';
 import StatusBadge from './StatusBadge';
 
 interface SessionCardProps {
@@ -67,7 +68,7 @@ function SessionCard({
       onDoubleClick={onDoubleClick}
     >
       {/* Status dot with attention ring */}
-      <StatusBadge status={session.status} attentionLevel={session.attentionLevel} />
+      <StatusBadge status={session.status} attentionLevel={session.attentionLevel} attentionReason={session.attentionReason} />
 
       {/* Label + metadata */}
       <div className="flex-1 min-w-0">
@@ -106,9 +107,11 @@ function SessionCard({
             {session.cwd}
           </span>
           {session.lastTool && session.status !== 'ended' && (
-            <span className="text-xs text-text-muted bg-bg-primary px-1 rounded shrink-0">
-              {session.lastTool}
-            </span>
+            <Tooltip content={`Last tool: ${session.lastTool}`} side="right">
+              <span className="text-xs text-text-muted bg-bg-primary px-1 rounded shrink-0">
+                {session.lastTool}
+              </span>
+            </Tooltip>
           )}
         </div>
       </div>

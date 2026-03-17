@@ -1,8 +1,10 @@
 import type { SessionStatus, SessionAttentionLevel } from '../../../shared/types';
+import Tooltip from '../shared/Tooltip';
 
 interface StatusBadgeProps {
   status: SessionStatus;
   attentionLevel: SessionAttentionLevel;
+  attentionReason?: string | null;
   size?: 'sm' | 'md';
 }
 
@@ -20,9 +22,21 @@ const attentionRingColors: Record<string, string> = {
   low: 'ring-blue-400/40',
 };
 
+function buildTooltipContent(
+  status: SessionStatus,
+  attentionLevel: SessionAttentionLevel,
+  attentionReason?: string | null,
+): string {
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  if (attentionReason) return `${label} — ${attentionReason}`;
+  if (attentionLevel !== 'none') return `${label} (${attentionLevel} attention)`;
+  return label;
+}
+
 function StatusBadge({
   status,
   attentionLevel,
+  attentionReason,
   size = 'sm',
 }: StatusBadgeProps): React.JSX.Element {
   const dotSize = size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5';
@@ -32,10 +46,11 @@ function StatusBadge({
       : '';
 
   return (
-    <span
-      className={`shrink-0 rounded-full ${dotSize} ${statusColors[status]} ${ringClass}`}
-      title={`${status}${attentionLevel !== 'none' ? ` (${attentionLevel} attention)` : ''}`}
-    />
+    <Tooltip content={buildTooltipContent(status, attentionLevel, attentionReason)} side="right">
+      <span
+        className={`shrink-0 rounded-full ${dotSize} ${statusColors[status]} ${ringClass}`}
+      />
+    </Tooltip>
   );
 }
 

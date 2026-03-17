@@ -11,6 +11,13 @@
   --color-text-secondary: #8b949e;
   --color-text-muted: #484f58;
   --color-accent: #58a6ff;
+  --color-border-subtle: #21262d;
+  --animate-fade-in: fade-in 100ms ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* react-mosaic-component dark theme overrides */
