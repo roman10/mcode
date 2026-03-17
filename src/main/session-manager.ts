@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
+import { homedir } from 'node:os';
+import { readdirSync, openSync, readSync, closeSync } from 'node:fs';
 import type { WebContents } from 'electron';
 import type { PtyManager } from './pty-manager';
 import { getDb } from './db';
@@ -17,6 +19,7 @@ import type {
   SessionStatus,
   SessionAttentionLevel,
   SessionCreateInput,
+  ExternalSessionInfo,
   HookEvent,
   HookRuntimeInfo,
 } from '../shared/types';
@@ -174,6 +177,168 @@ export class SessionManager {
 
     const session = this.get(sessionId)!;
     return session;
+  }
+
+  /** Resume an ended Claude session via `claude --resume`. */
+  resume(sessionId: string): SessionInfo {
+    const db = getDb();
+    const row = db
+      .prepare('SELECT * FROM sessions WHERE session_id = ?')
+      .get(sessionId) as SessionRecord | undefined;
+
+    if (!row) throw new Error(`Session not found: ${sessionId}`);
+    if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status})`);
+    if (!row.claude_session_id) throw new Error('Cannot resume: no Claude session ID recorded');
+
+    const hookRuntime = this.hookRuntimeGetter();
+    const hookMode = hookRuntime.state === 'ready' ? 'live' : 'fallback';
+
+    // Reset session to starting state
+    db.prepare(
+      `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = ? WHERE session_id = ?`,
+    ).run(hookMode, sessionId);
+
+    // Build args: claude --resume <claude_session_id>
+    const args: string[] = ['--resume', row.claude_session_id];
+    if (row.permission_mode) {
+      args.push('--permission-mode', row.permission_mode);
+    }
+
+    try {
+      this.ptyManager.spawn({
+        id: sessionId,
+        command: 'claude',
+        cwd: row.cwd,
+        cols: DEFAULT_COLS,
+        rows: DEFAULT_ROWS,
+        args,
+        env: { MCODE_SESSION_ID: sessionId },
+        onFirstData: () => {
+          if (hookMode === 'fallback') {
+            this.updateStatus(sessionId, 'active');
+          }
+        },
+        onExit: () => {
+          this.updateStatus(sessionId, 'ended');
+        },
+      });
+    } catch (err) {
+      // Spawn failed — revert to ended
+      db.prepare(
+        `UPDATE sessions SET status = 'ended', ended_at = ? WHERE session_id = ?`,
+      ).run(new Date().toISOString(), sessionId);
+      throw err;
+    }
+
+    logger.info('session', 'Resumed session', { sessionId, claudeSessionId: row.claude_session_id });
+
+    const session = this.get(sessionId)!;
+    this.broadcastSessionUpdate(sessionId);
+    return session;
+  }
+
+  /** Import and resume an external Claude Code session not tracked by mcode. */
+  importExternal(claudeSessionId: string, cwd: string): SessionInfo {
+    const sessionId = randomUUID();
+    const label = `Imported: ${claudeSessionId.slice(0, 8)}`;
+    const startedAt = new Date().toISOString();
+
+    const hookRuntime = this.hookRuntimeGetter();
+    const hookMode = hookRuntime.state === 'ready' ? 'live' : 'fallback';
+
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO sessions (session_id, label, cwd, permission_mode, status, started_at, claude_session_id, hook_mode, session_type)
+       VALUES (?, ?, ?, NULL, 'starting', ?, ?, ?, 'claude')`,
+    ).run(sessionId, label, cwd, startedAt, claudeSessionId, hookMode);
+
+    const args = ['--resume', claudeSessionId];
+
+    try {
+      this.ptyManager.spawn({
+        id: sessionId,
+        command: 'claude',
+        cwd,
+        cols: DEFAULT_COLS,
+        rows: DEFAULT_ROWS,
+        args,
+        env: { MCODE_SESSION_ID: sessionId },
+        onFirstData: () => {
+          if (hookMode === 'fallback') {
+            this.updateStatus(sessionId, 'active');
+          }
+        },
+        onExit: () => {
+          this.updateStatus(sessionId, 'ended');
+        },
+      });
+    } catch (err) {
+      db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId);
+      throw err;
+    }
+
+    logger.info('session', 'Imported external session', { sessionId, claudeSessionId, cwd });
+
+    const session = this.get(sessionId)!;
+    // Broadcast as a new session creation
+    const wc = this.getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('session:created', session);
+    }
+    return session;
+  }
+
+  /** Scan ~/.claude/projects/ for Claude Code sessions not tracked by mcode. */
+  listExternalSessions(cwd: string, limit = 50): ExternalSessionInfo[] {
+    // Encode cwd to Claude Code's directory naming: /Users/foo/bar → -Users-foo-bar
+    const encoded = cwd.replace(/\//g, '-');
+    const projectDir = join(homedir(), '.claude', 'projects', encoded);
+
+    let files: string[];
+    try {
+      files = readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
+    } catch {
+      return []; // Directory doesn't exist
+    }
+
+    // Get all claude_session_ids already tracked by mcode
+    const db = getDb();
+    const tracked = new Set(
+      (db.prepare('SELECT claude_session_id FROM sessions WHERE claude_session_id IS NOT NULL').all() as { claude_session_id: string }[])
+        .map((r) => r.claude_session_id),
+    );
+
+    const results: ExternalSessionInfo[] = [];
+    for (const file of files) {
+      const claudeSessionId = file.replace('.jsonl', '');
+      if (tracked.has(claudeSessionId)) continue;
+
+      // Read only first line (up to 4KB) to avoid loading entire conversation files
+      let fd: number | undefined;
+      try {
+        const filePath = join(projectDir, file);
+        fd = openSync(filePath, 'r');
+        const buf = Buffer.alloc(4096);
+        const bytesRead = readSync(fd, buf, 0, 4096, 0);
+        const chunk = buf.toString('utf-8', 0, bytesRead);
+        const newlineIdx = chunk.indexOf('\n');
+        const firstLine = newlineIdx > 0 ? chunk.slice(0, newlineIdx) : chunk;
+        const parsed = JSON.parse(firstLine) as { timestamp?: string; slug?: string };
+        results.push({
+          claudeSessionId,
+          startedAt: parsed.timestamp ?? '',
+          slug: parsed.slug ?? claudeSessionId.slice(0, 8),
+        });
+      } catch {
+        // Malformed file or read error, skip
+      } finally {
+        if (fd !== undefined) closeSync(fd);
+      }
+    }
+
+    // Sort newest first, apply limit
+    results.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return results.slice(0, limit);
   }
 
   updateStatus(sessionId: string, status: SessionStatus): void {

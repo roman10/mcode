@@ -4,6 +4,7 @@ import type {
   PtyExitPayload,
   SessionInfo,
   SessionCreateInput,
+  ExternalSessionInfo,
   HookRuntimeInfo,
   HookEvent,
 } from '../shared/types';
@@ -68,6 +69,15 @@ contextBridge.exposeInMainWorld('mcode', {
 
     clearAllAttention: (): Promise<void> =>
       ipcRenderer.invoke('session:clear-all-attention'),
+
+    resume: (sessionId: string): Promise<SessionInfo> =>
+      ipcRenderer.invoke('session:resume', sessionId),
+
+    listExternal: (limit?: number): Promise<ExternalSessionInfo[]> =>
+      ipcRenderer.invoke('session:list-external', limit),
+
+    importExternal: (claudeSessionId: string, cwd: string): Promise<SessionInfo> =>
+      ipcRenderer.invoke('session:import-external', claudeSessionId, cwd),
 
     onUpdated: (
       cb: (session: SessionInfo) => void,

@@ -9,6 +9,7 @@ function App(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const setSessions = useSessionStore((s) => s.setSessions);
+  const setExternalSessions = useSessionStore((s) => s.setExternalSessions);
   const upsertSession = useSessionStore((s) => s.upsertSession);
   const addSession = useSessionStore((s) => s.addSession);
   const setHookRuntime = useSessionStore((s) => s.setHookRuntime);
@@ -42,13 +43,15 @@ function App(): React.JSX.Element {
         await restore();
         if (cancelled) return;
 
-        // Prune tiles for ended/missing sessions
-        const liveIds = new Set(
-          allSessions
-            .filter((s) => s.status !== 'ended')
-            .map((s) => s.sessionId),
-        );
-        pruneTiles(liveIds);
+        // Prune tiles for sessions that no longer exist in the DB
+        // (ended sessions are kept so they can show the resume prompt)
+        const allIds = new Set(allSessions.map((s) => s.sessionId));
+        pruneTiles(allIds);
+
+        // Load external Claude Code sessions (non-blocking, initial page)
+        window.mcode.sessions.listExternal(20).then((ext) => {
+          if (!cancelled) setExternalSessions(ext);
+        }).catch(() => {});
 
         setLoading(false);
       } catch (err) {

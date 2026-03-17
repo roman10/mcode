@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { SessionInfo, HookRuntimeInfo } from '../../shared/types';
+import type { SessionInfo, ExternalSessionInfo, HookRuntimeInfo } from '../../shared/types';
 
 interface SessionState {
   sessions: Record<string, SessionInfo>;
+  externalSessions: ExternalSessionInfo[];
   selectedSessionId: string | null;
   hookRuntime: HookRuntimeInfo;
 
@@ -12,11 +13,13 @@ interface SessionState {
   selectSession(id: string | null, source?: 'user' | 'system'): void;
   setLabel(id: string, label: string): void;
   setSessions(sessions: SessionInfo[]): void;
+  setExternalSessions(sessions: ExternalSessionInfo[]): void;
   setHookRuntime(info: HookRuntimeInfo): void;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
   sessions: {},
+  externalSessions: [],
   selectedSessionId: null,
   hookRuntime: { state: 'initializing', port: null, warning: null },
 
@@ -63,6 +66,8 @@ export const useSessionStore = create<SessionState>((set) => ({
         sessions.map((s) => [s.sessionId, s]),
       ),
     }),
+
+  setExternalSessions: (sessions) => set({ externalSessions: sessions }),
 
   setHookRuntime: (info) => set({ hookRuntime: info }),
 }));

@@ -10,5 +10,5 @@
 9. state indicator can be incorrect.
 [done]10. right click menu
 11. Cmd + F (find)
-12. line wrap not properly done for long lines
+12. line wrap not properly done for long lines when there are multiple terminal tiles
 13. scroll history

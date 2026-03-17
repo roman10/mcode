@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore, sessionIdFromTileId } from '../../stores/layout-store';
 import { getLeaves } from 'react-mosaic-component';
@@ -21,12 +22,20 @@ const statusOrder: Record<SessionStatus, number> = {
 
 function SessionList(): React.JSX.Element {
   const sessions = useSessionStore((s) => s.sessions);
+  const externalSessions = useSessionStore((s) => s.externalSessions);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const selectSession = useSessionStore((s) => s.selectSession);
 
   const mosaicTree = useLayoutStore((s) => s.mosaicTree);
   const addTile = useLayoutStore((s) => s.addTile);
   const persist = useLayoutStore((s) => s.persist);
+
+  const setExternalSessions = useSessionStore((s) => s.setExternalSessions);
+
+  const [externalExpanded, setExternalExpanded] = useState(false);
+  const [externalLimit, setExternalLimit] = useState(20);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [importingId, setImportingId] = useState<string | null>(null);
 
   // Get set of session IDs that currently have tiles
   const tileSessionIds = new Set(
@@ -71,7 +80,37 @@ function SessionList(): React.JSX.Element {
     }
   };
 
-  if (sorted.length === 0) {
+  const handleLoadMore = async (): Promise<void> => {
+    const newLimit = externalLimit + 20;
+    setLoadingMore(true);
+    try {
+      const results = await window.mcode.sessions.listExternal(newLimit);
+      setExternalSessions(results);
+      setExternalLimit(newLimit);
+    } catch (err) {
+      console.error('Failed to load more external sessions:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const handleImportExternal = async (claudeSessionId: string): Promise<void> => {
+    // Derive cwd from existing sessions
+    const firstClaude = Object.values(sessions).find((s) => s.sessionType === 'claude');
+    const cwd = firstClaude?.cwd ?? '';
+    if (!cwd) return;
+
+    setImportingId(claudeSessionId);
+    try {
+      await window.mcode.sessions.importExternal(claudeSessionId, cwd);
+    } catch (err) {
+      console.error('Failed to import external session:', err);
+    } finally {
+      setImportingId(null);
+    }
+  };
+
+  if (sorted.length === 0 && externalSessions.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center px-4">
         <span className="text-text-muted text-sm text-center">
@@ -95,6 +134,52 @@ function SessionList(): React.JSX.Element {
           onRename={(label) => handleRename(session.sessionId, label)}
         />
       ))}
+
+      {externalSessions.length > 0 && (
+        <div className="mt-2 border-t border-border-default pt-2">
+          <button
+            className="flex items-center gap-1 px-3 py-1 text-xs text-text-muted hover:text-text-secondary w-full"
+            onClick={() => setExternalExpanded(!externalExpanded)}
+          >
+            <span className="text-[10px]">{externalExpanded ? '\u25BC' : '\u25B6'}</span>
+            External History ({externalSessions.length}{externalSessions.length >= externalLimit ? '+' : ''})
+          </button>
+
+          {externalExpanded && (
+            <>
+              {externalSessions.map((ext) => (
+                <div
+                  key={ext.claudeSessionId}
+                  className="group flex items-center gap-2 px-3 py-1.5 rounded-md cursor-pointer hover:bg-bg-secondary"
+                  onClick={() => handleImportExternal(ext.claudeSessionId)}
+                >
+                  <span className="w-2 h-2 rounded-full bg-text-muted shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs text-text-secondary truncate">
+                      {ext.slug}
+                    </span>
+                    <span className="text-[10px] text-text-muted">
+                      {ext.startedAt ? new Date(ext.startedAt).toLocaleDateString() : 'Unknown date'}
+                    </span>
+                  </div>
+                  {importingId === ext.claudeSessionId && (
+                    <span className="text-[10px] text-text-muted shrink-0">Loading...</span>
+                  )}
+                </div>
+              ))}
+              {externalSessions.length >= externalLimit && (
+                <button
+                  className="w-full px-3 py-1 text-[10px] text-text-muted hover:text-text-secondary"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Loading...' : 'Show more'}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -137,6 +137,32 @@ function registerSessionIpc(): void {
   ipcMain.handle('session:clear-all-attention', () => {
     sessionManager.clearAllAttention();
   });
+
+  ipcMain.handle('session:resume', (_event, sessionId: string) => {
+    return sessionManager.resume(sessionId);
+  });
+
+  ipcMain.handle('session:list-external', (_event, limit?: number) => {
+    const cap = limit ?? 50;
+    // Scan all unique cwds from Claude sessions
+    const sessions = sessionManager.list();
+    const cwds = new Set(
+      sessions.filter((s) => s.sessionType === 'claude').map((s) => s.cwd),
+    );
+    if (cwds.size === 0) cwds.add(process.cwd());
+
+    // Fetch more than needed per-cwd, then trim after merge
+    const all = [...cwds].flatMap((cwd) => sessionManager.listExternalSessions(cwd, cap));
+    all.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return all.slice(0, cap);
+  });
+
+  ipcMain.handle(
+    'session:import-external',
+    (_event, claudeSessionId: string, cwd: string) => {
+      return sessionManager.importExternal(claudeSessionId, cwd);
+    },
+  );
 }
 
 function registerLayoutIpc(): void {

@@ -115,10 +115,10 @@ function SessionCard({
 
       {/* Actions */}
       <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {!hasTile && session.status !== 'ended' && (
+        {!hasTile && (session.status !== 'ended' || (session.sessionType === 'claude' && session.claudeSessionId)) && (
           <button
             className="text-text-secondary hover:text-text-primary text-xs p-0.5"
-            title="Open tile"
+            title={session.status === 'ended' ? 'View / Resume session' : 'Open tile'}
             onClick={(e) => {
               e.stopPropagation();
               onDoubleClick();

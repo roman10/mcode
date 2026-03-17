@@ -34,6 +34,14 @@ export interface SessionCreateInput {
   sessionType?: SessionType;
 }
 
+// --- External (non-mcode) Claude Code sessions ---
+
+export interface ExternalSessionInfo {
+  claudeSessionId: string;
+  startedAt: string; // ISO 8601
+  slug: string;
+}
+
 export interface LayoutStateSnapshot {
   mosaicTree: MosaicNode<string> | null;
   sidebarWidth: number;
@@ -113,6 +121,9 @@ export interface MCodeAPI {
     setLabel(sessionId: string, label: string): Promise<void>;
     clearAttention(sessionId: string): Promise<void>;
     clearAllAttention(): Promise<void>;
+    resume(sessionId: string): Promise<SessionInfo>;
+    listExternal(limit?: number): Promise<ExternalSessionInfo[]>;
+    importExternal(claudeSessionId: string, cwd: string): Promise<SessionInfo>;
     onUpdated(callback: (session: SessionInfo) => void): () => void;
     onCreated(callback: (session: SessionInfo) => void): () => void;
   };
