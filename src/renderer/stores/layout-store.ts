@@ -13,6 +13,7 @@ interface LayoutState {
   setMosaicTree(tree: MosaicNode<string> | null): void;
   addTile(sessionId: string): void;
   removeTile(sessionId: string): void;
+  replaceTile(oldSessionId: string, newSessionId: string): void;
   setSidebarWidth(width: number): void;
   persist(): void;
   flushPersist(): void;
@@ -31,6 +32,24 @@ export function sessionIdFromTileId(tile: string): string | null {
     return tile.slice('session:'.length);
   }
   return null;
+}
+
+/** Swap one leaf for another in the mosaic tree, preserving layout structure. */
+function replaceLeaf(
+  node: MosaicNode<string>,
+  oldLeaf: string,
+  newLeaf: string,
+): MosaicNode<string> {
+  if (typeof node === 'string') {
+    return node === oldLeaf ? newLeaf : node;
+  }
+  if (node.type === 'split') {
+    return { ...node, children: node.children.map((c) => replaceLeaf(c, oldLeaf, newLeaf)) };
+  }
+  if (node.type === 'tabs') {
+    return { ...node, tabs: node.tabs.map((t) => (t === oldLeaf ? newLeaf : t)) };
+  }
+  return node;
 }
 
 /** Remove nodes referencing dead sessions from the mosaic tree. */
@@ -102,6 +121,14 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           leaves.length === 1
             ? leaves[0]
             : createBalancedTreeFromLeaves(leaves) ?? null,
+      };
+    }),
+
+  replaceTile: (oldSessionId, newSessionId) =>
+    set((state) => {
+      if (!state.mosaicTree) return state;
+      return {
+        mosaicTree: replaceLeaf(state.mosaicTree, tileId(oldSessionId), tileId(newSessionId)),
       };
     }),
 
