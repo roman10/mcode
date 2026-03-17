@@ -34,6 +34,56 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     term.open(container);
     terminalRegistry.set(sessionId, term);
 
+    // Intercept OS-level shortcuts before xterm sends them to the PTY
+    const isMac = window.mcode.app.getPlatform() === 'darwin';
+    term.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
+      const mod = isMac ? event.metaKey : event.ctrlKey;
+      if (!mod || event.type !== 'keydown') return true;
+
+      switch (event.key) {
+        // --- Clipboard ---
+        case 'c': {
+          const selection = term.getSelection();
+          if (selection) {
+            navigator.clipboard.writeText(selection);
+            return false;
+          }
+          return true; // no selection → SIGINT (\x03)
+        }
+        case 'v':
+          navigator.clipboard.readText().then((text) => {
+            if (text) term.paste(text);
+          }).catch(() => { /* clipboard permission denied */ });
+          return false;
+        case 'a':
+          term.selectAll();
+          return false;
+
+        // --- Clear ---
+        case 'k':
+          term.clear();
+          return false;
+
+        // --- Zoom ---
+        case '=':
+        case '+':
+          term.options.fontSize = Math.min(32, (term.options.fontSize ?? TERMINAL_FONT_SIZE) + 1);
+          fitAddon.fit();
+          return false;
+        case '-':
+          term.options.fontSize = Math.max(8, (term.options.fontSize ?? TERMINAL_FONT_SIZE) - 1);
+          fitAddon.fit();
+          return false;
+        case '0':
+          term.options.fontSize = TERMINAL_FONT_SIZE;
+          fitAddon.fit();
+          return false;
+
+        default:
+          return true;
+      }
+    });
+
     // WebGL addon must load AFTER term.open() (requires DOM attachment)
     let webglAddon: WebglAddon | null = null;
     try {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
 import { join } from 'node:path';
 import { is, optimizer } from '@electron-toolkit/utils';
 import { PtyManager } from './pty-manager';
@@ -55,6 +55,19 @@ function createMainWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Open http/https links in system browser; block all other window.open() calls
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell.openExternal(url);
+      }
+    } catch {
+      // invalid URL — ignore
+    }
+    return { action: 'deny' };
   });
 
   win.once('ready-to-show', () => win.show());
