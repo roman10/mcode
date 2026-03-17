@@ -2,6 +2,22 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
 import { queryRenderer } from '../ipc';
+import type { SessionAttentionLevel, SessionInfo, SessionStatus } from '../../shared/types';
+
+const attentionOrder: Record<SessionAttentionLevel, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+  none: 3,
+};
+
+const statusOrder: Record<SessionStatus, number> = {
+  waiting: 0,
+  active: 1,
+  starting: 2,
+  idle: 3,
+  ended: 4,
+};
 
 export function registerLayoutTools(
   server: McpServer,
@@ -190,10 +206,11 @@ export function registerLayoutTools(
     annotations: { readOnlyHint: true },
   }, async () => {
     try {
-      const sessions = await queryRenderer<unknown>(
-        ctx.mainWindow,
-        'sidebar-sessions',
-        {},
+      const sessions = ctx.sessionManager.list().sort(
+        (a: SessionInfo, b: SessionInfo) =>
+          (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||
+          (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
       );
       return {
         content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }],
@@ -223,9 +240,25 @@ export function registerLayoutTools(
     annotations: { readOnlyHint: false },
   }, async ({ sessionId }) => {
     try {
-      await queryRenderer<void>(ctx.mainWindow, 'session-select', {
-        sessionId,
-      });
+      if (sessionId !== null) {
+        const session = ctx.sessionManager.get(sessionId);
+        if (!session) {
+          return {
+            content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+            isError: true,
+          };
+        }
+        ctx.sessionManager.clearAttention(sessionId);
+      }
+
+      try {
+        await queryRenderer<void>(ctx.mainWindow, 'session-select', {
+          sessionId,
+        });
+      } catch {
+        // Renderer selection is best-effort for MCP tests; the source of truth lives in main.
+      }
+
       return {
         content: [
           { type: 'text', text: `Selected: ${sessionId ?? 'none'}` },

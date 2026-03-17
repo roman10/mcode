@@ -202,7 +202,7 @@ export class SessionManager {
   }
 
   /** Handle a hook event from the hook server or injected via MCP. */
-  handleHookEvent(sessionId: string, event: HookEvent): void {
+  handleHookEvent(sessionId: string, event: HookEvent): boolean {
     const db = getDb();
 
     // Verify session exists
@@ -211,11 +211,11 @@ export class SessionManager {
       .get(sessionId) as { status: string; attention_level: string } | undefined;
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
-      return;
+      return false;
     }
 
     // Don't process events for ended sessions
-    if (row.status === 'ended') return;
+    if (row.status === 'ended') return true;
 
     // Persist event
     this.persistEvent(sessionId, event);
@@ -333,6 +333,7 @@ export class SessionManager {
 
     this.broadcastSessionUpdate(sessionId);
     this.broadcastHookEvent(event);
+    return true;
   }
 
   private persistEvent(sessionId: string, event: HookEvent): void {

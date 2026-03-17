@@ -8,7 +8,7 @@ import {
 } from '../shared/constants';
 import type { HookRuntimeInfo, HookEvent } from '../shared/types';
 
-type HookEventCallback = (sessionId: string, event: HookEvent) => void;
+type HookEventCallback = (sessionId: string, event: HookEvent) => boolean;
 type SessionLookup = (claudeSessionId: string) => string | null;
 
 let httpServer: http.Server | null = null;
@@ -138,13 +138,21 @@ function handleHookPost(
   };
 
   try {
-    onEvent(sessionId, event);
+    const accepted = onEvent(sessionId, event);
+    if (!accepted) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Cannot correlate to an existing mcode session' }));
+      return;
+    }
   } catch (err) {
     logger.error('hook-server', 'Error processing hook event', {
       sessionId,
       hookEventName,
       error: err instanceof Error ? err.message : String(err),
     });
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to process hook event' }));
+    return;
   }
 
   res.writeHead(200, { 'Content-Type': 'application/json' });
