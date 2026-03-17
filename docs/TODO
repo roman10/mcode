@@ -2,8 +2,8 @@
 [done] 1. links not clickable 
 [done] 2. no copy paste support
 [done] 3. cannot start a normal terminal
-4. doesn't remember the last selected options for Claude code
-[wip] 5. no option to clean up existing sessions
+[wip] 4. doesn't remember the last selected options for Claude code
+[done] 5. no option to clean up existing sessions
 [done] 6. click on ended session doesn't load past history.
 7. resumed session remains starting state. state indicator can be incorrect.
 [done] 8. extra cursor when claude code is running.

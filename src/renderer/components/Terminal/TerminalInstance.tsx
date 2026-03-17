@@ -125,12 +125,18 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       console.warn('WebGL addon failed, falling back to canvas renderer:', e);
     }
 
-    fitAddon.fit();
-    // Sync PTY to actual tile dimensions immediately — the PTY was spawned
-    // at DEFAULT_COLS which may not match the tile size.
-    if (term.cols > 0 && term.rows > 0) {
-      window.mcode.pty.resize(sessionId, term.cols, term.rows);
-    }
+    // Centralize PTY resize: xterm.js fires onResize whenever cols/rows
+    // actually change — from fitAddon.fit(), font zoom, or any other trigger.
+    // Register BEFORE the first fitAddon.fit() so the initial fit is captured.
+    const unsubResize = term.onResize(({ cols, rows }) => {
+      window.mcode.pty.resize(sessionId, cols, rows);
+    });
+
+    // Defer initial fit to after browser layout is finalized.
+    // The ResizeObserver below is a second safety net.
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+    });
 
     // Replay buffered output before attaching live listener
     window.mcode.pty
@@ -173,9 +179,6 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       cancelAnimationFrame(resizeRaf);
       resizeRaf = requestAnimationFrame(() => {
         fitAddon.fit();
-        if (term.cols > 0 && term.rows > 0) {
-          window.mcode.pty.resize(sessionId, term.cols, term.rows);
-        }
       });
     });
     resizeObserver.observe(container);
@@ -184,6 +187,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       termInstanceRef.current = null;
       terminalRegistry.delete(sessionId);
       cancelAnimationFrame(resizeRaf);
+      unsubResize.dispose();
       unsubData();
       unsubExit();
       container.removeEventListener('contextmenu', handleContextMenu);

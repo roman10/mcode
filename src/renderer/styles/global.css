@@ -35,6 +35,9 @@
 
 .mosaic-theme-dark .mosaic-window .mosaic-window-body {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
   background: #0d1117;
 }
 
