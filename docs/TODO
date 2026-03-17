@@ -8,5 +8,7 @@
 7. resumed session remains starting state
 8. cursor on wrong position
 9. state indicator can be incorrect.
-10. right click menu
+[done]10. right click menu
 11. Cmd + F (find)
+12. line wrap not properly done for long lines
+13. scroll history

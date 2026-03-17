@@ -136,6 +136,59 @@ export function registerTerminalTools(
     };
   });
 
+  server.registerTool('terminal_execute_action', {
+    description: 'Execute an action on a terminal instance (selectAll, copy, clear). For copy, returns the currently selected text. Use selectAll before copy to get all content. Paste is not supported — use terminal_send_keys to write text to the terminal instead.',
+    inputSchema: {
+      sessionId: z.string().describe('The PTY session ID'),
+      action: z
+        .enum(['copy', 'selectAll', 'clear'])
+        .describe('Action to execute: copy (get selection), selectAll (select all text), clear (clear scrollback)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, action }) => {
+    if (!ctx.ptyManager.getInfo(sessionId)) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+
+    try {
+      const result = await queryRenderer<{ ok?: boolean; text?: string; error?: string }>(
+        ctx.mainWindow,
+        'terminal-action',
+        { sessionId, action },
+      );
+
+      if (result.error) {
+        return {
+          content: [{ type: 'text', text: result.error }],
+          isError: true,
+        };
+      }
+
+      if (action === 'copy') {
+        return {
+          content: [{ type: 'text', text: result.text ?? '' }],
+        };
+      }
+
+      return {
+        content: [{ type: 'text', text: `Action '${action}' executed successfully` }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to execute action: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('terminal_wait_for_content', {
     description: 'Wait until a regex pattern appears in the terminal buffer. Polls every 250ms.',
     inputSchema: {

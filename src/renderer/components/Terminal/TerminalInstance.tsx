@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -6,6 +6,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { darkTheme } from '../../styles/theme';
 import { TERMINAL_FONT_SIZE, TERMINAL_FONT_FAMILY } from '../../../shared/constants';
 import { terminalRegistry } from '../../devtools/terminal-registry';
+import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -13,6 +14,8 @@ interface TerminalInstanceProps {
 
 function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Element {
   const termRef = useRef<HTMLDivElement>(null);
+  const termInstanceRef = useRef<Terminal | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const container = termRef.current;
@@ -25,6 +28,8 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
       theme: darkTheme,
       allowProposedApi: true,
     });
+
+    termInstanceRef.current = term;
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
@@ -123,6 +128,13 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
       window.mcode.pty.write(sessionId, data);
     });
 
+    // Context menu
+    const handleContextMenu = (e: MouseEvent): void => {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    };
+    container.addEventListener('contextmenu', handleContextMenu);
+
     // Resize handling with rAF debounce
     let resizeRaf = 0;
     const resizeObserver = new ResizeObserver(() => {
@@ -137,17 +149,69 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     resizeObserver.observe(container);
 
     return () => {
+      termInstanceRef.current = null;
       terminalRegistry.delete(sessionId);
       cancelAnimationFrame(resizeRaf);
       unsubData();
       unsubExit();
+      container.removeEventListener('contextmenu', handleContextMenu);
       resizeObserver.disconnect();
       webglAddon?.dispose();
       term.dispose();
     };
   }, [sessionId]);
 
-  return <div ref={termRef} style={{ width: '100%', height: '100%' }} />;
+  const handleContextAction = useCallback((action: string) => {
+    const term = termInstanceRef.current;
+    if (!term) return;
+
+    switch (action) {
+      case 'copy': {
+        const selection = term.getSelection();
+        if (selection) navigator.clipboard.writeText(selection);
+        break;
+      }
+      case 'paste':
+        navigator.clipboard.readText().then((text) => {
+          if (text) term.paste(text);
+        }).catch(() => {});
+        break;
+      case 'selectAll':
+        term.selectAll();
+        break;
+      case 'clear':
+        term.clear();
+        break;
+    }
+
+    setContextMenu(null);
+  }, []);
+
+  const handleContextClose = useCallback(() => setContextMenu(null), []);
+
+  const contextMenuItems: MenuItem[] = contextMenu
+    ? [
+        { label: 'Copy', action: 'copy', enabled: !!termInstanceRef.current?.hasSelection() },
+        { label: 'Paste', action: 'paste' },
+        { label: 'Select All', action: 'selectAll' },
+        { label: '', action: 'sep', separator: true },
+        { label: 'Clear Terminal', action: 'clear' },
+      ]
+    : [];
+
+  return (
+    <>
+      <div ref={termRef} style={{ width: '100%', height: '100%' }} />
+      {contextMenu && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={contextMenu}
+          onAction={handleContextAction}
+          onClose={handleContextClose}
+        />
+      )}
+    </>
+  );
 }
 
 export default TerminalInstance;

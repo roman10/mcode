@@ -118,6 +118,30 @@ export function initDevtoolsBridge(): void {
         result = useSessionStore.getState().selectedSessionId;
         break;
       }
+      case 'terminal-action': {
+        const { sessionId, action } = params as { sessionId: string; action: string };
+        const term = terminalRegistry.get(sessionId);
+        if (!term) {
+          result = { error: 'Session not found' };
+          break;
+        }
+        switch (action) {
+          case 'copy':
+            result = { text: term.getSelection() || '' };
+            break;
+          case 'selectAll':
+            term.selectAll();
+            result = { ok: true };
+            break;
+          case 'clear':
+            term.clear();
+            result = { ok: true };
+            break;
+          default:
+            result = { error: `Unknown action: ${action}` };
+        }
+        break;
+      }
     }
 
     window.mcode.devtools.sendResponse(requestId, result);
