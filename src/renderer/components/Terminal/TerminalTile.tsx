@@ -13,6 +13,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const persist = useLayoutStore((s) => s.persist);
   const selectSession = useSessionStore((s) => s.selectSession);
   const status = useSessionStore((s) => s.sessions[sessionId]?.status);
+  const sessionType = useSessionStore((s) => s.sessions[sessionId]?.sessionType);
 
   const handleClose = (): void => {
     removeTile(sessionId);
@@ -33,7 +34,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
         {status === 'ended' ? (
           <SessionEndedPrompt sessionId={sessionId} />
         ) : (
-          <TerminalInstance sessionId={sessionId} />
+          <TerminalInstance sessionId={sessionId} sessionType={sessionType} />
         )}
       </div>
     </div>

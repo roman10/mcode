@@ -6,7 +6,7 @@
 5. no option to clean up existing sessions
 [done] 6. click on ended session doesn't load past history.
 7. resumed session remains starting state. state indicator can be incorrect.
-8. cursor on wrong position
+8. extra cursor when claude code is running.
 [done]10. right click menu
 [done] 11. Cmd + F (find)
 [] 12. line wrap not properly done for long lines when there are multiple terminal tiles left and right (need to measure available width for each tile and wrap accordingly). Happens when type comments to the claude code design session.

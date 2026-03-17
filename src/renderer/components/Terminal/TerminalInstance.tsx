@@ -12,9 +12,10 @@ import { useTerminalSearch } from '../../hooks/useTerminalSearch';
 
 interface TerminalInstanceProps {
   sessionId: string;
+  sessionType?: string;
 }
 
-function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Element {
+function TerminalInstance({ sessionId, sessionType }: TerminalInstanceProps): React.JSX.Element {
   const termRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -24,11 +25,15 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     const container = termRef.current;
     if (!container) return;
 
+    // Claude Code draws its own cursor character; hide the real xterm cursor
+    // to prevent a stray blinking block on the last terminal row.
+    const hideCursor = sessionType === 'claude';
     const term = new Terminal({
-      cursorBlink: true,
+      cursorBlink: !hideCursor,
+      cursorInactiveStyle: hideCursor ? 'none' : undefined,
       fontSize: TERMINAL_FONT_SIZE,
       fontFamily: TERMINAL_FONT_FAMILY,
-      theme: darkTheme,
+      theme: hideCursor ? { ...darkTheme, cursor: darkTheme.background } : darkTheme,
       allowProposedApi: true,
     });
 
@@ -173,7 +178,7 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
       webglAddon?.dispose();
       term.dispose();
     };
-  }, [sessionId]);
+  }, [sessionId, sessionType]);
 
   const handleContextAction = useCallback((action: string) => {
     const term = termInstanceRef.current;
