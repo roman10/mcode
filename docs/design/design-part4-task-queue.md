@@ -18,14 +18,17 @@ interface Task {
   id: number;
   prompt: string;
   cwd: string;
-  targetSessionId: string | null;  // null = create new session
+  targetSessionId: string | null;      // null = create new session
+  dispatchedSessionId: string | null;  // set on dispatch — tracks which session actually ran the task
   status: 'pending' | 'dispatched' | 'completed' | 'failed';
-  priority: number;                // Higher = more urgent
-  scheduledAt: Date | null;        // null = dispatch ASAP
+  priority: number;                    // Higher = more urgent
+  scheduledAt: Date | null;            // null = dispatch ASAP
   createdAt: Date;
   dispatchedAt: Date | null;
   completedAt: Date | null;
-  error: string | null;           // Failure reason if status='failed'
+  retryCount: number;                  // incremented on each failed attempt
+  maxRetries: number;                  // default 3; task marked 'failed' only after exhausting retries
+  error: string | null;               // Failure reason if status='failed'
 }
 ```
 
@@ -34,11 +37,15 @@ interface Task {
 2. For tasks targeting an existing session:
    - Wait until that session is `idle`
    - Write the prompt to the PTY stdin
+   - Set `dispatched_session_id` to the target session
 3. For tasks targeting a new session:
    - Spawn a new PTY with `claude "task prompt"` (positional argument)
    - If max concurrent sessions limit reached, keep in queue
-4. Mark as `dispatched` when sent, `completed` when session reaches `idle` or `ended` after dispatch
-5. Scheduled tasks (with `scheduledAt`) are held until the scheduled time
+   - Set `dispatched_session_id` to the newly created session ID
+4. Mark as `dispatched` when sent
+5. **Completion detection:** Subscribe to session status changes. When `dispatched_session_id`'s session transitions to `idle` or `ended` after being `active`, mark the task `completed`. Use `dispatched_session_id` (not `target_session_id`) for correlation — this handles both existing-session and new-session cases uniformly.
+6. **Retry on failure:** If dispatch fails (PTY spawn error, session gone), increment `retry_count`. If `retry_count < max_retries`, reset status to `pending` for next cycle. Otherwise mark `failed`.
+7. Scheduled tasks (with `scheduledAt`) are held until the scheduled time
 
 **Concurrency control:**
 - Configurable max concurrent sessions (default: 5)
@@ -50,17 +57,22 @@ interface Task {
 CREATE TABLE task_queue (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   prompt TEXT NOT NULL,
-  cwd TEXT,
+  cwd TEXT NOT NULL,
   target_session_id TEXT,
+  dispatched_session_id TEXT,            -- set on dispatch; correlates task ↔ session
   status TEXT NOT NULL DEFAULT 'pending',
   priority INTEGER NOT NULL DEFAULT 0,   -- Higher = more urgent
   scheduled_at TEXT,
   dispatched_at TEXT,
   completed_at TEXT,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  max_retries INTEGER NOT NULL DEFAULT 3,
   error TEXT,                            -- Failure reason if status='failed'
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_task_queue_status ON task_queue(status, priority DESC, created_at);
+CREATE INDEX idx_task_queue_dispatched_session ON task_queue(dispatched_session_id)
+  WHERE status = 'dispatched';
 ```
 
 ### IPC Bridge Additions
@@ -115,7 +127,8 @@ Renderer ──IPC──► Main: taskQueue.create()
   │                  │   │   └─ pty.spawn(new session with prompt as positional arg)
   │                  │   └─ Else: skip (retry next cycle)
   │                  │
-  │                  └─ UPDATE task_queue SET status='dispatched'
+  │                  └─ UPDATE task_queue SET status='dispatched',
+  │                     dispatched_session_id=<session that ran it>
   │
   ◄──────── IPC: task status update ─────────┘
 ```
@@ -143,9 +156,10 @@ Sidebar
 
 | Component | Failure | Recovery |
 |---|---|---|
-| **Task dispatch** | Target session no longer exists | Mark task as `failed` with reason. |
-| **Task dispatch** | PTY spawn fails | Mark task as `failed`, log error. |
-| **Concurrency limit** | All slots occupied | Keep task `pending`, retry next cycle. |
+| **Task dispatch** | Target session no longer exists | Increment `retry_count`; if under `max_retries`, reset to `pending`; else mark `failed`. |
+| **Task dispatch** | PTY spawn fails | Increment `retry_count`; if under `max_retries`, reset to `pending`; else mark `failed`. |
+| **Concurrency limit** | All slots occupied | Keep task `pending`, retry next cycle (does not count as a retry). |
+| **Task dispatch** | Session goes `ended` unexpectedly while `dispatched` | Mark task `failed` with "session ended before completion". |
 
 ---
 
@@ -171,5 +185,5 @@ Sidebar
 6. Create a task scheduled for 1 minute from now → it stays "pending" until the time, then dispatches
 7. Task panel shows status progression: pending → dispatched → completed
 
-**Files created:** `src/main/task-queue.ts`, `db/migrations/003_task_queue.sql`, `src/renderer/components/Sidebar/TaskQueuePanel.tsx`, `src/renderer/stores/task-store.ts`
+**Files created:** `src/main/task-queue.ts`, `db/migrations/004_task_queue.sql`, `src/renderer/components/Sidebar/TaskQueuePanel.tsx`, `src/renderer/stores/task-store.ts`
 **Files modified:** `src/main/index.ts`, `src/preload/index.ts`, `src/shared/types.ts`, `src/renderer/components/Sidebar/Sidebar.tsx`
