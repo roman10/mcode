@@ -1,4 +1,3 @@
-import { homedir } from 'node:os';
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   LayoutStateSnapshot,
@@ -8,6 +7,8 @@ import type {
   HookRuntimeInfo,
   HookEvent,
 } from '../shared/types';
+
+const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
 
 contextBridge.exposeInMainWorld('mcode', {
   pty: {
@@ -121,7 +122,7 @@ contextBridge.exposeInMainWorld('mcode', {
 
     getPlatform: (): string => process.platform,
 
-    getHomeDir: (): string => homedir(),
+    getHomeDir: (): string => homeDir,
 
     selectDirectory: (): Promise<string | null> =>
       ipcRenderer.invoke('app:select-directory'),
