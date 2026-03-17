@@ -412,7 +412,7 @@ export class SessionManager {
     const db = getDb();
 
     // Verify session exists
-    const row = db
+    let row = db
       .prepare('SELECT status, attention_level FROM sessions WHERE session_id = ?')
       .get(sessionId) as { status: string; attention_level: string } | undefined;
     if (!row) {
@@ -422,6 +422,16 @@ export class SessionManager {
 
     // Don't process events for ended sessions
     if (row.status === 'ended') return true;
+
+    // Self-heal: if receiving events while still 'starting', SessionStart was missed
+    if (row.status === 'starting' && event.hookEventName !== 'SessionStart') {
+      db.prepare('UPDATE sessions SET status = ? WHERE session_id = ?')
+        .run('active', sessionId);
+      row = { ...row, status: 'active' };
+      logger.info('session', 'Self-healed starting→active on event', {
+        sessionId, event: event.hookEventName,
+      });
+    }
 
     // Persist event
     this.persistEvent(sessionId, event);
@@ -449,12 +459,19 @@ export class SessionManager {
         break;
 
       case 'PreToolUse':
+        if (currentStatus === 'waiting') {
+          newStatus = 'active';
+          newAttention = 'none';
+          attentionReason = null;
+        }
         lastTool = event.toolName;
         break;
 
       case 'PostToolUse':
         if (currentStatus === 'waiting') {
           newStatus = 'active';
+          newAttention = 'none';
+          attentionReason = null;
         }
         lastTool = event.toolName;
         break;
