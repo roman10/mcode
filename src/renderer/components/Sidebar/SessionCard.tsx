@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { SessionInfo } from '../../../shared/types';
+import StatusBadge from './StatusBadge';
 
 interface SessionCardProps {
   session: SessionInfo;
@@ -11,10 +12,11 @@ interface SessionCardProps {
   onRename(label: string): void;
 }
 
-const statusColors: Record<string, string> = {
-  starting: 'bg-amber-400',
-  active: 'bg-green-400',
-  ended: 'bg-neutral-500',
+const attentionBorderColors: Record<string, string> = {
+  high: 'border-l-2 border-l-red-400',
+  medium: 'border-l-2 border-l-amber-400',
+  low: 'border-l-2 border-l-blue-400',
+  none: '',
 };
 
 function SessionCard({
@@ -52,9 +54,11 @@ function SessionCard({
     setIsEditing(false);
   };
 
+  const attentionBorder = attentionBorderColors[session.attentionLevel] ?? '';
+
   return (
     <div
-      className={`group flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+      className={`group flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors ${attentionBorder} ${
         isSelected
           ? 'bg-bg-elevated'
           : 'hover:bg-bg-secondary'
@@ -62,13 +66,10 @@ function SessionCard({
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
     >
-      {/* Status dot */}
-      <span
-        className={`shrink-0 w-2 h-2 rounded-full ${statusColors[session.status] || 'bg-neutral-500'}`}
-        title={session.status}
-      />
+      {/* Status dot with attention ring */}
+      <StatusBadge status={session.status} attentionLevel={session.attentionLevel} />
 
-      {/* Label */}
+      {/* Label + metadata */}
       <div className="flex-1 min-w-0">
         {isEditing ? (
           <input
@@ -97,9 +98,16 @@ function SessionCard({
             {session.label}
           </span>
         )}
-        <span className="block text-xs text-text-muted truncate" title={session.cwd}>
-          {session.cwd}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-text-muted truncate" title={session.cwd}>
+            {session.cwd}
+          </span>
+          {session.lastTool && session.status !== 'ended' && (
+            <span className="text-xs text-text-muted bg-bg-primary px-1 rounded shrink-0">
+              {session.lastTool}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Actions */}

@@ -18,3 +18,22 @@ export const PERMISSION_MODES = [
   'bypassPermissions',
 ] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
+// Hook system
+export const HOOK_PORT_DEFAULT = 7777;
+export const HOOK_PORT_MAX = 7799;
+export const HOOK_EVENT_RETENTION_DAYS = 7;
+export const HOOK_TOOL_INPUT_MAX_BYTES = 4096;
+export const HOOK_PRUNE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
+export const KNOWN_HOOK_EVENTS = [
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'Stop',
+  'PermissionRequest',
+  'SessionStart',
+  'SessionEnd',
+  'Notification',
+] as const;
+export type KnownHookEvent = (typeof KNOWN_HOOK_EVENTS)[number];

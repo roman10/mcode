@@ -3,8 +3,9 @@ import type {
   LayoutStateSnapshot,
   PtyExitPayload,
   SessionInfo,
-  SessionStatus,
   SessionCreateInput,
+  HookRuntimeInfo,
+  HookEvent,
 } from '../shared/types';
 
 contextBridge.exposeInMainWorld('mcode', {
@@ -60,17 +61,21 @@ contextBridge.exposeInMainWorld('mcode', {
     setLabel: (sessionId: string, label: string): Promise<void> =>
       ipcRenderer.invoke('session:set-label', sessionId, label),
 
-    onStatusChange: (
-      cb: (sessionId: string, status: SessionStatus) => void,
+    clearAttention: (sessionId: string): Promise<void> =>
+      ipcRenderer.invoke('session:clear-attention', sessionId),
+
+    clearAllAttention: (): Promise<void> =>
+      ipcRenderer.invoke('session:clear-all-attention'),
+
+    onUpdated: (
+      cb: (session: SessionInfo) => void,
     ): (() => void) => {
       const handler = (
         _e: Electron.IpcRendererEvent,
-        sessionId: string,
-        status: SessionStatus,
-      ): void => cb(sessionId, status);
-      ipcRenderer.on('session:status-change', handler);
-      return () =>
-        ipcRenderer.removeListener('session:status-change', handler);
+        session: SessionInfo,
+      ): void => cb(session);
+      ipcRenderer.on('session:updated', handler);
+      return () => ipcRenderer.removeListener('session:updated', handler);
     },
 
     onCreated: (
@@ -83,6 +88,23 @@ contextBridge.exposeInMainWorld('mcode', {
       ipcRenderer.on('session:created', handler);
       return () => ipcRenderer.removeListener('session:created', handler);
     },
+  },
+
+  hooks: {
+    getRuntime: (): Promise<HookRuntimeInfo> =>
+      ipcRenderer.invoke('hooks:get-runtime'),
+
+    onEvent: (cb: (event: HookEvent) => void): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        event: HookEvent,
+      ): void => cb(event);
+      ipcRenderer.on('hook:event', handler);
+      return () => ipcRenderer.removeListener('hook:event', handler);
+    },
+
+    getRecent: (sessionId: string, limit?: number): Promise<HookEvent[]> =>
+      ipcRenderer.invoke('hooks:get-recent', sessionId, limit ?? 50),
   },
 
   layout: {
@@ -100,6 +122,10 @@ contextBridge.exposeInMainWorld('mcode', {
 
     selectDirectory: (): Promise<string | null> =>
       ipcRenderer.invoke('app:select-directory'),
+
+    setDockBadge: (text: string): void => {
+      ipcRenderer.send('app:set-dock-badge', text);
+    },
 
     onError: (cb: (error: string) => void): (() => void) => {
       const handler = (

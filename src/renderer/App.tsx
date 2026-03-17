@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar/Sidebar';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import { useSessionStore } from './stores/session-store';
@@ -9,13 +9,18 @@ function App(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const setSessions = useSessionStore((s) => s.setSessions);
-  const updateStatus = useSessionStore((s) => s.updateStatus);
+  const upsertSession = useSessionStore((s) => s.upsertSession);
   const addSession = useSessionStore((s) => s.addSession);
+  const setHookRuntime = useSessionStore((s) => s.setHookRuntime);
   const restore = useLayoutStore((s) => s.restore);
   const pruneTiles = useLayoutStore((s) => s.pruneTiles);
   const addTile = useLayoutStore((s) => s.addTile);
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
+
+  // Track previous high-attention count for dock badge
+  const prevHighCountRef = useRef(0);
+  const prevAttentionBySessionRef = useRef<Record<string, string>>({});
 
   // Load sessions and layout on mount
   useEffect(() => {
@@ -27,6 +32,11 @@ function App(): React.JSX.Element {
         const allSessions = await window.mcode.sessions.list();
         if (cancelled) return;
         setSessions(allSessions);
+
+        // Load hook runtime info
+        const runtime = await window.mcode.hooks.getRuntime();
+        if (cancelled) return;
+        setHookRuntime(runtime);
 
         // Restore layout from SQLite
         await restore();
@@ -54,15 +64,29 @@ function App(): React.JSX.Element {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for session status changes from main process
+  // Listen for full session updates from main process (replaces onStatusChange)
+  // Also fires system notifications for newly raised high attention
   useEffect(() => {
-    const unsub = window.mcode.sessions.onStatusChange(
-      (sessionId, status) => {
-        updateStatus(sessionId, status);
-      },
-    );
+    const unsub = window.mcode.sessions.onUpdated((session) => {
+      const previousAttention = prevAttentionBySessionRef.current[session.sessionId];
+      prevAttentionBySessionRef.current[session.sessionId] = session.attentionLevel;
+
+      upsertSession(session);
+
+      // System notification only when high attention is newly raised.
+      if (
+        session.attentionLevel === 'high' &&
+        previousAttention !== 'high' &&
+        !document.hasFocus() &&
+        Notification.permission === 'granted'
+      ) {
+        new Notification('mcode — Attention needed', {
+          body: session.attentionReason ?? `Session "${session.label}" needs attention`,
+        });
+      }
+    });
     return unsub;
-  }, [updateStatus]);
+  }, [upsertSession]);
 
   // Listen for sessions created externally (e.g. via MCP devtools)
   useEffect(() => {
@@ -74,17 +98,19 @@ function App(): React.JSX.Element {
     return unsub;
   }, [addSession, addTile, persist]);
 
-  // Listen for PTY exit events to update session status
+  // Dock badge: count of high-attention sessions
   useEffect(() => {
-    const unsub = window.mcode.pty.onExit((sessionId) => {
-      // Read current state directly to avoid stale closure over sessions
-      const session = useSessionStore.getState().sessions[sessionId];
-      if (session && session.status !== 'ended') {
-        updateStatus(sessionId, 'ended');
+    return useSessionStore.subscribe((state) => {
+      const highCount = Object.values(state.sessions).filter(
+        (s) => s.attentionLevel === 'high',
+      ).length;
+
+      if (highCount !== prevHighCountRef.current) {
+        prevHighCountRef.current = highCount;
+        window.mcode.app.setDockBadge(highCount > 0 ? String(highCount) : '');
       }
     });
-    return unsub;
-  }, [updateStatus]);
+  }, []);
 
   useEffect(() => {
     const handleBeforeUnload = (): void => {

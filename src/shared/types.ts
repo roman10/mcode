@@ -3,7 +3,9 @@ import type { PermissionMode } from './constants';
 
 // --- Session ---
 
-export type SessionStatus = 'starting' | 'active' | 'ended';
+export type SessionType = 'claude' | 'terminal';
+export type SessionStatus = 'starting' | 'active' | 'idle' | 'waiting' | 'ended';
+export type SessionAttentionLevel = 'none' | 'low' | 'medium' | 'high';
 
 export interface SessionInfo {
   sessionId: string;
@@ -13,6 +15,13 @@ export interface SessionInfo {
   permissionMode?: PermissionMode;
   startedAt: string; // ISO 8601
   endedAt: string | null;
+
+  claudeSessionId: string | null;
+  lastTool: string | null;
+  lastEventAt: string | null;
+  attentionLevel: SessionAttentionLevel;
+  attentionReason: string | null;
+  hookMode: 'live' | 'fallback';
 }
 
 export interface SessionCreateInput {
@@ -26,6 +35,26 @@ export interface SessionCreateInput {
 export interface LayoutStateSnapshot {
   mosaicTree: MosaicNode<string> | null;
   sidebarWidth: number;
+}
+
+// --- Hooks ---
+
+export type HookRuntimeState = 'initializing' | 'ready' | 'degraded';
+
+export interface HookRuntimeInfo {
+  state: HookRuntimeState;
+  port: number | null;
+  warning: string | null;
+}
+
+export interface HookEvent {
+  sessionId: string;
+  claudeSessionId: string | null;
+  hookEventName: string;
+  toolName: string | null;
+  toolInput: Record<string, unknown> | null;
+  createdAt: string;
+  payload: Record<string, unknown>;
 }
 
 // --- PTY ---
@@ -80,10 +109,16 @@ export interface MCodeAPI {
     get(sessionId: string): Promise<SessionInfo | null>;
     kill(sessionId: string): Promise<void>;
     setLabel(sessionId: string, label: string): Promise<void>;
-    onStatusChange(
-      callback: (sessionId: string, status: SessionStatus) => void,
-    ): () => void;
+    clearAttention(sessionId: string): Promise<void>;
+    clearAllAttention(): Promise<void>;
+    onUpdated(callback: (session: SessionInfo) => void): () => void;
     onCreated(callback: (session: SessionInfo) => void): () => void;
+  };
+
+  hooks: {
+    getRuntime(): Promise<HookRuntimeInfo>;
+    onEvent(callback: (event: HookEvent) => void): () => void;
+    getRecent(sessionId: string, limit?: number): Promise<HookEvent[]>;
   };
 
   layout: {
@@ -98,6 +133,7 @@ export interface MCodeAPI {
     getVersion(): Promise<string>;
     getPlatform(): string;
     selectDirectory(): Promise<string | null>;
+    setDockBadge(text: string): void;
     onError(callback: (error: string) => void): () => void;
   };
 

@@ -4,11 +4,20 @@ import type { WebContents } from 'electron';
 import type { PtyManager } from './pty-manager';
 import { getDb } from './db';
 import { logger } from './logger';
-import { DEFAULT_COLS, DEFAULT_ROWS, type PermissionMode } from '../shared/constants';
+import {
+  DEFAULT_COLS,
+  DEFAULT_ROWS,
+  HOOK_EVENT_RETENTION_DAYS,
+  HOOK_TOOL_INPUT_MAX_BYTES,
+  type PermissionMode,
+} from '../shared/constants';
 import type {
   SessionInfo,
   SessionStatus,
+  SessionAttentionLevel,
   SessionCreateInput,
+  HookEvent,
+  HookRuntimeInfo,
 } from '../shared/types';
 
 interface SessionRecord {
@@ -19,6 +28,42 @@ interface SessionRecord {
   status: string;
   started_at: string;
   ended_at: string | null;
+  claude_session_id: string | null;
+  last_tool: string | null;
+  last_event_at: string | null;
+  attention_level: string;
+  attention_reason: string | null;
+  hook_mode: string;
+}
+
+function isClaudeCommand(command: string): boolean {
+  const normalized = basename(command).toLowerCase();
+  return normalized === 'claude' || normalized === 'claude.exe' || normalized === 'claude.cmd';
+}
+
+function serializeToolInput(
+  toolInput: Record<string, unknown> | null,
+): string | null {
+  if (!toolInput) return null;
+
+  const json = JSON.stringify(toolInput);
+  if (json.length <= HOOK_TOOL_INPUT_MAX_BYTES) {
+    return json;
+  }
+
+  return JSON.stringify({
+    _truncated: true,
+    _originalLength: json.length,
+  });
+}
+
+function tryParseJson<T>(value: string | null): T | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
 }
 
 function toSessionInfo(row: SessionRecord): SessionInfo {
@@ -30,19 +75,28 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
     startedAt: row.started_at,
     endedAt: row.ended_at,
+    claudeSessionId: row.claude_session_id,
+    lastTool: row.last_tool,
+    lastEventAt: row.last_event_at,
+    attentionLevel: row.attention_level as SessionAttentionLevel,
+    attentionReason: row.attention_reason,
+    hookMode: row.hook_mode as 'live' | 'fallback',
   };
 }
 
 export class SessionManager {
   private ptyManager: PtyManager;
   private getWebContents: () => WebContents | null;
+  private hookRuntimeGetter: () => HookRuntimeInfo;
 
   constructor(
     ptyManager: PtyManager,
     getWebContents: () => WebContents | null,
+    hookRuntimeGetter: () => HookRuntimeInfo,
   ) {
     this.ptyManager = ptyManager;
     this.getWebContents = getWebContents;
+    this.hookRuntimeGetter = hookRuntimeGetter;
   }
 
   create(input: SessionCreateInput): SessionInfo {
@@ -52,6 +106,16 @@ export class SessionManager {
     const startedAt = new Date().toISOString();
 
     const command = input.command ?? 'claude';
+
+    const isClaude = isClaudeCommand(command);
+
+    // Block Claude startup until the hook subsystem reaches a terminal runtime state.
+    const hookRuntime = this.hookRuntimeGetter();
+    if (isClaude && hookRuntime.state === 'initializing') {
+      throw new Error('Hook system is still initializing. Retry session creation shortly.');
+    }
+
+    const hookMode = isClaude && hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
     // Build args for CLI
     const args: string[] = [];
@@ -66,9 +130,9 @@ export class SessionManager {
     // If spawn fails, we delete the row.
     const db = getDb();
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, status, started_at)
-       VALUES (?, ?, ?, ?, 'starting', ?)`,
-    ).run(sessionId, label, cwd, input.permissionMode ?? null, startedAt);
+      `INSERT INTO sessions (session_id, label, cwd, permission_mode, status, started_at, hook_mode)
+       VALUES (?, ?, ?, ?, 'starting', ?, ?)`,
+    ).run(sessionId, label, cwd, input.permissionMode ?? null, startedAt, hookMode);
 
     try {
       this.ptyManager.spawn({
@@ -80,7 +144,11 @@ export class SessionManager {
         args: args.length > 0 ? args : undefined,
         env: { MCODE_SESSION_ID: sessionId },
         onFirstData: () => {
-          this.updateStatus(sessionId, 'active');
+          // In fallback mode, PTY data drives the starting -> active transition
+          // In live mode, SessionStart hook drives it
+          if (hookMode === 'fallback') {
+            this.updateStatus(sessionId, 'active');
+          }
         },
         onExit: () => {
           this.updateStatus(sessionId, 'ended');
@@ -92,17 +160,10 @@ export class SessionManager {
       throw err;
     }
 
-    logger.info('session', 'Created session', { sessionId, cwd, label });
+    logger.info('session', 'Created session', { sessionId, cwd, label, hookMode });
 
-    return {
-      sessionId,
-      label,
-      cwd,
-      status: 'starting',
-      permissionMode: input.permissionMode,
-      startedAt,
-      endedAt: null,
-    };
+    const session = this.get(sessionId)!;
+    return session;
   }
 
   updateStatus(sessionId: string, status: SessionStatus): void {
@@ -113,10 +174,12 @@ export class SessionManager {
       .prepare('SELECT status FROM sessions WHERE session_id = ?')
       .get(sessionId) as { status: string } | undefined;
     if (!current || current.status === status) return;
+    // Don't transition away from ended
+    if (current.status === 'ended') return;
 
     if (status === 'ended') {
       db.prepare(
-        `UPDATE sessions SET status = ?, ended_at = ? WHERE session_id = ?`,
+        `UPDATE sessions SET status = ?, ended_at = ?, attention_level = 'none', attention_reason = NULL WHERE session_id = ?`,
       ).run(status, new Date().toISOString(), sessionId);
     } else {
       db.prepare(
@@ -125,11 +188,174 @@ export class SessionManager {
     }
 
     logger.info('session', 'Status changed', { sessionId, status });
+    this.broadcastSessionUpdate(sessionId);
+  }
 
-    // Notify renderer
+  /** Handle a hook event from the hook server or injected via MCP. */
+  handleHookEvent(sessionId: string, event: HookEvent): void {
+    const db = getDb();
+
+    // Verify session exists
+    const row = db
+      .prepare('SELECT status, attention_level FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string; attention_level: string } | undefined;
+    if (!row) {
+      logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
+      return;
+    }
+
+    // Don't process events for ended sessions
+    if (row.status === 'ended') return;
+
+    // Persist event
+    this.persistEvent(sessionId, event);
+
+    // Persist claude_session_id if present
+    if (event.claudeSessionId) {
+      db.prepare(
+        'UPDATE sessions SET claude_session_id = ? WHERE session_id = ?',
+      ).run(event.claudeSessionId, sessionId);
+    }
+
+    // Apply state transitions
+    const currentStatus = row.status as SessionStatus;
+    const currentAttention = row.attention_level as SessionAttentionLevel;
+    let newStatus: SessionStatus = currentStatus;
+    let newAttention: SessionAttentionLevel = currentAttention;
+    let attentionReason: string | null = null;
+    let lastTool: string | null = null;
+
+    switch (event.hookEventName) {
+      case 'SessionStart':
+        if (currentStatus === 'starting') {
+          newStatus = 'active';
+        }
+        break;
+
+      case 'PreToolUse':
+        lastTool = event.toolName;
+        break;
+
+      case 'PostToolUse':
+        if (currentStatus === 'waiting') {
+          newStatus = 'active';
+        }
+        lastTool = event.toolName;
+        break;
+
+      case 'Stop':
+        newStatus = 'idle';
+        // Set low only if was active (avoid noise on repeated stops)
+        if (currentStatus === 'active') {
+          if (currentAttention === 'none') {
+            newAttention = 'low';
+            attentionReason = 'Claude finished its turn';
+          }
+        }
+        break;
+
+      case 'PermissionRequest':
+        newStatus = 'waiting';
+        newAttention = 'high';
+        attentionReason = event.toolName
+          ? `Permission needed: ${event.toolName}`
+          : 'Permission needed';
+        break;
+
+      case 'Notification':
+        // No status change
+        if (currentAttention !== 'high') {
+          newAttention = 'medium';
+          attentionReason = 'Notification from Claude';
+        }
+        break;
+
+      case 'PostToolUseFailure':
+        if (currentAttention !== 'high') {
+          newAttention = 'medium';
+          attentionReason = event.toolName
+            ? `Tool failed: ${event.toolName}`
+            : 'Tool failure';
+        }
+        break;
+
+      case 'SessionEnd':
+        newStatus = 'ended';
+        newAttention = 'none';
+        attentionReason = null;
+        break;
+    }
+
+    // Build update
+    const updates: string[] = [];
+    const params: unknown[] = [];
+
+    if (newStatus !== currentStatus) {
+      updates.push('status = ?');
+      params.push(newStatus);
+      if (newStatus === 'ended') {
+        updates.push('ended_at = ?');
+        params.push(new Date().toISOString());
+      }
+    }
+
+    if (newAttention !== currentAttention) {
+      updates.push('attention_level = ?');
+      params.push(newAttention);
+      updates.push('attention_reason = ?');
+      params.push(attentionReason);
+    }
+
+    if (lastTool) {
+      updates.push('last_tool = ?');
+      params.push(lastTool);
+    }
+
+    updates.push('last_event_at = ?');
+    params.push(event.createdAt);
+
+    if (updates.length > 0) {
+      params.push(sessionId);
+      db.prepare(
+        `UPDATE sessions SET ${updates.join(', ')} WHERE session_id = ?`,
+      ).run(...params);
+    }
+
+    this.broadcastSessionUpdate(sessionId);
+    this.broadcastHookEvent(event);
+  }
+
+  private persistEvent(sessionId: string, event: HookEvent): void {
+    const db = getDb();
+    const toolInput = serializeToolInput(event.toolInput);
+
+    db.prepare(
+      `INSERT INTO events (session_id, claude_session_id, hook_event_name, tool_name, tool_input, payload, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      sessionId,
+      event.claudeSessionId,
+      event.hookEventName,
+      event.toolName,
+      toolInput,
+      JSON.stringify(event.payload),
+      event.createdAt,
+    );
+  }
+
+  broadcastSessionUpdate(sessionId: string): void {
+    const session = this.get(sessionId);
+    if (!session) return;
     const wc = this.getWebContents();
     if (wc && !wc.isDestroyed()) {
-      wc.send('session:status-change', sessionId, status);
+      wc.send('session:updated', session);
+    }
+  }
+
+  private broadcastHookEvent(event: HookEvent): void {
+    const wc = this.getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('hook:event', event);
     }
   }
 
@@ -162,6 +388,84 @@ export class SessionManager {
       label,
       sessionId,
     );
+    this.broadcastSessionUpdate(sessionId);
+  }
+
+  clearAttention(sessionId: string): void {
+    const db = getDb();
+    db.prepare(
+      `UPDATE sessions SET attention_level = 'none', attention_reason = NULL WHERE session_id = ?`,
+    ).run(sessionId);
+    this.broadcastSessionUpdate(sessionId);
+  }
+
+  clearAllAttention(): void {
+    const db = getDb();
+    const changed = db
+      .prepare(
+        `SELECT session_id FROM sessions WHERE attention_level != 'none'`,
+      )
+      .all() as { session_id: string }[];
+
+    if (changed.length === 0) return;
+
+    db.prepare(
+      `UPDATE sessions SET attention_level = 'none', attention_reason = NULL WHERE attention_level != 'none'`,
+    ).run();
+
+    for (const row of changed) {
+      this.broadcastSessionUpdate(row.session_id);
+    }
+  }
+
+  /** Look up an mcode session ID by Claude's session_id. */
+  lookupByClaudeSessionId(claudeSessionId: string): string | null {
+    const db = getDb();
+    const row = db
+      .prepare('SELECT session_id FROM sessions WHERE claude_session_id = ?')
+      .get(claudeSessionId) as { session_id: string } | undefined;
+    return row?.session_id ?? null;
+  }
+
+  /** Get recent events for a session. */
+  getRecentEvents(sessionId: string, limit = 50): HookEvent[] {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `SELECT * FROM events WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
+      )
+      .all(sessionId, limit) as Array<{
+        session_id: string;
+        claude_session_id: string | null;
+        hook_event_name: string;
+        tool_name: string | null;
+        tool_input: string | null;
+        payload: string;
+        created_at: string;
+      }>;
+
+    return rows.map((r) => ({
+      sessionId: r.session_id,
+      claudeSessionId: r.claude_session_id,
+      hookEventName: r.hook_event_name,
+      toolName: r.tool_name,
+      toolInput: tryParseJson<Record<string, unknown>>(r.tool_input),
+      createdAt: r.created_at,
+      payload: tryParseJson<Record<string, unknown>>(r.payload) ?? {},
+    }));
+  }
+
+  /** Prune events older than retention period. */
+  pruneOldEvents(): void {
+    const db = getDb();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - HOOK_EVENT_RETENTION_DAYS);
+    const result = db
+      .prepare('DELETE FROM events WHERE created_at < ?')
+      .run(cutoff.toISOString());
+    if (result.changes > 0) {
+      logger.info('session', 'Pruned old events', { count: result.changes });
+    }
   }
 
   /** Mark all non-ended sessions as ended. Called on app quit. */
@@ -169,7 +473,7 @@ export class SessionManager {
     const db = getDb();
     const now = new Date().toISOString();
     db.prepare(
-      `UPDATE sessions SET status = 'ended', ended_at = ? WHERE status != 'ended'`,
+      `UPDATE sessions SET status = 'ended', ended_at = ?, attention_level = 'none', attention_reason = NULL WHERE status != 'ended'`,
     ).run(now);
     logger.info('session', 'Marked all active sessions as ended');
   }
@@ -206,5 +510,4 @@ export class SessionManager {
       return null;
     }
   }
-
 }

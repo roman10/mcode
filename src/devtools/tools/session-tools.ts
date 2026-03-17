@@ -122,7 +122,7 @@ export function registerSessionTools(
     description: 'Wait until a session reaches the specified status. Polls every 250ms.',
     inputSchema: {
       sessionId: z.string().describe('The session ID'),
-      status: z.enum(['starting', 'active', 'ended']).describe('Target status to wait for'),
+      status: z.enum(['starting', 'active', 'idle', 'waiting', 'ended']).describe('Target status to wait for'),
       timeout_ms: z.number().int().positive().optional().describe('Timeout in milliseconds (default: 15000)'),
     },
     annotations: { readOnlyHint: true },

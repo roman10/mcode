@@ -8,6 +8,36 @@ export interface SessionInfo {
   permissionMode?: string;
   startedAt: string;
   endedAt: string | null;
+  claudeSessionId: string | null;
+  lastTool: string | null;
+  lastEventAt: string | null;
+  attentionLevel: string;
+  attentionReason: string | null;
+  hookMode: string;
+}
+
+export interface HookRuntimeInfo {
+  state: string;
+  port: number | null;
+  warning: string | null;
+}
+
+export interface AttentionSummary {
+  high: number;
+  medium: number;
+  low: number;
+  none: number;
+  dockBadge: string;
+}
+
+export interface HookEvent {
+  sessionId: string;
+  claudeSessionId: string | null;
+  hookEventName: string;
+  toolName: string | null;
+  toolInput: Record<string, unknown> | null;
+  createdAt: string;
+  payload: Record<string, unknown>;
 }
 
 // --- Session lifecycle helpers ---
@@ -61,6 +91,76 @@ export async function cleanupSessions(
   }
   // Give processes time to exit
   await new Promise((r) => setTimeout(r, 500));
+}
+
+// --- Hook helpers ---
+
+export async function injectHookEvent(
+  client: McpTestClient,
+  sessionId: string,
+  hookEventName: string,
+  opts?: {
+    toolName?: string;
+    toolInput?: Record<string, unknown>;
+    claudeSessionId?: string;
+  },
+): Promise<SessionInfo> {
+  return client.callToolJson<SessionInfo>('hook_inject_event', {
+    sessionId,
+    hookEventName,
+    ...opts,
+  });
+}
+
+export async function waitForAttention(
+  client: McpTestClient,
+  sessionId: string,
+  attentionLevel: string,
+  timeoutMs = 15000,
+): Promise<SessionInfo> {
+  return client.callToolJson<SessionInfo>('session_wait_for_attention', {
+    sessionId,
+    attentionLevel,
+    timeout_ms: timeoutMs,
+  });
+}
+
+export async function getAttentionSummary(
+  client: McpTestClient,
+): Promise<AttentionSummary> {
+  return client.callToolJson<AttentionSummary>('app_get_attention_summary');
+}
+
+export async function getHookRuntime(
+  client: McpTestClient,
+): Promise<HookRuntimeInfo> {
+  return client.callToolJson<HookRuntimeInfo>('app_get_hook_runtime');
+}
+
+export async function getRecentEvents(
+  client: McpTestClient,
+  sessionId: string,
+  limit?: number,
+): Promise<HookEvent[]> {
+  return client.callToolJson<HookEvent[]>('hook_list_recent', {
+    sessionId,
+    ...(limit ? { limit } : {}),
+  });
+}
+
+export async function clearAttention(
+  client: McpTestClient,
+  sessionId: string,
+): Promise<SessionInfo> {
+  return client.callToolJson<SessionInfo>('session_clear_attention', {
+    sessionId,
+  });
+}
+
+export async function clearAllAttention(
+  client: McpTestClient,
+): Promise<void> {
+  await client.callTool('session_clear_all_attention', {});
 }
 
 // --- Layout helpers ---

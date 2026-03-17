@@ -18,8 +18,14 @@ function Sidebar(): React.JSX.Element {
   const flushPersist = useLayoutStore((s) => s.flushPersist);
   const addSession = useSessionStore((s) => s.addSession);
   const selectSession = useSessionStore((s) => s.selectSession);
+  const hookRuntime = useSessionStore((s) => s.hookRuntime);
 
   const isResizing = useRef(false);
+
+  // Check if any sessions have attention
+  const hasAttention = useSessionStore((s) =>
+    Object.values(s.sessions).some((sess) => sess.attentionLevel !== 'none'),
+  );
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -60,8 +66,15 @@ function Sidebar(): React.JSX.Element {
       setShowNewDialog(false);
     } catch (err) {
       console.error('Failed to create session:', err);
-      // TODO: show error toast
       setShowNewDialog(false);
+    }
+  };
+
+  const handleMarkAllRead = async (): Promise<void> => {
+    try {
+      await window.mcode.sessions.clearAllAttention();
+    } catch (err) {
+      console.error('Failed to clear attention:', err);
     }
   };
 
@@ -76,14 +89,32 @@ function Sidebar(): React.JSX.Element {
           <span className="text-sm font-medium text-text-primary">
             Sessions
           </span>
-          <button
-            className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-lg leading-none"
-            title="New session"
-            onClick={() => setShowNewDialog(true)}
-          >
-            +
-          </button>
+          <div className="flex items-center gap-1">
+            {hasAttention && (
+              <button
+                className="text-xs text-text-muted hover:text-text-secondary transition-colors px-1"
+                title="Mark all read"
+                onClick={handleMarkAllRead}
+              >
+                Clear
+              </button>
+            )}
+            <button
+              className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-lg leading-none"
+              title="New session"
+              onClick={() => setShowNewDialog(true)}
+            >
+              +
+            </button>
+          </div>
         </div>
+
+        {/* Degraded mode warning */}
+        {hookRuntime.state === 'degraded' && (
+          <div className="px-3 py-1.5 bg-amber-900/30 text-amber-300 text-xs">
+            Live status unavailable
+          </div>
+        )}
 
         {/* Session list */}
         <SessionList />

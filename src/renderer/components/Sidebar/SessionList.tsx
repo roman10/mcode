@@ -2,6 +2,22 @@ import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore, sessionIdFromTileId } from '../../stores/layout-store';
 import { getLeaves } from 'react-mosaic-component';
 import SessionCard from './SessionCard';
+import type { SessionAttentionLevel, SessionStatus } from '../../../shared/types';
+
+const attentionOrder: Record<SessionAttentionLevel, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+  none: 3,
+};
+
+const statusOrder: Record<SessionStatus, number> = {
+  waiting: 0,
+  active: 1,
+  starting: 2,
+  idle: 3,
+  ended: 4,
+};
 
 function SessionList(): React.JSX.Element {
   const sessions = useSessionStore((s) => s.sessions);
@@ -21,14 +37,10 @@ function SessionList(): React.JSX.Element {
       : [],
   );
 
-  // Sort: active first, then starting, then ended
-  const statusOrder: Record<string, number> = {
-    active: 0,
-    starting: 1,
-    ended: 2,
-  };
+  // Sort: attention first, then status, then start time
   const sorted = Object.values(sessions).sort(
     (a, b) =>
+      (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||
       (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
       new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
   );

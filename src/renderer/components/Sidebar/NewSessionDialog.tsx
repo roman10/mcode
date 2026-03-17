@@ -108,7 +108,14 @@ function NewSessionDialog({
             <select
               className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
               value={permissionMode}
-              onChange={(e) => setPermissionMode(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setPermissionMode(
+                  value === '' || PERMISSION_MODES.includes(value as PermissionMode)
+                    ? (value as PermissionMode | '')
+                    : '',
+                );
+              }}
             >
               <option value="">default</option>
               {PERMISSION_MODES.map((mode) => (
