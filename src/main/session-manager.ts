@@ -11,6 +11,7 @@ import {
   DEFAULT_ROWS,
   HOOK_EVENT_RETENTION_DAYS,
   HOOK_TOOL_INPUT_MAX_BYTES,
+  type EffortLevel,
   type PermissionMode,
 } from '../shared/constants';
 import type {
@@ -22,6 +23,7 @@ import type {
   ExternalSessionInfo,
   HookEvent,
   HookRuntimeInfo,
+  SessionDefaults,
   TerminalConfig,
 } from '../shared/types';
 
@@ -41,6 +43,7 @@ interface SessionRecord {
   hook_mode: string;
   session_type: string;
   terminal_config: string;
+  effort: string | null;
 }
 
 function isClaudeCommand(command: string): boolean {
@@ -80,6 +83,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     cwd: row.cwd,
     status: row.status as SessionStatus,
     permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
+    effort: (row.effort as EffortLevel) ?? undefined,
     startedAt: row.started_at,
     endedAt: row.ended_at,
     claudeSessionId: row.claude_session_id,
@@ -165,6 +169,9 @@ export class SessionManager {
       if (input.permissionMode) {
         args.push('--permission-mode', input.permissionMode);
       }
+      if (input.effort) {
+        args.push('--effort', input.effort);
+      }
       if (input.initialPrompt) {
         args.push(input.initialPrompt);
       }
@@ -174,9 +181,9 @@ export class SessionManager {
     // If spawn fails, we delete the row.
     const db = getDb();
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, status, started_at, hook_mode, session_type)
-       VALUES (?, ?, ?, ?, 'starting', ?, ?, ?)`,
-    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), startedAt, hookMode, sessionType);
+      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, status, started_at, hook_mode, session_type)
+       VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?)`,
+    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), startedAt, hookMode, sessionType);
 
     try {
       this.ptyManager.spawn({
@@ -233,6 +240,9 @@ export class SessionManager {
     const args: string[] = ['--resume', row.claude_session_id];
     if (row.permission_mode) {
       args.push('--permission-mode', row.permission_mode);
+    }
+    if (row.effort) {
+      args.push('--effort', row.effort);
     }
 
     try {
@@ -609,6 +619,23 @@ export class SessionManager {
       .prepare('SELECT * FROM sessions ORDER BY started_at DESC')
       .all() as SessionRecord[];
     return rows.map(toSessionInfo);
+  }
+
+  getLastDefaults(): SessionDefaults | null {
+    const db = getDb();
+    const row = db
+      .prepare(
+        `SELECT cwd, permission_mode, effort FROM sessions
+         WHERE session_type = 'claude'
+         ORDER BY started_at DESC LIMIT 1`,
+      )
+      .get() as { cwd: string; permission_mode: string | null; effort: string | null } | undefined;
+    if (!row) return null;
+    return {
+      cwd: row.cwd,
+      permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
+      effort: (row.effort as EffortLevel) ?? undefined,
+    };
   }
 
   setLabel(sessionId: string, label: string): void {

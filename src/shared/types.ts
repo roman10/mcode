@@ -1,5 +1,5 @@
 import type { MosaicNode } from 'react-mosaic-component';
-import type { PermissionMode } from './constants';
+import type { EffortLevel, PermissionMode } from './constants';
 
 // --- Terminal Config ---
 
@@ -19,6 +19,7 @@ export interface SessionInfo {
   cwd: string;
   status: SessionStatus;
   permissionMode?: PermissionMode;
+  effort?: EffortLevel;
   startedAt: string; // ISO 8601
   endedAt: string | null;
 
@@ -37,8 +38,15 @@ export interface SessionCreateInput {
   label?: string;
   initialPrompt?: string;
   permissionMode?: PermissionMode;
+  effort?: EffortLevel;
   command?: string;
   sessionType?: SessionType;
+}
+
+export interface SessionDefaults {
+  cwd: string;
+  permissionMode?: PermissionMode;
+  effort?: EffortLevel;
 }
 
 // --- External (non-mcode) Claude Code sessions ---
@@ -134,6 +142,7 @@ export interface MCodeAPI {
     importExternal(claudeSessionId: string, cwd: string): Promise<SessionInfo>;
     onUpdated(callback: (session: SessionInfo) => void): () => void;
     onCreated(callback: (session: SessionInfo) => void): () => void;
+    getLastDefaults(): Promise<SessionDefaults | null>;
     delete(sessionId: string): Promise<void>;
     onDeleted(callback: (sessionId: string) => void): () => void;
   };

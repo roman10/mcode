@@ -127,6 +127,10 @@ function registerSessionIpc(): void {
     sessionManager.delete(sessionId);
   });
 
+  ipcMain.handle('session:get-last-defaults', () => {
+    return sessionManager.getLastDefaults();
+  });
+
   ipcMain.handle(
     'session:set-label',
     (_event, sessionId: string, label: string) => {

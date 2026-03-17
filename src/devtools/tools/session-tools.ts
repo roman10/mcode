@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
-import { PERMISSION_MODES } from '../../shared/constants';
+import { EFFORT_LEVELS, PERMISSION_MODES } from '../../shared/constants';
 
 export function registerSessionTools(
   server: McpServer,
@@ -24,17 +24,19 @@ export function registerSessionTools(
       label: z.string().optional().describe('Optional label for the session'),
       initialPrompt: z.string().optional().describe('Optional initial prompt for Claude (ignored for terminal sessions)'),
       permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the Claude session (ignored for terminal sessions)'),
+      effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for the Claude session (ignored for terminal sessions)'),
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, command, sessionType }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, sessionType }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
         label,
         initialPrompt,
         permissionMode,
+        effort,
         command,
         sessionType,
       });

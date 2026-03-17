@@ -4,6 +4,7 @@ import type {
   PtyExitPayload,
   SessionInfo,
   SessionCreateInput,
+  SessionDefaults,
   ExternalSessionInfo,
   HookRuntimeInfo,
   HookEvent,
@@ -103,6 +104,9 @@ contextBridge.exposeInMainWorld('mcode', {
       ipcRenderer.on('session:created', handler);
       return () => ipcRenderer.removeListener('session:created', handler);
     },
+
+    getLastDefaults: (): Promise<SessionDefaults | null> =>
+      ipcRenderer.invoke('session:get-last-defaults'),
 
     delete: (sessionId: string): Promise<void> =>
       ipcRenderer.invoke('session:delete', sessionId),

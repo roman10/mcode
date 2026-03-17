@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SessionCreateInput } from '../../../shared/types';
-import { PERMISSION_MODES, type PermissionMode } from '../../../shared/constants';
+import { EFFORT_LEVELS, PERMISSION_MODES, type EffortLevel, type PermissionMode } from '../../../shared/constants';
 
 interface NewSessionDialogProps {
   onClose(): void;
@@ -15,7 +15,17 @@ function NewSessionDialog({
   const [label, setLabel] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
+  const [effort, setEffort] = useState<EffortLevel | ''>('');
   const [isCreating, setIsCreating] = useState(false);
+
+  useEffect(() => {
+    window.mcode.sessions.getLastDefaults().then((defaults) => {
+      if (!defaults) return;
+      setCwd(defaults.cwd);
+      if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
+      if (defaults.effort) setEffort(defaults.effort);
+    });
+  }, []);
 
   const handleBrowse = async (): Promise<void> => {
     const dir = await window.mcode.app.selectDirectory();
@@ -32,6 +42,7 @@ function NewSessionDialog({
       label: label.trim() || undefined,
       initialPrompt: initialPrompt.trim() || undefined,
       permissionMode: permissionMode || undefined,
+      effort: effort || undefined,
     });
   };
 
@@ -121,6 +132,32 @@ function NewSessionDialog({
               {PERMISSION_MODES.map((mode) => (
                 <option key={mode} value={mode}>
                   {mode}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Effort */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">
+              Effort
+            </label>
+            <select
+              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+              value={effort}
+              onChange={(e) => {
+                const value = e.target.value;
+                setEffort(
+                  value === '' || EFFORT_LEVELS.includes(value as EffortLevel)
+                    ? (value as EffortLevel | '')
+                    : '',
+                );
+              }}
+            >
+              <option value="">default</option>
+              {EFFORT_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {level}
                 </option>
               ))}
             </select>

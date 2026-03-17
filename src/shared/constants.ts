@@ -21,6 +21,15 @@ export const PERMISSION_MODES = [
 ] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
+// Valid Claude Code --effort values (excluding 'default' which means "no flag")
+export const EFFORT_LEVELS = [
+  'low',
+  'medium',
+  'high',
+  'max',
+] as const;
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+
 // Hook system
 export const HOOK_PORT_DEFAULT = 7777;
 export const HOOK_PORT_MAX = 7799;
