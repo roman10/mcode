@@ -22,6 +22,7 @@ export interface SessionInfo {
   attentionLevel: SessionAttentionLevel;
   attentionReason: string | null;
   hookMode: 'live' | 'fallback';
+  sessionType: SessionType;
 }
 
 export interface SessionCreateInput {
@@ -30,6 +31,7 @@ export interface SessionCreateInput {
   initialPrompt?: string;
   permissionMode?: PermissionMode;
   command?: string;
+  sessionType?: SessionType;
 }
 
 export interface LayoutStateSnapshot {
@@ -132,6 +134,7 @@ export interface MCodeAPI {
   app: {
     getVersion(): Promise<string>;
     getPlatform(): string;
+    getHomeDir(): string;
     selectDirectory(): Promise<string | null>;
     setDockBadge(text: string): void;
     onError(callback: (error: string) => void): () => void;

@@ -14,6 +14,7 @@ export interface SessionInfo {
   attentionLevel: string;
   attentionReason: string | null;
   hookMode: string;
+  sessionType: string;
 }
 
 export interface HookRuntimeInfo {
@@ -161,6 +162,21 @@ export async function clearAllAttention(
   client: McpTestClient,
 ): Promise<void> {
   await client.callTool('session_clear_all_attention', {});
+}
+
+// --- Sidebar helpers ---
+
+export async function getSidebarSessions(
+  client: McpTestClient,
+): Promise<SessionInfo[]> {
+  return client.callToolJson<SessionInfo[]>('sidebar_get_sessions');
+}
+
+export async function selectSession(
+  client: McpTestClient,
+  sessionId: string | null,
+): Promise<void> {
+  await client.callTool('sidebar_select_session', { sessionId });
 }
 
 // --- Layout helpers ---

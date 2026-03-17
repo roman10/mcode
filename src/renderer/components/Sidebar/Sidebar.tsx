@@ -70,6 +70,27 @@ function Sidebar(): React.JSX.Element {
     }
   };
 
+  const handleCreateTerminal = async (): Promise<void> => {
+    // Use the cwd of the currently selected session, or fall back to $HOME
+    const sessions = useSessionStore.getState().sessions;
+    const selectedId = useSessionStore.getState().selectedSessionId;
+    const selectedSession = selectedId ? sessions[selectedId] : null;
+    const cwd = selectedSession?.cwd || window.mcode.app.getHomeDir();
+
+    try {
+      const session = await window.mcode.sessions.create({
+        cwd,
+        sessionType: 'terminal',
+      });
+      addSession(session);
+      addTile(session.sessionId);
+      persist();
+      selectSession(session.sessionId);
+    } catch (err) {
+      console.error('Failed to create terminal:', err);
+    }
+  };
+
   const handleMarkAllRead = async (): Promise<void> => {
     try {
       await window.mcode.sessions.clearAllAttention();
@@ -100,8 +121,15 @@ function Sidebar(): React.JSX.Element {
               </button>
             )}
             <button
+              className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-xs font-mono leading-none"
+              title="New terminal"
+              onClick={handleCreateTerminal}
+            >
+              &gt;_
+            </button>
+            <button
               className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-lg leading-none"
-              title="New session"
+              title="New Claude session"
               onClick={() => setShowNewDialog(true)}
             >
               +

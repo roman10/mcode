@@ -18,16 +18,17 @@ export function registerSessionTools(
   });
 
   server.registerTool('session_create', {
-    description: 'Create a new Claude Code session',
+    description: 'Create a new Claude Code session or plain terminal',
     inputSchema: {
       cwd: z.string().describe('Working directory for the session'),
       label: z.string().optional().describe('Optional label for the session'),
-      initialPrompt: z.string().optional().describe('Optional initial prompt for Claude'),
-      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the Claude session'),
+      initialPrompt: z.string().optional().describe('Optional initial prompt for Claude (ignored for terminal sessions)'),
+      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the Claude session (ignored for terminal sessions)'),
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
+      sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, command }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, command, sessionType }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -35,6 +36,7 @@ export function registerSessionTools(
         initialPrompt,
         permissionMode,
         command,
+        sessionType,
       });
       // Notify renderer to add session to store (best-effort)
       try {

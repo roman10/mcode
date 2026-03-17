@@ -95,6 +95,9 @@ function SessionCard({
             }}
             title={session.label}
           >
+            {session.sessionType === 'terminal' && (
+              <span className="text-text-muted font-mono text-xs mr-1">&gt;_</span>
+            )}
             {session.label}
           </span>
         )}

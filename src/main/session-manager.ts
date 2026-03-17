@@ -13,6 +13,7 @@ import {
 } from '../shared/constants';
 import type {
   SessionInfo,
+  SessionType,
   SessionStatus,
   SessionAttentionLevel,
   SessionCreateInput,
@@ -34,6 +35,7 @@ interface SessionRecord {
   attention_level: string;
   attention_reason: string | null;
   hook_mode: string;
+  session_type: string;
 }
 
 function isClaudeCommand(command: string): boolean {
@@ -81,6 +83,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     attentionLevel: row.attention_level as SessionAttentionLevel,
     attentionReason: row.attention_reason,
     hookMode: row.hook_mode as 'live' | 'fallback',
+    sessionType: row.session_type as SessionType,
   };
 }
 
@@ -104,10 +107,15 @@ export class SessionManager {
     const cwd = input.cwd;
     const label = input.label || basename(cwd);
     const startedAt = new Date().toISOString();
+    const sessionType = input.sessionType ?? 'claude';
 
-    const command = input.command ?? 'claude';
+    const isTerminal = sessionType === 'terminal';
 
-    const isClaude = isClaudeCommand(command);
+    const command = isTerminal
+      ? (process.env.SHELL || '/bin/zsh')
+      : (input.command ?? 'claude');
+
+    const isClaude = !isTerminal && isClaudeCommand(command);
 
     // Block Claude startup until the hook subsystem reaches a terminal runtime state.
     const hookRuntime = this.hookRuntimeGetter();
@@ -117,22 +125,24 @@ export class SessionManager {
 
     const hookMode = isClaude && hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
-    // Build args for CLI
+    // Build args for CLI (only for Claude sessions)
     const args: string[] = [];
-    if (input.permissionMode) {
-      args.push('--permission-mode', input.permissionMode);
-    }
-    if (input.initialPrompt) {
-      args.push(input.initialPrompt);
+    if (!isTerminal) {
+      if (input.permissionMode) {
+        args.push('--permission-mode', input.permissionMode);
+      }
+      if (input.initialPrompt) {
+        args.push(input.initialPrompt);
+      }
     }
 
     // Insert DB row FIRST so that onFirstData/onExit callbacks can UPDATE it.
     // If spawn fails, we delete the row.
     const db = getDb();
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, status, started_at, hook_mode)
-       VALUES (?, ?, ?, ?, 'starting', ?, ?)`,
-    ).run(sessionId, label, cwd, input.permissionMode ?? null, startedAt, hookMode);
+      `INSERT INTO sessions (session_id, label, cwd, permission_mode, status, started_at, hook_mode, session_type)
+       VALUES (?, ?, ?, ?, 'starting', ?, ?, ?)`,
+    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), startedAt, hookMode, sessionType);
 
     try {
       this.ptyManager.spawn({

@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   LayoutStateSnapshot,
@@ -119,6 +120,8 @@ contextBridge.exposeInMainWorld('mcode', {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version'),
 
     getPlatform: (): string => process.platform,
+
+    getHomeDir: (): string => homedir(),
 
     selectDirectory: (): Promise<string | null> =>
       ipcRenderer.invoke('app:select-directory'),
