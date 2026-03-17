@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface MenuItem {
   label: string;
@@ -32,11 +33,11 @@ function SubMenu({ items, parentRect, onAction }: {
     let y = parentRect.top;
     // Flip left if overflowing right edge
     if (x + rect.width > window.innerWidth - 4) {
-      x = parentRect.left - rect.width;
+      x = Math.max(4, parentRect.left - rect.width);
     }
     // Clamp vertically
     if (y + rect.height > window.innerHeight - 4) {
-      y = window.innerHeight - rect.height - 4;
+      y = Math.max(4, window.innerHeight - rect.height - 4);
     }
     setPos({ x, y });
   }, [parentRect]);
@@ -103,8 +104,8 @@ function ContextMenu({ items, position, onAction, onClose }: ContextMenuProps): 
     const rect = menu.getBoundingClientRect();
     const maxX = window.innerWidth - rect.width - 4;
     const maxY = window.innerHeight - rect.height - 4;
-    const x = Math.min(position.x, maxX);
-    const y = Math.min(position.y, maxY);
+    const x = Math.max(4, Math.min(position.x, maxX));
+    const y = Math.max(4, Math.min(position.y, maxY));
     if (x !== clamped.x || y !== clamped.y) {
       setClamped({ x, y });
     }
@@ -115,7 +116,7 @@ function ContextMenu({ items, position, onAction, onClose }: ContextMenuProps): 
     onClose();
   };
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       data-testid="context-menu"
@@ -171,7 +172,8 @@ function ContextMenu({ items, position, onAction, onClose }: ContextMenuProps): 
             />
           );
         })()}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

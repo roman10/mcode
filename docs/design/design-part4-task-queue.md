@@ -18,8 +18,7 @@ interface Task {
   id: number;
   prompt: string;
   cwd: string;
-  targetSessionId: string | null;      // null = create new session
-  dispatchedSessionId: string | null;  // set on dispatch — tracks which session actually ran the task
+  sessionId: string | null;            // set on dispatch — the session that ran this task
   status: 'pending' | 'dispatched' | 'completed' | 'failed';
   priority: number;                    // Higher = more urgent
   scheduledAt: Date | null;            // null = dispatch ASAP
@@ -32,20 +31,22 @@ interface Task {
 }
 ```
 
+**Design decision — always fresh session:** Every task spawns a new Claude Code session.
+Tasks never reuse an existing session's context. This avoids context bleed between
+unrelated tasks and simplifies dispatch (no need to track session idle state).
+If a user wants to send follow-up work to an existing session, they interact with
+that session directly — not through the queue.
+
 **Dispatch logic:**
 1. Poll pending tasks every 2 seconds (or react to session status changes)
-2. For tasks targeting an existing session:
-   - Wait until that session is `idle`
-   - Write the prompt to the PTY stdin
-   - Set `dispatched_session_id` to the target session
-3. For tasks targeting a new session:
-   - Spawn a new PTY with `claude "task prompt"` (positional argument)
-   - If max concurrent sessions limit reached, keep in queue
-   - Set `dispatched_session_id` to the newly created session ID
-4. Mark as `dispatched` when sent
-5. **Completion detection:** Subscribe to session status changes. When `dispatched_session_id`'s session transitions to `idle` or `ended` after being `active`, mark the task `completed`. Use `dispatched_session_id` (not `target_session_id`) for correlation — this handles both existing-session and new-session cases uniformly.
-6. **Retry on failure:** If dispatch fails (PTY spawn error, session gone), increment `retry_count`. If `retry_count < max_retries`, reset status to `pending` for next cycle. Otherwise mark `failed`.
-7. Scheduled tasks (with `scheduledAt`) are held until the scheduled time
+2. For each pending task (if under concurrency limit):
+   - Spawn a new Claude Code session with `claude "task prompt"` (positional argument)
+   - Set `session_id` to the newly created session ID
+   - Mark as `dispatched`
+3. If max concurrent sessions limit reached, keep task `pending` (retry next cycle)
+4. **Completion detection:** Subscribe to session status changes. When the task's `session_id` transitions to `idle` or `ended` after being `active`, mark the task `completed`.
+5. **Retry on failure:** If spawn fails, increment `retry_count`. If `retry_count < max_retries`, reset status to `pending` for next cycle. Otherwise mark `failed`.
+6. Scheduled tasks (with `scheduledAt`) are held until the scheduled time
 
 **Concurrency control:**
 - Configurable max concurrent sessions (default: 5)
@@ -58,8 +59,7 @@ CREATE TABLE task_queue (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   prompt TEXT NOT NULL,
   cwd TEXT NOT NULL,
-  target_session_id TEXT,
-  dispatched_session_id TEXT,            -- set on dispatch; correlates task ↔ session
+  session_id TEXT,                        -- set on dispatch; correlates task ↔ session
   status TEXT NOT NULL DEFAULT 'pending',
   priority INTEGER NOT NULL DEFAULT 0,   -- Higher = more urgent
   scheduled_at TEXT,
@@ -71,7 +71,7 @@ CREATE TABLE task_queue (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_task_queue_status ON task_queue(status, priority DESC, created_at);
-CREATE INDEX idx_task_queue_dispatched_session ON task_queue(dispatched_session_id)
+CREATE INDEX idx_task_queue_session ON task_queue(session_id)
   WHERE status = 'dispatched';
 ```
 
@@ -96,7 +96,7 @@ interface MCodeAPI {
 interface TaskState {
   tasks: Task[];
 
-  addTask(prompt: string, cwd: string, targetSessionId?: string): Promise<void>;
+  addTask(prompt: string, cwd: string): Promise<void>;
   cancelTask(taskId: number): Promise<void>;
   refreshTasks(): Promise<void>;
 }
@@ -105,7 +105,7 @@ interface TaskState {
 ### Task Dispatch Data Flow
 
 ```
-User creates task (prompt, cwd, optional target session)
+User creates task (prompt, cwd)
   │
   ▼
 Renderer ──IPC──► Main: taskQueue.create()
@@ -120,15 +120,17 @@ Renderer ──IPC──► Main: taskQueue.create()
   │                  │         AND (scheduled_at IS NULL OR scheduled_at <= now)
   │                  │         ORDER BY priority DESC, created_at
   │                  │
-  │                  ├─ For each pending task:
-  │                  │   ├─ If target_session_id set AND session is idle:
-  │                  │   │   └─ pty.write(target_session_id, prompt + Enter)
-  │                  │   ├─ If target_session_id is NULL AND under concurrency limit:
-  │                  │   │   └─ pty.spawn(new session with prompt as positional arg)
-  │                  │   └─ Else: skip (retry next cycle)
+  │                  ├─ For each pending task (if under concurrency limit):
+  │                  │   └─ sessionManager.create({ cwd, prompt })
+  │                  │       → spawns new Claude session
   │                  │
   │                  └─ UPDATE task_queue SET status='dispatched',
-  │                     dispatched_session_id=<session that ran it>
+  │                     session_id=<new session id>
+  │
+  │                  Completion listener (on session status change):
+  │                  │
+  │                  ├─ Look up dispatched task by session_id
+  │                  └─ If session is idle/ended → mark task completed
   │
   ◄──────── IPC: task status update ─────────┘
 ```
@@ -147,7 +149,7 @@ Sidebar
 │   └── TaskItem × N
 │       ├── Prompt preview (truncated)
 │       ├── Status badge (pending/dispatched/completed/failed)
-│       ├── Target session label (or "New session")
+│       ├── Session link (once dispatched, click to focus)
 │       └── Cancel button (pending only)
 └── SidebarFooter
 ```
@@ -156,10 +158,9 @@ Sidebar
 
 | Component | Failure | Recovery |
 |---|---|---|
-| **Task dispatch** | Target session no longer exists | Increment `retry_count`; if under `max_retries`, reset to `pending`; else mark `failed`. |
 | **Task dispatch** | PTY spawn fails | Increment `retry_count`; if under `max_retries`, reset to `pending`; else mark `failed`. |
 | **Concurrency limit** | All slots occupied | Keep task `pending`, retry next cycle (does not count as a retry). |
-| **Task dispatch** | Session goes `ended` unexpectedly while `dispatched` | Mark task `failed` with "session ended before completion". |
+| **Task running** | Session goes `ended` unexpectedly while `dispatched` | Mark task `failed` with "session ended before completion". |
 
 ---
 
@@ -170,17 +171,16 @@ Sidebar
 **Build:**
 - `task_queue` SQLite table
 - `TaskQueue` class in main process: create, cancel, dispatch loop
-- Dispatch logic: pending task + idle target session → write prompt to PTY; pending task + no target → spawn new session (up to concurrency limit)
+- Dispatch logic: pending task → spawn new session with prompt (up to concurrency limit)
 - Task completion detection: session transitions from dispatched task's session going `idle` or `ended`
 - Sidebar `TaskQueuePanel`: list of pending/dispatched/completed tasks
-- "New Task" dialog: prompt text, cwd, optional target session
+- "New Task" dialog: prompt text, cwd
 - Scheduled tasks (dispatch after a given time)
 
 **Verify:**
-1. Create a task targeting an idle session → prompt appears in the terminal within 2 seconds
-2. Create a task with no target session → new session spawns, prompt dispatched
-3. Create 3 tasks with max concurrency set to 2 → two dispatch immediately, third waits
-4. When a session finishes → queued task dispatches to it
+1. Create a task → new session spawns, prompt dispatched
+2. Create 3 tasks with max concurrency set to 2 → two dispatch immediately, third waits
+3. When a dispatched session finishes and a slot opens → queued task dispatches
 5. Cancel a pending task → it disappears from queue, never dispatches
 6. Create a task scheduled for 1 minute from now → it stays "pending" until the time, then dispatches
 7. Task panel shows status progression: pending → dispatched → completed
