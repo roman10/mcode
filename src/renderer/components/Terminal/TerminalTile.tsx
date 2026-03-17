@@ -29,7 +29,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       onPointerDown={handleFocus}
     >
       <TerminalToolbar sessionId={sessionId} onClose={handleClose} />
-      <div className="flex-1 min-h-0 pl-1">
+      <div className="flex-1 min-h-0 min-w-0 pl-1">
         {status === 'ended' ? (
           <SessionEndedPrompt sessionId={sessionId} />
         ) : (

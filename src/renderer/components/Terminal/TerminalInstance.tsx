@@ -108,6 +108,11 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     }
 
     fitAddon.fit();
+    // Sync PTY to actual tile dimensions immediately — the PTY was spawned
+    // at DEFAULT_COLS which may not match the tile size.
+    if (term.cols > 0 && term.rows > 0) {
+      window.mcode.pty.resize(sessionId, term.cols, term.rows);
+    }
 
     // Replay buffered output before attaching live listener
     window.mcode.pty
@@ -209,7 +214,7 @@ function TerminalInstance({ sessionId }: TerminalInstanceProps): React.JSX.Eleme
     : [];
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
       <div ref={termRef} style={{ width: '100%', height: '100%' }} />
       {search.isOpen && (
         <SearchBar
