@@ -90,6 +90,15 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
   };
 }
 
+function truncatePromptToLabel(prompt: string, maxLen: number): string {
+  const firstLine = prompt.split('\n')[0].trim();
+  if (!firstLine) return '';
+  if (firstLine.length <= maxLen) return firstLine;
+  const truncated = firstLine.slice(0, maxLen);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > maxLen * 0.3 ? truncated.slice(0, lastSpace) : truncated) + '...';
+}
+
 export class SessionManager {
   private ptyManager: PtyManager;
   private getWebContents: () => WebContents | null;
@@ -105,10 +114,29 @@ export class SessionManager {
     this.hookRuntimeGetter = hookRuntimeGetter;
   }
 
+  private nextDisambiguatedLabel(cwd: string): string {
+    const base = basename(cwd);
+    const db = getDb();
+    const rows = db.prepare(
+      `SELECT label FROM sessions WHERE label = ? OR label LIKE ? || ' (%)'`,
+    ).all(base, base) as { label: string }[];
+    if (rows.length === 0) return base;
+    // Find highest counter in use
+    let max = 1; // base without suffix counts as 1
+    for (const { label } of rows) {
+      if (label === base) continue;
+      const match = label.match(/\((\d+)\)$/);
+      if (match) max = Math.max(max, parseInt(match[1], 10));
+    }
+    return `${base} (${max + 1})`;
+  }
+
   create(input: SessionCreateInput): SessionInfo {
     const sessionId = randomUUID();
     const cwd = input.cwd;
-    const label = input.label || basename(cwd);
+    const label = input.label
+      || (input.initialPrompt ? truncatePromptToLabel(input.initialPrompt, 50) : null)
+      || this.nextDisambiguatedLabel(cwd);
     const startedAt = new Date().toISOString();
     const sessionType = input.sessionType ?? 'claude';
 
