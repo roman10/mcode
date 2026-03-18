@@ -1,3 +1,4 @@
 
-7. resumed session remains starting state. state indicator can be incorrect.
-13. prevent from going from sleep and auto going to sleep after all tasks are done. Diming screen is fine.
+1. resumed session remains starting state. state indicator can be incorrect.
+2. prevent from going from sleep and auto going to sleep after all tasks are done. Diming screen is fine.
+3. line wrap only works for some, but not working when there are more vertical dividers.

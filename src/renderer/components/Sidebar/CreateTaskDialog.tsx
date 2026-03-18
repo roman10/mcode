@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
+import { formatShortTime } from '../../hooks/useRelativeTime';
 import type { CreateTaskInput } from '../../../shared/types';
 
 interface CreateTaskDialogProps {
@@ -133,7 +134,7 @@ function CreateTaskDialog({
                   <option value="">Auto (new session)</option>
                   {targetableSessions.map((s) => (
                     <option key={s.sessionId} value={s.sessionId}>
-                      {s.label || s.sessionId.slice(0, 8)} — {s.status}
+                      {s.label || s.sessionId.slice(0, 8)} — {s.status} · {formatShortTime(s.startedAt)}
                     </option>
                   ))}
                 </select>

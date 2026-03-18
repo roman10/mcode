@@ -1,14 +1,18 @@
+import { useEffect, useRef } from 'react';
 import TerminalToolbar from './TerminalToolbar';
 import TerminalInstance from './TerminalInstance';
 import SessionEndedPrompt from './SessionEndedPrompt';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 
+const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
+
 interface TerminalTileProps {
   sessionId: string;
 }
 
 function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null);
   const removeTile = useLayoutStore((s) => s.removeTile);
   const persist = useLayoutStore((s) => s.persist);
   const selectSession = useSessionStore((s) => s.selectSession);
@@ -25,10 +29,33 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     selectSession(sessionId, 'user');
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent): void => {
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    if (!mod || e.key !== 'w') return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.shiftKey) {
+      window.mcode.sessions.kill(sessionId).catch(console.error);
+    }
+    handleClose();
+  };
+
+  // Auto-focus the container when the session ends so it can receive keyboard events
+  useEffect(() => {
+    if (status === 'ended') {
+      containerRef.current?.focus();
+    }
+  }, [status]);
+
   return (
     <div
-      className="flex flex-col h-full w-full bg-bg-primary"
+      ref={containerRef}
+      className="flex flex-col h-full w-full bg-bg-primary outline-none"
+      tabIndex={-1}
       onPointerDown={handleFocus}
+      onKeyDown={handleKeyDown}
     >
       <TerminalToolbar sessionId={sessionId} onClose={handleClose} />
       <div className="flex-1 min-h-0 min-w-0 pl-1">

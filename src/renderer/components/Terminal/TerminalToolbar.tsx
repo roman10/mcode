@@ -1,4 +1,5 @@
 import { useSessionStore } from '../../stores/session-store';
+import { useRelativeTime } from '../../hooks/useRelativeTime';
 import Tooltip from '../shared/Tooltip';
 import type { SessionStatus } from '../../../shared/types';
 
@@ -32,6 +33,7 @@ function TerminalToolbar({
   const status = session?.status ?? 'ended';
   const attentionLevel = session?.attentionLevel ?? 'none';
   const lastTool = session?.lastTool;
+  const shortTime = useRelativeTime(session?.startedAt ?? '');
 
   const handleKill = async (): Promise<void> => {
     try {
@@ -62,6 +64,11 @@ function TerminalToolbar({
       <span className="text-xs text-text-primary truncate flex-1" title={label}>
         {label}
       </span>
+      {shortTime && (
+        <span className="text-xs text-text-muted ml-1 shrink-0">
+          {shortTime}
+        </span>
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-1 ml-2">

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { SessionInfo } from '../../../shared/types';
+import { useRelativeTime } from '../../hooks/useRelativeTime';
 import Tooltip from '../shared/Tooltip';
 import StatusBadge from './StatusBadge';
 
@@ -57,6 +58,7 @@ function SessionCard({
     setIsEditing(false);
   };
 
+  const shortTime = useRelativeTime(session.startedAt);
   const attentionBorder = attentionBorderColors[session.attentionLevel] ?? '';
 
   return (
@@ -108,6 +110,11 @@ function SessionCard({
           <span className="text-xs text-text-muted truncate" title={session.cwd}>
             {session.cwd}
           </span>
+          {shortTime && (
+            <span className="text-xs text-text-muted shrink-0">
+              · {shortTime}
+            </span>
+          )}
           {session.lastTool && session.status !== 'ended' && (
             <Tooltip content={`Last tool: ${session.lastTool}`} side="right">
               <span className="text-xs text-text-muted bg-bg-primary px-1 rounded shrink-0">
