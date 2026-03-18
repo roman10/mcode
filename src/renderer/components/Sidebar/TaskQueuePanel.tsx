@@ -98,11 +98,9 @@ function TaskQueuePanel(): React.JSX.Element {
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-text-muted">{expanded ? '\u25BC' : '\u25B6'}</span>
           <span className="text-xs text-text-secondary font-medium">Tasks</span>
-          {activeCount > 0 && (
-            <span className="text-[10px] bg-bg-elevated text-text-muted px-1 rounded">
-              {activeCount}
-            </span>
-          )}
+          <span className="text-[10px] bg-bg-elevated text-text-muted px-1 rounded">
+            {activeCount} active
+          </span>
         </div>
       </div>
 
