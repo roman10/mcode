@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, session, dialog, shell } from 'electron';
 import { join } from 'node:path';
 import { is, optimizer } from '@electron-toolkit/utils';
 import { PtyManager } from './pty-manager';
@@ -280,6 +280,45 @@ app.whenReady().then(async () => {
   });
 
   setupCSP();
+
+  // Custom menu: omit 'close' role so Cmd+W falls through to the renderer for tile close
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: app.name,
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
+      {
+        label: 'Edit',
+        submenu: [
+          { role: 'undo' },
+          { role: 'redo' },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { role: 'selectAll' },
+        ],
+      },
+      {
+        label: 'Window',
+        submenu: [
+          { role: 'minimize' },
+          { role: 'zoom' },
+        ],
+      },
+    ]),
+  );
 
   // Initialize database
   getDb();
