@@ -18,7 +18,7 @@ function CreateTaskDialog({
   const [priority, setPriority] = useState(0);
   const [scheduledAt, setScheduledAt] = useState('');
   const [maxRetries, setMaxRetries] = useState(3);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
 
   const sessions = useSessionStore((s) => s.sessions);
