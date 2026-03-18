@@ -11,7 +11,7 @@ import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
-import type { SessionCreateInput, CreateTaskInput, TaskFilter, HookRuntimeInfo, ExternalSessionInfo } from '../shared/types';
+import type { SessionCreateInput, CreateTaskInput, TaskFilter, HookRuntimeInfo, ExternalSessionInfo, AppCommand } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
@@ -198,8 +198,8 @@ function registerSessionIpc(): void {
 }
 
 function registerLayoutIpc(): void {
-  ipcMain.handle('layout:save', (_event, mosaicTree: unknown, sidebarWidth?: number) => {
-    sessionManager.saveLayout(mosaicTree, sidebarWidth);
+  ipcMain.handle('layout:save', (_event, mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean) => {
+    sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed);
   });
 
   ipcMain.handle('layout:load', () => {
@@ -269,6 +269,10 @@ function registerHookIpc(): void {
   ipcMain.handle('hooks:get-recent', (_event, sessionId: string, limit?: number) => {
     return sessionManager.getRecentEvents(sessionId, limit ?? 50);
   });
+
+  ipcMain.handle('hooks:get-recent-all', (_event, limit?: number) => {
+    return sessionManager.getRecentAllEvents(limit ?? 200);
+  });
 }
 
 async function initializeHookSystem(): Promise<void> {
@@ -313,7 +317,15 @@ app.whenReady().then(async () => {
 
   setupCSP();
 
-  // Custom menu: omit 'close' role so Cmd+W falls through to the renderer for tile close
+  // Custom menu with accelerators for app commands.
+  // Omit 'close' role so Cmd+W falls through to the renderer for tile close.
+  const sendCommand = (command: AppCommand): void => {
+    const wc = getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('app:command', command);
+    }
+  };
+
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
@@ -331,6 +343,21 @@ app.whenReady().then(async () => {
         ],
       },
       {
+        label: 'File',
+        submenu: [
+          {
+            label: 'New Session',
+            accelerator: 'CmdOrCtrl+N',
+            click: () => sendCommand({ command: 'new-session' }),
+          },
+          {
+            label: 'New Terminal',
+            accelerator: 'CmdOrCtrl+T',
+            click: () => sendCommand({ command: 'new-terminal' }),
+          },
+        ],
+      },
+      {
         label: 'Edit',
         submenu: [
           { role: 'undo' },
@@ -340,6 +367,37 @@ app.whenReady().then(async () => {
           { role: 'copy' },
           { role: 'paste' },
           { role: 'selectAll' },
+        ],
+      },
+      {
+        label: 'Sessions',
+        submenu: [
+          ...Array.from({ length: 9 }, (_, i) => ({
+            label: `Focus Session ${i + 1}`,
+            accelerator: `CmdOrCtrl+${i + 1}`,
+            click: () => sendCommand({ command: 'focus-session-index', index: i }),
+          })),
+          { type: 'separator' as const },
+          {
+            label: 'Focus Next Session',
+            accelerator: 'CmdOrCtrl+]',
+            click: () => sendCommand({ command: 'focus-next-session' }),
+          },
+          {
+            label: 'Focus Previous Session',
+            accelerator: 'CmdOrCtrl+[',
+            click: () => sendCommand({ command: 'focus-prev-session' }),
+          },
+        ],
+      },
+      {
+        label: 'View',
+        submenu: [
+          {
+            label: 'Toggle Sidebar',
+            accelerator: 'CmdOrCtrl+\\',
+            click: () => sendCommand({ command: 'toggle-sidebar' }),
+          },
         ],
       },
       {

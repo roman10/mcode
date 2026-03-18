@@ -63,7 +63,18 @@ export interface ExternalSessionInfo {
 export interface LayoutStateSnapshot {
   mosaicTree: MosaicNode<string> | null;
   sidebarWidth: number;
+  sidebarCollapsed: boolean;
 }
+
+// --- App Commands (menu accelerators → renderer) ---
+
+export type AppCommand =
+  | { command: 'new-session' }
+  | { command: 'new-terminal' }
+  | { command: 'focus-session-index'; index: number }
+  | { command: 'focus-next-session' }
+  | { command: 'focus-prev-session' }
+  | { command: 'toggle-sidebar' };
 
 // --- Hooks ---
 
@@ -177,12 +188,13 @@ export interface MCodeAPI {
     get(sessionId: string): Promise<SessionInfo | null>;
     kill(sessionId: string): Promise<void>;
     setLabel(sessionId: string, label: string): Promise<void>;
+    setAutoLabel(sessionId: string, label: string): Promise<void>;
     setTerminalConfig(sessionId: string, config: Partial<TerminalConfig>): Promise<void>;
     clearAttention(sessionId: string): Promise<void>;
     clearAllAttention(): Promise<void>;
     resume(sessionId: string): Promise<SessionInfo>;
     listExternal(limit?: number): Promise<ExternalSessionInfo[]>;
-    importExternal(claudeSessionId: string, cwd: string): Promise<SessionInfo>;
+    importExternal(claudeSessionId: string, cwd: string, label?: string): Promise<SessionInfo>;
     onUpdated(callback: (session: SessionInfo) => void): () => void;
     onCreated(callback: (session: SessionInfo) => void): () => void;
     getLastDefaults(): Promise<SessionDefaults | null>;
@@ -196,12 +208,14 @@ export interface MCodeAPI {
     getRuntime(): Promise<HookRuntimeInfo>;
     onEvent(callback: (event: HookEvent) => void): () => void;
     getRecent(sessionId: string, limit?: number): Promise<HookEvent[]>;
+    getRecentAll(limit?: number): Promise<HookEvent[]>;
   };
 
   layout: {
     save(
       mosaicTree: MosaicNode<string> | null,
       sidebarWidth?: number,
+      sidebarCollapsed?: boolean,
     ): Promise<void>;
     load(): Promise<LayoutStateSnapshot | null>;
   };
@@ -214,6 +228,14 @@ export interface MCodeAPI {
     setDockBadge(text: string): void;
     getPathForFile(file: File): string;
     onError(callback: (error: string) => void): () => void;
+    onCommand(callback: (command: AppCommand) => void): () => void;
+  };
+
+  preferences: {
+    get(key: string): Promise<string | null>;
+    set(key: string, value: string): Promise<void>;
+    getSleepStatus(): Promise<{ enabled: boolean; blocking: boolean }>;
+    setPreventSleep(enabled: boolean): Promise<void>;
   };
 
   tasks: {

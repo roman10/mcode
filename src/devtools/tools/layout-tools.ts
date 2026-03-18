@@ -326,4 +326,85 @@ export function registerLayoutTools(
       };
     }
   });
+
+  server.registerTool('layout_get_sidebar_collapsed', {
+    description: 'Get whether the sidebar is currently collapsed',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    try {
+      const collapsed = await queryRenderer<boolean>(
+        ctx.mainWindow,
+        'layout-sidebar-collapsed',
+        {},
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ collapsed }) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to get sidebar collapsed state: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('layout_set_sidebar_collapsed', {
+    description: 'Set the sidebar collapsed state',
+    inputSchema: {
+      collapsed: z.boolean().describe('Whether the sidebar should be collapsed'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ collapsed }) => {
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'layout-set-sidebar-collapsed', {
+        collapsed,
+      });
+      return {
+        content: [{ type: 'text', text: `Sidebar collapsed: ${collapsed}` }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to set sidebar collapsed: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('layout_toggle_dashboard', {
+    description: 'Toggle the activity dashboard tile (add if missing, remove if present)',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    try {
+      const added = await queryRenderer<boolean>(
+        ctx.mainWindow,
+        'layout-toggle-dashboard',
+        {},
+      );
+      return {
+        content: [
+          { type: 'text', text: added ? 'Dashboard tile added' : 'Dashboard tile removed' },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to toggle dashboard: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
 }

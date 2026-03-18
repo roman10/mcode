@@ -1,12 +1,14 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings } from 'lucide-react';
-import { useLayoutStore } from '../../stores/layout-store';
+import { useState, useRef, useCallback } from 'react';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity } from 'lucide-react';
+import { useLayoutStore, DASHBOARD_TILE_ID } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
+import { getLeaves } from 'react-mosaic-component';
 import SessionList from './SessionList';
 import TaskQueuePanel from './TaskQueuePanel';
 import NewSessionDialog from './NewSessionDialog';
 import SettingsDialog from '../SettingsDialog';
 import Tooltip from '../shared/Tooltip';
+import { createTerminalSession } from '../../utils/session-actions';
 import type { SessionCreateInput } from '../../../shared/types';
 import {
   MIN_SIDEBAR_WIDTH,
@@ -14,15 +16,25 @@ import {
 } from '../../../shared/constants';
 
 function Sidebar(): React.JSX.Element {
-  const [showNewDialog, setShowNewDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const showNewDialog = useLayoutStore((s) => s.showNewSessionDialog);
+  const setShowNewDialog = useLayoutStore((s) => s.setShowNewSessionDialog);
+  const splitIntent = useLayoutStore((s) => s.splitIntent);
+  const setSplitIntent = useLayoutStore((s) => s.setSplitIntent);
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth);
   const setSidebarWidth = useLayoutStore((s) => s.setSidebarWidth);
   const addTile = useLayoutStore((s) => s.addTile);
+  const addTileAdjacent = useLayoutStore((s) => s.addTileAdjacent);
   const removeAllTiles = useLayoutStore((s) => s.removeAllTiles);
   const hasTiles = useLayoutStore((s) => s.mosaicTree !== null);
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
+  const addDashboard = useLayoutStore((s) => s.addDashboard);
+  const removeDashboard = useLayoutStore((s) => s.removeDashboard);
+  const hasDashboard = useLayoutStore((s) => {
+    if (!s.mosaicTree) return false;
+    return getLeaves(s.mosaicTree).includes(DASHBOARD_TILE_ID);
+  });
   const addSession = useSessionStore((s) => s.addSession);
   const selectSession = useSessionStore((s) => s.selectSession);
   const hookRuntime = useSessionStore((s) => s.hookRuntime);
@@ -75,35 +87,28 @@ function Sidebar(): React.JSX.Element {
     try {
       const session = await window.mcode.sessions.create(input);
       addSession(session);
-      addTile(session.sessionId);
+
+      // If there's a split intent, insert adjacent; otherwise balanced insert
+      if (splitIntent) {
+        addTileAdjacent(splitIntent.anchorSessionId, session.sessionId, splitIntent.direction);
+        setSplitIntent(null);
+      } else {
+        addTile(session.sessionId);
+      }
+
       persist();
       selectSession(session.sessionId);
       setShowNewDialog(false);
     } catch (err) {
       console.error('Failed to create session:', err);
       setShowNewDialog(false);
+      setSplitIntent(null);
     }
   };
 
-  const handleCreateTerminal = async (): Promise<void> => {
-    // Use the cwd of the currently selected session, or fall back to $HOME
-    const sessions = useSessionStore.getState().sessions;
-    const selectedId = useSessionStore.getState().selectedSessionId;
-    const selectedSession = selectedId ? sessions[selectedId] : null;
-    const cwd = selectedSession?.cwd || window.mcode.app.getHomeDir();
-
-    try {
-      const session = await window.mcode.sessions.create({
-        cwd,
-        sessionType: 'terminal',
-      });
-      addSession(session);
-      addTile(session.sessionId);
-      persist();
-      selectSession(session.sessionId);
-    } catch (err) {
-      console.error('Failed to create terminal:', err);
-    }
+  const handleCloseDialog = (): void => {
+    setShowNewDialog(false);
+    setSplitIntent(null);
   };
 
   const handleMarkAllRead = async (): Promise<void> => {
@@ -135,24 +140,14 @@ function Sidebar(): React.JSX.Element {
     }
   };
 
-  // Global keyboard shortcuts: Cmd+T (new terminal), Cmd+N (new session)
-  useEffect(() => {
-    const handler = (e: KeyboardEvent): void => {
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-      if (!mod || e.shiftKey || e.altKey) return;
-
-      if (e.key === 't') {
-        e.preventDefault();
-        handleCreateTerminal();
-      } else if (e.key === 'n') {
-        e.preventDefault();
-        setShowNewDialog(true);
-      }
-    };
-
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [isMac]); // eslint-disable-line react-hooks/exhaustive-deps
+  const handleToggleDashboard = (): void => {
+    if (hasDashboard) {
+      removeDashboard();
+    } else {
+      addDashboard();
+    }
+    persist();
+  };
 
   return (
     <>
@@ -199,7 +194,7 @@ function Sidebar(): React.JSX.Element {
             <Tooltip content={`New terminal (${modLabel}T)`} side="bottom">
               <button
                 className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
-                onClick={handleCreateTerminal}
+                onClick={() => createTerminalSession().catch(console.error)}
               >
                 <TerminalSquare size={14} strokeWidth={1.5} />
               </button>
@@ -231,14 +226,26 @@ function Sidebar(): React.JSX.Element {
         {/* Footer */}
         <div className="flex items-center justify-between px-3 py-2 border-t border-border-default">
           <span className="text-xs text-text-muted">mcode</span>
-          <Tooltip content="Settings" side="top">
-            <button
-              className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-              onClick={() => setShowSettings(true)}
-            >
-              <Settings size={14} strokeWidth={1.5} />
-            </button>
-          </Tooltip>
+          <div className="flex items-center gap-0.5">
+            <Tooltip content={hasDashboard ? 'Hide activity' : 'Show activity'} side="top">
+              <button
+                className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
+                  hasDashboard ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
+                }`}
+                onClick={handleToggleDashboard}
+              >
+                <Activity size={14} strokeWidth={1.5} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Settings" side="top">
+              <button
+                className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+                onClick={() => setShowSettings(true)}
+              >
+                <Settings size={14} strokeWidth={1.5} />
+              </button>
+            </Tooltip>
+          </div>
         </div>
       </div>
 
@@ -250,7 +257,7 @@ function Sidebar(): React.JSX.Element {
 
       {showNewDialog && (
         <NewSessionDialog
-          onClose={() => setShowNewDialog(false)}
+          onClose={handleCloseDialog}
           onCreate={handleCreate}
         />
       )}

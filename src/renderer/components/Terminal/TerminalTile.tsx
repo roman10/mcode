@@ -31,15 +31,38 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     const mod = isMac ? e.metaKey : e.ctrlKey;
-    if (!mod || e.key !== 'w') return;
+    if (!mod) return;
 
-    e.preventDefault();
-    e.stopPropagation();
+    switch (e.key) {
+      case 'w':
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey) {
+          window.mcode.sessions.kill(sessionId).catch(console.error);
+        }
+        handleClose();
+        break;
 
-    if (e.shiftKey) {
-      window.mcode.sessions.kill(sessionId).catch(console.error);
+      case 'd':
+        e.preventDefault();
+        e.stopPropagation();
+        useLayoutStore.getState().setSplitIntent({
+          anchorSessionId: sessionId,
+          direction: e.shiftKey ? 'column' : 'row',
+        });
+        useLayoutStore.getState().setShowNewSessionDialog(true);
+        break;
+
+      case 'Enter':
+        e.preventDefault();
+        e.stopPropagation();
+        if (useLayoutStore.getState().restoreTree) {
+          useLayoutStore.getState().restoreFromMaximize();
+        } else {
+          useLayoutStore.getState().maximize(sessionId);
+        }
+        break;
     }
-    handleClose();
   };
 
   // Auto-focus the container when the session ends so it can receive keyboard events

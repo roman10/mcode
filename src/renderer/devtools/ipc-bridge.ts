@@ -106,16 +106,8 @@ export function initDevtoolsBridge(): void {
       }
       case 'sidebar-sessions': {
         const { useSessionStore } = await import('../stores/session-store');
-        const sessions = useSessionStore.getState().sessions;
-        // Return in attention-first sort order matching SessionList display
-        const attentionOrder: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 };
-        const statusOrder: Record<string, number> = { waiting: 0, active: 1, starting: 2, idle: 3, ended: 4 };
-        result = Object.values(sessions).sort(
-          (a, b) =>
-            (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||
-            (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
-            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-        );
+        const { getOrderedVisibleSessions } = await import('../utils/session-ordering');
+        result = getOrderedVisibleSessions(useSessionStore.getState().sessions);
         break;
       }
       case 'session-select': {
@@ -128,6 +120,36 @@ export function initDevtoolsBridge(): void {
       case 'session-get-selected': {
         const { useSessionStore } = await import('../stores/session-store');
         result = useSessionStore.getState().selectedSessionId;
+        break;
+      }
+      case 'layout-sidebar-collapsed': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        result = useLayoutStore.getState().sidebarCollapsed;
+        break;
+      }
+      case 'layout-set-sidebar-collapsed': {
+        const { collapsed } = params as { collapsed: boolean };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        const state = useLayoutStore.getState();
+        if (state.sidebarCollapsed !== collapsed) {
+          state.toggleSidebar();
+        }
+        result = true;
+        break;
+      }
+      case 'layout-toggle-dashboard': {
+        const { useLayoutStore, DASHBOARD_TILE_ID } = await import('../stores/layout-store');
+        const { getLeaves } = await import('react-mosaic-component');
+        const store = useLayoutStore.getState();
+        const tree = store.mosaicTree;
+        const has = tree ? getLeaves(tree).includes(DASHBOARD_TILE_ID) : false;
+        if (has) {
+          store.removeDashboard();
+        } else {
+          store.addDashboard();
+        }
+        store.persist();
+        result = !has; // true = added, false = removed
         break;
       }
       case 'terminal-action': {

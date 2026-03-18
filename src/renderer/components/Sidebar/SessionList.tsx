@@ -3,7 +3,8 @@ import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore, sessionIdFromTileId } from '../../stores/layout-store';
 import { getLeaves } from 'react-mosaic-component';
 import SessionCard from './SessionCard';
-import type { ExternalSessionInfo, SessionAttentionLevel, SessionInfo, SessionStatus } from '../../../shared/types';
+import { getOrderedVisibleSessions } from '../../utils/session-ordering';
+import type { ExternalSessionInfo, SessionInfo } from '../../../shared/types';
 
 interface DateGroup {
   key: string;
@@ -50,21 +51,6 @@ function groupSessionsByDate(sessions: SessionInfo[]): DateGroup[] {
     }));
 }
 
-const attentionOrder: Record<SessionAttentionLevel, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-  none: 3,
-};
-
-const statusOrder: Record<SessionStatus, number> = {
-  waiting: 0,
-  active: 1,
-  starting: 2,
-  idle: 3,
-  ended: 4,
-};
-
 function SessionList(): React.JSX.Element {
   const sessions = useSessionStore((s) => s.sessions);
   const externalSessions = useSessionStore((s) => s.externalSessions);
@@ -108,14 +94,8 @@ function SessionList(): React.JSX.Element {
       : [],
   );
 
-  // Filter out ephemeral sessions (safety net — they should already be excluded by list())
-  // Sort: attention first, then status, then start time
-  const sorted = Object.values(sessions).filter((s) => !s.ephemeral).sort(
-    (a, b) =>
-      (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||
-      (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
-      new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-  );
+  // Canonical ordering: attention → status → startedAt (shared with keyboard shortcuts)
+  const sorted = getOrderedVisibleSessions(sessions);
 
   const groups = groupSessionsByDate(sorted);
 

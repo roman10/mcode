@@ -908,7 +908,7 @@ export class SessionManager {
 
   // --- Layout persistence ---
 
-  saveLayout(mosaicTree: unknown, sidebarWidth?: number): void {
+  saveLayout(mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean): void {
     const db = getDb();
     if (mosaicTree === null || mosaicTree === undefined) {
       db.prepare('DELETE FROM layout_state WHERE id = 1').run();
@@ -916,26 +916,56 @@ export class SessionManager {
     }
     const json = JSON.stringify(mosaicTree);
     const width = sidebarWidth ?? 280;
+    const collapsed = sidebarCollapsed ? 1 : 0;
     db.prepare(
-      `INSERT INTO layout_state (id, mosaic_tree, sidebar_width, updated_at)
-       VALUES (1, ?, ?, datetime('now'))
-       ON CONFLICT(id) DO UPDATE SET mosaic_tree = ?, sidebar_width = ?, updated_at = datetime('now')`,
-    ).run(json, width, json, width);
+      `INSERT INTO layout_state (id, mosaic_tree, sidebar_width, sidebar_collapsed, updated_at)
+       VALUES (1, ?, ?, ?, datetime('now'))
+       ON CONFLICT(id) DO UPDATE SET mosaic_tree = ?, sidebar_width = ?, sidebar_collapsed = ?, updated_at = datetime('now')`,
+    ).run(json, width, collapsed, json, width, collapsed);
   }
 
-  loadLayout(): { mosaicTree: unknown; sidebarWidth: number } | null {
+  loadLayout(): { mosaicTree: unknown; sidebarWidth: number; sidebarCollapsed: boolean } | null {
     const db = getDb();
     const row = db
-      .prepare('SELECT mosaic_tree, sidebar_width FROM layout_state WHERE id = 1')
-      .get() as { mosaic_tree: string; sidebar_width: number } | undefined;
+      .prepare('SELECT mosaic_tree, sidebar_width, sidebar_collapsed FROM layout_state WHERE id = 1')
+      .get() as { mosaic_tree: string; sidebar_width: number; sidebar_collapsed: number } | undefined;
     if (!row) return null;
     try {
       return {
         mosaicTree: JSON.parse(row.mosaic_tree),
         sidebarWidth: row.sidebar_width,
+        sidebarCollapsed: Boolean(row.sidebar_collapsed),
       };
     } catch {
       return null;
     }
+  }
+
+  /** Get recent events across all sessions. */
+  getRecentAllEvents(limit = 200): HookEvent[] {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `SELECT * FROM events ORDER BY created_at DESC LIMIT ?`,
+      )
+      .all(limit) as Array<{
+        session_id: string;
+        claude_session_id: string | null;
+        hook_event_name: string;
+        tool_name: string | null;
+        tool_input: string | null;
+        payload: string;
+        created_at: string;
+      }>;
+
+    return rows.map((r) => ({
+      sessionId: r.session_id,
+      claudeSessionId: r.claude_session_id,
+      hookEventName: r.hook_event_name,
+      toolName: r.tool_name,
+      toolInput: tryParseJson<Record<string, unknown>>(r.tool_input),
+      createdAt: r.created_at,
+      payload: tryParseJson<Record<string, unknown>>(r.payload) ?? {},
+    }));
   }
 }

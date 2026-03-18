@@ -5,6 +5,9 @@ import MosaicLayout from './components/Layout/MosaicLayout';
 import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
+import { getOrderedVisibleSessions } from './utils/session-ordering';
+import { createTerminalSession } from './utils/session-actions';
+import type { AppCommand } from '../shared/types';
 
 function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -187,6 +190,65 @@ function App(): React.JSX.Element {
     };
   }, []);
 
+  // App command handling (menu accelerators dispatched from main process)
+  useEffect(() => {
+    const handleCommand = (command: AppCommand): void => {
+      switch (command.command) {
+        case 'new-session':
+          useLayoutStore.getState().setShowNewSessionDialog(true);
+          break;
+
+        case 'new-terminal':
+          createTerminalSession().catch(console.error);
+          break;
+
+        case 'toggle-sidebar':
+          useLayoutStore.getState().toggleSidebar();
+          break;
+
+        case 'focus-session-index': {
+          const ordered = getOrderedVisibleSessions(useSessionStore.getState().sessions);
+          const target = ordered[command.index];
+          if (!target) break;
+          useLayoutStore.getState().addTile(target.sessionId);
+          useLayoutStore.getState().persist();
+          useSessionStore.getState().selectSession(target.sessionId);
+          break;
+        }
+
+        case 'focus-next-session':
+        case 'focus-prev-session': {
+          const sessions = useSessionStore.getState().sessions;
+          const selectedId = useSessionStore.getState().selectedSessionId;
+          const ordered = getOrderedVisibleSessions(sessions);
+          if (ordered.length === 0) break;
+
+          const currentIdx = selectedId
+            ? ordered.findIndex((s) => s.sessionId === selectedId)
+            : -1;
+
+          let nextIdx: number;
+          if (command.command === 'focus-next-session') {
+            nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % ordered.length;
+          } else {
+            nextIdx = currentIdx < 0 ? ordered.length - 1 : (currentIdx - 1 + ordered.length) % ordered.length;
+          }
+
+          const next = ordered[nextIdx];
+          useLayoutStore.getState().addTile(next.sessionId);
+          useLayoutStore.getState().persist();
+          useSessionStore.getState().selectSession(next.sessionId);
+          break;
+        }
+      }
+    };
+
+    const unsub = window.mcode.app.onCommand(handleCommand);
+    return unsub;
+  }, []);
+
+  const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
+
   if (error) {
     return (
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
@@ -217,7 +279,7 @@ function App(): React.JSX.Element {
 
         {/* Main content: sidebar + mosaic */}
         <div className="flex flex-1 min-h-0">
-          <Sidebar />
+          {!sidebarCollapsed && <Sidebar />}
           <div className="flex-1 min-w-0">
             <MosaicLayout />
           </div>

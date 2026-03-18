@@ -29,6 +29,23 @@
     "react-mosaic-component": "^7.0.0-beta0",
     "zustand": "^5.0.12"
   },
+  "build": {
+    "appId": "com.mcode.app",
+    "productName": "mcode",
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg"],
+      "icon": "resources/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    }
+  },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@electron/rebuild": "^4.0.0",

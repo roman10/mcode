@@ -12,6 +12,7 @@ import type {
   CreateTaskInput,
   TaskFilter,
   TaskChangeEvent,
+  AppCommand,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -159,11 +160,14 @@ contextBridge.exposeInMainWorld('mcode', {
 
     getRecent: (sessionId: string, limit?: number): Promise<HookEvent[]> =>
       ipcRenderer.invoke('hooks:get-recent', sessionId, limit ?? 50),
+
+    getRecentAll: (limit?: number): Promise<HookEvent[]> =>
+      ipcRenderer.invoke('hooks:get-recent-all', limit ?? 200),
   },
 
   layout: {
-    save: (mosaicTree: unknown, sidebarWidth?: number): Promise<void> =>
-      ipcRenderer.invoke('layout:save', mosaicTree, sidebarWidth),
+    save: (mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean): Promise<void> =>
+      ipcRenderer.invoke('layout:save', mosaicTree, sidebarWidth, sidebarCollapsed),
 
     load: (): Promise<LayoutStateSnapshot | null> =>
       ipcRenderer.invoke('layout:load'),
@@ -192,6 +196,15 @@ contextBridge.exposeInMainWorld('mcode', {
       ): void => cb(error);
       ipcRenderer.on('app:error', handler);
       return () => ipcRenderer.removeListener('app:error', handler);
+    },
+
+    onCommand: (cb: (command: AppCommand) => void): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        command: AppCommand,
+      ): void => cb(command);
+      ipcRenderer.on('app:command', handler);
+      return () => ipcRenderer.removeListener('app:command', handler);
     },
   },
 

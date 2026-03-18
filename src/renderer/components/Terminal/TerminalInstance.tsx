@@ -94,13 +94,24 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
           search.open();
           return false;
 
-        // --- New terminal / New session (handled by document listener, block PTY) ---
+        // --- New terminal / New session (menu accelerators; block PTY) ---
         case 't':
         case 'n':
           return false;
 
-        // --- Close / Kill (action handled by TerminalTile onKeyDown; just block PTY) ---
+        // --- Close / Kill (TerminalTile onKeyDown; block PTY) ---
         case 'w':
+          return false;
+
+        // --- Split / Maximize (TerminalTile onKeyDown; block PTY) ---
+        case 'd':
+        case 'Enter':
+          return false;
+
+        // --- Session focus nav / sidebar toggle (menu accelerators; block PTY) ---
+        case ']':
+        case '[':
+        case '\\':
           return false;
 
         // --- Zoom ---

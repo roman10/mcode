@@ -105,6 +105,19 @@ export function registerHookTools(
     };
   });
 
+  server.registerTool('hook_list_recent_all', {
+    description: 'List recent hook events across all sessions',
+    inputSchema: {
+      limit: z.number().int().positive().optional().describe('Max events to return (default: 200)'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ limit }) => {
+    const events = ctx.sessionManager.getRecentAllEvents(limit ?? 200);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(events, null, 2) }],
+    };
+  });
+
   server.registerTool('session_wait_for_attention', {
     description: 'Wait until a session reaches the specified attention level. Polls every 250ms.',
     inputSchema: {
