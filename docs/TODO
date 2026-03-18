@@ -1,5 +1,5 @@
 
 1. resumed session remains starting state. state indicator can be incorrect.
-[wip] 2. prevent from going from sleep and auto going to sleep after all tasks are done. Diming screen is fine.
+[done] 2. prevent from going from sleep and auto going to sleep after all tasks are done. Diming screen is fine.
 [upstream] 3. Claude Code plan mode input wrapping doesn't reflow on SIGWINCH. mcode PTY resize chain verified correct (PTY and xterm cols always match).
-4. drag and drop images and files.
+[wip] 4. drag and drop images and files.

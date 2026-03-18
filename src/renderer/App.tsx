@@ -174,6 +174,19 @@ function App(): React.JSX.Element {
     };
   }, [flushPersist]);
 
+  // Prevent browser from navigating to files dropped outside a terminal
+  useEffect(() => {
+    const prevent = (e: DragEvent): void => {
+      e.preventDefault();
+    };
+    document.addEventListener('dragover', prevent);
+    document.addEventListener('drop', prevent);
+    return () => {
+      document.removeEventListener('dragover', prevent);
+      document.removeEventListener('drop', prevent);
+    };
+  }, []);
+
   if (error) {
     return (
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
