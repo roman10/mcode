@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Square, X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import Tooltip from '../shared/Tooltip';
@@ -139,19 +139,21 @@ function TerminalToolbar({
         {status !== 'ended' && (
           <Tooltip content="Kill session (⌘⇧W)" side="bottom">
             <button
+              aria-label="Kill session"
               className="text-text-muted hover:text-red-400 text-xs px-1 transition-colors"
               onClick={handleKill}
             >
-              Kill
+              <Square size={14} strokeWidth={1.5} />
             </button>
           </Tooltip>
         )}
         <Tooltip content="Close tile (⌘W)" side="bottom">
           <button
+            aria-label="Close tile"
             className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"
             onClick={onClose}
           >
-            Close
+            <X size={14} strokeWidth={1.5} />
           </button>
         </Tooltip>
       </div>
