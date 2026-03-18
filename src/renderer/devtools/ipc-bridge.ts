@@ -77,6 +77,13 @@ export function initDevtoolsBridge(): void {
         result = true;
         break;
       }
+      case 'layout-remove-all-tiles': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().removeAllTiles();
+        useLayoutStore.getState().persist();
+        result = true;
+        break;
+      }
       case 'layout-tile-count': {
         const { useLayoutStore } = await import('../stores/layout-store');
         const { getLeaves } = await import('react-mosaic-component');

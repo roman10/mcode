@@ -13,6 +13,7 @@ interface LayoutState {
   setMosaicTree(tree: MosaicNode<string> | null): void;
   addTile(sessionId: string): void;
   removeTile(sessionId: string): void;
+  removeAllTiles(): void;
   replaceTile(oldSessionId: string, newSessionId: string): void;
   setSidebarWidth(width: number): void;
   persist(): void;
@@ -123,6 +124,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             : createBalancedTreeFromLeaves(leaves) ?? null,
       };
     }),
+
+  removeAllTiles: () => set({ mosaicTree: null }),
 
   replaceTile: (oldSessionId, newSessionId) =>
     set((state) => {

@@ -117,6 +117,28 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('layout_remove_all_tiles', {
+    description: 'Remove all tiles from the mosaic layout (sessions keep running)',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'layout-remove-all-tiles', {});
+      return {
+        content: [{ type: 'text', text: 'Removed all tiles' }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to remove all tiles: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_get_tile_count', {
     description: 'Get the number of visible tiles in the mosaic layout',
     annotations: { readOnlyHint: true },

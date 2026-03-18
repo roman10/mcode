@@ -15,6 +15,8 @@ function Sidebar(): React.JSX.Element {
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth);
   const setSidebarWidth = useLayoutStore((s) => s.setSidebarWidth);
   const addTile = useLayoutStore((s) => s.addTile);
+  const removeAllTiles = useLayoutStore((s) => s.removeAllTiles);
+  const hasTiles = useLayoutStore((s) => s.mosaicTree !== null);
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
   const addSession = useSessionStore((s) => s.addSession);
@@ -105,6 +107,11 @@ function Sidebar(): React.JSX.Element {
     }
   };
 
+  const handleCloseAllTiles = (): void => {
+    removeAllTiles();
+    persist();
+  };
+
   const handleDeleteAllEnded = async (): Promise<void> => {
     const endedCount = Object.values(useSessionStore.getState().sessions).filter(
       (s) => s.status === 'ended',
@@ -133,6 +140,15 @@ function Sidebar(): React.JSX.Element {
             Sessions
           </span>
           <div className="flex items-center gap-1">
+            {hasTiles && (
+              <button
+                className="text-xs text-text-muted hover:text-text-secondary transition-colors px-1"
+                title="Close all tiles"
+                onClick={handleCloseAllTiles}
+              >
+                Close all
+              </button>
+            )}
             {hasEnded && (
               <button
                 className="text-xs text-text-muted hover:text-red-400 transition-colors px-1"
