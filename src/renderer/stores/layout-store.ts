@@ -7,6 +7,7 @@ import {
 import { LAYOUT_PERSIST_DEBOUNCE_MS } from '../../shared/constants';
 
 export const DASHBOARD_TILE_ID = 'dashboard';
+export const COMMIT_STATS_TILE_ID = 'commit-stats';
 
 interface SplitIntent {
   anchorSessionId: string;
@@ -20,6 +21,7 @@ interface LayoutState {
   splitIntent: SplitIntent | null;
   showNewSessionDialog: boolean;
   showKeyboardShortcuts: boolean;
+  showSettings: boolean;
   restoreTree: MosaicNode<string> | null;
 
   setMosaicTree(tree: MosaicNode<string> | null): void;
@@ -33,10 +35,14 @@ interface LayoutState {
   setSplitIntent(intent: SplitIntent | null): void;
   setShowNewSessionDialog(show: boolean): void;
   setShowKeyboardShortcuts(show: boolean): void;
+  setShowSettings(show: boolean): void;
+  toggleDashboard(): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
   addDashboard(): void;
   removeDashboard(): void;
+  addCommitStats(): void;
+  removeCommitStats(): void;
   persist(): void;
   flushPersist(): void;
   restore(): Promise<void>;
@@ -142,6 +148,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   splitIntent: null,
   showNewSessionDialog: false,
   showKeyboardShortcuts: false,
+  showSettings: false,
   restoreTree: null,
 
   setMosaicTree: (tree) => set({ mosaicTree: tree }),
@@ -238,6 +245,18 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   setShowNewSessionDialog: (show) => set({ showNewSessionDialog: show }),
   setShowKeyboardShortcuts: (show) => set({ showKeyboardShortcuts: show }),
+  setShowSettings: (show) => set({ showSettings: show }),
+
+  toggleDashboard: () => {
+    const current = get().mosaicTree;
+    const hasDashboard = current ? getLeaves(current).includes(DASHBOARD_TILE_ID) : false;
+    if (hasDashboard) {
+      get().removeDashboard();
+    } else {
+      get().addDashboard();
+    }
+    get().persist();
+  },
 
   maximize: (sessionId) =>
     set((state) => ({
@@ -277,6 +296,29 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((state) => {
       if (!state.mosaicTree) return state;
       const result = removeLeaf(state.mosaicTree, DASHBOARD_TILE_ID);
+      return { mosaicTree: result };
+    }),
+
+  addCommitStats: () =>
+    set((state) => {
+      const current = state.mosaicTree;
+      if (!current) {
+        return { mosaicTree: COMMIT_STATS_TILE_ID };
+      }
+      const leaves = getLeaves(current);
+      if (leaves.includes(COMMIT_STATS_TILE_ID)) {
+        return state;
+      }
+      const allLeaves = [...leaves, COMMIT_STATS_TILE_ID];
+      return {
+        mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? COMMIT_STATS_TILE_ID,
+      };
+    }),
+
+  removeCommitStats: () =>
+    set((state) => {
+      if (!state.mosaicTree) return state;
+      const result = removeLeaf(state.mosaicTree, COMMIT_STATS_TILE_ID);
       return { mosaicTree: result };
     }),
 

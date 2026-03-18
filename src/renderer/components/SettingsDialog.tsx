@@ -6,11 +6,16 @@ interface SettingsDialogProps {
 
 function SettingsDialog({ onClose }: SettingsDialogProps): React.JSX.Element {
   const [preventSleep, setPreventSleep] = useState(true);
+  const [scanAllBranches, setScanAllBranches] = useState(false);
 
   useEffect(() => {
     window.mcode.preferences
       .getSleepStatus()
       .then((status) => setPreventSleep(status.enabled))
+      .catch(() => {});
+    window.mcode.preferences
+      .get('commitScanAllBranches')
+      .then((val) => setScanAllBranches(val === 'true'))
       .catch(() => {});
   }, []);
 
@@ -20,6 +25,15 @@ function SettingsDialog({ onClose }: SettingsDialogProps): React.JSX.Element {
     window.mcode.preferences.setPreventSleep(newValue).catch(() => {
       setPreventSleep(!newValue);
     });
+  };
+
+  const handleScanAllBranchesToggle = (): void => {
+    const newValue = !scanAllBranches;
+    setScanAllBranches(newValue);
+    window.mcode.preferences
+      .set('commitScanAllBranches', String(newValue))
+      .then(() => window.mcode.commits.refresh())
+      .catch(() => setScanAllBranches(!newValue));
   };
 
   return (
@@ -61,6 +75,38 @@ function SettingsDialog({ onClose }: SettingsDialogProps): React.JSX.Element {
               <span
                 className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
                   preventSleep ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </label>
+        </div>
+
+        {/* Commit Tracking */}
+        <div className="mt-4">
+          <h3 className="text-text-secondary text-xs font-medium uppercase tracking-wide mb-3">
+            Commit Tracking
+          </h3>
+
+          <label className="flex items-center justify-between cursor-pointer group">
+            <div className="flex-1 mr-3">
+              <div className="text-sm text-text-primary">Scan all branches</div>
+              <div className="text-xs text-text-muted mt-0.5">
+                When off, only commits on the main branch are tracked. Turn on to include commits
+                from all branches.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={scanAllBranches}
+              onClick={handleScanAllBranchesToggle}
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                scanAllBranches ? 'bg-accent' : 'bg-bg-primary'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                  scanAllBranches ? 'translate-x-4' : 'translate-x-0'
                 }`}
               />
             </button>

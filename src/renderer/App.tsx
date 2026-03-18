@@ -3,6 +3,7 @@ import * as RadixTooltip from '@radix-ui/react-tooltip';
 import Sidebar from './components/Sidebar/Sidebar';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
+import SettingsDialog from './components/SettingsDialog';
 import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
@@ -247,6 +248,25 @@ function App(): React.JSX.Element {
           useSessionStore.getState().selectSession(next.sessionId);
           break;
         }
+
+        case 'show-settings': {
+          const ls = useLayoutStore.getState();
+          ls.setShowSettings(!ls.showSettings);
+          break;
+        }
+
+        case 'toggle-dashboard':
+          useLayoutStore.getState().toggleDashboard();
+          break;
+
+        case 'clear-all-attention':
+          window.mcode.sessions.clearAllAttention().catch(console.error);
+          break;
+
+        case 'close-all-tiles':
+          useLayoutStore.getState().removeAllTiles();
+          useLayoutStore.getState().persist();
+          break;
       }
     };
 
@@ -257,6 +277,8 @@ function App(): React.JSX.Element {
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const showKeyboardShortcuts = useLayoutStore((s) => s.showKeyboardShortcuts);
   const setShowKeyboardShortcuts = useLayoutStore((s) => s.setShowKeyboardShortcuts);
+  const showSettings = useLayoutStore((s) => s.showSettings);
+  const setShowSettings = useLayoutStore((s) => s.setShowSettings);
 
   if (error) {
     return (
@@ -296,6 +318,9 @@ function App(): React.JSX.Element {
       </div>
       {showKeyboardShortcuts && (
         <KeyboardShortcutsDialog onClose={() => setShowKeyboardShortcuts(false)} />
+      )}
+      {showSettings && (
+        <SettingsDialog onClose={() => setShowSettings(false)} />
       )}
     </RadixTooltip.Provider>
   );

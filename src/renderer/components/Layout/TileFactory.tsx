@@ -1,6 +1,7 @@
-import { sessionIdFromTileId, DASHBOARD_TILE_ID } from '../../stores/layout-store';
+import { sessionIdFromTileId, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID } from '../../stores/layout-store';
 import TerminalTile from '../Terminal/TerminalTile';
 import ActivityFeed from '../Dashboard/ActivityFeed';
+import CommitStats from '../Dashboard/CommitStats';
 
 interface TileFactoryProps {
   tileId: string;
@@ -9,6 +10,10 @@ interface TileFactoryProps {
 function TileFactory({ tileId }: TileFactoryProps): React.JSX.Element {
   if (tileId === DASHBOARD_TILE_ID) {
     return <ActivityFeed />;
+  }
+
+  if (tileId === COMMIT_STATS_TILE_ID) {
+    return <CommitStats />;
   }
 
   const sessionId = sessionIdFromTileId(tileId);

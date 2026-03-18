@@ -4,6 +4,7 @@ import { is, optimizer } from '@electron-toolkit/utils';
 import { PtyManager } from './pty-manager';
 import { SessionManager } from './session-manager';
 import { TaskQueue } from './task-queue';
+import { CommitTracker } from './commit-tracker';
 import { SleepBlocker } from './sleep-blocker';
 import { getPreference, setPreference } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
@@ -17,6 +18,7 @@ let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
 let sessionManager: SessionManager;
 let taskQueue: TaskQueue;
+let commitTracker: CommitTracker;
 let sleepBlocker: SleepBlocker;
 let hookRuntimeInfo: HookRuntimeInfo = {
   state: 'initializing',
@@ -240,6 +242,32 @@ function registerTaskIpc(): void {
   });
 }
 
+function registerCommitIpc(): void {
+  ipcMain.handle('commits:get-daily-stats', (_event, date?: string) => {
+    return commitTracker.getDailyStats(date);
+  });
+
+  ipcMain.handle('commits:get-heatmap', (_event, days?: number) => {
+    return commitTracker.getHeatmap(days);
+  });
+
+  ipcMain.handle('commits:get-streaks', () => {
+    return commitTracker.getStreaks();
+  });
+
+  ipcMain.handle('commits:get-cadence', (_event, date?: string) => {
+    return commitTracker.getCadence(date);
+  });
+
+  ipcMain.handle('commits:get-weekly-trend', () => {
+    return commitTracker.getWeeklyTrend();
+  });
+
+  ipcMain.handle('commits:refresh', async () => {
+    await commitTracker.scanAll();
+  });
+}
+
 function registerPreferencesIpc(): void {
   ipcMain.handle('preferences:get', (_event, key: string) => {
     return getPreference(key);
@@ -278,7 +306,13 @@ function registerHookIpc(): void {
 async function initializeHookSystem(): Promise<void> {
   try {
     const result = await startHookServer(
-      (sessionId, event) => sessionManager.handleHookEvent(sessionId, event),
+      (sessionId, event) => {
+        const handled = sessionManager.handleHookEvent(sessionId, event);
+        if (handled) {
+          commitTracker.onHookEvent(sessionId, event).catch(() => {});
+        }
+        return handled;
+      },
       (claudeSessionId) => sessionManager.lookupByClaudeSessionId(claudeSessionId),
     );
 
@@ -332,6 +366,12 @@ app.whenReady().then(async () => {
         label: app.name,
         submenu: [
           { role: 'about' },
+          { type: 'separator' },
+          {
+            label: 'Settings',
+            accelerator: 'CmdOrCtrl+,',
+            click: () => sendCommand({ command: 'show-settings' }),
+          },
           { type: 'separator' },
           { role: 'services' },
           { type: 'separator' },
@@ -388,6 +428,12 @@ app.whenReady().then(async () => {
             accelerator: 'CmdOrCtrl+[',
             click: () => sendCommand({ command: 'focus-prev-session' }),
           },
+          { type: 'separator' as const },
+          {
+            label: 'Clear All Attention',
+            accelerator: 'CmdOrCtrl+Shift+M',
+            click: () => sendCommand({ command: 'clear-all-attention' }),
+          },
         ],
       },
       {
@@ -397,6 +443,17 @@ app.whenReady().then(async () => {
             label: 'Toggle Sidebar',
             accelerator: 'CmdOrCtrl+\\',
             click: () => sendCommand({ command: 'toggle-sidebar' }),
+          },
+          {
+            label: 'Toggle Dashboard',
+            accelerator: 'CmdOrCtrl+Shift+A',
+            click: () => sendCommand({ command: 'toggle-dashboard' }),
+          },
+          { type: 'separator' },
+          {
+            label: 'Close All Tiles',
+            accelerator: 'CmdOrCtrl+Shift+X',
+            click: () => sendCommand({ command: 'close-all-tiles' }),
           },
         ],
       },
@@ -437,6 +494,7 @@ app.whenReady().then(async () => {
     () => hookRuntimeInfo,
     getWebContents,
   );
+  commitTracker = new CommitTracker(sessionManager, getWebContents);
   sleepBlocker = new SleepBlocker();
   sleepBlocker.attach(sessionManager);
 
@@ -446,6 +504,7 @@ app.whenReady().then(async () => {
   registerAppIpc();
   registerHookIpc();
   registerTaskIpc();
+  registerCommitIpc();
   registerPreferencesIpc();
 
   // Initialize hook system (server + config reconciliation)
@@ -454,10 +513,23 @@ app.whenReady().then(async () => {
   // Start task queue dispatch loop
   taskQueue.start();
 
-  // Start event pruning
+  // Start commit tracker
+  commitTracker.start();
+
+  // Wire commit tracker to hook events and session creation
+  sessionManager.onSessionUpdated((session, previousStatus) => {
+    // Trigger scan when a new session starts (starting -> active)
+    if (previousStatus === 'starting' && session.status === 'active') {
+      commitTracker.onSessionCreated(session.cwd).catch(() => {});
+    }
+  });
+
+  // Start event pruning (also prune old commits)
   sessionManager.pruneOldEvents();
+  commitTracker.pruneOldCommits();
   pruneInterval = setInterval(() => {
     sessionManager.pruneOldEvents();
+    commitTracker.pruneOldCommits();
   }, HOOK_PRUNE_INTERVAL_MS);
 
   if (is.dev) {
@@ -467,6 +539,7 @@ app.whenReady().then(async () => {
         ptyManager,
         sessionManager,
         taskQueue,
+        commitTracker,
         getHookRuntimeInfo: () => hookRuntimeInfo,
         sleepBlocker,
       });
@@ -477,6 +550,11 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow();
     }
+  });
+
+  // Scan repos when window regains focus (catches external commits)
+  app.on('browser-window-focus', () => {
+    commitTracker.scanAll().catch(() => {});
   });
 });
 
@@ -498,8 +576,9 @@ app.on('before-quit', (e) => {
     // Release sleep blocker
     sleepBlocker.detach();
 
-    // Stop task queue dispatch
+    // Stop task queue dispatch and commit tracker
     taskQueue.stop();
+    commitTracker.stop();
 
     // Clean up hook config
     cleanupOnQuit();

@@ -1,12 +1,11 @@
-import { useState, useRef, useCallback } from 'react';
-import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity } from 'lucide-react';
-import { useLayoutStore, DASHBOARD_TILE_ID } from '../../stores/layout-store';
+import { useRef, useCallback } from 'react';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity, GitCommitHorizontal } from 'lucide-react';
+import { useLayoutStore, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import { getLeaves } from 'react-mosaic-component';
 import SessionList from './SessionList';
 import TaskQueuePanel from './TaskQueuePanel';
 import NewSessionDialog from './NewSessionDialog';
-import SettingsDialog from '../SettingsDialog';
 import Tooltip from '../shared/Tooltip';
 import { createTerminalSession } from '../../utils/session-actions';
 import type { SessionCreateInput } from '../../../shared/types';
@@ -16,7 +15,7 @@ import {
 } from '../../../shared/constants';
 
 function Sidebar(): React.JSX.Element {
-  const [showSettings, setShowSettings] = useState(false);
+  const setShowSettings = useLayoutStore((s) => s.setShowSettings);
   const showNewDialog = useLayoutStore((s) => s.showNewSessionDialog);
   const setShowNewDialog = useLayoutStore((s) => s.setShowNewSessionDialog);
   const splitIntent = useLayoutStore((s) => s.splitIntent);
@@ -29,11 +28,16 @@ function Sidebar(): React.JSX.Element {
   const hasTiles = useLayoutStore((s) => s.mosaicTree !== null);
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
-  const addDashboard = useLayoutStore((s) => s.addDashboard);
-  const removeDashboard = useLayoutStore((s) => s.removeDashboard);
+  const toggleDashboard = useLayoutStore((s) => s.toggleDashboard);
   const hasDashboard = useLayoutStore((s) => {
     if (!s.mosaicTree) return false;
     return getLeaves(s.mosaicTree).includes(DASHBOARD_TILE_ID);
+  });
+  const addCommitStats = useLayoutStore((s) => s.addCommitStats);
+  const removeCommitStats = useLayoutStore((s) => s.removeCommitStats);
+  const hasCommitStats = useLayoutStore((s) => {
+    if (!s.mosaicTree) return false;
+    return getLeaves(s.mosaicTree).includes(COMMIT_STATS_TILE_ID);
   });
   const addSession = useSessionStore((s) => s.addSession);
   const selectSession = useSessionStore((s) => s.selectSession);
@@ -140,11 +144,11 @@ function Sidebar(): React.JSX.Element {
     }
   };
 
-  const handleToggleDashboard = (): void => {
-    if (hasDashboard) {
-      removeDashboard();
+  const handleToggleCommitStats = (): void => {
+    if (hasCommitStats) {
+      removeCommitStats();
     } else {
-      addDashboard();
+      addCommitStats();
     }
     persist();
   };
@@ -227,12 +231,22 @@ function Sidebar(): React.JSX.Element {
         <div className="flex items-center justify-between px-3 py-2 border-t border-border-default">
           <span className="text-xs text-text-muted">mcode</span>
           <div className="flex items-center gap-0.5">
+            <Tooltip content={hasCommitStats ? 'Hide commits' : 'Show commits'} side="top">
+              <button
+                className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
+                  hasCommitStats ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
+                }`}
+                onClick={handleToggleCommitStats}
+              >
+                <GitCommitHorizontal size={14} strokeWidth={1.5} />
+              </button>
+            </Tooltip>
             <Tooltip content={hasDashboard ? 'Hide activity' : 'Show activity'} side="top">
               <button
                 className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
                   hasDashboard ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
                 }`}
-                onClick={handleToggleDashboard}
+                onClick={toggleDashboard}
               >
                 <Activity size={14} strokeWidth={1.5} />
               </button>
@@ -261,8 +275,6 @@ function Sidebar(): React.JSX.Element {
           onCreate={handleCreate}
         />
       )}
-
-      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </>
   );
 }

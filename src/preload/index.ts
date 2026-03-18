@@ -13,6 +13,11 @@ import type {
   TaskFilter,
   TaskChangeEvent,
   AppCommand,
+  DailyCommitStats,
+  CommitHeatmapEntry,
+  CommitStreakInfo,
+  CommitCadenceInfo,
+  CommitWeeklyTrend,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -240,6 +245,32 @@ contextBridge.exposeInMainWorld('mcode', {
 
     setPreventSleep: (enabled: boolean): Promise<void> =>
       ipcRenderer.invoke('preferences:set-prevent-sleep', enabled),
+  },
+
+  commits: {
+    getDailyStats: (date?: string): Promise<DailyCommitStats> =>
+      ipcRenderer.invoke('commits:get-daily-stats', date),
+
+    getHeatmap: (days?: number): Promise<CommitHeatmapEntry[]> =>
+      ipcRenderer.invoke('commits:get-heatmap', days),
+
+    getStreaks: (): Promise<CommitStreakInfo> =>
+      ipcRenderer.invoke('commits:get-streaks'),
+
+    getCadence: (date?: string): Promise<CommitCadenceInfo> =>
+      ipcRenderer.invoke('commits:get-cadence', date),
+
+    getWeeklyTrend: (): Promise<CommitWeeklyTrend> =>
+      ipcRenderer.invoke('commits:get-weekly-trend'),
+
+    refresh: (): Promise<void> =>
+      ipcRenderer.invoke('commits:refresh'),
+
+    onUpdated: (cb: () => void): (() => void) => {
+      const handler = (): void => cb();
+      ipcRenderer.on('commits:updated', handler);
+      return () => ipcRenderer.removeListener('commits:updated', handler);
+    },
   },
 
   devtools: {
