@@ -1,4 +1,5 @@
 import { useSessionStore } from '../../stores/session-store';
+import Tooltip from '../shared/Tooltip';
 import type { SessionStatus } from '../../../shared/types';
 
 interface TerminalToolbarProps {
@@ -65,21 +66,23 @@ function TerminalToolbar({
       {/* Actions */}
       <div className="flex items-center gap-1 ml-2">
         {status !== 'ended' && (
-          <button
-            className="text-text-muted hover:text-red-400 text-xs px-1 transition-colors"
-            title="Kill session"
-            onClick={handleKill}
-          >
-            Kill
-          </button>
+          <Tooltip content="Kill session (⌘⇧W)" side="bottom">
+            <button
+              className="text-text-muted hover:text-red-400 text-xs px-1 transition-colors"
+              onClick={handleKill}
+            >
+              Kill
+            </button>
+          </Tooltip>
         )}
-        <button
-          className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"
-          title="Close tile (session keeps running)"
-          onClick={onClose}
-        >
-          Close
-        </button>
+        <Tooltip content="Close tile (⌘W)" side="bottom">
+          <button
+            className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </Tooltip>
       </div>
     </div>
   );

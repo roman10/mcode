@@ -11,6 +11,7 @@ import {
   SCROLLBACK_PRESETS,
 } from '../../../shared/constants';
 import { terminalRegistry } from '../../devtools/terminal-registry';
+import { useLayoutStore } from '../../stores/layout-store';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
@@ -95,6 +96,17 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
         case 'f':
           search.open();
           return false;
+
+        // --- Close / Kill ---
+        case 'w': {
+          const { removeTile, persist } = useLayoutStore.getState();
+          if (event.shiftKey) {
+            window.mcode.sessions.kill(sessionId).catch(console.error);
+          }
+          removeTile(sessionId);
+          persist();
+          return false;
+        }
 
         // --- Zoom ---
         case '=':
