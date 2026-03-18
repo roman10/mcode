@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
 import { queryRenderer } from '../ipc';
+import { shellEscapePath } from '../../shared/shell-utils';
 
 const WAIT_BUFFER_LINES = 2000;
 
@@ -280,5 +281,32 @@ export function registerTerminalTools(
         isError: true,
       };
     }
+  });
+
+  server.registerTool('terminal_drop_files', {
+    description: 'Simulate dropping files onto a terminal. Shell-escapes paths (quoting those with spaces/special chars) and writes them to the PTY, matching what happens when files are dragged from Finder.',
+    inputSchema: {
+      sessionId: z.string().describe('The PTY session ID'),
+      filePaths: z
+        .array(z.string())
+        .min(1)
+        .describe('Absolute file paths to drop'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, filePaths }) => {
+    if (!ctx.ptyManager.getInfo(sessionId)) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+
+    const escaped = filePaths.map(shellEscapePath).join(' ');
+    ctx.ptyManager.write(sessionId, escaped);
+    return {
+      content: [
+        { type: 'text', text: `Dropped ${filePaths.length} file(s): ${escaped}` },
+      ],
+    };
   });
 }

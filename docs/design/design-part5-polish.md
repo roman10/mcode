@@ -25,7 +25,10 @@
 | `Cmd+Enter` | Maximize/restore current tile |
 | `Cmd+K` | Quick session search/switch (command palette) |
 
-Register via Electron's `globalShortcut` or accelerator-based menu items. Terminal tiles must not swallow these — use `beforeinput` event handling or Electron menu accelerators that take priority over webview key events.
+**Registration strategy:** Do NOT use Electron's `globalShortcut` (it captures keys system-wide, even when the app is unfocused). Instead:
+- **App-level shortcuts** (Cmd+N, Cmd+\, Cmd+1-9, Cmd+K): register as Electron menu accelerators — these fire before xterm captures the keypress.
+- **Tile-scoped shortcuts** (Cmd+W, Cmd+Shift+W, Cmd+D, Cmd+Shift+D, Cmd+Enter): handle via `onKeyDown` on the focused tile container, since they need to know which tile is active.
+- **Cmd+] / Cmd+[**: these conflict with Electron/Chrome default back/forward navigation. Override them explicitly in the Electron menu (define custom menu items with these accelerators to suppress the default behavior).
 
 ### Session Resume
 
@@ -65,6 +68,7 @@ Stored in SQLite `preferences` table, exposed via IPC:
 | `eventRetentionDays` | number | 7 | Days to keep hook events |
 | `terminalFontSize` | number | 13 | Terminal font size |
 | `terminalFontFamily` | string | JetBrains Mono | Terminal font |
+| `preventSleepEnabled` | boolean | true | Prevent sleep while sessions active (already implemented) |
 
 Settings UI: simple form in a modal or sidebar panel.
 
@@ -148,7 +152,7 @@ Using `electron-builder`:
 1. `Cmd+N` → new session dialog opens
 2. `Cmd+1` → focuses first session tile
 3. `Cmd+\` → sidebar toggles
-4. `Cmd+D` on a tile → splits it, new session on the right
+4. `Cmd+D` on a tile → splits it horizontally, opens new-session dialog for the new pane on the right
 5. End a session → "Resume" button appears on session card → click → new PTY with conversation history
 6. Close a tile, reopen from sidebar → terminal shows recent output (not blank)
 7. Open Settings → change max concurrent sessions → task queue respects new limit
@@ -156,5 +160,6 @@ Using `electron-builder`:
 9. Install from .dmg → app runs without `npm`, all native modules work
 10. 10 concurrent Claude Code sessions → app stays under 500MB, typing latency unnoticeable
 
-**Files created:** `src/renderer/components/Dashboard/ControlPanel.tsx`, `src/renderer/components/Dashboard/ActivityFeed.tsx`
-**Files modified:** `src/main/index.ts` (shortcuts, menu), `src/main/pty-manager.ts` (ring buffer), `src/main/session-manager.ts` (resume), `src/renderer/components/Layout/TileFactory.tsx` (dashboard tile), `src/renderer/components/Sidebar/SessionCard.tsx` (resume button), `src/renderer/App.tsx`, `package.json` (build config)
+**Already done:** Session resume (SessionManager + SessionEndedPrompt), ring buffer (PtyManager, 100KB), Cmd+N/T/W/Shift+W shortcuts, preferences DB + API, sleep prevention, electron-builder scripts
+**Files created (remaining):** `src/renderer/components/Dashboard/ActivityFeed.tsx`
+**Files modified (remaining):** `src/main/index.ts` (menu accelerators for new shortcuts), `src/renderer/components/Terminal/TerminalTile.tsx` (Cmd+D/Shift+D/Enter), `src/renderer/components/SettingsDialog.tsx` (expand settings UI), `src/renderer/App.tsx`, `package.json` (electron-builder `build` config block)

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   LayoutStateSnapshot,
   PtyExitPayload,
@@ -182,6 +182,8 @@ contextBridge.exposeInMainWorld('mcode', {
     setDockBadge: (text: string): void => {
       ipcRenderer.send('app:set-dock-badge', text);
     },
+
+    getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 
     onError: (cb: (error: string) => void): (() => void) => {
       const handler = (

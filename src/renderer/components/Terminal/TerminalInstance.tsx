@@ -14,6 +14,7 @@ import { terminalRegistry } from '../../devtools/terminal-registry';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
+import { shellEscapePath } from '../../../shared/shell-utils';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -24,11 +25,6 @@ interface TerminalInstanceProps {
 function resolveScrollback(value: number | undefined): number {
   const lines = value ?? DEFAULT_SCROLLBACK_LINES;
   return lines === 0 ? Infinity : lines;
-}
-
-function shellEscapePath(filePath: string): string {
-  if (/^[a-zA-Z0-9_./:@-]+$/.test(filePath)) return filePath;
-  return "'" + filePath.replace(/'/g, "'\"'\"'") + "'";
 }
 
 function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalInstanceProps): React.JSX.Element {
@@ -195,20 +191,20 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     };
     container.addEventListener('contextmenu', handleContextMenu);
 
-    // Drag-and-drop: paste file paths into terminal
+    // Drag-and-drop: paste file paths into terminal.
+    // No stopPropagation — let react-dnd (react-mosaic) see the events
+    // so it can clean up its native drag state after each drop.
     const handleDragOver = (e: DragEvent): void => {
       e.preventDefault();
-      e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
     };
     const handleDrop = (e: DragEvent): void => {
       e.preventDefault();
-      e.stopPropagation();
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
       const paths: string[] = [];
       for (let i = 0; i < files.length; i++) {
-        const fp = (files[i] as File & { path?: string }).path;
+        const fp = window.mcode.app.getPathForFile(files[i]);
         if (fp) paths.push(shellEscapePath(fp));
       }
       if (paths.length > 0) {

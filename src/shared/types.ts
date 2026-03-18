@@ -212,6 +212,7 @@ export interface MCodeAPI {
     getHomeDir(): string;
     selectDirectory(): Promise<string | null>;
     setDockBadge(text: string): void;
+    getPathForFile(file: File): string;
     onError(callback: (error: string) => void): () => void;
   };
 
