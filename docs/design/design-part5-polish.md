@@ -7,90 +7,206 @@
 
 ---
 
+## Scope Adjustments
+
+This document supersedes a few earlier assumptions so the phase matches the current codebase and can be implemented directly.
+
+- **Resume is in-place, not a new internal session.** The existing implementation reuses the same `session_id`, resets the row to `starting`, and spawns a new PTY attached to that same session record.
+- **`Cmd+T` means new terminal session, not new task.** This already matches the renderer behavior and is the better default for a terminal-first app.
+- **`Cmd+K` is not a command palette in this phase.** It is already used inside terminals for clear-screen behavior; a global quick switcher is deferred.
+- **Ring buffer implementation stays simple.** The current capped string buffer in the main process is sufficient; no circular `Uint8Array` rewrite is needed in this phase.
+- **Persisted terminal font settings are deferred.** Terminals already support per-instance zoom shortcuts; global font preferences are not part of the remaining Phase 8 work.
+
+---
+
 ## Architecture Context
 
 ### Keyboard Shortcuts
 
-| Shortcut | Action |
-|---|---|
-| `Cmd+N` | New session (prompts for cwd) |
-| `Cmd+T` | New task in queue |
-| `Cmd+1..9` | Focus session by index |
-| `Cmd+]` / `Cmd+[` | Next/prev session |
-| `Cmd+W` | Close current tile (PTY keeps running) |
-| `Cmd+Shift+W` | Kill current session |
-| `Cmd+\` | Toggle sidebar |
-| `Cmd+D` | Split tile right |
-| `Cmd+Shift+D` | Split tile down |
-| `Cmd+Enter` | Maximize/restore current tile |
-| `Cmd+K` | Quick session search/switch (command palette) |
+Final Phase 8 shortcut set:
 
-**Registration strategy:** Do NOT use Electron's `globalShortcut` (it captures keys system-wide, even when the app is unfocused). Instead:
-- **App-level shortcuts** (Cmd+N, Cmd+\, Cmd+1-9, Cmd+K): register as Electron menu accelerators — these fire before xterm captures the keypress.
-- **Tile-scoped shortcuts** (Cmd+W, Cmd+Shift+W, Cmd+D, Cmd+Shift+D, Cmd+Enter): handle via `onKeyDown` on the focused tile container, since they need to know which tile is active.
-- **Cmd+] / Cmd+[**: these conflict with Electron/Chrome default back/forward navigation. Override them explicitly in the Electron menu (define custom menu items with these accelerators to suppress the default behavior).
+| Shortcut | Action | Registration | Notes |
+|---|---|---|---|
+| `Cmd+N` | New Claude session dialog | App menu accelerator | Existing renderer shortcut stays functionally identical; final implementation should move this to the menu so xterm cannot swallow it |
+| `Cmd+T` | New terminal session | App menu accelerator | Replaces the stale "new task" assumption |
+| `Cmd+1..9` | Focus session by index | App menu accelerator | Index is based on the current visible sidebar session order, excluding external history and ephemeral sessions |
+| `Cmd+]` / `Cmd+[` | Focus next/previous session | App menu accelerator | Uses the same ordering source as `Cmd+1..9`; accelerator entries also suppress browser back/forward |
+| `Cmd+\` | Toggle sidebar collapsed state | App menu accelerator | Requires persisted `sidebarCollapsed` state in layout storage |
+| `Cmd+W` | Close current tile | Tile `onKeyDown` | PTY keeps running |
+| `Cmd+Shift+W` | Kill current session | Tile `onKeyDown` | Existing behavior remains |
+| `Cmd+D` | Split current tile right | Tile `onKeyDown` | Opens New Session dialog in split-right mode; no placeholder tile is created until the dialog completes |
+| `Cmd+Shift+D` | Split current tile down | Tile `onKeyDown` | Same as above, split-down mode |
+| `Cmd+Enter` | Maximize / restore current tile | Tile `onKeyDown` | Uses transient restore state in the renderer store |
+| `Cmd+K` | Clear current terminal | Terminal key handler | Not repurposed in this phase |
+
+Registration strategy:
+
+- Do **not** use Electron `globalShortcut`.
+- App-level shortcuts are registered in the Electron app menu and dispatch semantic commands to the renderer via the `app:command` IPC channel.
+- Tile-scoped shortcuts stay in `TerminalTile` so the handler always knows the active tile.
+- `TerminalInstance.attachCustomKeyEventHandler()` already blocks `Cmd+N`, `Cmd+T`, `Cmd+W` from the PTY. Phase 8 must **add** blocks for `Cmd+D`, `Cmd+Shift+D`, `Cmd+Enter`, `Cmd+]`, `Cmd+[`, and `Cmd+\` so these new shortcuts bubble up to the tile or menu instead of reaching the PTY.
+- The current document-level shortcut handler in the sidebar is transitional. Phase 8 should remove it once the menu-driven command path exists, to avoid duplicate handling.
+
+App-command dispatch mechanism:
+
+```typescript
+// Command type (shared/types.ts)
+type AppCommand =
+  | { command: 'new-session' }
+  | { command: 'new-terminal' }
+  | { command: 'focus-session-index'; index: number }
+  | { command: 'focus-next-session' }
+  | { command: 'focus-prev-session' }
+  | { command: 'toggle-sidebar' };
+
+// Main process: menu click handler sends to renderer
+webContents.send('app:command', command);
+
+// Preload bridge (add to MCodeAPI.app)
+onCommand(cb: (command: AppCommand) => void): () => void;
+
+// Renderer: App.tsx subscribes on mount and dispatches
+// to layout-store / session-store as appropriate.
+```
+
+For `focus-session-index`, each `Cmd+1..9` menu item sends `{ command: 'focus-session-index', index: N }` where N is 0-based. If the index exceeds the visible session count, the command is a no-op.
+
+Session-ordering source for focus shortcuts:
+
+- Reuse the same ordering the sidebar shows today: attention priority, then status priority, then `startedAt` descending.
+- Extract that ordering logic into a shared renderer helper so both `SessionList` and shortcut handlers use the exact same session order.
+- If a shortcut targets a session that has no tile open, add its tile first, then select it.
+
+Sidebar toggle behavior:
+
+- Add `sidebarCollapsed: boolean` to the persisted layout snapshot. This means updating:
+  - `LayoutStateSnapshot` type in `shared/types.ts` (add `sidebarCollapsed: boolean`)
+  - `layout:save` IPC handler and preload bridge to accept the new field
+  - `SessionManager.saveLayout()` / `loadLayout()` and the `layout_state` SQLite table (`ALTER TABLE layout_state ADD COLUMN sidebar_collapsed INTEGER DEFAULT 0`)
+  - `useLayoutStore` state, `persist()`, and `restore()` methods
+- Keep `sidebarWidth` unchanged while collapsed so restoring the sidebar returns to the previous width.
+- When collapsed, the resize handle is hidden and the mosaic uses the full window width.
+
+Split / maximize behavior:
+
+- `Cmd+D` and `Cmd+Shift+D` set a pending split intent `{ anchorSessionId, direction }` and open the existing New Session dialog.
+- If the dialog is cancelled, layout is unchanged.
+- If the dialog completes, create the session first, then insert the new tile adjacent to the anchor tile using a new layout-store helper such as `addTileAdjacent(anchorSessionId, newSessionId, direction)`.
+- `Cmd+Enter` maximizes the current tile by storing a transient `restoreTree` in renderer state and replacing `mosaicTree` with the active leaf.
+- Restore reverses that operation after pruning dead session leaves.
+- Maximized state is transient only. If the app is closed while maximized, the persisted layout is the maximized layout.
 
 ### Session Resume
 
-When a session has ended and its `claude_session_id` is known (from hooks):
-- Show a "Resume" button on the session card
-- Click spawns a new PTY: `claude --resume <claude_session_id>`
-- The new PTY gets a new internal `session_id` but carries the old `claude_session_id`
-- Session card updates to show resumed state
+Canonical behavior for Phase 8 is the existing implementation: resume **in place**.
+
+When an ended Claude session has a `claude_session_id`:
+
+- Show a **Resume Session** button in the ended-session prompt.
+- Clicking it reuses the same internal `session_id`.
+- Reset the existing session row to `starting`, clear `ended_at`, and keep the existing tile/sidebar card in place.
+- Spawn `claude --resume <claude_session_id>` with `MCODE_SESSION_ID` set to the same internal `session_id`.
+- When the resumed PTY emits output or hooks arrive, the same session transitions back to `active`.
 
 ```typescript
-// Resume flow
-const newSessionId = uuid();
+// Resume-in-place flow
+db.prepare(
+  `UPDATE sessions
+   SET status = 'starting', ended_at = NULL, hook_mode = ?
+   WHERE session_id = ?`,
+).run(hookMode, sessionId);
+
 ptyManager.spawn({
-  id: newSessionId,
-  cwd: oldSession.cwd,
-  args: ['--resume', oldSession.claudeSessionId],
-  env: { MCODE_SESSION_ID: newSessionId },
+  id: sessionId,
+  command: 'claude',
+  cwd: row.cwd,
+  args: ['--resume', row.claude_session_id],
+  env: { MCODE_SESSION_ID: sessionId },
 });
 ```
 
+This differs from the earlier "spawn a new internal session" idea and is preferred because it preserves layout, sidebar identity, and user context.
+
 ### Terminal Output Ring Buffer
 
-When a terminal tile is removed from the mosaic but the session is still active:
-- PTY output continues buffering in main process
-- Ring buffer: circular `Uint8Array`, ~100KB per session, head/tail pointers
-- When tile is re-mounted, replay buffer contents to new xterm.js instance via `term.write(buffer)`
-- Buffer is cleared when session ends
+Keep the existing implementation model:
+
+- PTY output is buffered in the main process as a capped string, limited to `RING_BUFFER_MAX_BYTES` (currently 100KB).
+- On each `onData`, append to the buffer and truncate from the front when over the cap.
+- When a terminal tile mounts, `TerminalInstance` fetches replay data before attaching the live `pty:data` listener.
+- The buffer naturally disappears when the PTY handle is removed on exit.
+
+This is intentionally simpler than a circular byte buffer and is good enough for the current replay requirement.
 
 ### Settings / Preferences
 
-Stored in SQLite `preferences` table, exposed via IPC:
+Preferences remain stored as strings in SQLite `preferences` and exposed via IPC. Phase 8 settings are:
 
-| Setting | Type | Default | Description |
+| Setting | Type | Default | Phase 8 behavior |
 |---|---|---|---|
-| `maxConcurrentSessions` | number | 5 | Task queue concurrency limit |
-| `hookServerPort` | number | 7777 | Preferred hook server port |
-| `eventRetentionDays` | number | 7 | Days to keep hook events |
-| `terminalFontSize` | number | 13 | Terminal font size |
-| `terminalFontFamily` | string | JetBrains Mono | Terminal font |
-| `preventSleepEnabled` | boolean | true | Prevent sleep while sessions active (already implemented) |
+| `preventSleepEnabled` | boolean | `true` | Already live; keep existing dedicated API |
+| `maxConcurrentSessions` | number | `5` | New live setting; changing it updates `TaskQueue` immediately for the next dispatch cycle |
+| `hookServerPort` | number | `7777` | Startup-only preference; change requires app relaunch |
+| `eventRetentionDays` | number | `7` | Live setting; affects the next prune pass and should also trigger an immediate prune on save |
 
-Settings UI: simple form in a modal or sidebar panel.
+Explicitly out of scope for this phase:
+
+- Persisted `terminalFontSize`
+- Persisted `terminalFontFamily`
+- Command palette / global quick switcher settings
+
+Implementation details:
+
+- `TaskQueue` gets a setter such as `setMaxConcurrentSessions(value: number)` and also loads the stored preference during startup.
+- `startHookServer()` accepts a preferred starting port instead of always beginning at `HOOK_PORT_DEFAULT`; it still scans the same allowed range if the preferred port is unavailable.
+- `SessionManager.pruneOldEvents()` must read the preference value instead of the compile-time constant.
+- Saving `eventRetentionDays` should call prune immediately once, not wait for the hourly timer.
+- Settings dialog validation:
+  - `maxConcurrentSessions`: integer, `1..20`
+  - `hookServerPort`: integer, `7777..7799`
+  - `eventRetentionDays`: integer, `1..30`
 
 ### Activity Feed (Dashboard Tile)
 
-Optional tile (tile ID: `dashboard`) showing a real-time stream of hook events across all sessions:
+Phase 8 adds an optional dashboard tile with static tile ID `dashboard`.
+
+UI shape:
 
 ```
 ActivityFeed
-├── EventRow × N
-│   ├── Timestamp
-│   ├── Session label (color-coded)
-│   ├── Event type badge
-│   └── Detail (tool name, error, etc.)
-└── Filter controls (by session, by event type)
+|- toolbar
+|  |- session filter
+|  |- event-type filter
+|  `- clear filters
+`- event list
+   `- EventRow x N
+      |- timestamp
+      |- session label
+      |- event badge
+      `- detail text
 ```
 
-Backed by `hooks.getRecent()` IPC call + `hooks.onEvent()` subscription.
+Data contract:
+
+- Keep existing `hooks.onEvent()` as the live stream for all sessions.
+- Add a new IPC method for historical cross-session events, for example `hooks.getRecentAll(limit?: number)`.
+- Keep the existing session-scoped `hooks.getRecent(sessionId, limit)` API unchanged.
+- `ActivityFeed` loads `getRecentAll(200)` on mount, then prepends live `onEvent()` events, trimming the in-memory list back to 200 items.
+- Filtering is client-side by `sessionId` and `hookEventName`.
+- Session labels and colors come from the existing session store, not duplicated event payload fields.
+
+Tile and layout integration:
+
+- `TileFactory` must recognize `dashboard` and render `ActivityFeed`.
+- `layout-store` must gain explicit helpers for adding/removing the dashboard tile so the sidebar can toggle it without pretending it is a session.
+- Existing prune logic already preserves non-session leaves; keep that behavior.
+- Add an Activity button in the sidebar footer to toggle the dashboard tile.
 
 ### macOS Packaging
 
-Using `electron-builder`:
+Use `electron-builder` as the packaging path; the npm scripts already exist.
+
+Required package metadata:
 
 ```json
 {
@@ -114,10 +230,11 @@ Using `electron-builder`:
 }
 ```
 
-**Native module considerations:**
-- `node-pty` and `better-sqlite3` must be rebuilt for the packaged Electron's Node version
-- `electron-rebuild` handles this in the build pipeline
-- Verify with: install from .dmg → launch → spawn session → confirm terminal works
+Native module considerations:
+
+- `node-pty` and `better-sqlite3` must be rebuilt for the packaged Electron runtime.
+- `electron-rebuild` already runs in `postinstall`; no new packaging mechanism is needed.
+- `resources/icon.icns` must exist before the final DMG handoff.
 
 ### Performance Targets
 
@@ -137,29 +254,72 @@ Using `electron-builder`:
 
 ## Phase 8: Polish & Ship
 
-**Goal:** Keyboard shortcuts, session resume, settings, packaging. The app feels complete for daily use.
+**Goal:** Finish the remaining UI and plumbing around shortcuts, layout commands, settings, activity feed, and packaging without redesigning already-working core session behavior.
 
 **Build:**
-- Keyboard shortcuts: `Cmd+N` (new session), `Cmd+W` (close tile), `Cmd+Shift+W` (kill session), `Cmd+1-9` (focus by index), `Cmd+\` (toggle sidebar), `Cmd+D` / `Cmd+Shift+D` (split right/down), `Cmd+Enter` (maximize/restore tile)
-- Session resume: "Resume" button on ended sessions → spawns `claude --resume <claude_session_id>`
-- Terminal output ring buffer replay when re-mounting a tile
-- Settings/preferences: max concurrent sessions, hook server port, event retention days
-- Activity feed panel (optional dashboard tile showing hook event stream)
-- macOS .dmg packaging via `electron-builder`
-- Performance profiling pass: check startup time, memory with 10 sessions, terminal input latency
+
+- Migrate app-level shortcuts to Electron menu accelerators: `Cmd+N`, `Cmd+T`, `Cmd+1..9`, `Cmd+]`, `Cmd+[`, `Cmd+\`
+- Keep tile-level shortcuts in `TerminalTile`: `Cmd+W`, `Cmd+Shift+W`, `Cmd+D`, `Cmd+Shift+D`, `Cmd+Enter`
+- Add persisted `sidebarCollapsed` layout state and command handling for sidebar toggle
+- Add split-intent flow and adjacent-tile insertion helpers
+- Add transient maximize / restore behavior for the current tile
+- Keep resume-in-place behavior for ended Claude sessions
+- Keep ring-buffer replay behavior for re-mounted tiles
+- Expand settings UI for `maxConcurrentSessions`, `hookServerPort`, and `eventRetentionDays`
+- Add dashboard tile + activity feed backed by global hook-history IPC
+- Add `electron-builder` package metadata and ship asset pathing
+- Run a profiling pass for startup time, 10-session memory footprint, and input latency
 
 **Verify:**
-1. `Cmd+N` → new session dialog opens
-2. `Cmd+1` → focuses first session tile
-3. `Cmd+\` → sidebar toggles
-4. `Cmd+D` on a tile → splits it horizontally, opens new-session dialog for the new pane on the right
-5. End a session → "Resume" button appears on session card → click → new PTY with conversation history
-6. Close a tile, reopen from sidebar → terminal shows recent output (not blank)
-7. Open Settings → change max concurrent sessions → task queue respects new limit
-8. `npm run build:mac` produces a working .dmg
-9. Install from .dmg → app runs without `npm`, all native modules work
-10. 10 concurrent Claude Code sessions → app stays under 500MB, typing latency unnoticeable
 
-**Already done:** Session resume (SessionManager + SessionEndedPrompt), ring buffer (PtyManager, 100KB), Cmd+N/T/W/Shift+W shortcuts, preferences DB + API, sleep prevention, electron-builder scripts
-**Files created (remaining):** `src/renderer/components/Dashboard/ActivityFeed.tsx`
-**Files modified (remaining):** `src/main/index.ts` (menu accelerators for new shortcuts), `src/renderer/components/Terminal/TerminalTile.tsx` (Cmd+D/Shift+D/Enter), `src/renderer/components/SettingsDialog.tsx` (expand settings UI), `src/renderer/App.tsx`, `package.json` (electron-builder `build` config block)
+1. `Cmd+N` opens the New Session dialog even when a terminal has focus.
+2. `Cmd+T` creates a new terminal session using the currently selected session cwd, or `$HOME` if none is selected.
+3. `Cmd+1` focuses the first visible sidebar session; if it has no tile, the tile is opened first.
+4. `Cmd+]` and `Cmd+[` move through sessions without triggering browser navigation.
+5. `Cmd+\` collapses and restores the sidebar while preserving its previous width.
+6. `Cmd+D` on a tile opens the New Session dialog in split-right mode; after creation, the new tile appears to the right of the anchor tile.
+7. `Cmd+Shift+D` behaves the same for split-down.
+8. `Cmd+Enter` maximizes the current tile; pressing it again restores the previous visible layout for the current run.
+9. Ending a Claude session shows **Resume Session**; clicking it reuses the same session card/tile and returns that session to active output.
+10. Closing a tile and reopening it from the sidebar replays recent terminal output instead of showing a blank terminal.
+11. Changing `maxConcurrentSessions` in Settings changes queue dispatch concurrency without restarting the app.
+12. Changing `hookServerPort` in Settings shows restart-required messaging and the new port is used after relaunch.
+13. Changing `eventRetentionDays` prunes old events immediately and affects later prune passes.
+14. Opening the dashboard tile shows recent events across all sessions and continues updating live.
+15. `npm run build:mac` produces a DMG, and a manual install smoke test confirms session spawn, terminal output, and database startup all work.
+
+**Already done and should be preserved:**
+
+- Session resume exists and is implemented as resume-in-place (`SessionManager` + `SessionEndedPrompt`)
+- PTY output replay exists with a 100KB capped buffer (`PtyManager` + `TerminalInstance`)
+- `Cmd+N`, `Cmd+T`, `Cmd+W`, and `Cmd+Shift+W` semantics already exist, even though some accelerator plumbing still needs to move
+- Preferences table and generic preference IPC already exist
+- Sleep prevention is already live and preference-backed
+- Packaging scripts already exist in `package.json`
+
+**Remaining files likely involved:**
+
+- `src/main/index.ts` — menu accelerators, app-command dispatch, dashboard history IPC
+- `src/main/session-manager.ts` — global recent-event query, configurable retention window
+- `src/main/task-queue.ts` — runtime concurrency setter / startup preference load
+- `src/main/hook-server.ts` — preferred start port support
+- `src/preload/index.ts` — app command subscription, dashboard history API, typed preference helpers if added
+- `src/shared/types.ts` — `LayoutStateSnapshot.sidebarCollapsed`, `AppCommand` type, `hooks.getRecentAll` API type, and update `MCodeAPI` to include the existing `preferences` namespace (currently untyped) and the new `app.onCommand` subscription
+- `src/renderer/App.tsx` — command handling, split-intent orchestration, sidebar collapsed rendering
+- `src/renderer/stores/layout-store.ts` — `sidebarCollapsed`, dashboard helpers, adjacent split insertion, maximize restore state
+- `src/renderer/components/Layout/TileFactory.tsx` — dashboard tile handling
+- `src/renderer/components/Sidebar/Sidebar.tsx` — remove document shortcut listener, add Activity toggle, respect collapsed state
+- `src/renderer/components/Sidebar/SessionList.tsx` — extract canonical visible session ordering helper
+- `src/renderer/components/Terminal/TerminalTile.tsx` — split / maximize shortcuts
+- `src/renderer/components/SettingsDialog.tsx` — expanded settings UI and validation
+- `src/renderer/components/Dashboard/ActivityFeed.tsx` — new component
+- `package.json` — `build` block for `electron-builder`
+- `resources/icon.icns` — required packaging asset
+
+**Tests to add or update:**
+
+- Shortcut coverage for menu accelerators and tile-local commands
+- Layout tests for adjacent split insertion and maximize / restore
+- Settings tests for live concurrency changes and restart-required port changes
+- Activity feed tests for historical load + live append behavior
+- Packaging smoke-test checklist for manual release validation
