@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { SquareX, Trash2, BellOff, TerminalSquare, Plus } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
@@ -24,6 +24,9 @@ function Sidebar(): React.JSX.Element {
   const addSession = useSessionStore((s) => s.addSession);
   const selectSession = useSessionStore((s) => s.selectSession);
   const hookRuntime = useSessionStore((s) => s.hookRuntime);
+
+  const isMac = window.mcode.app.getPlatform() === 'darwin';
+  const modLabel = isMac ? '⌘' : 'Ctrl+';
 
   const isResizing = useRef(false);
 
@@ -130,6 +133,25 @@ function Sidebar(): React.JSX.Element {
     }
   };
 
+  // Global keyboard shortcuts: Cmd+T (new terminal), Cmd+N (new session)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (!mod || e.shiftKey || e.altKey) return;
+
+      if (e.key === 't') {
+        e.preventDefault();
+        handleCreateTerminal();
+      } else if (e.key === 'n') {
+        e.preventDefault();
+        setShowNewDialog(true);
+      }
+    };
+
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isMac]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <>
       <div
@@ -172,7 +194,7 @@ function Sidebar(): React.JSX.Element {
                 </button>
               </Tooltip>
             )}
-            <Tooltip content="New terminal" side="bottom">
+            <Tooltip content={`New terminal (${modLabel}T)`} side="bottom">
               <button
                 className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
                 onClick={handleCreateTerminal}
@@ -180,7 +202,7 @@ function Sidebar(): React.JSX.Element {
                 <TerminalSquare size={14} strokeWidth={1.5} />
               </button>
             </Tooltip>
-            <Tooltip content="New Claude session" side="bottom">
+            <Tooltip content={`New Claude session (${modLabel}N)`} side="bottom">
               <button
                 className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
                 onClick={() => setShowNewDialog(true)}

@@ -97,6 +97,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
           search.open();
           return false;
 
+        // --- New terminal / New session (handled by document listener, block PTY) ---
+        case 't':
+        case 'n':
+          return false;
+
         // --- Close / Kill ---
         case 'w': {
           const { removeTile, persist } = useLayoutStore.getState();
