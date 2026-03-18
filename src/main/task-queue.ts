@@ -277,7 +277,7 @@ export class TaskQueue {
     if (session.status !== 'idle') return; // Wait for session to become idle
 
     // Write prompt to PTY
-    this.ptyManager.write(task.targetSessionId!, task.prompt + '\n');
+    this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
 
     // Mark dispatched
     const dispatchedAt = new Date().toISOString();
