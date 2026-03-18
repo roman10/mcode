@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useTaskStore } from '../../stores/task-store';
 import { useSessionStore } from '../../stores/session-store';
-import type { TaskStatus, Task } from '../../../shared/types';
+import type { TaskStatus, Task, CreateTaskInput } from '../../../shared/types';
 import Tooltip from '../shared/Tooltip';
+import CreateTaskDialog from './CreateTaskDialog';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-amber-400',
@@ -69,7 +71,9 @@ function TaskItem({ task }: { task: Task }): React.JSX.Element {
 
 function TaskQueuePanel(): React.JSX.Element {
   const [expanded, setExpanded] = useState(true);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const tasks = useTaskStore((s) => s.tasks);
+  const addTask = useTaskStore((s) => s.addTask);
   const hookRuntime = useSessionStore((s) => s.hookRuntime);
 
   const taskList = Object.values(tasks).sort((a, b) => {
@@ -85,42 +89,72 @@ function TaskQueuePanel(): React.JSX.Element {
   const activeCount = taskList.filter((t) => t.status === 'pending' || t.status === 'dispatched').length;
   const isDegraded = hookRuntime.state !== 'ready';
 
+  const handleCreateTask = async (input: CreateTaskInput): Promise<void> => {
+    try {
+      await addTask(input);
+      setShowCreateDialog(false);
+    } catch (err) {
+      console.error('Failed to create task:', err);
+      setShowCreateDialog(false);
+    }
+  };
+
   if (taskList.length === 0 && !expanded) {
     return <></>;
   }
 
   return (
-    <div className="border-t border-border-default">
-      <div
-        className="flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-bg-elevated/50 transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-text-muted">{expanded ? '\u25BC' : '\u25B6'}</span>
-          <span className="text-xs text-text-secondary font-medium">Tasks</span>
-          <span className="text-[10px] bg-bg-elevated text-text-muted px-1 rounded">
-            {activeCount} active
-          </span>
+    <>
+      <div className="border-t border-border-default">
+        <div
+          className="flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-bg-elevated/50 transition-colors"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-text-muted">{expanded ? '\u25BC' : '\u25B6'}</span>
+            <span className="text-xs text-text-secondary font-medium">Tasks</span>
+            <span className="text-[10px] bg-bg-elevated text-text-muted px-1 rounded">
+              {activeCount} active
+            </span>
+          </div>
+          <Tooltip content="New task" side="right">
+            <button
+              className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowCreateDialog(true);
+              }}
+            >
+              <Plus size={14} strokeWidth={1.5} />
+            </button>
+          </Tooltip>
         </div>
+
+        {expanded && (
+          <div className="max-h-48 overflow-y-auto">
+            {isDegraded && (
+              <div className="px-3 py-1.5 text-[10px] text-amber-300">
+                Task queue requires live hook mode
+              </div>
+            )}
+            {taskList.length === 0 ? (
+              <div className="px-3 py-2 text-[10px] text-text-muted">
+                No tasks queued
+              </div>
+            ) : (
+              taskList.map((task) => <TaskItem key={task.id} task={task} />)
+            )}
+          </div>
+        )}
       </div>
 
-      {expanded && (
-        <div className="max-h-48 overflow-y-auto">
-          {isDegraded && (
-            <div className="px-3 py-1.5 text-[10px] text-amber-300">
-              Task queue requires live hook mode
-            </div>
-          )}
-          {taskList.length === 0 ? (
-            <div className="px-3 py-2 text-[10px] text-text-muted">
-              No tasks queued
-            </div>
-          ) : (
-            taskList.map((task) => <TaskItem key={task.id} task={task} />)
-          )}
-        </div>
+      {showCreateDialog && (
+        <CreateTaskDialog
+          onClose={() => setShowCreateDialog(false)}
+          onCreate={handleCreateTask}
+        />
       )}
-    </div>
+    </>
   );
 }
 
