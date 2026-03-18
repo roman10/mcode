@@ -137,6 +137,13 @@ export function initDevtoolsBridge(): void {
         result = true;
         break;
       }
+      case 'layout-toggle-keyboard-shortcuts': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        const current = useLayoutStore.getState().showKeyboardShortcuts;
+        useLayoutStore.getState().setShowKeyboardShortcuts(!current);
+        result = !current;
+        break;
+      }
       case 'layout-toggle-dashboard': {
         const { useLayoutStore, DASHBOARD_TILE_ID } = await import('../stores/layout-store');
         const { getLeaves } = await import('react-mosaic-component');

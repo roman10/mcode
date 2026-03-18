@@ -380,6 +380,34 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('layout_toggle_keyboard_shortcuts', {
+    description: 'Toggle the keyboard shortcuts dialog (show if hidden, hide if shown)',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    try {
+      const visible = await queryRenderer<boolean>(
+        ctx.mainWindow,
+        'layout-toggle-keyboard-shortcuts',
+        {},
+      );
+      return {
+        content: [
+          { type: 'text', text: visible ? 'Keyboard shortcuts dialog shown' : 'Keyboard shortcuts dialog hidden' },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to toggle keyboard shortcuts: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_toggle_dashboard', {
     description: 'Toggle the activity dashboard tile (add if missing, remove if present)',
     annotations: { readOnlyHint: false },

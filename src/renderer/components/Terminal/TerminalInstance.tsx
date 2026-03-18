@@ -108,10 +108,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
         case 'Enter':
           return false;
 
-        // --- Session focus nav / sidebar toggle (menu accelerators; block PTY) ---
+        // --- Session focus nav / sidebar toggle / shortcuts dialog (menu accelerators; block PTY) ---
         case ']':
         case '[':
         case '\\':
+        case '/':
           return false;
 
         // --- Zoom ---

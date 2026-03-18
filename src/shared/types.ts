@@ -74,7 +74,8 @@ export type AppCommand =
   | { command: 'focus-session-index'; index: number }
   | { command: 'focus-next-session' }
   | { command: 'focus-prev-session' }
-  | { command: 'toggle-sidebar' };
+  | { command: 'toggle-sidebar' }
+  | { command: 'show-keyboard-shortcuts' };
 
 // --- Hooks ---
 

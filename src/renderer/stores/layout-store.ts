@@ -19,6 +19,7 @@ interface LayoutState {
   sidebarCollapsed: boolean;
   splitIntent: SplitIntent | null;
   showNewSessionDialog: boolean;
+  showKeyboardShortcuts: boolean;
   restoreTree: MosaicNode<string> | null;
 
   setMosaicTree(tree: MosaicNode<string> | null): void;
@@ -31,6 +32,7 @@ interface LayoutState {
   toggleSidebar(): void;
   setSplitIntent(intent: SplitIntent | null): void;
   setShowNewSessionDialog(show: boolean): void;
+  setShowKeyboardShortcuts(show: boolean): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
   addDashboard(): void;
@@ -139,6 +141,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   sidebarCollapsed: false,
   splitIntent: null,
   showNewSessionDialog: false,
+  showKeyboardShortcuts: false,
   restoreTree: null,
 
   setMosaicTree: (tree) => set({ mosaicTree: tree }),
@@ -234,6 +237,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setSplitIntent: (intent) => set({ splitIntent: intent }),
 
   setShowNewSessionDialog: (show) => set({ showNewSessionDialog: show }),
+  setShowKeyboardShortcuts: (show) => set({ showKeyboardShortcuts: show }),
 
   maximize: (sessionId) =>
     set((state) => ({

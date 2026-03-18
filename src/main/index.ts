@@ -407,6 +407,16 @@ app.whenReady().then(async () => {
           { role: 'zoom' },
         ],
       },
+      {
+        label: 'Help',
+        submenu: [
+          {
+            label: 'Keyboard Shortcuts',
+            accelerator: 'CmdOrCtrl+/',
+            click: () => sendCommand({ command: 'show-keyboard-shortcuts' }),
+          },
+        ],
+      },
     ]),
   );
 
