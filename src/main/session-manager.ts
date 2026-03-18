@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
-import { readdirSync, openSync, readSync, closeSync, fstatSync } from 'node:fs';
+import { readdir, open as fsOpen } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
 import type { PtyManager } from './pty-manager';
 import { getDb } from './db';
@@ -117,18 +118,19 @@ function truncatePromptToLabel(prompt: string, maxLen: number): string {
  * as the session progresses, so the latest one is near the end of the file.
  * Increase if titles are ever missed for very long conversations.
  */
-function extractCustomTitle(fd: number, fileSize: number, headChunk: string): string | undefined {
-  const searchChunk = fileSize <= 4096
-    ? headChunk
-    : (() => {
-        const tailSize = Math.min(8192, fileSize);
-        const buf = Buffer.alloc(tailSize);
-        readSync(fd, buf, 0, tailSize, fileSize - tailSize);
-        const raw = buf.toString('utf-8');
-        // Discard first partial line (may be split mid-UTF-8 character)
-        const firstNewline = raw.indexOf('\n');
-        return firstNewline >= 0 ? raw.slice(firstNewline + 1) : raw;
-      })();
+async function extractCustomTitle(fh: FileHandle, fileSize: number, headChunk: string): Promise<string | undefined> {
+  let searchChunk: string;
+  if (fileSize <= 4096) {
+    searchChunk = headChunk;
+  } else {
+    const tailSize = Math.min(8192, fileSize);
+    const buf = Buffer.alloc(tailSize);
+    await fh.read(buf, 0, tailSize, fileSize - tailSize);
+    const raw = buf.toString('utf-8');
+    // Discard first partial line (may be split mid-UTF-8 character)
+    const firstNewline = raw.indexOf('\n');
+    searchChunk = firstNewline >= 0 ? raw.slice(firstNewline + 1) : raw;
+  }
 
   const lines = searchChunk.split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -389,14 +391,14 @@ export class SessionManager {
   }
 
   /** Scan ~/.claude/projects/ for Claude Code sessions not tracked by mcode. */
-  listExternalSessions(cwd: string, limit = 50): ExternalSessionInfo[] {
+  async listExternalSessions(cwd: string, limit = 50): Promise<ExternalSessionInfo[]> {
     // Encode cwd to Claude Code's directory naming: /Users/foo/bar → -Users-foo-bar
     const encoded = cwd.replace(/\//g, '-');
     const projectDir = join(homedir(), '.claude', 'projects', encoded);
 
     let files: string[];
     try {
-      files = readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
+      files = (await readdir(projectDir)).filter((f) => f.endsWith('.jsonl'));
     } catch {
       return []; // Directory doesn't exist
     }
@@ -414,18 +416,18 @@ export class SessionManager {
       if (tracked.has(claudeSessionId)) continue;
 
       // Read first line (up to 4KB) for slug/timestamp, then tail for customTitle
-      let fd: number | undefined;
+      let fh: FileHandle | undefined;
       try {
         const filePath = join(projectDir, file);
-        fd = openSync(filePath, 'r');
+        fh = await fsOpen(filePath, 'r');
         const buf = Buffer.alloc(4096);
-        const bytesRead = readSync(fd, buf, 0, 4096, 0);
+        const { bytesRead } = await fh.read(buf, 0, 4096, 0);
         const chunk = buf.toString('utf-8', 0, bytesRead);
         const newlineIdx = chunk.indexOf('\n');
         const firstLine = newlineIdx > 0 ? chunk.slice(0, newlineIdx) : chunk;
         const parsed = JSON.parse(firstLine) as { timestamp?: string; slug?: string };
-        const fileSize = fstatSync(fd).size;
-        const customTitle = extractCustomTitle(fd, fileSize, chunk);
+        const stat = await fh.stat();
+        const customTitle = await extractCustomTitle(fh, stat.size, chunk);
         results.push({
           claudeSessionId,
           startedAt: parsed.timestamp ?? '',
@@ -435,7 +437,7 @@ export class SessionManager {
       } catch {
         // Malformed file or read error, skip
       } finally {
-        if (fd !== undefined) closeSync(fd);
+        if (fh) await fh.close();
       }
     }
 
@@ -744,6 +746,22 @@ export class SessionManager {
       : 'SELECT * FROM sessions WHERE ephemeral = 0 ORDER BY started_at DESC';
     const rows = db.prepare(query).all() as SessionRecord[];
     return rows.map(toSessionInfo);
+  }
+
+  /** Return distinct cwds from Claude sessions (lightweight alternative to list()). */
+  getDistinctClaudeCwds(): string[] {
+    const db = getDb();
+    return (
+      db.prepare('SELECT DISTINCT cwd FROM sessions WHERE session_type = ?').all('claude') as { cwd: string }[]
+    ).map((r) => r.cwd);
+  }
+
+  /** Check if any session is in an active-like state (avoids full table deserialization). */
+  hasActiveSessions(): boolean {
+    const db = getDb();
+    return !!db
+      .prepare("SELECT 1 FROM sessions WHERE status IN ('starting', 'active', 'idle', 'waiting') LIMIT 1")
+      .get();
   }
 
   getLastDefaults(): SessionDefaults | null {

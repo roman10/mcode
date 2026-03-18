@@ -4,13 +4,14 @@ import { getPreferenceBool, setPreferenceBool } from './preferences';
 import { logger } from './logger';
 
 const PREF_KEY = 'preventSleepEnabled';
-const ACTIVE_STATUSES = new Set(['starting', 'active', 'idle', 'waiting']);
+const RECONCILE_DEBOUNCE_MS = 500;
 
 export class SleepBlocker {
   private blockerId: number | null = null;
   private enabled: boolean;
   private sessionManager: SessionManager | null = null;
   private unsubscribe: (() => void) | null = null;
+  private reconcileTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.enabled = getPreferenceBool(PREF_KEY, true);
@@ -19,12 +20,16 @@ export class SleepBlocker {
   attach(sessionManager: SessionManager): void {
     this.sessionManager = sessionManager;
     this.unsubscribe = sessionManager.onSessionUpdated(() => {
-      this.reconcile();
+      this.scheduleReconcile();
     });
     this.reconcile();
   }
 
   detach(): void {
+    if (this.reconcileTimer) {
+      clearTimeout(this.reconcileTimer);
+      this.reconcileTimer = null;
+    }
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
@@ -48,12 +53,18 @@ export class SleepBlocker {
     return this.blockerId !== null && powerSaveBlocker.isStarted(this.blockerId);
   }
 
+  private scheduleReconcile(): void {
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+    this.reconcileTimer = setTimeout(() => {
+      this.reconcileTimer = null;
+      this.reconcile();
+    }, RECONCILE_DEBOUNCE_MS);
+  }
+
   private reconcile(): void {
     if (!this.sessionManager) return;
 
-    const hasActive = this.sessionManager
-      .list()
-      .some((s) => ACTIVE_STATUSES.has(s.status));
+    const hasActive = this.sessionManager.hasActiveSessions();
     const shouldBlock = this.enabled && hasActive;
 
     if (shouldBlock && !this.isBlocking()) {

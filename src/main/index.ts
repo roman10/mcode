@@ -11,7 +11,7 @@ import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
-import type { SessionCreateInput, CreateTaskInput, TaskFilter, HookRuntimeInfo } from '../shared/types';
+import type { SessionCreateInput, CreateTaskInput, TaskFilter, HookRuntimeInfo, ExternalSessionInfo } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
@@ -173,17 +173,18 @@ function registerSessionIpc(): void {
     return sessionManager.resume(sessionId);
   });
 
-  ipcMain.handle('session:list-external', (_event, limit?: number) => {
+  ipcMain.handle('session:list-external', async (_event, limit?: number) => {
     const cap = limit ?? 50;
-    // Scan all unique cwds from Claude sessions
-    const sessions = sessionManager.list();
-    const cwds = new Set(
-      sessions.filter((s) => s.sessionType === 'claude').map((s) => s.cwd),
-    );
+    // Scan all unique cwds from Claude sessions (targeted query, avoids full deserialization)
+    const cwds = new Set(sessionManager.getDistinctClaudeCwds());
     if (cwds.size === 0) cwds.add(process.cwd());
 
-    // Fetch more than needed per-cwd, then trim after merge
-    const all = [...cwds].flatMap((cwd) => sessionManager.listExternalSessions(cwd, cap));
+    // Fetch per-cwd sequentially (each call yields the event loop via async I/O)
+    const all: ExternalSessionInfo[] = [];
+    for (const cwd of cwds) {
+      const results = await sessionManager.listExternalSessions(cwd, cap);
+      all.push(...results);
+    }
     all.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
     return all.slice(0, cap);
   });
