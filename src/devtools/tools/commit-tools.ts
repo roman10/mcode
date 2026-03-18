@@ -76,4 +76,29 @@ export function registerCommitTools(
       content: [{ type: 'text', text: `Scan complete. Today: ${stats.total} commits.\n\n${JSON.stringify(stats, null, 2)}` }],
     };
   });
+
+  server.registerTool('commits_get_scan_mode', {
+    description: 'Get the current branch scan mode. Returns whether all branches are scanned (true) or only the default/main branch (false).',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    const scanAllBranches = getPreferenceBool('commitScanAllBranches', false);
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ scanAllBranches }, null, 2) }],
+    };
+  });
+
+  server.registerTool('commits_set_scan_mode', {
+    description: 'Set the branch scan mode. When scanAllBranches is true, all branches are scanned. When false (default), only the main/master branch is scanned. Triggers an immediate rescan.',
+    inputSchema: {
+      scanAllBranches: z.boolean().describe('Whether to scan all branches (true) or only the default branch (false)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ scanAllBranches }) => {
+    setPreferenceBool('commitScanAllBranches', scanAllBranches);
+    await ctx.commitTracker.scanAll();
+    const stats = ctx.commitTracker.getDailyStats();
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ scanAllBranches, todayTotal: stats.total }, null, 2) }],
+    };
+  });
 }
