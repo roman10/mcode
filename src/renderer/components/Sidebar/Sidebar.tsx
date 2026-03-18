@@ -1,9 +1,11 @@
 import { useState, useRef, useCallback } from 'react';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import SessionList from './SessionList';
 import TaskQueuePanel from './TaskQueuePanel';
 import NewSessionDialog from './NewSessionDialog';
+import Tooltip from '../shared/Tooltip';
 import type { SessionCreateInput } from '../../../shared/types';
 import {
   MIN_SIDEBAR_WIDTH,
@@ -139,48 +141,53 @@ function Sidebar(): React.JSX.Element {
           <span className="text-sm font-medium text-text-primary">
             Sessions
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             {hasTiles && (
-              <button
-                className="text-xs text-text-muted hover:text-text-secondary transition-colors px-1"
-                title="Close all tiles"
-                onClick={handleCloseAllTiles}
-              >
-                Close all
-              </button>
+              <Tooltip content="Close all tiles" side="bottom">
+                <button
+                  className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+                  onClick={handleCloseAllTiles}
+                >
+                  <SquareX size={14} strokeWidth={1.5} />
+                </button>
+              </Tooltip>
             )}
             {hasEnded && (
-              <button
-                className="text-xs text-text-muted hover:text-red-400 transition-colors px-1"
-                title="Delete all ended sessions"
-                onClick={handleDeleteAllEnded}
-              >
-                Delete ended
-              </button>
+              <Tooltip content="Delete ended sessions" side="bottom">
+                <button
+                  className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-bg-elevated transition-colors"
+                  onClick={handleDeleteAllEnded}
+                >
+                  <Trash2 size={14} strokeWidth={1.5} />
+                </button>
+              </Tooltip>
             )}
             {hasAttention && (
-              <button
-                className="text-xs text-text-muted hover:text-text-secondary transition-colors px-1"
-                title="Mark all read"
-                onClick={handleMarkAllRead}
-              >
-                Clear
-              </button>
+              <Tooltip content="Mark all read" side="bottom">
+                <button
+                  className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+                  onClick={handleMarkAllRead}
+                >
+                  <BellOff size={14} strokeWidth={1.5} />
+                </button>
+              </Tooltip>
             )}
-            <button
-              className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-xs font-mono leading-none"
-              title="New terminal"
-              onClick={handleCreateTerminal}
-            >
-              &gt;_
-            </button>
-            <button
-              className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors text-lg leading-none"
-              title="New Claude session"
-              onClick={() => setShowNewDialog(true)}
-            >
-              +
-            </button>
+            <Tooltip content="New terminal" side="bottom">
+              <button
+                className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+                onClick={handleCreateTerminal}
+              >
+                <TerminalSquare size={14} strokeWidth={1.5} />
+              </button>
+            </Tooltip>
+            <Tooltip content="New Claude session" side="bottom">
+              <button
+                className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+                onClick={() => setShowNewDialog(true)}
+              >
+                <Plus size={16} strokeWidth={2} />
+              </button>
+            </Tooltip>
           </div>
         </div>
 

@@ -121,39 +121,42 @@ function SessionCard({
       {/* Actions */}
       <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {!hasTile && (session.status !== 'ended' || (session.sessionType === 'claude' && session.claudeSessionId)) && (
-          <button
-            className="text-text-secondary hover:text-text-primary text-xs p-0.5"
-            title={session.status === 'ended' ? 'View / Resume session' : 'Open tile'}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDoubleClick();
-            }}
-          >
-            +
-          </button>
+          <Tooltip content={session.status === 'ended' ? 'View / Resume session' : 'Open tile'} side="top">
+            <button
+              className="text-text-secondary hover:text-text-primary text-xs p-0.5"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDoubleClick();
+              }}
+            >
+              +
+            </button>
+          </Tooltip>
         )}
         {session.status !== 'ended' ? (
-          <button
-            className="text-text-secondary hover:text-red-400 text-xs p-0.5"
-            title="Kill session"
-            onClick={(e) => {
-              e.stopPropagation();
-              onKill();
-            }}
-          >
-            x
-          </button>
+          <Tooltip content="Kill session" side="top">
+            <button
+              className="text-text-secondary hover:text-red-400 text-xs p-0.5"
+              onClick={(e) => {
+                e.stopPropagation();
+                onKill();
+              }}
+            >
+              x
+            </button>
+          </Tooltip>
         ) : (
-          <button
-            className="text-text-secondary hover:text-red-400 text-xs p-0.5"
-            title="Delete session"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            x
-          </button>
+          <Tooltip content="Delete session" side="top">
+            <button
+              className="text-text-secondary hover:text-red-400 text-xs p-0.5"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+            >
+              x
+            </button>
+          </Tooltip>
         )}
       </div>
     </div>
