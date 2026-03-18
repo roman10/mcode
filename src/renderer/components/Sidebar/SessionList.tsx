@@ -3,7 +3,52 @@ import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore, sessionIdFromTileId } from '../../stores/layout-store';
 import { getLeaves } from 'react-mosaic-component';
 import SessionCard from './SessionCard';
-import type { SessionAttentionLevel, SessionStatus } from '../../../shared/types';
+import type { SessionAttentionLevel, SessionInfo, SessionStatus } from '../../../shared/types';
+
+interface DateGroup {
+  key: string;
+  label: string;
+  sessions: SessionInfo[];
+}
+
+function toDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateLabel(key: string, todayKey: string, yesterdayKey: string, currentYear: number): string {
+  if (key === todayKey) return 'Today';
+  if (key === yesterdayKey) return 'Yesterday';
+  const date = new Date(key + 'T00:00:00');
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const day = date.getDate();
+  const year = date.getFullYear();
+  return year === currentYear ? `${month} ${day}` : `${month} ${day}, ${year}`;
+}
+
+function groupSessionsByDate(sessions: SessionInfo[]): DateGroup[] {
+  const now = new Date();
+  const todayKey = toDateKey(now);
+  const yesterdayKey = toDateKey(new Date(now.getTime() - 86400000));
+  const currentYear = now.getFullYear();
+
+  const groups = new Map<string, SessionInfo[]>();
+  for (const session of sessions) {
+    const key = toDateKey(new Date(session.startedAt));
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(session);
+  }
+
+  return [...groups.keys()]
+    .sort((a, b) => b.localeCompare(a))
+    .map((key) => ({
+      key,
+      label: formatDateLabel(key, todayKey, yesterdayKey, currentYear),
+      sessions: groups.get(key)!,
+    }));
+}
 
 const attentionOrder: Record<SessionAttentionLevel, number> = {
   high: 0,
@@ -37,6 +82,23 @@ function SessionList(): React.JSX.Element {
   const [loadingMore, setLoadingMore] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
 
+  // Track user overrides for date group collapse state
+  // Keys not in this record use defaults: today=expanded, past=collapsed
+  const todayKey = toDateKey(new Date());
+  const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>({});
+
+  const isGroupCollapsed = (key: string): boolean => {
+    if (key in groupExpanded) return !groupExpanded[key];
+    return key !== todayKey; // default: today expanded, others collapsed
+  };
+
+  const toggleGroup = (key: string): void => {
+    setGroupExpanded((prev) => {
+      const wasCollapsed = key in prev ? !prev[key] : key !== todayKey;
+      return { ...prev, [key]: wasCollapsed };
+    });
+  };
+
   // Get set of session IDs that currently have tiles
   const tileSessionIds = new Set(
     mosaicTree
@@ -53,6 +115,8 @@ function SessionList(): React.JSX.Element {
       (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
       new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
   );
+
+  const groups = groupSessionsByDate(sorted);
 
   const handleDoubleClick = (sessionId: string): void => {
     addTile(sessionId);
@@ -134,19 +198,42 @@ function SessionList(): React.JSX.Element {
 
   return (
     <div className="flex-1 overflow-y-auto py-1 px-1">
-      {sorted.map((session) => (
-        <SessionCard
-          key={session.sessionId}
-          session={session}
-          isSelected={selectedSessionId === session.sessionId}
-          hasTile={tileSessionIds.has(session.sessionId)}
-          onSelect={() => selectSession(session.sessionId)}
-          onDoubleClick={() => handleDoubleClick(session.sessionId)}
-          onKill={() => handleKill(session.sessionId)}
-          onDelete={() => handleDelete(session.sessionId)}
-          onRename={(label) => handleRename(session.sessionId, label)}
-        />
-      ))}
+      {groups.map((group, i) => {
+        const hasAttention = group.sessions.some((s) => s.attentionLevel !== 'none');
+        const collapsed = isGroupCollapsed(group.key) && !hasAttention;
+
+        return (
+          <div key={group.key}>
+            <div
+              className={`flex items-center gap-1 px-3 pb-1 cursor-pointer select-none hover:text-text-secondary ${i === 0 ? 'pt-1' : 'pt-3'}`}
+              onClick={() => toggleGroup(group.key)}
+            >
+              <span className="text-[10px] text-text-muted">
+                {collapsed ? '\u25B6' : '\u25BC'}
+              </span>
+              <span className="text-[11px] font-medium text-text-muted uppercase tracking-wide flex-1">
+                {group.label}
+              </span>
+              <span className="text-[10px] text-text-muted">
+                {group.sessions.length}
+              </span>
+            </div>
+            {!collapsed && group.sessions.map((session) => (
+              <SessionCard
+                key={session.sessionId}
+                session={session}
+                isSelected={selectedSessionId === session.sessionId}
+                hasTile={tileSessionIds.has(session.sessionId)}
+                onSelect={() => selectSession(session.sessionId)}
+                onDoubleClick={() => handleDoubleClick(session.sessionId)}
+                onKill={() => handleKill(session.sessionId)}
+                onDelete={() => handleDelete(session.sessionId)}
+                onRename={(label) => handleRename(session.sessionId, label)}
+              />
+            ))}
+          </div>
+        );
+      })}
 
       {externalSessions.length > 0 && (
         <div className="mt-2 border-t border-border-default pt-2">
