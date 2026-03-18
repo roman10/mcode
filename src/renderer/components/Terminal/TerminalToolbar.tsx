@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import Tooltip from '../shared/Tooltip';
@@ -35,6 +36,31 @@ function TerminalToolbar({
   const lastTool = session?.lastTool;
   const shortTime = useRelativeTime(session?.startedAt ?? '');
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEditing = (): void => {
+    setEditValue(label);
+    setIsEditing(true);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleRenameSubmit = (): void => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== label) {
+      window.mcode.sessions.setLabel(sessionId, trimmed).catch(console.error);
+      useSessionStore.getState().setLabel(sessionId, trimmed);
+    }
+    setIsEditing(false);
+  };
+
   const handleKill = async (): Promise<void> => {
     try {
       await window.mcode.sessions.kill(sessionId);
@@ -61,9 +87,33 @@ function TerminalToolbar({
           {lastTool}
         </span>
       )}
-      <span className="text-xs text-text-primary truncate flex-1" title={label}>
-        {label}
-      </span>
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          className="flex-1 min-w-0 bg-bg-primary text-text-primary text-xs px-1 py-0 h-5 border border-border-focus rounded outline-none"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleRenameSubmit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleRenameSubmit();
+            if (e.key === 'Escape') {
+              setEditValue(label);
+              setIsEditing(false);
+            }
+          }}
+        />
+      ) : (
+        <span
+          className="text-xs text-text-primary truncate flex-1"
+          title={label}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            startEditing();
+          }}
+        >
+          {label}
+        </span>
+      )}
       {shortTime && (
         <span className="text-xs text-text-muted ml-1 shrink-0">
           {shortTime}
