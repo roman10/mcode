@@ -20,9 +20,19 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const sessionType = useSessionStore((s) => s.sessions[sessionId]?.sessionType);
   const scrollbackLines = useSessionStore((s) => s.sessions[sessionId]?.terminalConfig?.scrollbackLines);
 
+  const isMaximized = useLayoutStore((s) => s.restoreTree !== null);
+
   const handleClose = (): void => {
     removeTile(sessionId);
     persist();
+  };
+
+  const handleToggleMaximize = (): void => {
+    if (useLayoutStore.getState().restoreTree) {
+      useLayoutStore.getState().restoreFromMaximize();
+    } else {
+      useLayoutStore.getState().maximize(sessionId);
+    }
   };
 
   const handleFocus = (): void => {
@@ -56,11 +66,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       case 'Enter':
         e.preventDefault();
         e.stopPropagation();
-        if (useLayoutStore.getState().restoreTree) {
-          useLayoutStore.getState().restoreFromMaximize();
-        } else {
-          useLayoutStore.getState().maximize(sessionId);
-        }
+        handleToggleMaximize();
         break;
     }
   };
@@ -80,7 +86,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       onPointerDown={handleFocus}
       onKeyDown={handleKeyDown}
     >
-      <TerminalToolbar sessionId={sessionId} onClose={handleClose} />
+      <TerminalToolbar sessionId={sessionId} onClose={handleClose} isMaximized={isMaximized} onToggleMaximize={handleToggleMaximize} />
       <div className="flex-1 min-h-0 min-w-0 pl-1">
         {status === 'ended' ? (
           <SessionEndedPrompt sessionId={sessionId} />

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import Tooltip from '../shared/Tooltip';
@@ -7,6 +8,8 @@ import type { SessionStatus } from '../../../shared/types';
 interface TerminalToolbarProps {
   sessionId: string;
   onClose(): void;
+  isMaximized: boolean;
+  onToggleMaximize(): void;
 }
 
 const statusLabels: Record<SessionStatus, string> = {
@@ -28,6 +31,8 @@ const statusColors: Record<SessionStatus, string> = {
 function TerminalToolbar({
   sessionId,
   onClose,
+  isMaximized,
+  onToggleMaximize,
 }: TerminalToolbarProps): React.JSX.Element {
   const session = useSessionStore((s) => s.sessions[sessionId]);
   const label = session?.label ?? 'Unknown';
@@ -122,6 +127,15 @@ function TerminalToolbar({
 
       {/* Actions */}
       <div className="flex items-center gap-1 ml-2">
+        <Tooltip content={isMaximized ? 'Restore layout (⌘↵)' : 'Maximize tile (⌘↵)'} side="bottom">
+          <button
+            aria-label={isMaximized ? 'Restore layout' : 'Maximize tile'}
+            className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"
+            onClick={onToggleMaximize}
+          >
+            {isMaximized ? <Minimize2 size={14} strokeWidth={1.5} /> : <Maximize2 size={14} strokeWidth={1.5} />}
+          </button>
+        </Tooltip>
         {status !== 'ended' && (
           <Tooltip content="Kill session (⌘⇧W)" side="bottom">
             <button
