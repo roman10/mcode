@@ -16,7 +16,12 @@ function readTerminalBuffer(sessionId: string, lines?: number): string {
   for (let i = startRow; i < totalRows; i++) {
     const line = buffer.getLine(i);
     if (line) {
-      result.push(line.translateToString(true));
+      const text = line.translateToString(true);
+      if (line.isWrapped && result.length > 0) {
+        result[result.length - 1] += text;
+      } else {
+        result.push(text);
+      }
     }
   }
 

@@ -3,6 +3,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
 import { queryRenderer } from '../ipc';
 
+const WAIT_BUFFER_LINES = 2000;
+
 export function registerTerminalTools(
   server: McpServer,
   ctx: McpServerContext,
@@ -232,7 +234,10 @@ export function registerTerminalTools(
 
     while (Date.now() - startTime < timeout) {
       try {
-        const content = await queryRenderer<string>(ctx.mainWindow, 'terminal-buffer', { sessionId });
+        const content = await queryRenderer<string>(ctx.mainWindow, 'terminal-buffer', {
+          sessionId,
+          lines: WAIT_BUFFER_LINES,
+        });
         if (regex.test(content)) {
           return {
             content: [{ type: 'text', text: content }],
@@ -246,7 +251,10 @@ export function registerTerminalTools(
 
     // Final attempt
     try {
-      const content = await queryRenderer<string>(ctx.mainWindow, 'terminal-buffer', { sessionId });
+      const content = await queryRenderer<string>(ctx.mainWindow, 'terminal-buffer', {
+        sessionId,
+        lines: WAIT_BUFFER_LINES,
+      });
       if (regex.test(content)) {
         return {
           content: [{ type: 'text', text: content }],

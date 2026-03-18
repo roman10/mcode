@@ -488,8 +488,6 @@ export class SessionManager {
       case 'PreToolUse':
         if (currentStatus === 'waiting') {
           newStatus = 'active';
-          newAttention = 'none';
-          attentionReason = null;
         }
         lastTool = event.toolName;
         break;
@@ -497,8 +495,6 @@ export class SessionManager {
       case 'PostToolUse':
         if (currentStatus === 'waiting') {
           newStatus = 'active';
-          newAttention = 'none';
-          attentionReason = null;
         }
         lastTool = event.toolName;
         break;
