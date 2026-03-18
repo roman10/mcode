@@ -134,9 +134,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       console.warn('WebGL addon failed, falling back to canvas renderer:', e);
     }
 
-    // Centralize PTY resize: xterm.js fires onResize whenever cols/rows
-    // actually change — from fitAddon.fit(), font zoom, or any other trigger.
-    // Register BEFORE the first fitAddon.fit() so the initial fit is captured.
+    // PTY resize chain (verified correct at runtime — PTY and xterm cols always match):
+    //   ResizeObserver(container) → rAF → fitAddon.fit() → xterm.resize()
+    //   → term.onResize → IPC pty:resize → node-pty resize → SIGWINCH
+    // Any remaining line-wrap issues in Claude Code plan mode input are
+    // upstream in Claude Code's own SIGWINCH / reflow handling.
     const unsubResize = term.onResize(({ cols, rows }) => {
       window.mcode.pty.resize(sessionId, cols, rows);
     });
