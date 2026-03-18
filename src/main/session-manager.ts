@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
-import { readdirSync, openSync, readSync, closeSync } from 'node:fs';
+import { readdirSync, openSync, readSync, closeSync, fstatSync } from 'node:fs';
 import type { WebContents } from 'electron';
 import type { PtyManager } from './pty-manager';
 import { getDb } from './db';
@@ -106,6 +106,40 @@ function truncatePromptToLabel(prompt: string, maxLen: number): string {
   const truncated = firstLine.slice(0, maxLen);
   const lastSpace = truncated.lastIndexOf(' ');
   return (lastSpace > maxLen * 0.3 ? truncated.slice(0, lastSpace) : truncated) + '...';
+}
+
+/**
+ * Extract the last `customTitle` from a Claude Code JSONL file.
+ * Reads the tail of the file (up to 8KB) and scans backwards for a
+ * `{"type":"custom-title","customTitle":"..."}` entry.
+ *
+ * 8KB is sufficient because Claude Code writes/updates customTitle entries
+ * as the session progresses, so the latest one is near the end of the file.
+ * Increase if titles are ever missed for very long conversations.
+ */
+function extractCustomTitle(fd: number, fileSize: number, headChunk: string): string | undefined {
+  const searchChunk = fileSize <= 4096
+    ? headChunk
+    : (() => {
+        const tailSize = Math.min(8192, fileSize);
+        const buf = Buffer.alloc(tailSize);
+        readSync(fd, buf, 0, tailSize, fileSize - tailSize);
+        const raw = buf.toString('utf-8');
+        // Discard first partial line (may be split mid-UTF-8 character)
+        const firstNewline = raw.indexOf('\n');
+        return firstNewline >= 0 ? raw.slice(firstNewline + 1) : raw;
+      })();
+
+  const lines = searchChunk.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].includes('"custom-title"')) {
+      try {
+        const obj = JSON.parse(lines[i]) as { customTitle?: string };
+        if (obj.customTitle) return obj.customTitle;
+      } catch { /* skip malformed line */ }
+    }
+  }
+  return undefined;
 }
 
 export type SessionUpdateListener = (
@@ -304,9 +338,9 @@ export class SessionManager {
   }
 
   /** Import and resume an external Claude Code session not tracked by mcode. */
-  importExternal(claudeSessionId: string, cwd: string): SessionInfo {
+  importExternal(claudeSessionId: string, cwd: string, providedLabel?: string): SessionInfo {
     const sessionId = randomUUID();
-    const label = `Imported: ${claudeSessionId.slice(0, 8)}`;
+    const label = providedLabel || `Imported: ${claudeSessionId.slice(0, 8)}`;
     const startedAt = new Date().toISOString();
 
     const hookRuntime = this.hookRuntimeGetter();
@@ -379,7 +413,7 @@ export class SessionManager {
       const claudeSessionId = file.replace('.jsonl', '');
       if (tracked.has(claudeSessionId)) continue;
 
-      // Read only first line (up to 4KB) to avoid loading entire conversation files
+      // Read first line (up to 4KB) for slug/timestamp, then tail for customTitle
       let fd: number | undefined;
       try {
         const filePath = join(projectDir, file);
@@ -390,10 +424,13 @@ export class SessionManager {
         const newlineIdx = chunk.indexOf('\n');
         const firstLine = newlineIdx > 0 ? chunk.slice(0, newlineIdx) : chunk;
         const parsed = JSON.parse(firstLine) as { timestamp?: string; slug?: string };
+        const fileSize = fstatSync(fd).size;
+        const customTitle = extractCustomTitle(fd, fileSize, chunk);
         results.push({
           claudeSessionId,
           startedAt: parsed.timestamp ?? '',
           slug: parsed.slug ?? claudeSessionId.slice(0, 8),
+          customTitle,
         });
       } catch {
         // Malformed file or read error, skip
@@ -728,11 +765,26 @@ export class SessionManager {
 
   setLabel(sessionId: string, label: string): void {
     const db = getDb();
-    db.prepare('UPDATE sessions SET label = ? WHERE session_id = ?').run(
+    db.prepare('UPDATE sessions SET label = ?, label_source = ? WHERE session_id = ?').run(
       label,
+      'user',
       sessionId,
     );
     this.broadcastSessionUpdate(sessionId);
+  }
+
+  /**
+   * Update label only if it was not manually renamed by the user.
+   * Used for auto-generated titles (e.g. terminal OSC title from Claude Code).
+   */
+  setAutoLabel(sessionId: string, label: string): void {
+    const db = getDb();
+    const result = db.prepare(
+      `UPDATE sessions SET label = ? WHERE session_id = ? AND label_source = 'auto'`,
+    ).run(label, sessionId);
+    if (result.changes > 0) {
+      this.broadcastSessionUpdate(sessionId);
+    }
   }
 
   setTerminalConfig(sessionId: string, partial: Partial<TerminalConfig>): void {

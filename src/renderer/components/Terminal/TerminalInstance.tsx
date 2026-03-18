@@ -178,6 +178,15 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       window.mcode.pty.write(sessionId, data);
     });
 
+    // Auto-update session label from terminal title (e.g. Claude Code sets
+    // a meaningful title like "add-auth-middleware" via OSC escape sequences).
+    // Only updates if the user hasn't manually renamed the session (checked server-side).
+    const unsubTitle = term.onTitleChange((title) => {
+      if (title) {
+        window.mcode.sessions.setAutoLabel(sessionId, title);
+      }
+    });
+
     // Context menu
     const handleContextMenu = (e: MouseEvent): void => {
       e.preventDefault();
@@ -200,6 +209,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       terminalRegistry.delete(sessionId);
       cancelAnimationFrame(resizeRaf);
       unsubResize.dispose();
+      unsubTitle.dispose();
       unsubData();
       unsubExit();
       container.removeEventListener('contextmenu', handleContextMenu);

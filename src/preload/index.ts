@@ -69,6 +69,9 @@ contextBridge.exposeInMainWorld('mcode', {
     setLabel: (sessionId: string, label: string): Promise<void> =>
       ipcRenderer.invoke('session:set-label', sessionId, label),
 
+    setAutoLabel: (sessionId: string, label: string): Promise<void> =>
+      ipcRenderer.invoke('session:set-auto-label', sessionId, label),
+
     setTerminalConfig: (sessionId: string, config: Record<string, unknown>): Promise<void> =>
       ipcRenderer.invoke('session:set-terminal-config', sessionId, config),
 
@@ -84,8 +87,8 @@ contextBridge.exposeInMainWorld('mcode', {
     listExternal: (limit?: number): Promise<ExternalSessionInfo[]> =>
       ipcRenderer.invoke('session:list-external', limit),
 
-    importExternal: (claudeSessionId: string, cwd: string): Promise<SessionInfo> =>
-      ipcRenderer.invoke('session:import-external', claudeSessionId, cwd),
+    importExternal: (claudeSessionId: string, cwd: string, label?: string): Promise<SessionInfo> =>
+      ipcRenderer.invoke('session:import-external', claudeSessionId, cwd, label),
 
     onUpdated: (
       cb: (session: SessionInfo) => void,

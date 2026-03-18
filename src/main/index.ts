@@ -145,6 +145,13 @@ function registerSessionIpc(): void {
   );
 
   ipcMain.handle(
+    'session:set-auto-label',
+    (_event, sessionId: string, label: string) => {
+      sessionManager.setAutoLabel(sessionId, label);
+    },
+  );
+
+  ipcMain.handle(
     'session:set-terminal-config',
     (_event, sessionId: string, config: Record<string, unknown>) => {
       sessionManager.setTerminalConfig(sessionId, config);
@@ -180,8 +187,8 @@ function registerSessionIpc(): void {
 
   ipcMain.handle(
     'session:import-external',
-    (_event, claudeSessionId: string, cwd: string) => {
-      return sessionManager.importExternal(claudeSessionId, cwd);
+    (_event, claudeSessionId: string, cwd: string, label?: string) => {
+      return sessionManager.importExternal(claudeSessionId, cwd, label);
     },
   );
 }

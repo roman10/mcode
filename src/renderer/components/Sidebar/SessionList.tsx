@@ -3,7 +3,7 @@ import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore, sessionIdFromTileId } from '../../stores/layout-store';
 import { getLeaves } from 'react-mosaic-component';
 import SessionCard from './SessionCard';
-import type { SessionAttentionLevel, SessionInfo, SessionStatus } from '../../../shared/types';
+import type { ExternalSessionInfo, SessionAttentionLevel, SessionInfo, SessionStatus } from '../../../shared/types';
 
 interface DateGroup {
   key: string;
@@ -171,15 +171,15 @@ function SessionList(): React.JSX.Element {
     }
   };
 
-  const handleImportExternal = async (claudeSessionId: string): Promise<void> => {
+  const handleImportExternal = async (ext: ExternalSessionInfo): Promise<void> => {
     // Derive cwd from existing sessions
     const firstClaude = Object.values(sessions).find((s) => s.sessionType === 'claude');
     const cwd = firstClaude?.cwd ?? '';
     if (!cwd) return;
 
-    setImportingId(claudeSessionId);
+    setImportingId(ext.claudeSessionId);
     try {
-      await window.mcode.sessions.importExternal(claudeSessionId, cwd);
+      await window.mcode.sessions.importExternal(ext.claudeSessionId, cwd, ext.customTitle ?? ext.slug);
     } catch (err) {
       console.error('Failed to import external session:', err);
     } finally {
@@ -252,12 +252,12 @@ function SessionList(): React.JSX.Element {
                 <div
                   key={ext.claudeSessionId}
                   className="group flex items-center gap-2 px-3 py-1.5 rounded-md cursor-pointer hover:bg-bg-secondary"
-                  onClick={() => handleImportExternal(ext.claudeSessionId)}
+                  onClick={() => handleImportExternal(ext)}
                 >
                   <span className="w-2 h-2 rounded-full bg-text-muted shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="block text-xs text-text-secondary truncate">
-                      {ext.slug}
+                      {ext.customTitle ?? ext.slug}
                     </span>
                     <span className="text-[10px] text-text-muted">
                       {ext.startedAt ? new Date(ext.startedAt).toLocaleDateString() : 'Unknown date'}

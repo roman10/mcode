@@ -57,6 +57,7 @@ export interface ExternalSessionInfo {
   claudeSessionId: string;
   startedAt: string; // ISO 8601
   slug: string;
+  customTitle?: string; // meaningful title from Claude Code, when available
 }
 
 export interface LayoutStateSnapshot {
