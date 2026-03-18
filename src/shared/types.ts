@@ -31,6 +31,7 @@ export interface SessionInfo {
   hookMode: 'live' | 'fallback';
   sessionType: SessionType;
   terminalConfig: TerminalConfig;
+  ephemeral: boolean;
 }
 
 export interface SessionCreateInput {
@@ -41,6 +42,7 @@ export interface SessionCreateInput {
   effort?: EffortLevel;
   command?: string;
   sessionType?: SessionType;
+  ephemeral?: boolean;
 }
 
 export interface SessionDefaults {

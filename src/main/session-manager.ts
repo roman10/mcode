@@ -44,6 +44,7 @@ interface SessionRecord {
   session_type: string;
   terminal_config: string;
   effort: string | null;
+  ephemeral: number;
 }
 
 function isClaudeCommand(command: string): boolean {
@@ -94,6 +95,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     hookMode: row.hook_mode as 'live' | 'fallback',
     sessionType: row.session_type as SessionType,
     terminalConfig: JSON.parse(row.terminal_config || '{}'),
+    ephemeral: Boolean(row.ephemeral),
   };
 }
 
@@ -202,10 +204,11 @@ export class SessionManager {
     // Insert DB row FIRST so that onFirstData/onExit callbacks can UPDATE it.
     // If spawn fails, we delete the row.
     const db = getDb();
+    const ephemeral = input.ephemeral ? 1 : 0;
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, status, started_at, hook_mode, session_type)
-       VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?)`,
-    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), startedAt, hookMode, sessionType);
+      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, status, started_at, hook_mode, session_type, ephemeral)
+       VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?)`,
+    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), startedAt, hookMode, sessionType, ephemeral);
 
     try {
       this.ptyManager.spawn({
@@ -432,6 +435,18 @@ export class SessionManager {
 
     const session = this.get(sessionId);
     if (session) this.notifyListeners(session, previousStatus);
+
+    // Auto-delete ephemeral sessions after they end, with a short delay
+    // so MCP callers using session_wait_for_status can read the final status.
+    if (status === 'ended' && session?.ephemeral) {
+      setTimeout(() => {
+        try {
+          this.delete(sessionId);
+        } catch {
+          // Session may already be deleted
+        }
+      }, 2000);
+    }
   }
 
   /** Handle a hook event from the hook server or injected via MCP. */
@@ -685,11 +700,12 @@ export class SessionManager {
     return row ? toSessionInfo(row) : null;
   }
 
-  list(): SessionInfo[] {
+  list(opts?: { includeEphemeral?: boolean }): SessionInfo[] {
     const db = getDb();
-    const rows = db
-      .prepare('SELECT * FROM sessions ORDER BY started_at DESC')
-      .all() as SessionRecord[];
+    const query = opts?.includeEphemeral
+      ? 'SELECT * FROM sessions ORDER BY started_at DESC'
+      : 'SELECT * FROM sessions WHERE ephemeral = 0 ORDER BY started_at DESC';
+    const rows = db.prepare(query).all() as SessionRecord[];
     return rows.map(toSessionInfo);
   }
 
@@ -698,7 +714,7 @@ export class SessionManager {
     const row = db
       .prepare(
         `SELECT cwd, permission_mode, effort FROM sessions
-         WHERE session_type = 'claude'
+         WHERE session_type = 'claude' AND ephemeral = 0
          ORDER BY started_at DESC LIMIT 1`,
       )
       .get() as { cwd: string; permission_mode: string | null; effort: string | null } | undefined;

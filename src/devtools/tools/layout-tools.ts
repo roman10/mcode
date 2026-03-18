@@ -224,7 +224,7 @@ export function registerLayoutTools(
   });
 
   server.registerTool('sidebar_get_sessions', {
-    description: 'List sessions shown in the sidebar with their status',
+    description: 'List sessions shown in the sidebar with their status (excludes ephemeral sessions)',
     annotations: { readOnlyHint: true },
   }, async () => {
     try {

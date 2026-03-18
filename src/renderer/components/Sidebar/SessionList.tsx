@@ -108,8 +108,9 @@ function SessionList(): React.JSX.Element {
       : [],
   );
 
+  // Filter out ephemeral sessions (safety net — they should already be excluded by list())
   // Sort: attention first, then status, then start time
-  const sorted = Object.values(sessions).sort(
+  const sorted = Object.values(sessions).filter((s) => !s.ephemeral).sort(
     (a, b) =>
       (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||
       (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||

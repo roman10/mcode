@@ -104,8 +104,10 @@ function App(): React.JSX.Element {
   }, [upsertSession]);
 
   // Listen for sessions created externally (e.g. via MCP devtools)
+  // Skip ephemeral sessions — they should not appear in sidebar or create tiles
   useEffect(() => {
     const unsub = window.mcode.sessions.onCreated((session) => {
+      if (session.ephemeral) return;
       addSession(session);
       addTile(session.sessionId);
       persist();

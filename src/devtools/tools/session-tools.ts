@@ -8,10 +8,13 @@ export function registerSessionTools(
   ctx: McpServerContext,
 ): void {
   server.registerTool('session_list', {
-    description: 'List all sessions with their status and metadata',
+    description: 'List all sessions with their status and metadata. Ephemeral sessions are excluded by default.',
+    inputSchema: {
+      include_ephemeral: z.boolean().optional().describe('If true, include ephemeral (test/verification) sessions in the list'),
+    },
     annotations: { readOnlyHint: true },
-  }, async () => {
-    const sessions = ctx.sessionManager.list();
+  }, async ({ include_ephemeral }) => {
+    const sessions = ctx.sessionManager.list({ includeEphemeral: include_ephemeral });
     return {
       content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }],
     };
@@ -27,9 +30,10 @@ export function registerSessionTools(
       effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for the Claude session (ignored for terminal sessions)'),
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
+      ephemeral: z.boolean().optional().describe('If true, session is hidden from sidebar and auto-deleted when ended. Use for test/verification sessions.'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, sessionType }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, sessionType, ephemeral }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -39,6 +43,7 @@ export function registerSessionTools(
         effort,
         command,
         sessionType,
+        ephemeral,
       });
       // Notify renderer to add session to store (best-effort)
       try {
