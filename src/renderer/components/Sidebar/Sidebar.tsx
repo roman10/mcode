@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { SquareX, Trash2, BellOff, TerminalSquare, Plus } from 'lucide-react';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import SessionList from './SessionList';
 import TaskQueuePanel from './TaskQueuePanel';
 import NewSessionDialog from './NewSessionDialog';
+import SettingsDialog from '../SettingsDialog';
 import Tooltip from '../shared/Tooltip';
 import type { SessionCreateInput } from '../../../shared/types';
 import {
@@ -14,6 +15,7 @@ import {
 
 function Sidebar(): React.JSX.Element {
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth);
   const setSidebarWidth = useLayoutStore((s) => s.setSidebarWidth);
   const addTile = useLayoutStore((s) => s.addTile);
@@ -227,8 +229,16 @@ function Sidebar(): React.JSX.Element {
         <TaskQueuePanel />
 
         {/* Footer */}
-        <div className="px-3 py-2 border-t border-border-default">
+        <div className="flex items-center justify-between px-3 py-2 border-t border-border-default">
           <span className="text-xs text-text-muted">mcode</span>
+          <Tooltip content="Settings" side="top">
+            <button
+              className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+              onClick={() => setShowSettings(true)}
+            >
+              <Settings size={14} strokeWidth={1.5} />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -244,6 +254,8 @@ function Sidebar(): React.JSX.Element {
           onCreate={handleCreate}
         />
       )}
+
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </>
   );
 }

@@ -4,6 +4,8 @@ import { is, optimizer } from '@electron-toolkit/utils';
 import { PtyManager } from './pty-manager';
 import { SessionManager } from './session-manager';
 import { TaskQueue } from './task-queue';
+import { SleepBlocker } from './sleep-blocker';
+import { getPreference, setPreference } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
@@ -15,6 +17,7 @@ let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
 let sessionManager: SessionManager;
 let taskQueue: TaskQueue;
+let sleepBlocker: SleepBlocker;
 let hookRuntimeInfo: HookRuntimeInfo = {
   state: 'initializing',
   port: null,
@@ -236,6 +239,27 @@ function registerTaskIpc(): void {
   });
 }
 
+function registerPreferencesIpc(): void {
+  ipcMain.handle('preferences:get', (_event, key: string) => {
+    return getPreference(key);
+  });
+
+  ipcMain.handle('preferences:set', (_event, key: string, value: string) => {
+    setPreference(key, value);
+  });
+
+  ipcMain.handle('preferences:get-sleep-status', () => {
+    return {
+      enabled: sleepBlocker.isEnabled(),
+      blocking: sleepBlocker.isBlocking(),
+    };
+  });
+
+  ipcMain.handle('preferences:set-prevent-sleep', (_event, enabled: boolean) => {
+    sleepBlocker.setEnabled(enabled);
+  });
+}
+
 function registerHookIpc(): void {
   ipcMain.handle('hooks:get-runtime', () => {
     return hookRuntimeInfo;
@@ -344,6 +368,8 @@ app.whenReady().then(async () => {
     () => hookRuntimeInfo,
     getWebContents,
   );
+  sleepBlocker = new SleepBlocker();
+  sleepBlocker.attach(sessionManager);
 
   registerPtyIpc();
   registerSessionIpc();
@@ -351,6 +377,7 @@ app.whenReady().then(async () => {
   registerAppIpc();
   registerHookIpc();
   registerTaskIpc();
+  registerPreferencesIpc();
 
   // Initialize hook system (server + config reconciliation)
   await initializeHookSystem();
@@ -372,6 +399,7 @@ app.whenReady().then(async () => {
         sessionManager,
         taskQueue,
         getHookRuntimeInfo: () => hookRuntimeInfo,
+        sleepBlocker,
       });
     });
   }
@@ -397,6 +425,9 @@ app.on('before-quit', (e) => {
       clearInterval(pruneInterval);
       pruneInterval = null;
     }
+
+    // Release sleep blocker
+    sleepBlocker.detach();
 
     // Stop task queue dispatch
     taskQueue.stop();

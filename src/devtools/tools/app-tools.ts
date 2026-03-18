@@ -9,6 +9,54 @@ export function registerAppTools(
   server: McpServer,
   ctx: McpServerContext,
 ): void {
+  server.registerTool('app_get_sleep_blocker_status', {
+    description:
+      'Get sleep prevention status: whether the feature is enabled and whether the system sleep blocker is currently active',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            {
+              enabled: ctx.sleepBlocker.isEnabled(),
+              blocking: ctx.sleepBlocker.isBlocking(),
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  });
+
+  server.registerTool('app_set_prevent_sleep', {
+    description:
+      'Enable or disable sleep prevention. When enabled, the app prevents system sleep while sessions are active.',
+    inputSchema: {
+      enabled: z.boolean().describe('Whether to enable sleep prevention'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ enabled }) => {
+    ctx.sleepBlocker.setEnabled(enabled);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            {
+              enabled: ctx.sleepBlocker.isEnabled(),
+              blocking: ctx.sleepBlocker.isBlocking(),
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  });
+
   server.registerTool('app_get_version', {
     description: 'Get the application version',
     annotations: { readOnlyHint: true },

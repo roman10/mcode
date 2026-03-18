@@ -213,6 +213,20 @@ contextBridge.exposeInMainWorld('mcode', {
     },
   },
 
+  preferences: {
+    get: (key: string): Promise<string | null> =>
+      ipcRenderer.invoke('preferences:get', key),
+
+    set: (key: string, value: string): Promise<void> =>
+      ipcRenderer.invoke('preferences:set', key, value),
+
+    getSleepStatus: (): Promise<{ enabled: boolean; blocking: boolean }> =>
+      ipcRenderer.invoke('preferences:get-sleep-status'),
+
+    setPreventSleep: (enabled: boolean): Promise<void> =>
+      ipcRenderer.invoke('preferences:set-prevent-sleep', enabled),
+  },
+
   devtools: {
     onQuery: (
       cb: (
