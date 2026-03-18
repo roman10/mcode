@@ -3,16 +3,18 @@ import { join } from 'node:path';
 import { is, optimizer } from '@electron-toolkit/utils';
 import { PtyManager } from './pty-manager';
 import { SessionManager } from './session-manager';
+import { TaskQueue } from './task-queue';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
-import type { SessionCreateInput, HookRuntimeInfo } from '../shared/types';
+import type { SessionCreateInput, CreateTaskInput, TaskFilter, HookRuntimeInfo } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
 let sessionManager: SessionManager;
+let taskQueue: TaskQueue;
 let hookRuntimeInfo: HookRuntimeInfo = {
   state: 'initializing',
   port: null,
@@ -213,6 +215,20 @@ function registerAppIpc(): void {
   });
 }
 
+function registerTaskIpc(): void {
+  ipcMain.handle('task:create', (_event, input: CreateTaskInput) => {
+    return taskQueue.create(input);
+  });
+
+  ipcMain.handle('task:list', (_event, filter?: TaskFilter) => {
+    return taskQueue.list(filter);
+  });
+
+  ipcMain.handle('task:cancel', (_event, taskId: number) => {
+    taskQueue.cancel(taskId);
+  });
+}
+
 function registerHookIpc(): void {
   ipcMain.handle('hooks:get-runtime', () => {
     return hookRuntimeInfo;
@@ -276,15 +292,25 @@ app.whenReady().then(async () => {
     getWebContents,
     () => hookRuntimeInfo,
   );
+  taskQueue = new TaskQueue(
+    sessionManager,
+    ptyManager,
+    () => hookRuntimeInfo,
+    getWebContents,
+  );
 
   registerPtyIpc();
   registerSessionIpc();
   registerLayoutIpc();
   registerAppIpc();
   registerHookIpc();
+  registerTaskIpc();
 
   // Initialize hook system (server + config reconciliation)
   await initializeHookSystem();
+
+  // Start task queue dispatch loop
+  taskQueue.start();
 
   // Start event pruning
   sessionManager.pruneOldEvents();
@@ -298,6 +324,7 @@ app.whenReady().then(async () => {
         mainWindow: mainWindow!,
         ptyManager,
         sessionManager,
+        taskQueue,
         getHookRuntimeInfo: () => hookRuntimeInfo,
       });
     });
@@ -324,6 +351,9 @@ app.on('before-quit', (e) => {
       clearInterval(pruneInterval);
       pruneInterval = null;
     }
+
+    // Stop task queue dispatch
+    taskQueue.stop();
 
     // Clean up hook config
     cleanupOnQuit();

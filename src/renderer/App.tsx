@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar/Sidebar';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
+import { useTaskStore } from './stores/task-store';
 
 function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,9 @@ function App(): React.JSX.Element {
   const removeTile = useLayoutStore((s) => s.removeTile);
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
+  const setTasks = useTaskStore((s) => s.setTasks);
+  const upsertTask = useTaskStore((s) => s.upsertTask);
+  const removeTask = useTaskStore((s) => s.removeTask);
 
   // Track previous high-attention count for dock badge
   const prevHighCountRef = useRef(0);
@@ -50,6 +54,11 @@ function App(): React.JSX.Element {
         // (ended sessions are kept so they can show the resume prompt)
         const allIds = new Set(allSessions.map((s) => s.sessionId));
         pruneTiles(allIds);
+
+        // Load task queue
+        const tasks = await window.mcode.tasks.list();
+        if (cancelled) return;
+        setTasks(tasks);
 
         // Load external Claude Code sessions (non-blocking, initial page)
         window.mcode.sessions.listExternal(20).then((ext) => {
@@ -125,6 +134,18 @@ function App(): React.JSX.Element {
     });
     return unsub;
   }, [removeSession, removeTile, persist]);
+
+  // Listen for task queue changes
+  useEffect(() => {
+    const unsub = window.mcode.tasks.onChanged((event) => {
+      if (event.type === 'upsert') {
+        upsertTask(event.task);
+      } else {
+        removeTask(event.taskId);
+      }
+    });
+    return unsub;
+  }, [upsertTask, removeTask]);
 
   // Dock badge: count of high-attention sessions
   useEffect(() => {

@@ -1,0 +1,7 @@
+#!/bin/sh
+
+printf 'fake claude ready\n'
+
+while IFS= read -r _line; do
+  :
+done

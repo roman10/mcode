@@ -8,6 +8,10 @@ import type {
   ExternalSessionInfo,
   HookRuntimeInfo,
   HookEvent,
+  Task,
+  CreateTaskInput,
+  TaskFilter,
+  TaskChangeEvent,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -183,6 +187,26 @@ contextBridge.exposeInMainWorld('mcode', {
       ): void => cb(error);
       ipcRenderer.on('app:error', handler);
       return () => ipcRenderer.removeListener('app:error', handler);
+    },
+  },
+
+  tasks: {
+    create: (input: CreateTaskInput): Promise<number> =>
+      ipcRenderer.invoke('task:create', input).then((task: Task) => task.id),
+
+    list: (filter?: TaskFilter): Promise<Task[]> =>
+      ipcRenderer.invoke('task:list', filter),
+
+    cancel: (taskId: number): Promise<void> =>
+      ipcRenderer.invoke('task:cancel', taskId),
+
+    onChanged: (cb: (event: TaskChangeEvent) => void): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        event: TaskChangeEvent,
+      ): void => cb(event);
+      ipcRenderer.on('task:changed', handler);
+      return () => ipcRenderer.removeListener('task:changed', handler);
     },
   },
 

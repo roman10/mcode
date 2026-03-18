@@ -82,6 +82,46 @@ export interface HookEvent {
   payload: Record<string, unknown>;
 }
 
+// --- Task Queue ---
+
+export type TaskStatus = 'pending' | 'dispatched' | 'completed' | 'failed';
+
+export interface Task {
+  id: number;
+  prompt: string;
+  cwd: string;
+  targetSessionId: string | null;
+  sessionId: string | null;
+  status: TaskStatus;
+  priority: number;
+  scheduledAt: string | null;
+  createdAt: string;
+  dispatchedAt: string | null;
+  completedAt: string | null;
+  retryCount: number;
+  maxRetries: number;
+  error: string | null;
+}
+
+export interface CreateTaskInput {
+  prompt: string;
+  cwd: string;
+  targetSessionId?: string;
+  priority?: number;
+  scheduledAt?: string;
+  maxRetries?: number;
+}
+
+export interface TaskFilter {
+  statuses?: TaskStatus[];
+  targetSessionId?: string;
+  limit?: number;
+}
+
+export type TaskChangeEvent =
+  | { type: 'upsert'; task: Task }
+  | { type: 'remove'; taskId: number };
+
 // --- PTY ---
 
 export interface PtySpawnOptions {
@@ -168,6 +208,13 @@ export interface MCodeAPI {
     selectDirectory(): Promise<string | null>;
     setDockBadge(text: string): void;
     onError(callback: (error: string) => void): () => void;
+  };
+
+  tasks: {
+    create(input: CreateTaskInput): Promise<number>;
+    list(filter?: TaskFilter): Promise<Task[]>;
+    cancel(taskId: number): Promise<void>;
+    onChanged(callback: (event: TaskChangeEvent) => void): () => void;
   };
 
   devtools: {

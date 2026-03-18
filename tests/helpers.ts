@@ -1,4 +1,7 @@
+import { join } from 'node:path';
 import type { McpTestClient } from './mcp-client';
+
+const TEST_CLAUDE_PATH = join(process.cwd(), 'tests', 'fixtures', 'claude');
 
 export interface SessionInfo {
   sessionId: string;
@@ -53,6 +56,24 @@ export async function createTestSession(
     label: `test-${Date.now()}`,
     ...overrides,
   });
+}
+
+export async function createLiveClaudeTestSession(
+  client: McpTestClient,
+  overrides?: Record<string, unknown>,
+): Promise<SessionInfo> {
+  const session = await client.callToolJson<SessionInfo>('session_create', {
+    cwd: process.cwd(),
+    command: TEST_CLAUDE_PATH,
+    label: `live-${Date.now()}`,
+    ...overrides,
+  });
+
+  if (session.hookMode !== 'live') {
+    throw new Error(`Expected live hook mode, got ${session.hookMode}`);
+  }
+
+  return injectHookEvent(client, session.sessionId, 'SessionStart');
 }
 
 export async function waitForActive(
@@ -177,6 +198,63 @@ export async function selectSession(
   sessionId: string | null,
 ): Promise<void> {
   await client.callTool('sidebar_select_session', { sessionId });
+}
+
+// --- Task queue helpers ---
+
+export interface TaskInfo {
+  id: number;
+  prompt: string;
+  cwd: string;
+  targetSessionId: string | null;
+  sessionId: string | null;
+  status: string;
+  priority: number;
+  scheduledAt: string | null;
+  createdAt: string;
+  dispatchedAt: string | null;
+  completedAt: string | null;
+  retryCount: number;
+  maxRetries: number;
+  error: string | null;
+}
+
+export async function createTask(
+  client: McpTestClient,
+  overrides?: Record<string, unknown>,
+): Promise<TaskInfo> {
+  return client.callToolJson<TaskInfo>('task_create', {
+    prompt: 'echo test',
+    cwd: process.cwd(),
+    ...overrides,
+  });
+}
+
+export async function listTasks(
+  client: McpTestClient,
+  filter?: Record<string, unknown>,
+): Promise<TaskInfo[]> {
+  return client.callToolJson<TaskInfo[]>('task_list', filter ?? {});
+}
+
+export async function cancelTask(
+  client: McpTestClient,
+  taskId: number,
+): Promise<void> {
+  await client.callTool('task_cancel', { taskId });
+}
+
+export async function waitForTaskStatus(
+  client: McpTestClient,
+  taskId: number,
+  status: string,
+  timeoutMs = 30000,
+): Promise<TaskInfo> {
+  return client.callToolJson<TaskInfo>('task_wait_for_status', {
+    taskId,
+    status,
+    timeout_ms: timeoutMs,
+  });
 }
 
 // --- Layout helpers ---

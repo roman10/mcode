@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import SessionList from './SessionList';
+import TaskQueuePanel from './TaskQueuePanel';
 import NewSessionDialog from './NewSessionDialog';
 import type { SessionCreateInput } from '../../../shared/types';
 import {
@@ -176,6 +177,9 @@ function Sidebar(): React.JSX.Element {
 
         {/* Session list */}
         <SessionList />
+
+        {/* Task queue */}
+        <TaskQueuePanel />
 
         {/* Footer */}
         <div className="px-3 py-2 border-t border-border-default">

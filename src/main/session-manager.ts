@@ -106,10 +106,16 @@ function truncatePromptToLabel(prompt: string, maxLen: number): string {
   return (lastSpace > maxLen * 0.3 ? truncated.slice(0, lastSpace) : truncated) + '...';
 }
 
+export type SessionUpdateListener = (
+  session: SessionInfo,
+  previousStatus: SessionStatus | null,
+) => void;
+
 export class SessionManager {
   private ptyManager: PtyManager;
   private getWebContents: () => WebContents | null;
   private hookRuntimeGetter: () => HookRuntimeInfo;
+  private sessionListeners = new Set<SessionUpdateListener>();
 
   constructor(
     ptyManager: PtyManager,
@@ -119,6 +125,22 @@ export class SessionManager {
     this.ptyManager = ptyManager;
     this.getWebContents = getWebContents;
     this.hookRuntimeGetter = hookRuntimeGetter;
+  }
+
+  /** Subscribe to session updates in the main process (used by TaskQueue). */
+  onSessionUpdated(listener: SessionUpdateListener): () => void {
+    this.sessionListeners.add(listener);
+    return () => this.sessionListeners.delete(listener);
+  }
+
+  private notifyListeners(session: SessionInfo, previousStatus: SessionStatus | null): void {
+    for (const listener of this.sessionListeners) {
+      try {
+        listener(session, previousStatus);
+      } catch {
+        // Listener errors must not break session state transitions
+      }
+    }
   }
 
   private nextDisambiguatedLabel(cwd: string): string {
@@ -393,6 +415,8 @@ export class SessionManager {
     // Don't transition away from ended
     if (current.status === 'ended') return;
 
+    const previousStatus = current.status as SessionStatus;
+
     if (status === 'ended') {
       db.prepare(
         `UPDATE sessions SET status = ?, ended_at = ?, attention_level = 'none', attention_reason = NULL WHERE session_id = ?`,
@@ -405,6 +429,9 @@ export class SessionManager {
 
     logger.info('session', 'Status changed', { sessionId, status });
     this.broadcastSessionUpdate(sessionId);
+
+    const session = this.get(sessionId);
+    if (session) this.notifyListeners(session, previousStatus);
   }
 
   /** Handle a hook event from the hook server or injected via MCP. */
@@ -556,6 +583,12 @@ export class SessionManager {
 
     this.broadcastSessionUpdate(sessionId);
     this.broadcastHookEvent(event);
+
+    if (newStatus !== currentStatus) {
+      const session = this.get(sessionId);
+      if (session) this.notifyListeners(session, currentStatus);
+    }
+
     return true;
   }
 
