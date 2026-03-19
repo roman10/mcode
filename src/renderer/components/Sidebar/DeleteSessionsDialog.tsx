@@ -17,6 +17,7 @@ function DeleteSessionsDialog({
     () => new Set(endedSessions.map((s) => s.sessionId)),
   );
   const [isDeleting, setIsDeleting] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -102,6 +103,8 @@ function DeleteSessionsDialog({
             const allGroupSelected = groupIds.every((id) => selected.has(id));
             const someGroupSelected = !allGroupSelected && groupIds.some((id) => selected.has(id));
 
+            const isCollapsed = collapsed[group.key] ?? true;
+
             return (
               <div key={group.key}>
                 {/* Group header with checkbox */}
@@ -110,11 +113,13 @@ function DeleteSessionsDialog({
                   count={group.sessions.length}
                   checked={allGroupSelected}
                   indeterminate={someGroupSelected}
+                  collapsed={isCollapsed}
                   onToggle={() => toggleGroup(group.sessions)}
+                  onToggleCollapse={() => setCollapsed((prev) => ({ ...prev, [group.key]: !isCollapsed }))}
                 />
 
                 {/* Sessions in group */}
-                {group.sessions.map((session) => (
+                {!isCollapsed && group.sessions.map((session) => (
                   <label
                     key={session.sessionId}
                     className="flex items-center gap-3 px-3 pl-8 py-1.5 hover:bg-bg-secondary cursor-pointer transition-colors"
@@ -168,13 +173,17 @@ function GroupHeader({
   count,
   checked,
   indeterminate,
+  collapsed,
   onToggle,
+  onToggleCollapse,
 }: {
   label: string;
   count: number;
   checked: boolean;
   indeterminate: boolean;
+  collapsed: boolean;
   onToggle(): void;
+  onToggleCollapse(): void;
 }): React.JSX.Element {
   const setRef = useCallback(
     (el: HTMLInputElement | null) => {
@@ -184,19 +193,27 @@ function GroupHeader({
   );
 
   return (
-    <label className="flex items-center gap-3 px-3 py-2 bg-bg-primary cursor-pointer sticky top-0">
+    <div className="flex items-center gap-2 px-3 py-2 bg-bg-primary sticky top-0">
       <input
         ref={setRef}
         type="checkbox"
         checked={checked}
         onChange={onToggle}
-        className="shrink-0 accent-accent"
+        className="shrink-0 accent-accent cursor-pointer"
       />
-      <span className="text-xs font-medium text-text-muted uppercase tracking-wide flex-1">
-        {label}
-      </span>
-      <span className="text-[10px] text-text-muted">{count}</span>
-    </label>
+      <button
+        className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer"
+        onClick={onToggleCollapse}
+      >
+        <span className="text-[10px] text-text-muted">
+          {collapsed ? '\u25B6' : '\u25BC'}
+        </span>
+        <span className="text-xs font-medium text-text-muted uppercase tracking-wide flex-1 text-left">
+          {label}
+        </span>
+        <span className="text-[10px] text-text-muted">{count}</span>
+      </button>
+    </div>
   );
 }
 
