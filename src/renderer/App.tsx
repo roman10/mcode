@@ -4,12 +4,11 @@ import Sidebar from './components/Sidebar/Sidebar';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import SettingsDialog from './components/SettingsDialog';
+import CommandPalette from './components/CommandPalette';
 import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
-import { getOrderedVisibleSessions } from './utils/session-ordering';
-import { createTerminalSession } from './utils/session-actions';
-import type { AppCommand } from '../shared/types';
+import { executeAppCommand } from './utils/app-commands';
 
 function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -194,83 +193,7 @@ function App(): React.JSX.Element {
 
   // App command handling (menu accelerators dispatched from main process)
   useEffect(() => {
-    const handleCommand = (command: AppCommand): void => {
-      switch (command.command) {
-        case 'new-session':
-          useLayoutStore.getState().setShowNewSessionDialog(true);
-          break;
-
-        case 'new-terminal':
-          createTerminalSession().catch(console.error);
-          break;
-
-        case 'toggle-sidebar':
-          useLayoutStore.getState().toggleSidebar();
-          break;
-
-        case 'show-keyboard-shortcuts': {
-          const ls = useLayoutStore.getState();
-          ls.setShowKeyboardShortcuts(!ls.showKeyboardShortcuts);
-          break;
-        }
-
-        case 'focus-session-index': {
-          const ordered = getOrderedVisibleSessions(useSessionStore.getState().sessions);
-          const target = ordered[command.index];
-          if (!target) break;
-          useLayoutStore.getState().addTile(target.sessionId);
-          useLayoutStore.getState().persist();
-          useSessionStore.getState().selectSession(target.sessionId);
-          break;
-        }
-
-        case 'focus-next-session':
-        case 'focus-prev-session': {
-          const sessions = useSessionStore.getState().sessions;
-          const selectedId = useSessionStore.getState().selectedSessionId;
-          const ordered = getOrderedVisibleSessions(sessions);
-          if (ordered.length === 0) break;
-
-          const currentIdx = selectedId
-            ? ordered.findIndex((s) => s.sessionId === selectedId)
-            : -1;
-
-          let nextIdx: number;
-          if (command.command === 'focus-next-session') {
-            nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % ordered.length;
-          } else {
-            nextIdx = currentIdx < 0 ? ordered.length - 1 : (currentIdx - 1 + ordered.length) % ordered.length;
-          }
-
-          const next = ordered[nextIdx];
-          useLayoutStore.getState().addTile(next.sessionId);
-          useLayoutStore.getState().persist();
-          useSessionStore.getState().selectSession(next.sessionId);
-          break;
-        }
-
-        case 'show-settings': {
-          const ls = useLayoutStore.getState();
-          ls.setShowSettings(!ls.showSettings);
-          break;
-        }
-
-        case 'toggle-dashboard':
-          useLayoutStore.getState().toggleDashboard();
-          break;
-
-        case 'clear-all-attention':
-          window.mcode.sessions.clearAllAttention().catch(console.error);
-          break;
-
-        case 'close-all-tiles':
-          useLayoutStore.getState().removeAllTiles();
-          useLayoutStore.getState().persist();
-          break;
-      }
-    };
-
-    const unsub = window.mcode.app.onCommand(handleCommand);
+    const unsub = window.mcode.app.onCommand(executeAppCommand);
     return unsub;
   }, []);
 
@@ -279,6 +202,8 @@ function App(): React.JSX.Element {
   const setShowKeyboardShortcuts = useLayoutStore((s) => s.setShowKeyboardShortcuts);
   const showSettings = useLayoutStore((s) => s.showSettings);
   const setShowSettings = useLayoutStore((s) => s.setShowSettings);
+  const showCommandPalette = useLayoutStore((s) => s.showCommandPalette);
+  const setShowCommandPalette = useLayoutStore((s) => s.setShowCommandPalette);
 
   if (error) {
     return (
@@ -321,6 +246,9 @@ function App(): React.JSX.Element {
       )}
       {showSettings && (
         <SettingsDialog onClose={() => setShowSettings(false)} />
+      )}
+      {showCommandPalette && (
+        <CommandPalette onClose={() => setShowCommandPalette(false)} />
       )}
     </RadixTooltip.Provider>
   );

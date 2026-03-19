@@ -22,6 +22,7 @@ interface LayoutState {
   showNewSessionDialog: boolean;
   showKeyboardShortcuts: boolean;
   showSettings: boolean;
+  showCommandPalette: boolean;
   restoreTree: MosaicNode<string> | null;
 
   setMosaicTree(tree: MosaicNode<string> | null): void;
@@ -36,6 +37,7 @@ interface LayoutState {
   setShowNewSessionDialog(show: boolean): void;
   setShowKeyboardShortcuts(show: boolean): void;
   setShowSettings(show: boolean): void;
+  setShowCommandPalette(show: boolean): void;
   toggleDashboard(): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
@@ -149,6 +151,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   showNewSessionDialog: false,
   showKeyboardShortcuts: false,
   showSettings: false,
+  showCommandPalette: false,
   restoreTree: null,
 
   setMosaicTree: (tree) => set({ mosaicTree: tree }),
@@ -246,6 +249,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setShowNewSessionDialog: (show) => set({ showNewSessionDialog: show }),
   setShowKeyboardShortcuts: (show) => set({ showKeyboardShortcuts: show }),
   setShowSettings: (show) => set({ showSettings: show }),
+  setShowCommandPalette: (show) => set({ showCommandPalette: show }),
 
   toggleDashboard: () => {
     const current = get().mosaicTree;

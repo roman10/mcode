@@ -79,7 +79,8 @@ export type AppCommand =
   | { command: 'show-settings' }
   | { command: 'toggle-dashboard' }
   | { command: 'clear-all-attention' }
-  | { command: 'close-all-tiles' };
+  | { command: 'close-all-tiles' }
+  | { command: 'show-command-palette' };
 
 // --- Hooks ---
 

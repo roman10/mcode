@@ -408,6 +408,34 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('layout_toggle_command_palette', {
+    description: 'Toggle the command palette (show if hidden, hide if shown)',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    try {
+      const visible = await queryRenderer<boolean>(
+        ctx.mainWindow,
+        'layout-toggle-command-palette',
+        {},
+      );
+      return {
+        content: [
+          { type: 'text', text: visible ? 'Command palette shown' : 'Command palette hidden' },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to toggle command palette: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_toggle_dashboard', {
     description: 'Toggle the activity dashboard tile (add if missing, remove if present)',
     annotations: { readOnlyHint: false },

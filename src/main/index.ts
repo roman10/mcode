@@ -449,6 +449,11 @@ app.whenReady().then(async () => {
             accelerator: 'CmdOrCtrl+Shift+A',
             click: () => sendCommand({ command: 'toggle-dashboard' }),
           },
+          {
+            label: 'Command Palette',
+            accelerator: 'CmdOrCtrl+P',
+            click: () => sendCommand({ command: 'show-command-palette' }),
+          },
           { type: 'separator' },
           {
             label: 'Close All Tiles',
