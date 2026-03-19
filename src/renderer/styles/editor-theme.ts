@@ -54,11 +54,11 @@ export const vimPanelTheme: Extension = EditorView.theme({
     outline: 'none',
   },
   '.cm-fat-cursor': {
-    background: 'var(--color-text-muted) !important',
+    background: 'var(--color-text-secondary) !important',
     color: 'var(--color-bg-primary) !important',
   },
   '&:not(.cm-focused) .cm-fat-cursor': {
-    outline: '1px solid var(--color-text-muted)',
+    outline: '1px solid var(--color-text-secondary)',
     background: 'transparent !important',
     color: 'var(--color-text-primary) !important',
   },
