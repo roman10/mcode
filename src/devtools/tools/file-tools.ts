@@ -57,6 +57,20 @@ export function registerFileTools(
     };
   });
 
+  server.registerTool('file_write', {
+    description:
+      'Write content to a file. Creates the file if it does not exist, overwrites if it does.',
+    inputSchema: {
+      cwd: z.string().describe('Working directory (base path for the file)'),
+      relativePath: z.string().describe('Relative path to the file from cwd'),
+      content: z.string().describe('Content to write to the file'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ cwd, relativePath, content }) => {
+    await ctx.fileLister.writeFile(cwd, relativePath, content);
+    return { content: [{ type: 'text', text: `Written ${content.length} characters to ${relativePath}` }] };
+  });
+
   server.registerTool('file_open_viewer', {
     description:
       'Open a file in a read-only viewer tile in the mosaic layout.',

@@ -8,6 +8,7 @@ import CommandPalette from './components/CommandPalette';
 import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
+import { useEditorStore } from './stores/editor-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
@@ -65,6 +66,9 @@ function App(): React.JSX.Element {
 
         // Strip ephemeral file viewer tiles from previous session
         stripFileTiles();
+
+        // Load editor preferences (vim mode, etc.)
+        await useEditorStore.getState().load();
 
         // Load task queue
         const tasks = await window.mcode.tasks.list();

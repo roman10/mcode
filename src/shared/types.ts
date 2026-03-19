@@ -418,6 +418,7 @@ export interface MCodeAPI {
   files: {
     list(cwd: string): Promise<FileListResult>;
     read(cwd: string, relativePath: string): Promise<FileReadResult>;
+    write(cwd: string, relativePath: string, content: string): Promise<void>;
   };
 
   tokens: {

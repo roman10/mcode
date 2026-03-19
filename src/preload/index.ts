@@ -293,6 +293,9 @@ contextBridge.exposeInMainWorld('mcode', {
 
     read: (cwd: string, relativePath: string): Promise<FileReadResult> =>
       ipcRenderer.invoke('files:read', cwd, relativePath),
+
+    write: (cwd: string, relativePath: string, content: string): Promise<void> =>
+      ipcRenderer.invoke('files:write', cwd, relativePath, content),
   },
 
   tokens: {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useEditorStore } from '../stores/editor-store';
 
 interface SettingsDialogProps {
   onClose(): void;
@@ -7,6 +8,8 @@ interface SettingsDialogProps {
 function SettingsDialog({ onClose }: SettingsDialogProps): React.JSX.Element {
   const [preventSleep, setPreventSleep] = useState(true);
   const [scanAllBranches, setScanAllBranches] = useState(false);
+  const vimEnabled = useEditorStore((s) => s.vimEnabled);
+  const setVimEnabled = useEditorStore((s) => s.setVimEnabled);
 
   useEffect(() => {
     window.mcode.preferences
@@ -107,6 +110,38 @@ function SettingsDialog({ onClose }: SettingsDialogProps): React.JSX.Element {
               <span
                 className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
                   scanAllBranches ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </label>
+        </div>
+
+        {/* Editor */}
+        <div className="mt-4">
+          <h3 className="text-text-secondary text-xs font-medium uppercase tracking-wide mb-3">
+            Editor
+          </h3>
+
+          <label className="flex items-center justify-between cursor-pointer group">
+            <div className="flex-1 mr-3">
+              <div className="text-sm text-text-primary">Vim keybindings</div>
+              <div className="text-xs text-text-muted mt-0.5">
+                Enable vim keybindings in the file viewer with full editing support. Use :w to save
+                and :q to close.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={vimEnabled}
+              onClick={() => setVimEnabled(!vimEnabled)}
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                vimEnabled ? 'bg-accent' : 'bg-bg-primary'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                  vimEnabled ? 'translate-x-4' : 'translate-x-0'
                 }`}
               />
             </button>

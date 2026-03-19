@@ -353,6 +353,10 @@ function registerFileIpc(): void {
   ipcMain.handle('files:read', (_event, cwd: string, relativePath: string) => {
     return fileLister.readFile(cwd, relativePath);
   });
+
+  ipcMain.handle('files:write', (_event, cwd: string, relativePath: string, content: string) => {
+    return fileLister.writeFile(cwd, relativePath, content);
+  });
 }
 
 async function initializeHookSystem(): Promise<void> {

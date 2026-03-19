@@ -24,8 +24,43 @@ const editorTheme = EditorView.theme({
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
     backgroundColor: 'rgba(139, 148, 158, 0.2)',
   },
+}, { dark: true });
+
+/** Hides the cursor — applied only when the editor is read-only (vim off). */
+export const hideCursorExtension: Extension = EditorView.theme({
   '.cm-cursor': {
     display: 'none',
+  },
+}, { dark: true });
+
+/** Styles for the vim status panel and command input. */
+export const vimPanelTheme: Extension = EditorView.theme({
+  '.cm-panels': {
+    backgroundColor: 'var(--color-bg-secondary)',
+    borderTop: '1px solid var(--color-border-default)',
+    color: 'var(--color-text-secondary)',
+  },
+  '.cm-vim-panel': {
+    padding: '0 8px',
+    fontSize: '12px',
+    fontFamily: "'JetBrains Mono', monospace",
+  },
+  '.cm-vim-panel input': {
+    backgroundColor: 'var(--color-bg-primary)',
+    color: 'var(--color-text-primary)',
+    border: '1px solid var(--color-border-default)',
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: '13px',
+    outline: 'none',
+  },
+  '.cm-fat-cursor': {
+    background: 'var(--color-text-muted) !important',
+    color: 'var(--color-bg-primary) !important',
+  },
+  '&:not(.cm-focused) .cm-fat-cursor': {
+    outline: '1px solid var(--color-text-muted)',
+    background: 'transparent !important',
+    color: 'var(--color-text-primary) !important',
   },
 }, { dark: true });
 

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, writeFile as fsWriteFile, stat } from 'node:fs/promises';
 import { resolve, extname, basename } from 'node:path';
 import fg from 'fast-glob';
 import type { FileListResult, FileReadResult } from '../shared/types';
@@ -179,6 +179,17 @@ export class FileLister {
       content: buffer.toString('utf-8'),
       language: inferLanguage(relativePath),
     };
+  }
+
+  async writeFile(cwd: string, relativePath: string, content: string): Promise<void> {
+    const resolvedCwd = resolve(cwd);
+    const resolved = resolve(resolvedCwd, relativePath);
+
+    if (!resolved.startsWith(resolvedCwd + '/')) {
+      throw new Error('Path traversal detected');
+    }
+
+    await fsWriteFile(resolved, content, 'utf-8');
   }
 
   invalidateCache(cwd: string): void {

@@ -1,14 +1,48 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { X, FileText } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { EditorView } from '@codemirror/view';
 import { LanguageDescription } from '@codemirror/language';
 import { languages } from '@codemirror/language-data';
 import type { Extension } from '@codemirror/state';
+import { vim, Vim } from '@replit/codemirror-vim';
 import { useLayoutStore } from '../../stores/layout-store';
+import { useEditorStore } from '../../stores/editor-store';
 import Tooltip from '../shared/Tooltip';
-import { mcodeEditorExtension } from '../../styles/editor-theme';
+import { mcodeEditorExtension, hideCursorExtension, vimPanelTheme } from '../../styles/editor-theme';
 import type { FileReadResult } from '../../../shared/types';
+
+// --- Global ex command routing via WeakMap ---
+
+interface TileHandlers {
+  save(): Promise<void>;
+  close(): void;
+}
+
+const viewHandlers = new WeakMap<EditorView, TileHandlers>();
+
+let exCommandsRegistered = false;
+function ensureExCommands(): void {
+  if (exCommandsRegistered) return;
+  exCommandsRegistered = true;
+
+  Vim.defineEx('write', 'w', (cm: { cm6: EditorView }) => {
+    const handlers = viewHandlers.get(cm.cm6);
+    if (handlers) handlers.save();
+  });
+
+  Vim.defineEx('quit', 'q', (cm: { cm6: EditorView }) => {
+    const handlers = viewHandlers.get(cm.cm6);
+    if (handlers) handlers.close();
+  });
+
+  Vim.defineEx('wquit', 'wq', (cm: { cm6: EditorView }) => {
+    const handlers = viewHandlers.get(cm.cm6);
+    if (handlers) handlers.save().then(() => handlers.close());
+  });
+}
+
+// ---
 
 interface FileViewerTileProps {
   absolutePath: string;
@@ -16,9 +50,19 @@ interface FileViewerTileProps {
 
 function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Element {
   const [content, setContent] = useState<string | null>(null);
+  const [editedContent, setEditedContent] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [langExtension, setLangExtension] = useState<Extension | null>(null);
+  const vimEnabled = useEditorStore((s) => s.vimEnabled);
+  const editorViewRef = useRef<EditorView | null>(null);
+
+  // Refs to avoid per-keystroke handler churn in WeakMap
+  const contentRef = useRef(content);
+  const editedContentRef = useRef(editedContent);
+  contentRef.current = content;
+  editedContentRef.current = editedContent;
 
   const filename = useMemo(() => {
     const lastSlash = absolutePath.lastIndexOf('/');
@@ -30,14 +74,16 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
     return lastSlash >= 0 ? absolutePath.slice(0, lastSlash) : '';
   }, [absolutePath]);
 
+  const isDirty = content !== null && editedContent !== null && editedContent !== content;
+
   // Load file content
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setSaveError(null);
     setContent(null);
+    setEditedContent(null);
 
-    // Infer cwd — use the directory of the file itself for the read call
-    // The file-lister validates the path stays within cwd
     const cwd = directory || '/';
     const relativePath = filename;
 
@@ -50,6 +96,7 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
           setError('File too large to display (>1 MB).');
         } else {
           setContent(result.content);
+          setEditedContent(result.content);
         }
         setLoading(false);
       })
@@ -71,19 +118,72 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
     }
   }, [filename]);
 
-  const handleClose = (): void => {
+  // Stable handlers that read from refs — avoids re-creating on every keystroke
+  const handleClose = useCallback((): void => {
+    const c = contentRef.current;
+    const ec = editedContentRef.current;
+    if (c !== null && ec !== null && ec !== c) {
+      if (!window.confirm(`"${filename}" has unsaved changes. Close anyway?`)) {
+        return;
+      }
+    }
     useLayoutStore.getState().removeFileTile(absolutePath);
     useLayoutStore.getState().persist();
-  };
+  }, [absolutePath, filename]);
+
+  const handleSave = useCallback(async (): Promise<void> => {
+    const ec = editedContentRef.current;
+    if (ec === null) return;
+    const cwd = directory || '/';
+    try {
+      await window.mcode.files.write(cwd, filename, ec);
+      setContent(ec);
+      setSaveError(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Save failed';
+      setSaveError(msg);
+    }
+  }, [directory, filename]);
+
+  // Register view handlers once when the editor is created
+  const handleCreateEditor = useCallback((view: EditorView): void => {
+    editorViewRef.current = view;
+    if (vimEnabled) {
+      ensureExCommands();
+      viewHandlers.set(view, { save: handleSave, close: handleClose });
+    }
+  }, [vimEnabled, handleSave, handleClose]);
+
+  // Sync WeakMap when vimEnabled changes (handlers are stable so this rarely fires)
+  useEffect(() => {
+    const view = editorViewRef.current;
+    if (view && vimEnabled) {
+      ensureExCommands();
+      viewHandlers.set(view, { save: handleSave, close: handleClose });
+    }
+    return () => {
+      if (view) viewHandlers.delete(view);
+    };
+  }, [vimEnabled, handleSave, handleClose]);
+
+  const handleChange = useCallback((value: string): void => {
+    setEditedContent(value);
+  }, []);
 
   const extensions = useMemo(() => {
-    const exts: Extension[] = [
-      EditorView.lineWrapping,
-      ...mcodeEditorExtension,
-    ];
+    const exts: Extension[] = [];
+    if (vimEnabled) {
+      exts.push(vim({ status: true }));
+      exts.push(vimPanelTheme);
+    }
+    exts.push(EditorView.lineWrapping);
+    exts.push(...mcodeEditorExtension);
+    if (!vimEnabled) {
+      exts.push(hideCursorExtension);
+    }
     if (langExtension) exts.push(langExtension);
     return exts;
-  }, [langExtension]);
+  }, [langExtension, vimEnabled]);
 
   return (
     <div className="flex flex-col h-full">
@@ -93,6 +193,14 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
         <span className="text-xs text-text-primary font-medium truncate">
           {filename}
         </span>
+        {isDirty && (
+          <span className="w-2 h-2 rounded-full bg-accent shrink-0 ml-1.5" title="Unsaved changes" />
+        )}
+        {saveError && (
+          <span className="text-xs text-red-400 ml-2 truncate" title={saveError}>
+            Save failed
+          </span>
+        )}
         <span className="text-xs text-text-muted ml-2 truncate flex-1" title={absolutePath}>
           {directory}
         </span>
@@ -126,12 +234,14 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
             value={content}
             theme="none"
             extensions={extensions}
-            readOnly
-            editable={false}
+            readOnly={!vimEnabled}
+            editable={vimEnabled}
+            onChange={vimEnabled ? handleChange : undefined}
+            onCreateEditor={handleCreateEditor}
             basicSetup={{
               lineNumbers: true,
-              highlightActiveLineGutter: false,
-              highlightActiveLine: false,
+              highlightActiveLineGutter: vimEnabled,
+              highlightActiveLine: vimEnabled,
               foldGutter: true,
               bracketMatching: true,
               closeBrackets: false,
