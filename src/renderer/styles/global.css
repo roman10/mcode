@@ -20,9 +20,24 @@
   to { opacity: 1; }
 }
 
+:root {
+  /* Syntax highlighting — consumed by CodeMirror HighlightStyle */
+  --syntax-keyword: #ff7b72;
+  --syntax-string: #a5d6ff;
+  --syntax-comment: #8b949e;
+  --syntax-function: #d2a8ff;
+  --syntax-type: #79c0ff;
+  --syntax-number: #79c0ff;
+  --syntax-property: #79c0ff;
+  --syntax-operator: #ff7b72;
+  --syntax-constant: #79c0ff;
+  --syntax-tag: #7ee787;
+  --syntax-link: #58a6ff;
+}
+
 /* react-mosaic-component dark theme overrides */
 .mosaic-theme-dark.mosaic {
-  background: #0d1117;
+  background: var(--color-bg-primary);
 }
 
 .mosaic-theme-dark .mosaic-tile {
@@ -38,16 +53,16 @@
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  background: #0d1117;
+  background: var(--color-bg-primary);
 }
 
 .mosaic-theme-dark .mosaic-split.-row,
 .mosaic-theme-dark .mosaic-split.-column {
-  background: #30363d;
+  background: var(--color-border-default);
 }
 
 .mosaic-theme-dark .mosaic-split:hover {
-  background: #58a6ff;
+  background: var(--color-accent);
 }
 
 /* Mosaic zero-height fix */

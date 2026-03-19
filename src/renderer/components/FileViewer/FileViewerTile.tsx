@@ -7,37 +7,12 @@ import { languages } from '@codemirror/language-data';
 import type { Extension } from '@codemirror/state';
 import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
+import { mcodeEditorExtension } from '../../styles/editor-theme';
 import type { FileReadResult } from '../../../shared/types';
 
 interface FileViewerTileProps {
   absolutePath: string;
 }
-
-// Dark theme matching mcode's UI
-const darkTheme = EditorView.theme({
-  '&': {
-    backgroundColor: 'var(--color-bg-primary)',
-    color: 'var(--color-text-primary)',
-    height: '100%',
-  },
-  '.cm-gutters': {
-    backgroundColor: 'var(--color-bg-secondary)',
-    borderRight: '1px solid var(--color-border-default)',
-    color: 'var(--color-text-muted)',
-  },
-  '.cm-activeLineGutter': {
-    backgroundColor: 'var(--color-bg-elevated)',
-  },
-  '.cm-activeLine': {
-    backgroundColor: 'transparent',
-  },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-    backgroundColor: 'rgba(139, 148, 158, 0.2)',
-  },
-  '.cm-cursor': {
-    display: 'none',
-  },
-});
 
 function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Element {
   const [content, setContent] = useState<string | null>(null);
@@ -104,7 +79,7 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
   const extensions = useMemo(() => {
     const exts: Extension[] = [
       EditorView.lineWrapping,
-      darkTheme,
+      ...mcodeEditorExtension,
     ];
     if (langExtension) exts.push(langExtension);
     return exts;
@@ -122,7 +97,7 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
           {directory}
         </span>
         <div className="flex items-center gap-1 ml-2">
-          <Tooltip content="Close file" side="bottom">
+          <Tooltip content="Close file (⌘W)" side="bottom">
             <button
               aria-label="Close file"
               className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"
@@ -149,6 +124,7 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
         {content !== null && (
           <CodeMirror
             value={content}
+            theme="none"
             extensions={extensions}
             readOnly
             editable={false}
