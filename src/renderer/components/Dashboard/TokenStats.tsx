@@ -1,18 +1,28 @@
 import { useEffect, useCallback } from 'react';
-import { X, RefreshCw } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useTokenStore } from '../../stores/token-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
-import type { TokenHeatmapEntry, ModelTokenBreakdown } from '../../../shared/types';
+import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
+import type { TokenHeatmapEntry, ModelUsageSummary } from '../../../shared/types';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
+const RETENTION_DAYS = 90;
 
 function formatCost(usd: number): string {
   if (usd < 0.01) return '< $0.01';
   return `$${usd.toFixed(2)}`;
 }
 
-function HeatmapCell({ entry }: { entry: TokenHeatmapEntry }): React.JSX.Element {
+function HeatmapCell({
+  entry,
+  isSelected,
+  onSelect,
+}: {
+  entry: TokenHeatmapEntry;
+  isSelected: boolean;
+  onSelect: (date: string) => void;
+}): React.JSX.Element {
   const dayLabel = new Date(entry.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
   let bg = 'bg-bg-elevated';
   if (entry.estimatedCostUsd > 0) bg = 'bg-emerald-900';
@@ -23,8 +33,9 @@ function HeatmapCell({ entry }: { entry: TokenHeatmapEntry }): React.JSX.Element
   return (
     <div className="flex flex-col items-center gap-0.5">
       <div
-        className={`w-5 h-5 rounded-sm ${bg}`}
+        className={`w-5 h-5 rounded-sm cursor-pointer ${bg} ${isSelected ? 'ring-1 ring-white/40' : ''}`}
         title={`${entry.date}: ${formatCost(entry.estimatedCostUsd)} · ${entry.messageCount} msgs`}
+        onClick={() => onSelect(entry.date)}
       />
       <span className="text-[9px] text-text-muted">{dayLabel}</span>
     </div>
@@ -38,18 +49,20 @@ const modelFamilyColors: Record<string, string> = {
   unknown: 'bg-gray-700/60 text-gray-400',
 };
 
-function ModelPill({ breakdown }: { breakdown: ModelTokenBreakdown }): React.JSX.Element {
-  const color = modelFamilyColors[breakdown.modelFamily] ?? modelFamilyColors.unknown;
+function ModelPill({ model, totalCost }: { model: ModelUsageSummary; totalCost: number }): React.JSX.Element {
+  const color = modelFamilyColors[model.modelFamily] ?? modelFamilyColors.unknown;
+  const pct = totalCost > 0 ? (model.estimatedCostUsd / totalCost * 100).toFixed(0) : '0';
 
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded ${color}`}>
-      {breakdown.model} {formatCost(breakdown.estimatedCostUsd)} ({breakdown.pctOfTotalCost.toFixed(0)}%)
+      {model.model} {formatCost(model.estimatedCostUsd)} ({pct}%)
     </span>
   );
 }
 
 function TokenStats(): React.JSX.Element {
-  const { dailyUsage, heatmap, modelBreakdown, weeklyTrend, loading, refreshAll } = useTokenStore();
+  const { dailyUsage, heatmap, weeklyTrend, loading, refreshAll, selectedDate, setSelectedDate } =
+    useTokenStore();
   const removeTokenStats = useLayoutStore((s) => s.removeTokenStats);
   const persist = useLayoutStore((s) => s.persist);
 
@@ -82,23 +95,72 @@ function TokenStats(): React.JSX.Element {
     }
   }, [handleRefresh]);
 
+  const today = todayStr();
+  const viewDate = selectedDate ?? today;
+  const isToday = selectedDate == null;
+  const oldest = shiftDate(today, -(RETENTION_DAYS - 1));
+  const canGoBack = daysDiff(oldest, viewDate) > 0;
+
+  const handleHeatmapSelect = (date: string): void => {
+    setSelectedDate(date === today ? null : date);
+  };
+
+  const handlePrevDay = (): void => {
+    const prev = shiftDate(viewDate, -1);
+    if (daysDiff(oldest, prev) >= 0) {
+      setSelectedDate(prev);
+    }
+  };
+
+  const handleNextDay = (): void => {
+    if (isToday) return;
+    const next = shiftDate(viewDate, 1);
+    setSelectedDate(next >= today ? null : next);
+  };
+
+  const btnClass =
+    'w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors';
+  const btnDisabledClass =
+    'w-5 h-5 flex items-center justify-center rounded text-text-muted/30 cursor-default';
+
+  const toolbar = (
+    <div className="flex items-center gap-1 px-3 py-2 border-b border-border-default shrink-0">
+      <span className="text-sm font-medium text-text-primary flex-1">Token Usage</span>
+      <Tooltip content="Previous day" side="bottom">
+        <button className={canGoBack ? btnClass : btnDisabledClass} onClick={canGoBack ? handlePrevDay : undefined} aria-disabled={!canGoBack}>
+          <ChevronLeft size={12} strokeWidth={2} />
+        </button>
+      </Tooltip>
+      <button
+        className="text-[11px] px-1.5 py-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors min-w-[48px] text-center"
+        onClick={() => setSelectedDate(null)}
+        title="Go to today"
+      >
+        {isToday ? 'Today' : formatDateLabel(viewDate)}
+      </button>
+      <Tooltip content="Next day" side="bottom">
+        <button className={isToday ? btnDisabledClass : btnClass} onClick={isToday ? undefined : handleNextDay} aria-disabled={isToday}>
+          <ChevronRight size={12} strokeWidth={2} />
+        </button>
+      </Tooltip>
+      <Tooltip content="Refresh (⌘R)" side="bottom">
+        <button className={btnClass} onClick={handleRefresh}>
+          <RefreshCw size={12} strokeWidth={2} />
+        </button>
+      </Tooltip>
+      <Tooltip content="Close (⌘W)" side="bottom">
+        <button className={btnClass} onClick={handleClose}>
+          <X size={12} strokeWidth={2} />
+        </button>
+      </Tooltip>
+    </div>
+  );
+
   if (loading && !dailyUsage) {
     return (
       <div className="flex flex-col h-full w-full bg-bg-primary">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
-          <span className="text-sm font-medium text-text-primary flex-1">Token Usage</span>
-          <Tooltip content="Close (⌘W)" side="bottom">
-            <button
-              className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-              onClick={handleClose}
-            >
-              <X size={12} strokeWidth={2} />
-            </button>
-          </Tooltip>
-        </div>
-        <div className="flex items-center justify-center h-full text-text-muted text-sm">
-          Loading...
-        </div>
+        {toolbar}
+        <div className="flex items-center justify-center h-full text-text-muted text-sm">Loading...</div>
       </div>
     );
   }
@@ -106,29 +168,20 @@ function TokenStats(): React.JSX.Element {
   const cost = dailyUsage?.estimatedCostUsd ?? 0;
   const messageCount = dailyUsage?.messageCount ?? 0;
   const topSessions = dailyUsage?.topSessions ?? [];
+  const byModel = dailyUsage?.byModel ?? [];
+  const totals = dailyUsage?.totals;
+
+  // Cache efficiency
+  const cacheReadTokens = totals?.cacheReadTokens ?? 0;
+  const totalInputTokens = (totals?.inputTokens ?? 0) + cacheReadTokens + (totals?.cacheWrite5mTokens ?? 0) + (totals?.cacheWrite1hTokens ?? 0);
+  const cacheHitRate = totalInputTokens > 0 ? cacheReadTokens / totalInputTokens : 0;
+
+  // Cost per message
+  const costPerMsg = messageCount > 0 ? cost / messageCount : 0;
 
   return (
     <div className="flex flex-col h-full w-full bg-bg-primary outline-none" tabIndex={-1} onKeyDown={handleKeyDown}>
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
-        <span className="text-sm font-medium text-text-primary flex-1">Token Usage</span>
-        <Tooltip content="Refresh (⌘R)" side="bottom">
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-            onClick={handleRefresh}
-          >
-            <RefreshCw size={12} strokeWidth={2} />
-          </button>
-        </Tooltip>
-        <Tooltip content="Close (⌘W)" side="bottom">
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-            onClick={handleClose}
-          >
-            <X size={12} strokeWidth={2} />
-          </button>
-        </Tooltip>
-      </div>
+      {toolbar}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
@@ -137,10 +190,17 @@ function TokenStats(): React.JSX.Element {
           <span className="text-2xl font-semibold text-text-primary">
             {formatCost(cost)}
           </span>
-          <span className="text-sm text-text-muted ml-1.5">estimated today</span>
+          <span className="text-sm text-text-muted ml-1.5">
+            estimated {isToday ? 'today' : `on ${formatDateLabel(viewDate)}`}
+          </span>
           {messageCount > 0 && (
             <span className="text-sm text-text-muted ml-1">
               · {messageCount} message{messageCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {messageCount > 0 && (
+            <span className="text-sm text-text-muted ml-1">
+              · {formatCost(costPerMsg)}/msg
             </span>
           )}
         </div>
@@ -149,24 +209,38 @@ function TokenStats(): React.JSX.Element {
         {heatmap.length > 0 && (
           <div className="flex items-end gap-1">
             {heatmap.map((entry) => (
-              <HeatmapCell key={entry.date} entry={entry} />
+              <HeatmapCell
+                key={entry.date}
+                entry={entry}
+                isSelected={entry.date === viewDate}
+                onSelect={handleHeatmapSelect}
+              />
             ))}
           </div>
         )}
 
         {/* Model breakdown */}
-        {modelBreakdown.length > 0 && (
+        {byModel.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {modelBreakdown.map((b) => (
-              <ModelPill key={b.model} breakdown={b} />
+            {byModel.map((b) => (
+              <ModelPill key={b.model} model={b} totalCost={cost} />
             ))}
+          </div>
+        )}
+
+        {/* Cache efficiency */}
+        {cacheReadTokens > 0 && (
+          <div className="text-[11px] text-text-muted">
+            Cache: {Math.round(cacheHitRate * 100)}% hit rate
           </div>
         )}
 
         {/* Top sessions */}
         {topSessions.length > 0 && (
           <div className="space-y-1.5">
-            <div className="text-[11px] text-text-muted font-medium">Top sessions today</div>
+            <div className="text-[11px] text-text-muted font-medium">
+              Top sessions {isToday ? 'today' : `on ${formatDateLabel(viewDate)}`}
+            </div>
             {topSessions.map((s) => (
               <div key={s.claudeSessionId} className="flex items-center text-xs">
                 <span className="text-text-secondary truncate flex-1">
@@ -195,7 +269,7 @@ function TokenStats(): React.JSX.Element {
         {/* Empty state */}
         {cost === 0 && messageCount === 0 && (
           <div className="text-sm text-text-muted text-center py-4">
-            No token usage today
+            No token usage {selectedDate ? `on ${formatDateLabel(selectedDate)}` : 'today'}
           </div>
         )}
       </div>

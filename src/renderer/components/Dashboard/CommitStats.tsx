@@ -3,34 +3,13 @@ import { X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useCommitStore } from '../../stores/commit-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
+import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
 import type { CommitHeatmapEntry } from '../../../shared/types';
 
 const RETENTION_DAYS = 90;
 
 function basename(path: string): string {
   return path.split('/').pop() ?? path;
-}
-
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function shiftDate(dateStr: string, days: number): string {
-  const d = new Date(dateStr + 'T12:00:00'); // noon to avoid DST issues
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatDateLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function daysDiff(a: string, b: string): number {
-  const da = new Date(a + 'T12:00:00').getTime();
-  const db = new Date(b + 'T12:00:00').getTime();
-  return Math.round((db - da) / (86400 * 1000));
 }
 
 function HeatmapCell({

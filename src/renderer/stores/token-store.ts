@@ -2,40 +2,45 @@ import { create } from 'zustand';
 import type {
   DailyTokenUsage,
   TokenHeatmapEntry,
-  ModelTokenBreakdown,
   TokenWeeklyTrend,
 } from '../../shared/types';
 
 interface TokenState {
   dailyUsage: DailyTokenUsage | null;
   heatmap: TokenHeatmapEntry[];
-  modelBreakdown: ModelTokenBreakdown[];
   weeklyTrend: TokenWeeklyTrend | null;
   loading: boolean;
+  selectedDate: string | null; // null = today
 
   refreshAll(): Promise<void>;
+  setSelectedDate(date: string | null): void;
 }
 
-export const useTokenStore = create<TokenState>((set) => ({
+export const useTokenStore = create<TokenState>((set, get) => ({
   dailyUsage: null,
   heatmap: [],
-  modelBreakdown: [],
   weeklyTrend: null,
   loading: false,
+  selectedDate: null,
 
   refreshAll: async () => {
+    const { selectedDate } = get();
     set({ loading: true });
     try {
-      const [dailyUsage, heatmap, modelBreakdown, weeklyTrend] = await Promise.all([
-        window.mcode.tokens.getDailyUsage(),
+      const [dailyUsage, heatmap, weeklyTrend] = await Promise.all([
+        window.mcode.tokens.getDailyUsage(selectedDate ?? undefined),
         window.mcode.tokens.getHeatmap(7),
-        window.mcode.tokens.getModelBreakdown(30),
         window.mcode.tokens.getWeeklyTrend(),
       ]);
-      set({ dailyUsage, heatmap, modelBreakdown, weeklyTrend, loading: false });
+      set({ dailyUsage, heatmap, weeklyTrend, loading: false });
     } catch (err) {
       console.error('Failed to refresh token stats:', err);
       set({ loading: false });
     }
+  },
+
+  setSelectedDate: (date) => {
+    set({ selectedDate: date });
+    get().refreshAll();
   },
 }));
