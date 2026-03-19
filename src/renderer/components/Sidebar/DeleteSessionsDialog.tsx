@@ -1,21 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { groupSessionsByDate } from '../../utils/date-grouping';
 import type { SessionInfo } from '../../../shared/types';
 
 interface DeleteSessionsDialogProps {
   endedSessions: SessionInfo[];
   onClose(): void;
   onDelete(sessionIds: string[]): void;
-}
-
-function formatRelativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 function DeleteSessionsDialog({
@@ -36,6 +26,8 @@ function DeleteSessionsDialog({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  const groups = groupSessionsByDate(endedSessions);
+
   const allSelected = selected.size === endedSessions.length;
 
   const toggleAll = (): void => {
@@ -53,6 +45,21 @@ function DeleteSessionsDialog({
         next.delete(id);
       } else {
         next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleGroup = (sessions: SessionInfo[]): void => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const allInGroupSelected = sessions.every((s) => prev.has(s.sessionId));
+      for (const s of sessions) {
+        if (allInGroupSelected) {
+          next.delete(s.sessionId);
+        } else {
+          next.add(s.sessionId);
+        }
       }
       return next;
     });
@@ -88,31 +95,49 @@ function DeleteSessionsDialog({
           {allSelected ? 'Deselect all' : 'Select all'}
         </button>
 
-        {/* Session list */}
+        {/* Session list grouped by date */}
         <div className="max-h-[300px] overflow-y-auto border border-border-default rounded">
-          {endedSessions.map((session) => (
-            <label
-              key={session.sessionId}
-              className="flex items-center gap-3 px-3 py-2 hover:bg-bg-secondary cursor-pointer transition-colors"
-            >
-              <input
-                type="checkbox"
-                checked={selected.has(session.sessionId)}
-                onChange={() => toggle(session.sessionId)}
-                className="shrink-0 accent-accent"
-              />
-              <div className="flex-1 min-w-0">
-                <span className="block text-sm text-text-primary truncate">
-                  {session.label}
-                </span>
-                <span className="text-xs text-text-muted truncate block">
-                  {session.cwd}
-                  {' · '}
-                  {formatRelativeTime(session.startedAt)}
-                </span>
+          {groups.map((group) => {
+            const groupIds = group.sessions.map((s) => s.sessionId);
+            const allGroupSelected = groupIds.every((id) => selected.has(id));
+            const someGroupSelected = !allGroupSelected && groupIds.some((id) => selected.has(id));
+
+            return (
+              <div key={group.key}>
+                {/* Group header with checkbox */}
+                <GroupHeader
+                  label={group.label}
+                  count={group.sessions.length}
+                  checked={allGroupSelected}
+                  indeterminate={someGroupSelected}
+                  onToggle={() => toggleGroup(group.sessions)}
+                />
+
+                {/* Sessions in group */}
+                {group.sessions.map((session) => (
+                  <label
+                    key={session.sessionId}
+                    className="flex items-center gap-3 px-3 pl-8 py-1.5 hover:bg-bg-secondary cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(session.sessionId)}
+                      onChange={() => toggle(session.sessionId)}
+                      className="shrink-0 accent-accent"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="block text-sm text-text-primary truncate">
+                        {session.label}
+                      </span>
+                      <span className="text-xs text-text-muted truncate block">
+                        {session.cwd}
+                      </span>
+                    </div>
+                  </label>
+                ))}
               </div>
-            </label>
-          ))}
+            );
+          })}
         </div>
 
         {/* Actions */}
@@ -135,6 +160,43 @@ function DeleteSessionsDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function GroupHeader({
+  label,
+  count,
+  checked,
+  indeterminate,
+  onToggle,
+}: {
+  label: string;
+  count: number;
+  checked: boolean;
+  indeterminate: boolean;
+  onToggle(): void;
+}): React.JSX.Element {
+  const setRef = useCallback(
+    (el: HTMLInputElement | null) => {
+      if (el) el.indeterminate = indeterminate;
+    },
+    [indeterminate],
+  );
+
+  return (
+    <label className="flex items-center gap-3 px-3 py-2 bg-bg-primary cursor-pointer sticky top-0">
+      <input
+        ref={setRef}
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="shrink-0 accent-accent"
+      />
+      <span className="text-xs font-medium text-text-muted uppercase tracking-wide flex-1">
+        {label}
+      </span>
+      <span className="text-[10px] text-text-muted">{count}</span>
+    </label>
   );
 }
 
