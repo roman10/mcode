@@ -8,6 +8,18 @@ import { LAYOUT_PERSIST_DEBOUNCE_MS } from '../../shared/constants';
 
 export const DASHBOARD_TILE_ID = 'dashboard';
 export const COMMIT_STATS_TILE_ID = 'commit-stats';
+export const FILE_TILE_PREFIX = 'file:';
+
+export function filePathFromTileId(tile: string): string | null {
+  if (tile.startsWith(FILE_TILE_PREFIX)) {
+    return tile.slice(FILE_TILE_PREFIX.length);
+  }
+  return null;
+}
+
+function fileTileId(absolutePath: string): string {
+  return `${FILE_TILE_PREFIX}${absolutePath}`;
+}
 
 interface SplitIntent {
   anchorSessionId: string;
@@ -23,6 +35,7 @@ interface LayoutState {
   showKeyboardShortcuts: boolean;
   showSettings: boolean;
   showCommandPalette: boolean;
+  quickOpenInitialMode: 'files' | 'commands';
   restoreTree: MosaicNode<string> | null;
 
   setMosaicTree(tree: MosaicNode<string> | null): void;
@@ -38,6 +51,10 @@ interface LayoutState {
   setShowKeyboardShortcuts(show: boolean): void;
   setShowSettings(show: boolean): void;
   setShowCommandPalette(show: boolean): void;
+  openQuickOpen(mode: 'files' | 'commands'): void;
+  addFileViewer(absolutePath: string): void;
+  removeFileTile(absolutePath: string): void;
+  stripFileTiles(): void;
   toggleDashboard(): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
@@ -152,6 +169,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   showKeyboardShortcuts: false,
   showSettings: false,
   showCommandPalette: false,
+  quickOpenInitialMode: 'files' as const,
   restoreTree: null,
 
   setMosaicTree: (tree) => set({ mosaicTree: tree }),
@@ -250,6 +268,50 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setShowKeyboardShortcuts: (show) => set({ showKeyboardShortcuts: show }),
   setShowSettings: (show) => set({ showSettings: show }),
   setShowCommandPalette: (show) => set({ showCommandPalette: show }),
+
+  openQuickOpen: (mode) => set({ quickOpenInitialMode: mode, showCommandPalette: true }),
+
+  addFileViewer: (absolutePath) =>
+    set((state) => {
+      const newTile = fileTileId(absolutePath);
+      const current = state.mosaicTree;
+
+      if (!current) {
+        return { mosaicTree: newTile };
+      }
+
+      // If tile already exists, don't duplicate
+      const leaves = getLeaves(current);
+      if (leaves.includes(newTile)) {
+        return state;
+      }
+
+      const allLeaves = [...leaves, newTile];
+      return {
+        mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
+      };
+    }),
+
+  removeFileTile: (absolutePath) =>
+    set((state) => {
+      const target = fileTileId(absolutePath);
+      if (!state.mosaicTree) return state;
+      const result = removeLeaf(state.mosaicTree, target);
+      return { mosaicTree: result };
+    }),
+
+  stripFileTiles: () =>
+    set((state) => {
+      if (!state.mosaicTree) return state;
+      const allLeaves = getLeaves(state.mosaicTree);
+      const leaves = allLeaves.filter(
+        (leaf) => !leaf.startsWith(FILE_TILE_PREFIX),
+      );
+      if (leaves.length === allLeaves.length) return state;
+      if (leaves.length === 0) return { mosaicTree: null };
+      if (leaves.length === 1) return { mosaicTree: leaves[0] };
+      return { mosaicTree: createBalancedTreeFromLeaves(leaves) ?? null };
+    }),
 
   toggleDashboard: () => {
     const current = get().mosaicTree;

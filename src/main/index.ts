@@ -6,6 +6,7 @@ import { SessionManager } from './session-manager';
 import { TaskQueue } from './task-queue';
 import { CommitTracker } from './commit-tracker';
 import { SleepBlocker } from './sleep-blocker';
+import { FileLister } from './file-lister';
 import { getPreference, setPreference } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
@@ -20,6 +21,7 @@ let sessionManager: SessionManager;
 let taskQueue: TaskQueue;
 let commitTracker: CommitTracker;
 let sleepBlocker: SleepBlocker;
+let fileLister: FileLister;
 let hookRuntimeInfo: HookRuntimeInfo = {
   state: 'initializing',
   port: null,
@@ -303,6 +305,16 @@ function registerHookIpc(): void {
   });
 }
 
+function registerFileIpc(): void {
+  ipcMain.handle('files:list', (_event, cwd: string) => {
+    return fileLister.listFiles(cwd);
+  });
+
+  ipcMain.handle('files:read', (_event, cwd: string, relativePath: string) => {
+    return fileLister.readFile(cwd, relativePath);
+  });
+}
+
 async function initializeHookSystem(): Promise<void> {
   try {
     const result = await startHookServer(
@@ -450,8 +462,13 @@ app.whenReady().then(async () => {
             click: () => sendCommand({ command: 'toggle-dashboard' }),
           },
           {
-            label: 'Command Palette',
+            label: 'Quick Open',
             accelerator: 'CmdOrCtrl+P',
+            click: () => sendCommand({ command: 'quick-open' }),
+          },
+          {
+            label: 'Command Palette',
+            accelerator: 'CmdOrCtrl+Shift+P',
             click: () => sendCommand({ command: 'show-command-palette' }),
           },
           { type: 'separator' },
@@ -500,12 +517,14 @@ app.whenReady().then(async () => {
     getWebContents,
   );
   commitTracker = new CommitTracker(sessionManager, getWebContents);
+  fileLister = new FileLister();
   sleepBlocker = new SleepBlocker();
   sleepBlocker.attach(sessionManager);
 
   registerPtyIpc();
   registerSessionIpc();
   registerLayoutIpc();
+  registerFileIpc();
   registerAppIpc();
   registerHookIpc();
   registerTaskIpc();
@@ -547,6 +566,7 @@ app.whenReady().then(async () => {
         commitTracker,
         getHookRuntimeInfo: () => hookRuntimeInfo,
         sleepBlocker,
+        fileLister,
       });
     });
   }

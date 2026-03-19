@@ -86,7 +86,23 @@ export function executeAppCommand(command: AppCommand): void {
       const ls = useLayoutStore.getState();
       ls.setShowSettings(false);
       ls.setShowKeyboardShortcuts(false);
-      ls.setShowCommandPalette(!ls.showCommandPalette);
+      if (ls.showCommandPalette) {
+        ls.setShowCommandPalette(false);
+      } else {
+        ls.openQuickOpen('commands');
+      }
+      break;
+    }
+
+    case 'quick-open': {
+      const ls = useLayoutStore.getState();
+      ls.setShowSettings(false);
+      ls.setShowKeyboardShortcuts(false);
+      if (ls.showCommandPalette) {
+        ls.setShowCommandPalette(false);
+      } else {
+        ls.openQuickOpen('files');
+      }
       break;
     }
   }

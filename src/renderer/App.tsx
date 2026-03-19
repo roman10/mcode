@@ -22,6 +22,7 @@ function App(): React.JSX.Element {
   const setHookRuntime = useSessionStore((s) => s.setHookRuntime);
   const restore = useLayoutStore((s) => s.restore);
   const pruneTiles = useLayoutStore((s) => s.pruneTiles);
+  const stripFileTiles = useLayoutStore((s) => s.stripFileTiles);
   const addTile = useLayoutStore((s) => s.addTile);
   const removeTile = useLayoutStore((s) => s.removeTile);
   const persist = useLayoutStore((s) => s.persist);
@@ -58,6 +59,9 @@ function App(): React.JSX.Element {
         // (ended sessions are kept so they can show the resume prompt)
         const allIds = new Set(allSessions.map((s) => s.sessionId));
         pruneTiles(allIds);
+
+        // Strip ephemeral file viewer tiles from previous session
+        stripFileTiles();
 
         // Load task queue
         const tasks = await window.mcode.tasks.list();
@@ -204,6 +208,7 @@ function App(): React.JSX.Element {
   const setShowSettings = useLayoutStore((s) => s.setShowSettings);
   const showCommandPalette = useLayoutStore((s) => s.showCommandPalette);
   const setShowCommandPalette = useLayoutStore((s) => s.setShowCommandPalette);
+  const quickOpenInitialMode = useLayoutStore((s) => s.quickOpenInitialMode);
 
   if (error) {
     return (
@@ -248,7 +253,10 @@ function App(): React.JSX.Element {
         <SettingsDialog onClose={() => setShowSettings(false)} />
       )}
       {showCommandPalette && (
-        <CommandPalette onClose={() => setShowCommandPalette(false)} />
+        <CommandPalette
+          initialMode={quickOpenInitialMode}
+          onClose={() => setShowCommandPalette(false)}
+        />
       )}
     </RadixTooltip.Provider>
   );

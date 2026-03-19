@@ -166,6 +166,27 @@ export function initDevtoolsBridge(): void {
         result = !has; // true = added, false = removed
         break;
       }
+      case 'file-open-viewer': {
+        const { absolutePath } = params as { absolutePath: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().addFileViewer(absolutePath);
+        useLayoutStore.getState().persist();
+        result = { ok: true };
+        break;
+      }
+      case 'quick-open-toggle': {
+        const { mode } = params as { mode: 'files' | 'commands' };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        const store = useLayoutStore.getState();
+        if (store.showCommandPalette) {
+          store.setShowCommandPalette(false);
+          result = false;
+        } else {
+          store.openQuickOpen(mode);
+          result = true;
+        }
+        break;
+      }
       case 'terminal-action': {
         const { sessionId, action } = params as { sessionId: string; action: string };
         const term = terminalRegistry.get(sessionId);

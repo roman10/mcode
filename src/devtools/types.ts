@@ -4,6 +4,7 @@ import type { SessionManager } from '../main/session-manager';
 import type { TaskQueue } from '../main/task-queue';
 import type { CommitTracker } from '../main/commit-tracker';
 import type { SleepBlocker } from '../main/sleep-blocker';
+import type { FileLister } from '../main/file-lister';
 import type { HookRuntimeInfo } from '../shared/types';
 
 export type { ConsoleEntry, HmrEvent } from '../shared/types';
@@ -16,4 +17,5 @@ export interface McpServerContext {
   commitTracker: CommitTracker;
   getHookRuntimeInfo: () => HookRuntimeInfo;
   sleepBlocker: SleepBlocker;
+  fileLister: FileLister;
 }

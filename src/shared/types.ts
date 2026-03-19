@@ -80,7 +80,20 @@ export type AppCommand =
   | { command: 'toggle-dashboard' }
   | { command: 'clear-all-attention' }
   | { command: 'close-all-tiles' }
-  | { command: 'show-command-palette' };
+  | { command: 'show-command-palette' }
+  | { command: 'quick-open' };
+
+// --- Files ---
+
+export interface FileListResult {
+  files: string[];
+  isGitRepo: boolean;
+}
+
+export type FileReadResult =
+  | { content: string; language: string }
+  | { isBinary: true }
+  | { isTooLarge: true };
 
 // --- Hooks ---
 
@@ -323,6 +336,11 @@ export interface MCodeAPI {
     getWeeklyTrend(): Promise<CommitWeeklyTrend>;
     refresh(): Promise<void>;
     onUpdated(callback: () => void): () => void;
+  };
+
+  files: {
+    list(cwd: string): Promise<FileListResult>;
+    read(cwd: string, relativePath: string): Promise<FileReadResult>;
   };
 
   devtools: {

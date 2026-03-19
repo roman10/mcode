@@ -11,6 +11,7 @@ import { registerLayoutTools } from './tools/layout-tools';
 import { registerHookTools } from './tools/hook-tools';
 import { registerTaskTools } from './tools/task-tools';
 import { registerCommitTools } from './tools/commit-tools';
+import { registerFileTools } from './tools/file-tools';
 import type { McpServerContext } from './types';
 
 const DEFAULT_PORT = 7532;
@@ -29,6 +30,7 @@ function createServer(ctx: McpServerContext): McpServer {
   registerHookTools(server, ctx);
   registerTaskTools(server, ctx);
   registerCommitTools(server, ctx);
+  registerFileTools(server, ctx);
 
   return server;
 }

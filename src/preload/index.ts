@@ -18,6 +18,8 @@ import type {
   CommitStreakInfo,
   CommitCadenceInfo,
   CommitWeeklyTrend,
+  FileListResult,
+  FileReadResult,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -271,6 +273,14 @@ contextBridge.exposeInMainWorld('mcode', {
       ipcRenderer.on('commits:updated', handler);
       return () => ipcRenderer.removeListener('commits:updated', handler);
     },
+  },
+
+  files: {
+    list: (cwd: string): Promise<FileListResult> =>
+      ipcRenderer.invoke('files:list', cwd),
+
+    read: (cwd: string, relativePath: string): Promise<FileReadResult> =>
+      ipcRenderer.invoke('files:read', cwd, relativePath),
   },
 
   devtools: {
