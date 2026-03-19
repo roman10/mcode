@@ -1,5 +1,5 @@
 -- Token usage tracking from Claude Code JSONL session files
-CREATE TABLE token_usage (
+CREATE TABLE IF NOT EXISTS token_usage (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   message_id TEXT NOT NULL UNIQUE,
   claude_session_id TEXT NOT NULL,
@@ -16,12 +16,12 @@ CREATE TABLE token_usage (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_token_usage_session ON token_usage(claude_session_id);
-CREATE INDEX idx_token_usage_date ON token_usage(date);
-CREATE INDEX idx_token_usage_model_date ON token_usage(model, date);
+CREATE INDEX IF NOT EXISTS idx_token_usage_session ON token_usage(claude_session_id);
+CREATE INDEX IF NOT EXISTS idx_token_usage_date ON token_usage(date);
+CREATE INDEX IF NOT EXISTS idx_token_usage_model_date ON token_usage(model, date);
 
 -- Byte offset watermark for incremental JSONL parsing
-CREATE TABLE tracked_jsonl_files (
+CREATE TABLE IF NOT EXISTS tracked_jsonl_files (
   file_path TEXT PRIMARY KEY,
   claude_session_id TEXT NOT NULL,
   project_dir TEXT NOT NULL,

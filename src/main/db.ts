@@ -40,6 +40,20 @@ function applyMigrations(database: Database.Database): void {
     return;
   }
 
+  // Check for duplicate version numbers
+  const versionMap = new Map<number, string>();
+  for (const file of files) {
+    const match = file.match(/^(\d+)/);
+    if (!match) continue;
+    const version = parseInt(match[1], 10);
+    if (versionMap.has(version)) {
+      throw new Error(
+        `Duplicate migration version ${version}: ${versionMap.get(version)} and ${file}`,
+      );
+    }
+    versionMap.set(version, file);
+  }
+
   for (const file of files) {
     const match = file.match(/^(\d+)/);
     if (!match) continue;
