@@ -6,6 +6,7 @@ import { readdir, open as fsOpen } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
 import type { PtyManager } from './pty-manager';
+import type { AccountManager } from './account-manager';
 import { getDb } from './db';
 import { logger } from './logger';
 import {
@@ -48,6 +49,7 @@ interface SessionRecord {
   effort: string | null;
   ephemeral: number;
   worktree: string | null;
+  account_id: string | null;
 }
 
 function isClaudeCommand(command: string): boolean {
@@ -100,6 +102,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     sessionType: row.session_type as SessionType,
     terminalConfig: JSON.parse(row.terminal_config || '{}'),
     ephemeral: Boolean(row.ephemeral),
+    accountId: row.account_id,
   };
 }
 
@@ -156,16 +159,19 @@ export class SessionManager {
   private ptyManager: PtyManager;
   private getWebContents: () => WebContents | null;
   private hookRuntimeGetter: () => HookRuntimeInfo;
+  private accountManager: AccountManager;
   private sessionListeners = new Set<SessionUpdateListener>();
 
   constructor(
     ptyManager: PtyManager,
     getWebContents: () => WebContents | null,
     hookRuntimeGetter: () => HookRuntimeInfo,
+    accountManager: AccountManager,
   ) {
     this.ptyManager = ptyManager;
     this.getWebContents = getWebContents;
     this.hookRuntimeGetter = hookRuntimeGetter;
+    this.accountManager = accountManager;
   }
 
   /** Subscribe to session updates in the main process (used by TaskQueue). */
@@ -246,15 +252,26 @@ export class SessionManager {
       }
     }
 
+    // Build account-specific environment overrides.
+    // Applied for both Claude and terminal sessions so that auth terminals
+    // (terminal sessions with accountId) also see the correct HOME.
+    const accountEnv = this.accountManager.getSessionEnv(input.accountId);
+
     // Insert DB row FIRST so that onFirstData/onExit callbacks can UPDATE it.
     // If spawn fails, we delete the row.
     const db = getDb();
     const ephemeral = input.ephemeral ? 1 : 0;
     const worktree = isTerminal ? null : (input.worktree !== undefined ? (input.worktree || '') : null);
+    const accountId = input.accountId ?? null;
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, status, started_at, hook_mode, session_type, ephemeral, worktree)
-       VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), startedAt, hookMode, sessionType, ephemeral, worktree);
+      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, status, started_at, hook_mode, session_type, ephemeral, worktree, account_id)
+       VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?, ?)`,
+    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), startedAt, hookMode, sessionType, ephemeral, worktree, accountId);
+
+    // Track account usage
+    if (accountId) {
+      this.accountManager.touchLastUsed(accountId);
+    }
 
     try {
       this.ptyManager.spawn({
@@ -264,7 +281,7 @@ export class SessionManager {
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
         args: args.length > 0 ? args : undefined,
-        env: { MCODE_SESSION_ID: sessionId },
+        env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
         onFirstData: () => {
           // In fallback mode, PTY data drives the starting -> active transition
           // In live mode, SessionStart hook drives it
@@ -327,6 +344,9 @@ export class SessionManager {
       args.push('--effort', row.effort);
     }
 
+    // Re-apply account env if session was created with a secondary account
+    const accountEnv = this.accountManager.getSessionEnv(row.account_id ?? undefined);
+
     try {
       this.ptyManager.spawn({
         id: sessionId,
@@ -335,7 +355,7 @@ export class SessionManager {
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
         args,
-        env: { MCODE_SESSION_ID: sessionId },
+        env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
         onFirstData: () => {
           if (hookMode === 'fallback') {
             this.updateStatus(sessionId, 'active');

@@ -26,11 +26,29 @@ import type {
   ModelTokenBreakdown,
   TokenWeeklyTrend,
   TokenHeatmapEntry,
+  AccountProfile,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
 
 contextBridge.exposeInMainWorld('mcode', {
+  accounts: {
+    list: (): Promise<AccountProfile[]> =>
+      ipcRenderer.invoke('account:list'),
+
+    create: (name: string): Promise<AccountProfile> =>
+      ipcRenderer.invoke('account:create', name),
+
+    delete: (accountId: string): Promise<void> =>
+      ipcRenderer.invoke('account:delete', accountId),
+
+    getAuthStatus: (accountId: string): Promise<{ loggedIn: boolean; email?: string }> =>
+      ipcRenderer.invoke('account:get-auth-status', accountId),
+
+    openAuthTerminal: (accountId: string): Promise<string> =>
+      ipcRenderer.invoke('account:open-auth-terminal', accountId),
+  },
+
   pty: {
     write: (id: string, data: string): void => {
       ipcRenderer.send('pty:write', id, data);

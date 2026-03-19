@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { is, optimizer } from '@electron-toolkit/utils';
 import { PtyManager } from './pty-manager';
 import { SessionManager } from './session-manager';
+import { AccountManager } from './account-manager';
 import { TaskQueue } from './task-queue';
 import { CommitTracker } from './commit-tracker';
 import { TokenTracker } from './token-tracker';
@@ -17,12 +18,13 @@ import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
 import type {
   SessionCreateInput, CreateTaskInput, UpdateTaskInput, TaskFilter, HookRuntimeInfo,
   ExternalSessionInfo, AppCommand, SessionTokenUsage, DailyTokenUsage,
-  ModelTokenBreakdown, TokenWeeklyTrend, TokenHeatmapEntry,
+  ModelTokenBreakdown, TokenWeeklyTrend, TokenHeatmapEntry, AccountProfile,
 } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
 let sessionManager: SessionManager;
+let accountManager: AccountManager;
 let taskQueue: TaskQueue;
 let commitTracker: CommitTracker;
 let tokenTracker: TokenTracker;
@@ -345,6 +347,44 @@ function registerHookIpc(): void {
   });
 }
 
+function registerAccountIpc(): void {
+  ipcMain.handle('account:list', (): AccountProfile[] => {
+    return accountManager.list();
+  });
+
+  ipcMain.handle('account:create', (_event, name: string): AccountProfile => {
+    return accountManager.create(name);
+  });
+
+  ipcMain.handle('account:delete', (_event, accountId: string): void => {
+    accountManager.delete(accountId);
+  });
+
+  ipcMain.handle('account:get-auth-status', async (_event, accountId: string) => {
+    const status = await accountManager.getAuthStatus(accountId);
+    if (status.email) {
+      accountManager.setEmail(accountId, status.email);
+    }
+    return status;
+  });
+
+  // Open a terminal session pre-configured with the account's HOME for `claude auth login`
+  ipcMain.handle('account:open-auth-terminal', (_event, accountId: string): string => {
+    const account = accountManager.get(accountId);
+    if (!account) throw new Error(`Account not found: ${accountId}`);
+    if (account.isDefault) throw new Error('Default account uses standard auth');
+    if (!account.homeDir) throw new Error('Account has no home directory');
+
+    const session = sessionManager.create({
+      cwd: account.homeDir,
+      label: `Auth: ${account.name}`,
+      sessionType: 'terminal',
+      accountId,
+    });
+    return session.sessionId;
+  });
+}
+
 function registerFileIpc(): void {
   ipcMain.handle('files:list', (_event, cwd: string) => {
     return fileLister.listFiles(cwd);
@@ -375,7 +415,8 @@ async function initializeHookSystem(): Promise<void> {
 
     if (result.state === 'ready' && result.port) {
       try {
-        reconcileOnStartup(result.port);
+        const extraSettingsPaths = accountManager.getAllSettingsPaths().slice(1);
+        reconcileOnStartup(result.port, extraSettingsPaths);
         hookRuntimeInfo = result;
       } catch (err) {
         hookRuntimeInfo = {
@@ -564,11 +605,15 @@ app.whenReady().then(async () => {
 
   mainWindow = createMainWindow();
 
+  accountManager = new AccountManager();
+  accountManager.ensureDefaultAccount();
+
   ptyManager = new PtyManager(getWebContents);
   sessionManager = new SessionManager(
     ptyManager,
     getWebContents,
     () => hookRuntimeInfo,
+    accountManager,
   );
   sessionManager.deleteEmptyEnded();
 
@@ -590,6 +635,7 @@ app.whenReady().then(async () => {
   registerFileIpc();
   registerAppIpc();
   registerHookIpc();
+  registerAccountIpc();
   registerTaskIpc();
   registerCommitIpc();
   registerTokenIpc();
@@ -675,8 +721,8 @@ app.on('before-quit', (e) => {
     commitTracker.stop();
     tokenTracker.stop();
 
-    // Clean up hook config
-    cleanupOnQuit();
+    // Clean up hook config (primary + all secondary account settings)
+    cleanupOnQuit(accountManager.getAllSettingsPaths().slice(1));
     stopHookServer();
 
     // Mark all active sessions as ended

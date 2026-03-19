@@ -102,29 +102,18 @@ function getSettingsPath(): string {
   return join(homedir(), '.claude', 'settings.json');
 }
 
-function readSettings(): ClaudeSettings {
-  const path = getSettingsPath();
-  if (!existsSync(path)) return {};
-  const raw = readFileSync(path, 'utf-8');
-  return JSON.parse(raw) as ClaudeSettings;
-}
 
-function writeSettings(settings: ClaudeSettings): void {
-  const path = getSettingsPath();
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
-}
-
-/** Reconcile ~/.claude/settings.json on app startup. */
-export function reconcileOnStartup(port: number): void {
-  const settingsPath = getSettingsPath();
-
+function reconcileSettingsFile(settingsPath: string, port: number): void {
   // Read existing settings (treat missing file as empty)
   let settings: ClaudeSettings;
   try {
-    settings = readSettings();
+    if (!existsSync(settingsPath)) {
+      settings = {};
+    } else {
+      const raw = readFileSync(settingsPath, 'utf-8');
+      settings = JSON.parse(raw) as ClaudeSettings;
+    }
   } catch (err) {
-    // If the file exists but is invalid JSON, degrade rather than overwrite
     if (existsSync(settingsPath)) {
       throw new Error(
         `Invalid JSON in ${settingsPath}: ${err instanceof Error ? err.message : String(err)}`,
@@ -140,24 +129,51 @@ export function reconcileOnStartup(port: number): void {
     logger.info('hook-config', 'Created backup', { path: backupPath });
   }
 
-  // Merge mcode hooks
   const updated = mergeMcodeHooks(settings, port);
-  writeSettings(updated);
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  writeFileSync(settingsPath, JSON.stringify(updated, null, 2) + '\n', 'utf-8');
+}
+
+/** Reconcile ~/.claude/settings.json on app startup. */
+export function reconcileOnStartup(port: number, extraSettingsPaths: string[] = []): void {
+  const primary = getSettingsPath();
+  reconcileSettingsFile(primary, port);
+
+  // Also reconcile hooks for secondary account settings files
+  for (const extraPath of extraSettingsPaths) {
+    if (extraPath === primary) continue;
+    try {
+      reconcileSettingsFile(extraPath, port);
+    } catch (err) {
+      // Non-fatal: secondary account config failures shouldn't block startup
+      logger.warn('hook-config', 'Failed to reconcile secondary account settings', {
+        path: extraPath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   logger.info('hook-config', 'Reconciled hook config', { port });
 }
 
+
 /** Remove mcode hooks on app quit. */
-export function cleanupOnQuit(): void {
-  try {
-    const settings = readSettings();
-    const cleaned = removeMcodeHooks(settings);
-    writeSettings(cleaned);
-    logger.info('hook-config', 'Cleaned up hook config');
-  } catch (err) {
-    // Best-effort cleanup — don't crash on quit
-    logger.warn('hook-config', 'Failed to clean up hook config', {
-      error: err instanceof Error ? err.message : String(err),
-    });
+export function cleanupOnQuit(extraSettingsPaths: string[] = []): void {
+  const allPaths = [getSettingsPath(), ...extraSettingsPaths];
+  for (const settingsPath of allPaths) {
+    try {
+      if (!existsSync(settingsPath)) continue;
+      const raw = readFileSync(settingsPath, 'utf-8');
+      const settings = JSON.parse(raw) as ClaudeSettings;
+      const cleaned = removeMcodeHooks(settings);
+      writeFileSync(settingsPath, JSON.stringify(cleaned, null, 2) + '\n', 'utf-8');
+    } catch (err) {
+      // Best-effort cleanup — don't crash on quit
+      logger.warn('hook-config', 'Failed to clean up hook config', {
+        path: settingsPath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
+  logger.info('hook-config', 'Cleaned up hook config');
 }

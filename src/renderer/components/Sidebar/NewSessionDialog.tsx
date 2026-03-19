@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { SessionCreateInput } from '../../../shared/types';
+import type { AccountProfile, SessionCreateInput } from '../../../shared/types';
 import { EFFORT_LEVELS, PERMISSION_MODES, type EffortLevel, type PermissionMode } from '../../../shared/constants';
 
 interface NewSessionDialogProps {
@@ -19,6 +19,8 @@ function NewSessionDialog({
   const [useWorktree, setUseWorktree] = useState(false);
   const [worktreeName, setWorktreeName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [accounts, setAccounts] = useState<AccountProfile[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
 
   useEffect(() => {
     window.mcode.sessions.getLastDefaults().then((defaults) => {
@@ -26,6 +28,11 @@ function NewSessionDialog({
       setCwd(defaults.cwd);
       if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
       if (defaults.effort) setEffort(defaults.effort);
+    });
+    window.mcode.accounts.list().then((list) => {
+      setAccounts(list);
+      const defaultAccount = list.find((a) => a.isDefault);
+      if (defaultAccount) setSelectedAccountId(defaultAccount.accountId);
     });
   }, []);
 
@@ -39,6 +46,8 @@ function NewSessionDialog({
     if (!cwd.trim() || isCreating) return;
 
     setIsCreating(true);
+    const defaultAccount = accounts.find((a) => a.isDefault);
+    const isDefaultSelected = !selectedAccountId || selectedAccountId === defaultAccount?.accountId;
     onCreate({
       cwd: cwd.trim(),
       label: label.trim() || undefined,
@@ -46,6 +55,7 @@ function NewSessionDialog({
       permissionMode: permissionMode || undefined,
       effort: effort || undefined,
       worktree: useWorktree ? (worktreeName.trim() || '') : undefined,
+      accountId: isDefaultSelected ? undefined : selectedAccountId,
     });
   };
 
@@ -165,6 +175,27 @@ function NewSessionDialog({
               ))}
             </select>
           </div>
+
+          {/* Account (only shown when multiple accounts exist) */}
+          {accounts.length > 1 && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">
+                Account
+              </label>
+              <select
+                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+              >
+                {accounts.map((account) => (
+                  <option key={account.accountId} value={account.accountId}>
+                    {account.name}{account.email ? ` (${account.email})` : ''}
+                    {account.isDefault ? ' — default' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Worktree */}
           <div>

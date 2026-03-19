@@ -1,6 +1,18 @@
 import type { MosaicNode } from 'react-mosaic-component';
 import type { EffortLevel, PermissionMode } from './constants';
 
+// --- Account Profiles ---
+
+export interface AccountProfile {
+  accountId: string;
+  name: string;
+  email: string | null;
+  isDefault: boolean;
+  homeDir: string | null; // null for default account (uses real ~/.claude/)
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
 // --- Terminal Config ---
 
 export interface TerminalConfig {
@@ -33,6 +45,7 @@ export interface SessionInfo {
   sessionType: SessionType;
   terminalConfig: TerminalConfig;
   ephemeral: boolean;
+  accountId: string | null;
 }
 
 export interface SessionCreateInput {
@@ -45,6 +58,7 @@ export interface SessionCreateInput {
   command?: string;
   sessionType?: SessionType;
   ephemeral?: boolean;
+  accountId?: string;
 }
 
 export interface SessionDefaults {
@@ -329,6 +343,14 @@ export interface HmrEvent {
 // --- IPC API ---
 
 export interface MCodeAPI {
+  accounts: {
+    list(): Promise<AccountProfile[]>;
+    create(name: string): Promise<AccountProfile>;
+    delete(accountId: string): Promise<void>;
+    getAuthStatus(accountId: string): Promise<{ loggedIn: boolean; email?: string }>;
+    openAuthTerminal(accountId: string): Promise<string>; // returns sessionId of auth terminal
+  };
+
   pty: {
     write(sessionId: string, data: string): void;
     resize(sessionId: string, cols: number, rows: number): void;
