@@ -14,6 +14,12 @@ function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
 function HeatmapCell({
   entry,
   isSelected,
@@ -202,6 +208,11 @@ function TokenStats(): React.JSX.Element {
             <span className="text-sm text-text-muted ml-1">
               · {formatCost(costPerMsg)}/msg
             </span>
+          )}
+          {totals && (totals.inputTokens > 0 || totals.outputTokens > 0) && (
+            <div className="text-[11px] text-text-muted mt-0.5">
+              In: {formatTokens(totals.inputTokens)} · Out: {formatTokens(totals.outputTokens)} · Total: {formatTokens(totals.inputTokens + totals.outputTokens)}
+            </div>
           )}
         </div>
 
