@@ -12,6 +12,9 @@ const execFileAsync = promisify(execFile);
 
 const ACCOUNTS_BASE = join(homedir(), '.mcode', 'accounts');
 
+/** .claude/ subdirectories to symlink from the primary account into secondary accounts. */
+const CLAUDE_SHARED_SUBDIRS = ['commands', 'skills', 'plugins', 'projects'];
+
 interface AccountRecord {
   account_id: string;
   name: string;
@@ -185,6 +188,8 @@ export class AccountManager {
         // Skip entries that can't be symlinked (permission issues, etc.)
       }
     }
+
+    this.syncClaudeSubdirSymlinks(accountHome);
   }
 
   /**
@@ -274,6 +279,35 @@ export class AccountManager {
       copyFileSync(primarySettings, join(accountHome, '.claude', 'settings.json'));
     }
 
+    // Symlink shared .claude/ subdirectories from the primary account
+    this.syncClaudeSubdirSymlinks(accountHome);
+
     logger.info('accounts', 'Set up account directory', { accountHome });
+  }
+
+  /**
+   * Ensure shared .claude/ subdirectories are symlinked from the primary account.
+   * Creates symlinks for directories that exist in the primary but are missing
+   * in the secondary account's .claude/.
+   */
+  private syncClaudeSubdirSymlinks(accountHome: string): void {
+    const primaryClaude = join(homedir(), '.claude');
+    const accountClaude = join(accountHome, '.claude');
+
+    for (const subdir of CLAUDE_SHARED_SUBDIRS) {
+      const sourcePath = join(primaryClaude, subdir);
+      const targetPath = join(accountClaude, subdir);
+
+      if (!existsSync(sourcePath) || existsSync(targetPath)) continue;
+
+      try {
+        symlinkSync(sourcePath, targetPath);
+      } catch {
+        logger.warn('accounts', 'Failed to symlink .claude subdir', {
+          source: sourcePath,
+          target: targetPath,
+        });
+      }
+    }
   }
 }
