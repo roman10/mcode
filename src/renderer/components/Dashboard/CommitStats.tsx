@@ -101,12 +101,14 @@ function CommitStats(): React.JSX.Element {
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
         <span className="text-sm font-medium text-text-primary flex-1">Commits</span>
-        <button
-          className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-          onClick={handleClose}
-        >
-          <X size={12} strokeWidth={2} />
-        </button>
+        <Tooltip content="Close (⌘W)" side="bottom">
+          <button
+            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+            onClick={handleClose}
+          >
+            <X size={12} strokeWidth={2} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Content */}
