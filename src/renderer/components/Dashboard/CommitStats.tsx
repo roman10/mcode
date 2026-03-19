@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useCommitStore } from '../../stores/commit-store';
 import { useLayoutStore } from '../../stores/layout-store';
+import Tooltip from '../shared/Tooltip';
 import type { CommitHeatmapEntry } from '../../../shared/types';
 
 function basename(path: string): string {
@@ -74,12 +75,14 @@ function CommitStats(): React.JSX.Element {
       <div className="flex flex-col h-full w-full bg-bg-primary">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
           <span className="text-sm font-medium text-text-primary flex-1">Commits</span>
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-            onClick={handleClose}
-          >
-            <X size={12} strokeWidth={2} />
-          </button>
+          <Tooltip content="Close (⌘W)" side="bottom">
+            <button
+              className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+              onClick={handleClose}
+            >
+              <X size={12} strokeWidth={2} />
+            </button>
+          </Tooltip>
         </div>
         <div className="flex items-center justify-center h-full text-text-muted text-sm">
           Loading...

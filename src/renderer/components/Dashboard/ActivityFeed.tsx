@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
+import Tooltip from '../shared/Tooltip';
 import type { HookEvent } from '../../../shared/types';
 import { KNOWN_HOOK_EVENTS } from '../../../shared/constants';
 
@@ -120,12 +121,14 @@ function ActivityFeed(): React.JSX.Element {
           </button>
         )}
 
-        <button
-          className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-          onClick={handleClose}
-        >
-          <X size={12} strokeWidth={2} />
-        </button>
+        <Tooltip content="Close (⌘W)" side="bottom">
+          <button
+            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+            onClick={handleClose}
+          >
+            <X size={12} strokeWidth={2} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Event list */}

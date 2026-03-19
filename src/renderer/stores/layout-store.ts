@@ -63,6 +63,7 @@ interface LayoutState {
   addCommitStats(): void;
   removeCommitStats(): void;
   toggleCommitStats(): void;
+  removeAnyTile(tileId: string): void;
   persist(): void;
   flushPersist(): void;
   restore(): Promise<void>;
@@ -397,6 +398,13 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((state) => {
       if (!state.mosaicTree) return state;
       const result = removeLeaf(state.mosaicTree, COMMIT_STATS_TILE_ID);
+      return { mosaicTree: result };
+    }),
+
+  removeAnyTile: (tileId) =>
+    set((state) => {
+      if (!state.mosaicTree) return state;
+      const result = removeLeaf(state.mosaicTree, tileId);
       return { mosaicTree: result };
     }),
 

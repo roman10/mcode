@@ -1,37 +1,70 @@
-import { sessionIdFromTileId, filePathFromTileId, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID } from '../../stores/layout-store';
+import { sessionIdFromTileId, filePathFromTileId, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID, useLayoutStore } from '../../stores/layout-store';
 import TerminalTile from '../Terminal/TerminalTile';
 import ActivityFeed from '../Dashboard/ActivityFeed';
 import CommitStats from '../Dashboard/CommitStats';
 import FileViewerTile from '../FileViewer/FileViewerTile';
 
+const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
+
 interface TileFactoryProps {
   tileId: string;
 }
 
+function ClosableTileWrapper({ tileId, children }: { tileId: string; children: React.ReactNode }): React.JSX.Element {
+  const removeAnyTile = useLayoutStore((s) => s.removeAnyTile);
+  const persist = useLayoutStore((s) => s.persist);
+
+  const handleKeyDown = (e: React.KeyboardEvent): void => {
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    if (mod && e.key === 'w') {
+      e.preventDefault();
+      e.stopPropagation();
+      removeAnyTile(tileId);
+      persist();
+    }
+  };
+
+  return (
+    <div
+      className="h-full w-full outline-none"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+    >
+      {children}
+    </div>
+  );
+}
+
 function TileFactory({ tileId }: TileFactoryProps): React.JSX.Element {
-  if (tileId === DASHBOARD_TILE_ID) {
-    return <ActivityFeed />;
-  }
-
-  if (tileId === COMMIT_STATS_TILE_ID) {
-    return <CommitStats />;
-  }
-
-  const filePath = filePathFromTileId(tileId);
-  if (filePath) {
-    return <FileViewerTile absolutePath={filePath} />;
-  }
-
+  // Session tiles handle their own keyboard shortcuts
   const sessionId = sessionIdFromTileId(tileId);
-
   if (sessionId) {
     return <TerminalTile sessionId={sessionId} />;
   }
 
+  // All other tiles get the closable wrapper for Cmd+W support
+  let content: React.JSX.Element;
+  if (tileId === DASHBOARD_TILE_ID) {
+    content = <ActivityFeed />;
+  } else if (tileId === COMMIT_STATS_TILE_ID) {
+    content = <CommitStats />;
+  } else {
+    const filePath = filePathFromTileId(tileId);
+    if (filePath) {
+      content = <FileViewerTile absolutePath={filePath} />;
+    } else {
+      content = (
+        <div className="flex items-center justify-center h-full text-text-muted text-sm">
+          Unknown tile: {tileId}
+        </div>
+      );
+    }
+  }
+
   return (
-    <div className="flex items-center justify-center h-full text-text-muted text-sm">
-      Unknown tile: {tileId}
-    </div>
+    <ClosableTileWrapper tileId={tileId}>
+      {content}
+    </ClosableTileWrapper>
   );
 }
 

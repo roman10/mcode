@@ -25,6 +25,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Close All Tiles', keys: 'Shift+X', mod: true, category: 'general' },
   { label: 'Quick Open', keys: 'P', mod: true, category: 'general' },
   { label: 'Command Palette', keys: 'Shift+P', mod: true, category: 'general' },
+  { label: 'Close Tile', keys: 'W', mod: true, category: 'general' },
 
   // Sessions
   { label: 'Focus Session 1–9', keys: '1 – 9', mod: true, category: 'sessions' },
@@ -36,7 +37,6 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Select All', keys: 'A', mod: true, category: 'terminal' },
   { label: 'Clear Terminal', keys: 'K', mod: true, category: 'terminal' },
   { label: 'Find', keys: 'F', mod: true, category: 'terminal' },
-  { label: 'Close Tile', keys: 'W', mod: true, category: 'terminal' },
   { label: 'Kill & Close', keys: 'Shift+W', mod: true, category: 'terminal' },
   { label: 'Split Horizontal', keys: 'D', mod: true, category: 'terminal' },
   { label: 'Split Vertical', keys: 'Shift+D', mod: true, category: 'terminal' },
