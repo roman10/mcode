@@ -495,6 +495,18 @@ export class SessionManager {
         }
       }, 2000);
     }
+
+    // Auto-delete ended Claude sessions with no Claude session ID (no interaction occurred).
+    if (status === 'ended' && session && !session.ephemeral
+        && session.sessionType === 'claude' && !session.claudeSessionId) {
+      setTimeout(() => {
+        try {
+          this.delete(sessionId);
+        } catch {
+          // Session may already be deleted
+        }
+      }, 500);
+    }
   }
 
   /** Handle a hook event from the hook server or injected via MCP. */
@@ -745,6 +757,35 @@ export class SessionManager {
       wc.send('session:deleted-batch', ids);
     }
     return ids;
+  }
+
+  /** Delete all ended Claude sessions that never received a claude_session_id. */
+  deleteEmptyEnded(): number {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        "SELECT session_id FROM sessions WHERE status = 'ended' AND session_type = 'claude' AND claude_session_id IS NULL",
+      )
+      .all() as { session_id: string }[];
+    if (rows.length === 0) return 0;
+
+    const ids = rows.map((r) => r.session_id);
+    const deleteEvents = db.prepare('DELETE FROM events WHERE session_id = ?');
+    const deleteSession = db.prepare('DELETE FROM sessions WHERE session_id = ?');
+    db.transaction(() => {
+      for (const id of ids) {
+        deleteEvents.run(id);
+        deleteSession.run(id);
+      }
+    })();
+
+    logger.info('session', 'Deleted empty Claude sessions', { count: ids.length });
+
+    const wc = this.getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('session:deleted-batch', ids);
+    }
+    return ids.length;
   }
 
   deleteBatch(sessionIds: string[]): string[] {

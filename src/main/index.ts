@@ -523,6 +523,8 @@ app.whenReady().then(async () => {
     getWebContents,
     () => hookRuntimeInfo,
   );
+  sessionManager.deleteEmptyEnded();
+
   taskQueue = new TaskQueue(
     sessionManager,
     ptyManager,
