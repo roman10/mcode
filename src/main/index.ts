@@ -21,6 +21,11 @@ import type {
   ModelTokenBreakdown, TokenWeeklyTrend, TokenHeatmapEntry, AccountProfile,
 } from '../shared/types';
 
+// Isolate dev data from production: separate userData/logs directory
+if (!app.isPackaged) {
+  app.name = 'mcode-dev';
+}
+
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
 let sessionManager: SessionManager;

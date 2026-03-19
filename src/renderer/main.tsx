@@ -4,6 +4,10 @@ import App from './App';
 import type { MCodeAPI } from '../shared/types';
 import './styles/global.css';
 
+if (import.meta.env.DEV) {
+  document.title = 'mcode [DEV]';
+}
+
 function hasMcodeApi(value: unknown): value is MCodeAPI {
   if (!value || typeof value !== 'object') {
     return false;
