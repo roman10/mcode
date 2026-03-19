@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
+import { existsSync } from 'node:fs';
 import { readdir, open as fsOpen } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
@@ -298,6 +299,17 @@ export class SessionManager {
     if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status})`);
     if (!row.claude_session_id) throw new Error('Cannot resume: no Claude session ID recorded');
 
+    // Determine effective cwd (worktree sessions run inside the worktree directory)
+    let effectiveCwd = row.cwd;
+    if (row.worktree) {
+      effectiveCwd = join(row.cwd, '.claude', 'worktrees', row.worktree);
+      if (!existsSync(effectiveCwd)) {
+        throw new Error(`Worktree directory no longer exists: ${effectiveCwd}`);
+      }
+    } else if (row.worktree === '') {
+      throw new Error('Cannot resume: worktree name was never captured.');
+    }
+
     const hookRuntime = this.hookRuntimeGetter();
     const hookMode = hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
@@ -319,7 +331,7 @@ export class SessionManager {
       this.ptyManager.spawn({
         id: sessionId,
         command: 'claude',
-        cwd: row.cwd,
+        cwd: effectiveCwd,
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
         args,
@@ -341,7 +353,7 @@ export class SessionManager {
       throw err;
     }
 
-    logger.info('session', 'Resumed session', { sessionId, claudeSessionId: row.claude_session_id });
+    logger.info('session', 'Resumed session', { sessionId, claudeSessionId: row.claude_session_id, cwd: effectiveCwd, worktree: row.worktree });
 
     const session = this.get(sessionId)!;
     this.broadcastSessionUpdate(sessionId);
