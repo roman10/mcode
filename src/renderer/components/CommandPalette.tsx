@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Command, defaultFilter } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
 import { FileText } from 'lucide-react';
@@ -15,6 +15,21 @@ interface CommandPaletteProps {
 
 // --- File search items ---
 
+interface FileEntry {
+  path: string;
+  cwd: string;
+  repo: string;
+}
+
+interface FilteredEntry extends FileEntry {
+  ranges: number[] | null;
+}
+
+function basename(p: string): string {
+  const i = p.lastIndexOf('/');
+  return i >= 0 ? p.slice(i + 1) : p;
+}
+
 function FileSearchItems({
   query,
   onClose,
@@ -24,71 +39,110 @@ function FileSearchItems({
 }): React.JSX.Element {
   const sessions = useSessionStore((s) => s.sessions);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
-  const [files, setFiles] = useState<string[]>([]);
+  const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cwd, setCwd] = useState<string | null>(null);
+  const [repoCount, setRepoCount] = useState(0);
 
-  // Determine cwd from selected session or most recent session
-  useEffect(() => {
+  // Determine primary cwd (selected session or most recent)
+  const primaryCwd = useMemo(() => {
     const selected = selectedSessionId ? sessions[selectedSessionId] : null;
-    if (selected) {
-      setCwd(selected.cwd);
-      return;
-    }
-    // Fall back to most recently created session
+    if (selected) return selected.cwd;
     const sorted = Object.values(sessions).sort(
       (a, b) => b.startedAt.localeCompare(a.startedAt),
     );
-    setCwd(sorted[0]?.cwd ?? null);
+    return sorted[0]?.cwd ?? null;
   }, [sessions, selectedSessionId]);
 
-  // Fetch file list when cwd changes
+  // Collect unique cwds from all sessions, stabilized to avoid re-fetching
+  // when unrelated session fields change (status, lastEventAt, etc.)
+  const uniqueCwdsRaw = useMemo(() => {
+    const cwds = new Set(Object.values(sessions).map((s) => s.cwd));
+    if (cwds.size === 0) return [];
+    const arr = [...cwds];
+    if (primaryCwd) {
+      const idx = arr.indexOf(primaryCwd);
+      if (idx > 0) {
+        arr.splice(idx, 1);
+        arr.unshift(primaryCwd);
+      }
+    }
+    return arr;
+  }, [sessions, primaryCwd]);
+
+  const prevCwdsKeyRef = useRef('');
+  const uniqueCwdsRef = useRef<string[]>([]);
+  const cwdsKey = uniqueCwdsRaw.join('\0');
+  if (cwdsKey !== prevCwdsKeyRef.current) {
+    prevCwdsKeyRef.current = cwdsKey;
+    uniqueCwdsRef.current = uniqueCwdsRaw;
+  }
+  const uniqueCwds = uniqueCwdsRef.current;
+
+  // Fetch file lists from all repos in parallel
   useEffect(() => {
-    if (!cwd) {
+    if (uniqueCwds.length === 0) {
+      setEntries([]);
+      setRepoCount(0);
       setLoading(false);
       return;
     }
     setLoading(true);
-    window.mcode.files.list(cwd).then((result) => {
-      setFiles(result.files);
-      setLoading(false);
-    }).catch(() => {
-      setFiles([]);
+    Promise.allSettled(
+      uniqueCwds.map((cwd) => window.mcode.files.list(cwd).then((r) => ({ cwd, files: r.files }))),
+    ).then((results) => {
+      const combined: FileEntry[] = [];
+      for (const result of results) {
+        if (result.status !== 'fulfilled') continue;
+        const { cwd, files } = result.value;
+        const repo = basename(cwd);
+        for (const path of files) {
+          combined.push({ path, cwd, repo });
+        }
+      }
+      setEntries(combined);
+      setRepoCount(uniqueCwds.length);
       setLoading(false);
     });
-  }, [cwd]);
+  }, [uniqueCwds]);
+
+  // Build path array for uFuzzy (parallel to entries)
+  const paths = useMemo(() => entries.map((e) => e.path), [entries]);
 
   // Fuzzy filter
-  const filtered = useMemo(() => {
+  const filtered = useMemo((): FilteredEntry[] => {
     if (!query.trim()) {
-      // Show first 50 files when no query
-      return files.slice(0, 50).map((f) => ({ path: f, ranges: null }));
+      // Show first 50 files, primary repo first (already ordered by uniqueCwds)
+      return entries.slice(0, 50).map((e) => ({ ...e, ranges: null }));
     }
 
-    const idxs = uf.filter(files, query);
+    const idxs = uf.filter(paths, query);
     if (!idxs || idxs.length === 0) return [];
 
-    const info = uf.info(idxs, files, query);
-    const order = uf.sort(info, files, query);
+    const info = uf.info(idxs, paths, query);
+    const order = uf.sort(info, paths, query);
 
     return order.slice(0, 50).map((sortIdx) => {
       const fileIdx = info.idx[sortIdx];
+      const entry = entries[fileIdx];
       return {
-        path: files[fileIdx],
+        ...entry,
         ranges: (info.ranges[sortIdx] ?? null) as number[] | null,
       };
     });
-  }, [files, query]);
+  }, [entries, paths, query]);
+
+  const multiRepo = repoCount > 1;
 
   const handleSelect = useCallback(
-    (relativePath: string) => {
-      if (!cwd) return;
-      const absolutePath = cwd.endsWith('/') ? cwd + relativePath : `${cwd}/${relativePath}`;
+    (entry: FilteredEntry) => {
+      const absolutePath = entry.cwd.endsWith('/')
+        ? entry.cwd + entry.path
+        : `${entry.cwd}/${entry.path}`;
       useLayoutStore.getState().addFileViewer(absolutePath);
       useLayoutStore.getState().persist();
       onClose();
     },
-    [cwd, onClose],
+    [onClose],
   );
 
   if (loading) {
@@ -99,7 +153,7 @@ function FileSearchItems({
     );
   }
 
-  if (!cwd) {
+  if (uniqueCwds.length === 0) {
     return (
       <Command.Empty className="px-4 py-6 text-center text-sm text-text-muted">
         No session open — create a session first.
@@ -124,14 +178,14 @@ function FileSearchItems({
 
         return (
           <Command.Item
-            key={item.path}
-            value={item.path}
-            onSelect={() => handleSelect(item.path)}
+            key={`${item.cwd}:${item.path}`}
+            value={`${item.cwd}:${item.path}`}
+            onSelect={() => handleSelect(item)}
             className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer
                        text-text-primary data-[selected=true]:bg-accent/15"
           >
             <FileText size={14} className="shrink-0 text-text-muted" />
-            <span className="truncate">
+            <span className="truncate min-w-0 flex-1">
               {item.ranges ? (
                 <HighlightedText text={item.path} ranges={item.ranges} />
               ) : (
@@ -143,6 +197,9 @@ function FileSearchItems({
                 </>
               )}
             </span>
+            {multiRepo && (
+              <span className="shrink-0 text-xs text-text-muted ml-2">{item.repo}</span>
+            )}
           </Command.Item>
         );
       })}
@@ -268,18 +325,15 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Show cwd in the header for file mode
+  // Show cwd info in the header for file mode
   const sessions = useSessionStore((s) => s.sessions);
-  const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const cwdLabel = useMemo(() => {
     if (mode !== 'files') return null;
-    const selected = selectedSessionId ? sessions[selectedSessionId] : null;
-    if (selected) return selected.cwd;
-    const sorted = Object.values(sessions).sort(
-      (a, b) => b.startedAt.localeCompare(a.startedAt),
-    );
-    return sorted[0]?.cwd ?? null;
-  }, [mode, sessions, selectedSessionId]);
+    const cwds = [...new Set(Object.values(sessions).map((s) => s.cwd))];
+    if (cwds.length === 0) return null;
+    if (cwds.length === 1) return cwds[0];
+    return cwds.map((c) => basename(c)).join(', ');
+  }, [mode, sessions]);
 
   return (
     <div
