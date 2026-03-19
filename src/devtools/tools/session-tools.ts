@@ -31,9 +31,10 @@ export function registerSessionTools(
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
       ephemeral: z.boolean().optional().describe('If true, session is hidden from sidebar and auto-deleted when ended. Use for test/verification sessions.'),
+      worktree: z.string().optional().describe('Run session in an isolated git worktree. Pass a name to create a named worktree, or empty string to auto-generate. Ignored for terminal sessions.'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, sessionType, ephemeral }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, sessionType, ephemeral, worktree }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -44,6 +45,7 @@ export function registerSessionTools(
         command,
         sessionType,
         ephemeral,
+        worktree,
       });
       // Notify renderer to add session to store (best-effort)
       try {

@@ -16,6 +16,8 @@ function NewSessionDialog({
   const [initialPrompt, setInitialPrompt] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [effort, setEffort] = useState<EffortLevel | ''>('');
+  const [useWorktree, setUseWorktree] = useState(false);
+  const [worktreeName, setWorktreeName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
@@ -43,6 +45,7 @@ function NewSessionDialog({
       initialPrompt: initialPrompt.trim() || undefined,
       permissionMode: permissionMode || undefined,
       effort: effort || undefined,
+      worktree: useWorktree ? (worktreeName.trim() || '') : undefined,
     });
   };
 
@@ -161,6 +164,30 @@ function NewSessionDialog({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Worktree */}
+          <div>
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={useWorktree}
+                onChange={(e) => {
+                  setUseWorktree(e.target.checked);
+                  if (!e.target.checked) setWorktreeName('');
+                }}
+              />
+              Run in isolated worktree
+            </label>
+            {useWorktree && (
+              <input
+                className="w-full mt-2 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                value={worktreeName}
+                onChange={(e) => setWorktreeName(e.target.value)}
+                placeholder="Auto-generated if empty"
+              />
+            )}
           </div>
         </div>
 

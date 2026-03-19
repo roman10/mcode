@@ -46,6 +46,7 @@ interface SessionRecord {
   terminal_config: string;
   effort: string | null;
   ephemeral: number;
+  worktree: string | null;
 }
 
 function isClaudeCommand(command: string): boolean {
@@ -86,6 +87,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     status: row.status as SessionStatus,
     permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
     effort: (row.effort as EffortLevel) ?? undefined,
+    worktree: row.worktree,
     startedAt: row.started_at,
     endedAt: row.ended_at,
     claudeSessionId: row.claude_session_id,
@@ -226,6 +228,12 @@ export class SessionManager {
     // Build args for CLI (only for Claude sessions)
     const args: string[] = [];
     if (!isTerminal) {
+      if (input.worktree !== undefined) {
+        args.push('--worktree');
+        if (input.worktree) {
+          args.push(input.worktree);
+        }
+      }
       if (input.permissionMode) {
         args.push('--permission-mode', input.permissionMode);
       }
@@ -241,10 +249,11 @@ export class SessionManager {
     // If spawn fails, we delete the row.
     const db = getDb();
     const ephemeral = input.ephemeral ? 1 : 0;
+    const worktree = isTerminal ? null : (input.worktree !== undefined ? (input.worktree || '') : null);
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, status, started_at, hook_mode, session_type, ephemeral)
-       VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?)`,
-    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), startedAt, hookMode, sessionType, ephemeral);
+      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, status, started_at, hook_mode, session_type, ephemeral, worktree)
+       VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
+    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), startedAt, hookMode, sessionType, ephemeral, worktree);
 
     try {
       this.ptyManager.spawn({
@@ -494,8 +503,8 @@ export class SessionManager {
 
     // Verify session exists
     let row = db
-      .prepare('SELECT status, attention_level FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string; attention_level: string } | undefined;
+      .prepare('SELECT status, attention_level, cwd, worktree FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null } | undefined;
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
       return false;
@@ -522,6 +531,20 @@ export class SessionManager {
       db.prepare(
         'UPDATE sessions SET claude_session_id = ? WHERE session_id = ?',
       ).run(event.claudeSessionId, sessionId);
+    }
+
+    // Capture auto-generated worktree name from hook event cwd
+    if (row.worktree === '' && typeof event.payload.cwd === 'string') {
+      const worktreePrefix = join(row.cwd, '.claude', 'worktrees') + '/';
+      if (event.payload.cwd.startsWith(worktreePrefix)) {
+        const rest = event.payload.cwd.slice(worktreePrefix.length);
+        const name = rest.split('/')[0];
+        if (name) {
+          db.prepare('UPDATE sessions SET worktree = ? WHERE session_id = ?')
+            .run(name, sessionId);
+          row = { ...row, worktree: name };
+        }
+      }
     }
 
     // Apply state transitions

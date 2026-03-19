@@ -20,6 +20,7 @@ export interface SessionInfo {
   status: SessionStatus;
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
+  worktree: string | null;
   startedAt: string; // ISO 8601
   endedAt: string | null;
 
@@ -40,6 +41,7 @@ export interface SessionCreateInput {
   initialPrompt?: string;
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
+  worktree?: string;
   command?: string;
   sessionType?: SessionType;
   ephemeral?: boolean;
