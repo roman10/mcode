@@ -203,4 +203,14 @@ describe('hook integration', () => {
     expect(ended.status).toBe('ended');
     expect(ended.attentionLevel).toBe('none');
   });
+
+  it('hook_list_recent_all returns events across sessions', async () => {
+    // Earlier tests in this suite injected events into multiple sessions.
+    // hook_list_recent_all should return events from across all of them.
+    const events = await client.callToolJson<Array<{ sessionId: string }>>(
+      'hook_list_recent_all',
+    );
+    expect(Array.isArray(events)).toBe(true);
+    expect(events.length).toBeGreaterThan(0);
+  });
 });

@@ -104,4 +104,31 @@ describe('error cases', () => {
     });
     expect(result.isError).toBe(true);
   });
+
+  // --- Session delete errors ---
+
+  it('session_delete returns error for non-existent session', async () => {
+    const result = await client.callTool('session_delete', {
+      sessionId: FAKE_ID,
+    });
+    expect(result.isError).toBe(true);
+  });
+
+  // --- Terminal action errors ---
+
+  it('terminal_execute_action returns error for non-existent session', async () => {
+    const result = await client.callTool('terminal_execute_action', {
+      sessionId: FAKE_ID,
+      action: 'copy',
+    });
+    expect(result.isError).toBe(true);
+  });
+
+  it('terminal_drop_files returns error for non-existent session', async () => {
+    const result = await client.callTool('terminal_drop_files', {
+      sessionId: FAKE_ID,
+      filePaths: ['/tmp/x'],
+    });
+    expect(result.isError).toBe(true);
+  });
 });
