@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { existsSync, mkdirSync, readdirSync, symlinkSync, copyFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, symlinkSync, copyFileSync, rmSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getDb } from './db';
@@ -99,15 +99,12 @@ export class AccountManager {
     return this.get(accountId)!;
   }
 
-  /**
-   * Delete a secondary account profile.
-   * Does NOT delete the directory (user can clean up manually).
-   */
+  /** Delete a secondary account profile and remove its home directory. */
   delete(accountId: string): void {
     const db = getDb();
     const row = db
-      .prepare('SELECT is_default FROM account_profiles WHERE account_id = ?')
-      .get(accountId) as { is_default: number } | undefined;
+      .prepare('SELECT is_default, home_dir FROM account_profiles WHERE account_id = ?')
+      .get(accountId) as { is_default: number; home_dir: string | null } | undefined;
 
     if (!row) throw new Error(`Account not found: ${accountId}`);
     if (row.is_default) throw new Error('Cannot delete the default account');
@@ -122,6 +119,22 @@ export class AccountManager {
 
     db.prepare('UPDATE sessions SET account_id = NULL WHERE account_id = ?').run(accountId);
     db.prepare('DELETE FROM account_profiles WHERE account_id = ?').run(accountId);
+
+    // Remove the account home directory (symlinks are removed, not followed).
+    // Safety: only delete if the path is inside the expected base directory.
+    const resolvedHome = row.home_dir ? resolve(row.home_dir) : null;
+    if (resolvedHome && resolvedHome.startsWith(ACCOUNTS_BASE + '/') && existsSync(resolvedHome)) {
+      try {
+        rmSync(resolvedHome, { recursive: true });
+        logger.info('accounts', 'Removed account home directory', { accountId, homeDir: resolvedHome });
+      } catch (err) {
+        logger.warn('accounts', 'Failed to remove account home directory', {
+          accountId,
+          homeDir: resolvedHome,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     logger.info('accounts', 'Deleted account', { accountId });
   }
