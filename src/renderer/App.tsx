@@ -9,6 +9,7 @@ import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
 import { executeAppCommand } from './utils/app-commands';
+import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
 import type { CreateTaskInput } from '../shared/types';
 
@@ -220,7 +221,7 @@ function App(): React.JSX.Element {
   if (error) {
     return (
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
-        <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
+        <TitleBar />
         <div className="flex flex-1 min-h-0 items-center justify-center">
           <span className="text-red-400">Failed to initialize: {error}</span>
         </div>
@@ -231,7 +232,7 @@ function App(): React.JSX.Element {
   if (loading) {
     return (
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
-        <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
+        <TitleBar />
         <div className="flex flex-1 min-h-0 items-center justify-center">
           <span className="text-text-secondary">Loading...</span>
         </div>
@@ -242,8 +243,7 @@ function App(): React.JSX.Element {
   return (
     <RadixTooltip.Provider delayDuration={200}>
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
-        {/* Title bar drag region */}
-        <div className="h-[38px] shrink-0 [-webkit-app-region:drag]" />
+        <TitleBar />
 
         {/* Main content: sidebar + mosaic */}
         <div className="flex flex-1 min-h-0">
