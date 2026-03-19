@@ -43,7 +43,7 @@ The sidebar shows all sessions grouped by date (Today, Yesterday, then by date):
 
 - **Green dot** — Active session (Claude Code is running)
 - **Blue dot** — Idle (session is waiting for input)
-- **Red dot** — Waiting (needs attention)
+- **Red dot** — Waiting (e.g., awaiting permission approval)
 - **Amber dot** — Starting (session is initializing)
 - **Gray dot** — Ended (session has terminated)
 
