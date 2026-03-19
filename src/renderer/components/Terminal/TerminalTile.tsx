@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import TerminalToolbar from './TerminalToolbar';
+import TileTaskPanel from './TileTaskPanel';
 import TerminalInstance from './TerminalInstance';
 import SessionEndedPrompt from './SessionEndedPrompt';
 import { useLayoutStore } from '../../stores/layout-store';
@@ -87,6 +88,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       onKeyDown={handleKeyDown}
     >
       <TerminalToolbar sessionId={sessionId} onClose={handleClose} isMaximized={isMaximized} onToggleMaximize={handleToggleMaximize} />
+      <TileTaskPanel sessionId={sessionId} />
       <div className="flex-1 min-h-0 min-w-0 pl-1">
         {status === 'ended' ? (
           <SessionEndedPrompt sessionId={sessionId} />

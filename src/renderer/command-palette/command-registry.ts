@@ -96,6 +96,14 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'toggle-dashboard' }),
     },
     {
+      id: 'toggle-commit-stats',
+      label: 'Toggle Commit Stats',
+      category: 'Layout',
+      shortcut: shortcuts.get('Toggle Commit Stats'),
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'toggle-commit-stats' }),
+    },
+    {
       id: 'close-all-tiles',
       label: 'Close All Tiles',
       category: 'Layout',

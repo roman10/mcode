@@ -10,6 +10,7 @@ import type {
   HookEvent,
   Task,
   CreateTaskInput,
+  UpdateTaskInput,
   TaskFilter,
   TaskChangeEvent,
   AppCommand,
@@ -224,6 +225,9 @@ contextBridge.exposeInMainWorld('mcode', {
 
     list: (filter?: TaskFilter): Promise<Task[]> =>
       ipcRenderer.invoke('task:list', filter),
+
+    update: (taskId: number, input: UpdateTaskInput): Promise<Task> =>
+      ipcRenderer.invoke('task:update', taskId, input),
 
     cancel: (taskId: number): Promise<void> =>
       ipcRenderer.invoke('task:cancel', taskId),

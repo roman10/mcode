@@ -6,19 +6,24 @@ import type { CreateTaskInput } from '../../../shared/types';
 interface CreateTaskDialogProps {
   onClose(): void;
   onCreate(input: CreateTaskInput): void;
+  defaultTargetSessionId?: string;
+  defaultCwd?: string;
 }
 
 function CreateTaskDialog({
   onClose,
   onCreate,
+  defaultTargetSessionId,
+  defaultCwd,
 }: CreateTaskDialogProps): React.JSX.Element {
   const [prompt, setPrompt] = useState('');
-  const [cwd, setCwd] = useState('');
-  const [targetSessionId, setTargetSessionId] = useState('');
+  const [cwd, setCwd] = useState(defaultCwd ?? '');
+  const [targetSessionId, setTargetSessionId] = useState(defaultTargetSessionId ?? '');
   const [priority, setPriority] = useState(0);
   const [scheduledAt, setScheduledAt] = useState('');
   const [maxRetries, setMaxRetries] = useState(3);
-  const [showAdvanced, setShowAdvanced] = useState(true);
+  // Collapse advanced options when opened from tile context (defaults pre-filled)
+  const [showAdvanced, setShowAdvanced] = useState(!defaultTargetSessionId);
   const [isCreating, setIsCreating] = useState(false);
 
   const sessions = useSessionStore((s) => s.sessions);
@@ -32,11 +37,13 @@ function CreateTaskDialog({
   );
 
   useEffect(() => {
-    window.mcode.sessions.getLastDefaults().then((defaults) => {
-      if (!defaults) return;
-      setCwd(defaults.cwd);
-    });
-  }, []);
+    if (!defaultCwd) {
+      window.mcode.sessions.getLastDefaults().then((defaults) => {
+        if (!defaults) return;
+        setCwd(defaults.cwd);
+      });
+    }
+  }, [defaultCwd]);
 
   const handleBrowse = async (): Promise<void> => {
     const dir = await window.mcode.app.selectDirectory();
@@ -127,9 +134,10 @@ function CreateTaskDialog({
                   Target session
                 </label>
                 <select
-                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
                   value={targetSessionId}
                   onChange={(e) => setTargetSessionId(e.target.value)}
+                  disabled={!!defaultTargetSessionId}
                 >
                   <option value="">Auto (new session)</option>
                   {targetableSessions.map((s) => (

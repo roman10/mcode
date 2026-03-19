@@ -13,7 +13,7 @@ import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
-import type { SessionCreateInput, CreateTaskInput, TaskFilter, HookRuntimeInfo, ExternalSessionInfo, AppCommand } from '../shared/types';
+import type { SessionCreateInput, CreateTaskInput, UpdateTaskInput, TaskFilter, HookRuntimeInfo, ExternalSessionInfo, AppCommand } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
@@ -243,6 +243,10 @@ function registerTaskIpc(): void {
     return taskQueue.list(filter);
   });
 
+  ipcMain.handle('task:update', (_event, taskId: number, input: UpdateTaskInput) => {
+    return taskQueue.update(taskId, input);
+  });
+
   ipcMain.handle('task:cancel', (_event, taskId: number) => {
     taskQueue.cancel(taskId);
   });
@@ -464,6 +468,11 @@ app.whenReady().then(async () => {
             label: 'Toggle Dashboard',
             accelerator: 'CmdOrCtrl+Shift+A',
             click: () => sendCommand({ command: 'toggle-dashboard' }),
+          },
+          {
+            label: 'Toggle Commit Stats',
+            accelerator: 'CmdOrCtrl+Shift+B',
+            click: () => sendCommand({ command: 'toggle-commit-stats' }),
           },
           {
             label: 'Quick Open',

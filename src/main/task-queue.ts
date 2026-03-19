@@ -7,6 +7,7 @@ import type {
   Task,
   TaskStatus,
   CreateTaskInput,
+  UpdateTaskInput,
   TaskFilter,
   TaskChangeEvent,
   HookRuntimeInfo,
@@ -131,7 +132,11 @@ export class TaskQueue {
         throw new Error('Target session must be in live hook mode');
       }
       if (session.status === 'ended') {
-        throw new Error('Target session has ended');
+        // Resume the ended session so the task runs with its conversation context
+        this.sessionManager.resume(input.targetSessionId);
+        logger.info('task', 'Resumed ended session for task dispatch', {
+          targetSessionId: input.targetSessionId,
+        });
       }
     }
 
@@ -203,6 +208,43 @@ export class TaskQueue {
 
     logger.info('task', 'Cancelled task', { taskId });
     this.broadcastChange({ type: 'remove', taskId });
+  }
+
+  update(taskId: number, input: UpdateTaskInput): Task {
+    const task = this.getById(taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+    if (task.status !== 'pending') {
+      throw new Error(`Cannot update task in status "${task.status}" — only pending tasks can be edited`);
+    }
+
+    const db = getDb();
+    const sets: string[] = [];
+    const params: unknown[] = [];
+
+    if (input.prompt !== undefined) {
+      sets.push('prompt = ?');
+      params.push(input.prompt);
+    }
+    if (input.priority !== undefined) {
+      sets.push('priority = ?');
+      params.push(input.priority);
+    }
+    if (input.scheduledAt !== undefined) {
+      sets.push('scheduled_at = ?');
+      params.push(input.scheduledAt);
+    }
+
+    if (sets.length === 0) return task;
+
+    params.push(taskId);
+    db.prepare(`UPDATE task_queue SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+
+    const updated = this.getById(taskId)!;
+    logger.info('task', 'Updated task', { taskId, fields: Object.keys(input) });
+    this.broadcastChange({ type: 'upsert', task: updated });
+    return updated;
   }
 
   getById(taskId: number): Task | null {

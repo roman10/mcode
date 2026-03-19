@@ -81,6 +81,32 @@ export function registerTaskTools(
     }
   });
 
+  server.registerTool('task_update', {
+    description: 'Update a pending task. Only pending tasks can be edited.',
+    inputSchema: {
+      taskId: z.number().int().describe('The task ID to update'),
+      prompt: z.string().optional().describe('New prompt text'),
+      priority: z.number().int().optional().describe('New priority value'),
+      scheduledAt: z.string().nullable().optional().describe('New scheduled time (ISO 8601, or null to clear)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ taskId, prompt, priority, scheduledAt }) => {
+    try {
+      const task = ctx.taskQueue.update(taskId, { prompt, priority, scheduledAt });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(task, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Failed to update task: ${err instanceof Error ? err.message : String(err)}`,
+        }],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('task_wait_for_status', {
     description: 'Wait until a task reaches the specified status. Polls every 250ms.',
     inputSchema: {

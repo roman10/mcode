@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
-import { Maximize2, Minimize2, Square, X } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Maximize2, Minimize2, Plus, Square, X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
+import { useTaskStore } from '../../stores/task-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import Tooltip from '../shared/Tooltip';
-import type { SessionStatus } from '../../../shared/types';
+import CreateTaskDialog from '../shared/CreateTaskDialog';
+import type { SessionStatus, CreateTaskInput } from '../../../shared/types';
 
 interface TerminalToolbarProps {
   sessionId: string;
@@ -41,8 +43,28 @@ function TerminalToolbar({
   const lastTool = session?.lastTool;
   const shortTime = useRelativeTime(session?.startedAt ?? '');
 
+  const canQueueTasks =
+    session?.sessionType === 'claude' &&
+    session?.hookMode === 'live' &&
+    status !== 'ended';
+
+  const tasks = useTaskStore((s) => s.tasks);
+  const addTask = useTaskStore((s) => s.addTask);
+  const pendingTaskCount = useMemo(
+    () =>
+      canQueueTasks
+        ? Object.values(tasks).filter(
+            (t) =>
+              t.targetSessionId === sessionId &&
+              (t.status === 'pending' || t.status === 'dispatched'),
+          ).length
+        : 0,
+    [tasks, sessionId, canQueueTasks],
+  );
+
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const startEditing = (): void => {
@@ -71,6 +93,16 @@ function TerminalToolbar({
       await window.mcode.sessions.kill(sessionId);
     } catch (err) {
       console.error('Failed to kill session:', err);
+    }
+  };
+
+  const handleCreateTask = async (input: CreateTaskInput): Promise<void> => {
+    try {
+      await addTask(input);
+      setShowCreateDialog(false);
+    } catch (err) {
+      console.error('Failed to create task:', err);
+      setShowCreateDialog(false);
     }
   };
 
@@ -125,8 +157,26 @@ function TerminalToolbar({
         </span>
       )}
 
+      {/* Task count badge */}
+      {pendingTaskCount > 0 && (
+        <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 rounded ml-1 shrink-0">
+          {pendingTaskCount} {pendingTaskCount === 1 ? 'task' : 'tasks'}
+        </span>
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-1 ml-2">
+        {canQueueTasks && (
+          <Tooltip content="Add task" side="bottom">
+            <button
+              aria-label="Add task"
+              className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"
+              onClick={() => setShowCreateDialog(true)}
+            >
+              <Plus size={14} strokeWidth={1.5} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content={isMaximized ? 'Restore layout (⌘↵)' : 'Maximize tile (⌘↵)'} side="bottom">
           <button
             aria-label={isMaximized ? 'Restore layout' : 'Maximize tile'}
@@ -157,6 +207,15 @@ function TerminalToolbar({
           </button>
         </Tooltip>
       </div>
+
+      {showCreateDialog && (
+        <CreateTaskDialog
+          onClose={() => setShowCreateDialog(false)}
+          onCreate={handleCreateTask}
+          defaultTargetSessionId={sessionId}
+          defaultCwd={session?.cwd}
+        />
+      )}
     </div>
   );
 }

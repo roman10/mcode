@@ -4,7 +4,7 @@ import { useTaskStore } from '../../stores/task-store';
 import { useSessionStore } from '../../stores/session-store';
 import type { TaskStatus, Task, CreateTaskInput } from '../../../shared/types';
 import Tooltip from '../shared/Tooltip';
-import CreateTaskDialog from './CreateTaskDialog';
+import CreateTaskDialog from '../shared/CreateTaskDialog';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-amber-400',

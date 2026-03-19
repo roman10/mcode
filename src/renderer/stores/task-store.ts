@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Task, CreateTaskInput, TaskFilter } from '../../shared/types';
+import type { Task, CreateTaskInput, UpdateTaskInput, TaskFilter } from '../../shared/types';
 
 interface TaskState {
   tasks: Record<number, Task>;
@@ -8,6 +8,7 @@ interface TaskState {
   upsertTask(task: Task): void;
   removeTask(taskId: number): void;
   addTask(input: CreateTaskInput): Promise<number>;
+  updateTask(taskId: number, input: UpdateTaskInput): Promise<Task>;
   cancelTask(taskId: number): Promise<void>;
   refreshTasks(filter?: TaskFilter): Promise<void>;
 }
@@ -34,6 +35,14 @@ export const useTaskStore = create<TaskState>((set) => ({
   addTask: async (input) => {
     const taskId = await window.mcode.tasks.create(input);
     return taskId;
+  },
+
+  updateTask: async (taskId, input) => {
+    const task = await window.mcode.tasks.update(taskId, input);
+    set((state) => ({
+      tasks: { ...state.tasks, [task.id]: task },
+    }));
+    return task;
   },
 
   cancelTask: async (taskId) => {

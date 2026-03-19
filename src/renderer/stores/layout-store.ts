@@ -62,6 +62,7 @@ interface LayoutState {
   removeDashboard(): void;
   addCommitStats(): void;
   removeCommitStats(): void;
+  toggleCommitStats(): void;
   persist(): void;
   flushPersist(): void;
   restore(): Promise<void>;
@@ -320,6 +321,17 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       get().removeDashboard();
     } else {
       get().addDashboard();
+    }
+    get().persist();
+  },
+
+  toggleCommitStats: () => {
+    const current = get().mosaicTree;
+    const has = current ? getLeaves(current).includes(COMMIT_STATS_TILE_ID) : false;
+    if (has) {
+      get().removeCommitStats();
+    } else {
+      get().addCommitStats();
     }
     get().persist();
   },

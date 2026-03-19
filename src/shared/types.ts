@@ -78,6 +78,7 @@ export type AppCommand =
   | { command: 'show-keyboard-shortcuts' }
   | { command: 'show-settings' }
   | { command: 'toggle-dashboard' }
+  | { command: 'toggle-commit-stats' }
   | { command: 'clear-all-attention' }
   | { command: 'close-all-tiles' }
   | { command: 'show-command-palette' }
@@ -143,6 +144,12 @@ export interface CreateTaskInput {
   priority?: number;
   scheduledAt?: string;
   maxRetries?: number;
+}
+
+export interface UpdateTaskInput {
+  prompt?: string;
+  priority?: number;
+  scheduledAt?: string | null;
 }
 
 export interface TaskFilter {
@@ -325,6 +332,7 @@ export interface MCodeAPI {
   tasks: {
     create(input: CreateTaskInput): Promise<number>;
     list(filter?: TaskFilter): Promise<Task[]>;
+    update(taskId: number, input: UpdateTaskInput): Promise<Task>;
     cancel(taskId: number): Promise<void>;
     onChanged(callback: (event: TaskChangeEvent) => void): () => void;
   };

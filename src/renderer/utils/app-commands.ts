@@ -73,6 +73,10 @@ export function executeAppCommand(command: AppCommand): void {
       useLayoutStore.getState().toggleDashboard();
       break;
 
+    case 'toggle-commit-stats':
+      useLayoutStore.getState().toggleCommitStats();
+      break;
+
     case 'clear-all-attention':
       window.mcode.sessions.clearAllAttention().catch(console.error);
       break;
