@@ -110,10 +110,10 @@ function SessionCard({
               <span className="text-text-muted font-mono text-xs mr-1">&gt;_</span>
             )}
             {session.label}
+            {accountName && (
+              <span className="text-[10px] text-text-muted ml-1.5">{accountName}</span>
+            )}
           </span>
-        )}
-        {accountName && (
-          <span className="text-[11px] text-text-muted truncate">{accountName}</span>
         )}
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-text-muted truncate" title={session.cwd}>
