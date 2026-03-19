@@ -22,8 +22,7 @@ function CreateTaskDialog({
   const [priority, setPriority] = useState(0);
   const [scheduledAt, setScheduledAt] = useState('');
   const [maxRetries, setMaxRetries] = useState(3);
-  // Collapse advanced options when opened from tile context (defaults pre-filled)
-  const [showAdvanced, setShowAdvanced] = useState(!defaultTargetSessionId);
+  const [showAdvanced, setShowAdvanced] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
 
   const sessions = useSessionStore((s) => s.sessions);
