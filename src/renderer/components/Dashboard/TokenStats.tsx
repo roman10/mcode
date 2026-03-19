@@ -209,9 +209,9 @@ function TokenStats(): React.JSX.Element {
               · {formatCost(costPerMsg)}/msg
             </span>
           )}
-          {totals && (totals.inputTokens > 0 || totals.outputTokens > 0) && (
+          {totals && (totalInputTokens > 0 || totals.outputTokens > 0) && (
             <div className="text-[11px] text-text-muted mt-0.5">
-              In: {formatTokens(totals.inputTokens)} · Out: {formatTokens(totals.outputTokens)} · Total: {formatTokens(totals.inputTokens + totals.outputTokens)}
+              In: {formatTokens(totalInputTokens)} · Out: {formatTokens(totals.outputTokens)} · Total: {formatTokens(totalInputTokens + totals.outputTokens)}
             </div>
           )}
         </div>

@@ -31,7 +31,8 @@ interface TrackedFileRecord {
   file_size: number;
 }
 
-interface UsageRow {
+/** Common shape for all token aggregation queries (GROUP BY model, is_fast_mode). */
+interface TokenAggRow {
   model: string;
   input_tokens: number;
   output_tokens: number;
@@ -40,25 +41,17 @@ interface UsageRow {
   cache_read_tokens: number;
   is_fast_mode: number;
   message_count: number;
-  first_ts: string | null;
-  last_ts: string | null;
 }
 
-interface DailyRow {
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  cache_write_5m_tokens: number;
-  cache_write_1h_tokens: number;
-  cache_read_tokens: number;
-  is_fast_mode: number;
-  cnt: number;
+interface UsageRow extends TokenAggRow {
+  first_ts: string | null;
+  last_ts: string | null;
 }
 
 interface HeatmapRow {
   date: string;
   output_tokens: number;
-  cnt: number;
+  message_count: number;
   input_tokens: number;
   cache_write_5m_tokens: number;
   cache_write_1h_tokens: number;
@@ -67,7 +60,7 @@ interface HeatmapRow {
 
 interface WeekRow {
   output_tokens: number;
-  cnt: number;
+  message_count: number;
   input_tokens: number;
   cache_write_5m_tokens: number;
   cache_write_1h_tokens: number;
@@ -267,25 +260,16 @@ export class TokenTracker {
              SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
              SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
              SUM(cache_read_tokens) as cache_read_tokens,
-             MAX(is_fast_mode) as is_fast_mode,
+             is_fast_mode,
              COUNT(*) as message_count,
              MIN(message_timestamp) as first_ts,
              MAX(message_timestamp) as last_ts
       FROM token_usage
       WHERE claude_session_id = ?
-      GROUP BY model
+      GROUP BY model, is_fast_mode
     `).all(claudeSessionId) as UsageRow[];
 
-    const models: ModelUsageSummary[] = rows.map((r) => {
-      const totals = rowToTotals(r);
-      return {
-        model: r.model,
-        modelFamily: normalizeModelFamily(r.model),
-        totals,
-        estimatedCostUsd: estimateCostForTotals(r.model, totals, r.is_fast_mode === 1),
-        messageCount: r.message_count,
-      };
-    });
+    const models = buildModelSummaries(rows);
 
     const totals = sumTotals(models.map((m) => m.totals));
     const totalCost = models.reduce((acc, m) => acc + m.estimatedCostUsd, 0);
@@ -320,23 +304,14 @@ export class TokenTracker {
              SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
              SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
              SUM(cache_read_tokens) as cache_read_tokens,
-             MAX(is_fast_mode) as is_fast_mode,
-             COUNT(*) as cnt
+             is_fast_mode,
+             COUNT(*) as message_count
       FROM token_usage
       WHERE date = ?
-      GROUP BY model
-    `).all(targetDate) as DailyRow[];
+      GROUP BY model, is_fast_mode
+    `).all(targetDate) as TokenAggRow[];
 
-    const byModel: ModelUsageSummary[] = rows.map((r) => {
-      const totals = rowToTotals(r);
-      return {
-        model: r.model,
-        modelFamily: normalizeModelFamily(r.model),
-        totals,
-        estimatedCostUsd: estimateCostForTotals(r.model, totals, r.is_fast_mode === 1),
-        messageCount: r.cnt,
-      };
-    });
+    const byModel = buildModelSummaries(rows);
 
     // Top sessions by output tokens
     const topSessionIds = db.prepare(`
@@ -360,15 +335,16 @@ export class TokenTracker {
              SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
              SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
              SUM(cache_read_tokens) as cache_read_tokens,
-             MAX(is_fast_mode) as is_fast_mode
+             is_fast_mode,
+             COUNT(*) as message_count
       FROM token_usage
       WHERE date = ? AND claude_session_id = ?
-      GROUP BY model
+      GROUP BY model, is_fast_mode
     `);
 
     const topSessions = topSessionIds.map((r) => {
       const labelRow = getLabel.get(r.claude_session_id) as { label: string } | undefined;
-      const modelRows = getSessionModels.all(targetDate, r.claude_session_id) as DailyRow[];
+      const modelRows = getSessionModels.all(targetDate, r.claude_session_id) as TokenAggRow[];
       let sessionCost = 0;
       for (const m of modelRows) {
         sessionCost += estimateCostForTotals(m.model, rowToTotals(m), m.is_fast_mode === 1);
@@ -408,25 +384,19 @@ export class TokenTracker {
              SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
              SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
              SUM(cache_read_tokens) as cache_read_tokens,
-             MAX(is_fast_mode) as is_fast_mode,
-             COUNT(*) as cnt
+             is_fast_mode,
+             COUNT(*) as message_count
       FROM token_usage
       WHERE date >= ?
-      GROUP BY model
+      GROUP BY model, is_fast_mode
       ORDER BY output_tokens DESC
-    `).all(startDateStr) as DailyRow[];
+    `).all(startDateStr) as TokenAggRow[];
 
-    const items = rows.map((r) => {
-      const totals = rowToTotals(r);
-      return {
-        model: r.model,
-        modelFamily: normalizeModelFamily(r.model),
-        totals,
-        estimatedCostUsd: estimateCostForTotals(r.model, totals, r.is_fast_mode === 1),
-        messageCount: r.cnt,
-        pctOfTotalCost: 0,
-      };
-    });
+    const summaries = buildModelSummaries(rows);
+    const items: ModelTokenBreakdown[] = summaries.map((s) => ({
+      ...s,
+      pctOfTotalCost: 0,
+    }));
 
     const totalCost = items.reduce((acc, i) => acc + i.estimatedCostUsd, 0);
     if (totalCost > 0) {
@@ -443,7 +413,7 @@ export class TokenTracker {
 
     const thisWeekRow = db.prepare(`
       SELECT COALESCE(SUM(output_tokens), 0) as output_tokens,
-             COUNT(*) as cnt,
+             COUNT(*) as message_count,
              COALESCE(SUM(input_tokens), 0) as input_tokens,
              COALESCE(SUM(cache_write_5m_tokens), 0) as cache_write_5m_tokens,
              COALESCE(SUM(cache_write_1h_tokens), 0) as cache_write_1h_tokens,
@@ -454,7 +424,7 @@ export class TokenTracker {
 
     const lastWeekRow = db.prepare(`
       SELECT COALESCE(SUM(output_tokens), 0) as output_tokens,
-             COUNT(*) as cnt,
+             COUNT(*) as message_count,
              COALESCE(SUM(input_tokens), 0) as input_tokens,
              COALESCE(SUM(cache_write_5m_tokens), 0) as cache_write_5m_tokens,
              COALESCE(SUM(cache_write_1h_tokens), 0) as cache_write_1h_tokens,
@@ -476,12 +446,12 @@ export class TokenTracker {
       thisWeek: {
         outputTokens: thisWeekRow.output_tokens,
         estimatedCostUsd: thisWeekCost,
-        messageCount: thisWeekRow.cnt,
+        messageCount: thisWeekRow.message_count,
       },
       lastWeek: {
         outputTokens: lastWeekRow.output_tokens,
         estimatedCostUsd: lastWeekCost,
-        messageCount: lastWeekRow.cnt,
+        messageCount: lastWeekRow.message_count,
       },
       pctChange,
     };
@@ -496,7 +466,7 @@ export class TokenTracker {
     const rows = db.prepare(`
       SELECT date,
              COALESCE(SUM(output_tokens), 0) as output_tokens,
-             COUNT(*) as cnt,
+             COUNT(*) as message_count,
              COALESCE(SUM(input_tokens), 0) as input_tokens,
              COALESCE(SUM(cache_write_5m_tokens), 0) as cache_write_5m_tokens,
              COALESCE(SUM(cache_write_1h_tokens), 0) as cache_write_1h_tokens,
@@ -517,14 +487,14 @@ export class TokenTracker {
                SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
                SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
                SUM(cache_read_tokens) as cache_read_tokens,
-               MAX(is_fast_mode) as is_fast_mode
-        FROM token_usage WHERE date = ? GROUP BY model
-      `).all(row.date) as DailyRow[];
+               is_fast_mode,
+               COUNT(*) as message_count
+        FROM token_usage WHERE date = ? GROUP BY model, is_fast_mode
+      `).all(row.date) as TokenAggRow[];
 
       let cost = 0;
       for (const m of dayModels) {
-        const totals = rowToTotals(m);
-        cost += estimateCostForTotals(m.model, totals, m.is_fast_mode === 1);
+        cost += estimateCostForTotals(m.model, rowToTotals(m), m.is_fast_mode === 1);
       }
       dayCosts.set(row.date, cost);
     }
@@ -541,7 +511,7 @@ export class TokenTracker {
         date: dateStr,
         outputTokens: existing?.output_tokens ?? 0,
         estimatedCostUsd: dayCosts.get(dateStr) ?? 0,
-        messageCount: existing?.cnt ?? 0,
+        messageCount: existing?.message_count ?? 0,
       });
     }
 
@@ -637,6 +607,34 @@ function sumTotals(items: TokenTotals[]): TokenTotals {
   return result;
 }
 
+/**
+ * Build ModelUsageSummary[] from rows grouped by (model, is_fast_mode).
+ * Computes per-row cost with the correct fast-mode multiplier, then merges
+ * rows with the same model into a single summary.
+ */
+function buildModelSummaries(rows: TokenAggRow[]): ModelUsageSummary[] {
+  const byModel = new Map<string, ModelUsageSummary>();
+  for (const r of rows) {
+    const totals = rowToTotals(r);
+    const cost = estimateCostForTotals(r.model, totals, r.is_fast_mode === 1);
+    const existing = byModel.get(r.model);
+    if (existing) {
+      existing.totals = sumTotals([existing.totals, totals]);
+      existing.estimatedCostUsd += cost;
+      existing.messageCount += r.message_count;
+    } else {
+      byModel.set(r.model, {
+        model: r.model,
+        modelFamily: normalizeModelFamily(r.model),
+        totals,
+        estimatedCostUsd: cost,
+        messageCount: r.message_count,
+      });
+    }
+  }
+  return Array.from(byModel.values());
+}
+
 function estimateCostForTotals(model: string, totals: TokenTotals, isFastMode: boolean): number {
   return estimateCostUsd(
     model,
@@ -657,16 +655,16 @@ function estimateWeekCost(db: ReturnType<typeof getDb>, whereClause: string): nu
            SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
            SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
            SUM(cache_read_tokens) as cache_read_tokens,
-           MAX(is_fast_mode) as is_fast_mode
+           is_fast_mode,
+           COUNT(*) as message_count
     FROM token_usage
     WHERE ${whereClause}
-    GROUP BY model
-  `).all() as DailyRow[];
+    GROUP BY model, is_fast_mode
+  `).all() as TokenAggRow[];
 
   let cost = 0;
   for (const r of rows) {
-    const totals = rowToTotals(r);
-    cost += estimateCostForTotals(r.model, totals, r.is_fast_mode === 1);
+    cost += estimateCostForTotals(r.model, rowToTotals(r), r.is_fast_mode === 1);
   }
   return cost;
 }
