@@ -62,6 +62,14 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'new-terminal' }),
     },
     {
+      id: 'new-task',
+      label: 'New Task',
+      category: 'General',
+      shortcut: shortcuts.get('New Task'),
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'show-create-task' }),
+    },
+    {
       id: 'show-settings',
       label: 'Settings',
       category: 'General',

@@ -25,6 +25,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Close All Tiles', keys: 'Shift+X', mod: true, category: 'general' },
   { label: 'Quick Open', keys: 'P', mod: true, category: 'general' },
   { label: 'Command Palette', keys: 'Shift+P', mod: true, category: 'general' },
+  { label: 'New Task', keys: 'Shift+T', mod: true, category: 'general' },
   { label: 'Close Tile', keys: 'W', mod: true, category: 'general' },
 
   // Sessions

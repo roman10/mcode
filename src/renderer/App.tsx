@@ -9,6 +9,8 @@ import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
 import { executeAppCommand } from './utils/app-commands';
+import CreateTaskDialog from './components/shared/CreateTaskDialog';
+import type { CreateTaskInput } from '../shared/types';
 
 function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -209,6 +211,11 @@ function App(): React.JSX.Element {
   const showCommandPalette = useLayoutStore((s) => s.showCommandPalette);
   const setShowCommandPalette = useLayoutStore((s) => s.setShowCommandPalette);
   const quickOpenInitialMode = useLayoutStore((s) => s.quickOpenInitialMode);
+  const showCreateTaskDialog = useLayoutStore((s) => s.showCreateTaskDialog);
+  const setShowCreateTaskDialog = useLayoutStore((s) => s.setShowCreateTaskDialog);
+  const addTask = useTaskStore((s) => s.addTask);
+  const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
+  const selectedSession = useSessionStore((s) => selectedSessionId ? s.sessions[selectedSessionId] : null);
 
   if (error) {
     return (
@@ -258,6 +265,27 @@ function App(): React.JSX.Element {
           onClose={() => setShowCommandPalette(false)}
         />
       )}
+      {showCreateTaskDialog && (() => {
+        const canTarget =
+          selectedSession?.sessionType === 'claude' &&
+          selectedSession?.hookMode === 'live' &&
+          selectedSession?.status !== 'ended';
+        return (
+          <CreateTaskDialog
+            onClose={() => setShowCreateTaskDialog(false)}
+            onCreate={async (input: CreateTaskInput) => {
+              try {
+                await addTask(input);
+              } catch (err) {
+                console.error('Failed to create task:', err);
+              }
+              setShowCreateTaskDialog(false);
+            }}
+            defaultTargetSessionId={canTarget ? selectedSessionId ?? undefined : undefined}
+            defaultCwd={canTarget ? selectedSession?.cwd : undefined}
+          />
+        );
+      })()}
     </RadixTooltip.Provider>
   );
 }

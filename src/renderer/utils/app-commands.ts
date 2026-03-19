@@ -98,6 +98,10 @@ export function executeAppCommand(command: AppCommand): void {
       break;
     }
 
+    case 'show-create-task':
+      useLayoutStore.getState().setShowCreateTaskDialog(true);
+      break;
+
     case 'quick-open': {
       const ls = useLayoutStore.getState();
       ls.setShowSettings(false);

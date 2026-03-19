@@ -167,7 +167,7 @@ function TerminalToolbar({
       {/* Actions */}
       <div className="flex items-center gap-1 ml-2">
         {canQueueTasks && (
-          <Tooltip content="Add task" side="bottom">
+          <Tooltip content="Add task (⌘⇧T)" side="bottom">
             <button
               aria-label="Add task"
               className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"

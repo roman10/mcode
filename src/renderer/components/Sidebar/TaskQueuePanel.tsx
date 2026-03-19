@@ -117,7 +117,7 @@ function TaskQueuePanel(): React.JSX.Element {
               {activeCount} active
             </span>
           </div>
-          <Tooltip content="New task" side="right">
+          <Tooltip content="New task (⌘⇧T)" side="right">
             <button
               className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
               onClick={(e) => {

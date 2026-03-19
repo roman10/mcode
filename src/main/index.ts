@@ -415,6 +415,11 @@ app.whenReady().then(async () => {
             accelerator: 'CmdOrCtrl+T',
             click: () => sendCommand({ command: 'new-terminal' }),
           },
+          {
+            label: 'New Task',
+            accelerator: 'CmdOrCtrl+Shift+T',
+            click: () => sendCommand({ command: 'show-create-task' }),
+          },
         ],
       },
       {

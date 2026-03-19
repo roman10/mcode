@@ -84,7 +84,8 @@ export type AppCommand =
   | { command: 'clear-all-attention' }
   | { command: 'close-all-tiles' }
   | { command: 'show-command-palette' }
-  | { command: 'quick-open' };
+  | { command: 'quick-open' }
+  | { command: 'show-create-task' };
 
 // --- Files ---
 

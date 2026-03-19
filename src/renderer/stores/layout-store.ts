@@ -35,6 +35,7 @@ interface LayoutState {
   showKeyboardShortcuts: boolean;
   showSettings: boolean;
   showCommandPalette: boolean;
+  showCreateTaskDialog: boolean;
   quickOpenInitialMode: 'files' | 'commands';
   restoreTree: MosaicNode<string> | null;
 
@@ -51,6 +52,7 @@ interface LayoutState {
   setShowKeyboardShortcuts(show: boolean): void;
   setShowSettings(show: boolean): void;
   setShowCommandPalette(show: boolean): void;
+  setShowCreateTaskDialog(show: boolean): void;
   openQuickOpen(mode: 'files' | 'commands'): void;
   addFileViewer(absolutePath: string): void;
   removeFileTile(absolutePath: string): void;
@@ -171,6 +173,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   showKeyboardShortcuts: false,
   showSettings: false,
   showCommandPalette: false,
+  showCreateTaskDialog: false,
   quickOpenInitialMode: 'files' as const,
   restoreTree: null,
 
@@ -270,6 +273,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setShowKeyboardShortcuts: (show) => set({ showKeyboardShortcuts: show }),
   setShowSettings: (show) => set({ showSettings: show }),
   setShowCommandPalette: (show) => set({ showCommandPalette: show }),
+  setShowCreateTaskDialog: (show) => set({ showCreateTaskDialog: show }),
 
   openQuickOpen: (mode) => set({ quickOpenInitialMode: mode, showCommandPalette: true }),
 
