@@ -72,7 +72,7 @@ function FileSearchItems({
     const order = uf.sort(info, files, query);
 
     return order.slice(0, 50).map((sortIdx) => {
-      const fileIdx = idxs[info.idx[sortIdx]];
+      const fileIdx = info.idx[sortIdx];
       return {
         path: files[fileIdx],
         ranges: (info.ranges[sortIdx] ?? null) as number[] | null,
