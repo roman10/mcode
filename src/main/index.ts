@@ -5,6 +5,7 @@ import { PtyManager } from './pty-manager';
 import { SessionManager } from './session-manager';
 import { TaskQueue } from './task-queue';
 import { CommitTracker } from './commit-tracker';
+import { TokenTracker } from './token-tracker';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister } from './file-lister';
 import { getPreference, setPreference } from './preferences';
@@ -13,13 +14,18 @@ import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
-import type { SessionCreateInput, CreateTaskInput, UpdateTaskInput, TaskFilter, HookRuntimeInfo, ExternalSessionInfo, AppCommand } from '../shared/types';
+import type {
+  SessionCreateInput, CreateTaskInput, UpdateTaskInput, TaskFilter, HookRuntimeInfo,
+  ExternalSessionInfo, AppCommand, SessionTokenUsage, DailyTokenUsage,
+  ModelTokenBreakdown, TokenWeeklyTrend, TokenHeatmapEntry,
+} from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PtyManager;
 let sessionManager: SessionManager;
 let taskQueue: TaskQueue;
 let commitTracker: CommitTracker;
+let tokenTracker: TokenTracker;
 let sleepBlocker: SleepBlocker;
 let fileLister: FileLister;
 let hookRuntimeInfo: HookRuntimeInfo = {
@@ -252,6 +258,32 @@ function registerTaskIpc(): void {
   });
 }
 
+function registerTokenIpc(): void {
+  ipcMain.handle('tokens:get-session-usage', (_event, claudeSessionId: string): SessionTokenUsage => {
+    return tokenTracker.getSessionUsage(claudeSessionId);
+  });
+
+  ipcMain.handle('tokens:get-daily-usage', (_event, date?: string): DailyTokenUsage => {
+    return tokenTracker.getDailyUsage(date);
+  });
+
+  ipcMain.handle('tokens:get-model-breakdown', (_event, days?: number): ModelTokenBreakdown[] => {
+    return tokenTracker.getModelBreakdown(days);
+  });
+
+  ipcMain.handle('tokens:get-weekly-trend', (): TokenWeeklyTrend => {
+    return tokenTracker.getWeeklyTrend();
+  });
+
+  ipcMain.handle('tokens:get-heatmap', (_event, days?: number): TokenHeatmapEntry[] => {
+    return tokenTracker.getHeatmap(days);
+  });
+
+  ipcMain.handle('tokens:refresh', async () => {
+    await tokenTracker.scanAll();
+  });
+}
+
 function registerCommitIpc(): void {
   ipcMain.handle('commits:get-daily-stats', (_event, date?: string) => {
     return commitTracker.getDailyStats(date);
@@ -330,6 +362,7 @@ async function initializeHookSystem(): Promise<void> {
         const handled = sessionManager.handleHookEvent(sessionId, event);
         if (handled) {
           commitTracker.onHookEvent(sessionId, event).catch(() => {});
+          tokenTracker.onHookEvent(sessionId, event).catch(() => {});
         }
         return handled;
       },
@@ -538,6 +571,7 @@ app.whenReady().then(async () => {
   );
   commitTracker = new CommitTracker(sessionManager, getWebContents);
   fileLister = new FileLister();
+  tokenTracker = new TokenTracker(getWebContents);
   sleepBlocker = new SleepBlocker();
   sleepBlocker.attach(sessionManager);
 
@@ -549,6 +583,7 @@ app.whenReady().then(async () => {
   registerHookIpc();
   registerTaskIpc();
   registerCommitIpc();
+  registerTokenIpc();
   registerPreferencesIpc();
 
   // Initialize hook system (server + config reconciliation)
@@ -557,8 +592,9 @@ app.whenReady().then(async () => {
   // Start task queue dispatch loop
   taskQueue.start();
 
-  // Start commit tracker
+  // Start commit tracker and token tracker
   commitTracker.start();
+  tokenTracker.start();
 
   // Wire commit tracker to hook events and session creation
   sessionManager.onSessionUpdated((session, previousStatus) => {
@@ -571,9 +607,11 @@ app.whenReady().then(async () => {
   // Start event pruning (also prune old commits)
   sessionManager.pruneOldEvents();
   commitTracker.pruneOldCommits();
+  tokenTracker.pruneOldUsage();
   pruneInterval = setInterval(() => {
     sessionManager.pruneOldEvents();
     commitTracker.pruneOldCommits();
+    tokenTracker.pruneOldUsage();
   }, HOOK_PRUNE_INTERVAL_MS);
 
   if (is.dev) {
@@ -584,6 +622,7 @@ app.whenReady().then(async () => {
         sessionManager,
         taskQueue,
         commitTracker,
+        tokenTracker,
         getHookRuntimeInfo: () => hookRuntimeInfo,
         sleepBlocker,
         fileLister,
@@ -597,9 +636,10 @@ app.whenReady().then(async () => {
     }
   });
 
-  // Scan repos when window regains focus (catches external commits)
+  // Scan repos/tokens when window regains focus (catches external activity)
   app.on('browser-window-focus', () => {
     commitTracker.scanAll().catch(() => {});
+    tokenTracker.scanAll().catch(() => {});
   });
 });
 
@@ -621,9 +661,10 @@ app.on('before-quit', (e) => {
     // Release sleep blocker
     sleepBlocker.detach();
 
-    // Stop task queue dispatch and commit tracker
+    // Stop task queue dispatch, commit tracker, and token tracker
     taskQueue.stop();
     commitTracker.stop();
+    tokenTracker.stop();
 
     // Clean up hook config
     cleanupOnQuit();

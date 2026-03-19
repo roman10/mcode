@@ -21,6 +21,11 @@ import type {
   CommitWeeklyTrend,
   FileListResult,
   FileReadResult,
+  SessionTokenUsage,
+  DailyTokenUsage,
+  ModelTokenBreakdown,
+  TokenWeeklyTrend,
+  TokenHeatmapEntry,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -288,6 +293,32 @@ contextBridge.exposeInMainWorld('mcode', {
 
     read: (cwd: string, relativePath: string): Promise<FileReadResult> =>
       ipcRenderer.invoke('files:read', cwd, relativePath),
+  },
+
+  tokens: {
+    getSessionUsage: (claudeSessionId: string): Promise<SessionTokenUsage> =>
+      ipcRenderer.invoke('tokens:get-session-usage', claudeSessionId),
+
+    getDailyUsage: (date?: string): Promise<DailyTokenUsage> =>
+      ipcRenderer.invoke('tokens:get-daily-usage', date),
+
+    getModelBreakdown: (days?: number): Promise<ModelTokenBreakdown[]> =>
+      ipcRenderer.invoke('tokens:get-model-breakdown', days),
+
+    getWeeklyTrend: (): Promise<TokenWeeklyTrend> =>
+      ipcRenderer.invoke('tokens:get-weekly-trend'),
+
+    getHeatmap: (days?: number): Promise<TokenHeatmapEntry[]> =>
+      ipcRenderer.invoke('tokens:get-heatmap', days),
+
+    refresh: (): Promise<void> =>
+      ipcRenderer.invoke('tokens:refresh'),
+
+    onUpdated: (cb: () => void): (() => void) => {
+      const handler = (): void => cb();
+      ipcRenderer.on('tokens:updated', handler);
+      return () => ipcRenderer.removeListener('tokens:updated', handler);
+    },
   },
 
   devtools: {
