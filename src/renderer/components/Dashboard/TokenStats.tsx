@@ -1,8 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { X, RefreshCw } from 'lucide-react';
 import { useTokenStore } from '../../stores/token-store';
 import { useLayoutStore } from '../../stores/layout-store';
+import Tooltip from '../shared/Tooltip';
 import type { TokenHeatmapEntry, ModelTokenBreakdown } from '../../../shared/types';
+
+const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
 function formatCost(usd: number): string {
   if (usd < 0.01) return '< $0.01';
@@ -66,21 +69,32 @@ function TokenStats(): React.JSX.Element {
     persist();
   };
 
-  const handleRefresh = (): void => {
+  const handleRefresh = useCallback((): void => {
     window.mcode.tokens.refresh().then(() => refreshAll()).catch(console.error);
-  };
+  }, [refreshAll]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent): void => {
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    if (mod && e.key === 'r') {
+      e.preventDefault();
+      e.stopPropagation();
+      handleRefresh();
+    }
+  }, [handleRefresh]);
 
   if (loading && !dailyUsage) {
     return (
       <div className="flex flex-col h-full w-full bg-bg-primary">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
           <span className="text-sm font-medium text-text-primary flex-1">Token Usage</span>
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-            onClick={handleClose}
-          >
-            <X size={12} strokeWidth={2} />
-          </button>
+          <Tooltip content="Close (⌘W)" side="bottom">
+            <button
+              className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+              onClick={handleClose}
+            >
+              <X size={12} strokeWidth={2} />
+            </button>
+          </Tooltip>
         </div>
         <div className="flex items-center justify-center h-full text-text-muted text-sm">
           Loading...
@@ -94,23 +108,26 @@ function TokenStats(): React.JSX.Element {
   const topSessions = dailyUsage?.topSessions ?? [];
 
   return (
-    <div className="flex flex-col h-full w-full bg-bg-primary">
+    <div className="flex flex-col h-full w-full bg-bg-primary outline-none" tabIndex={-1} onKeyDown={handleKeyDown}>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
         <span className="text-sm font-medium text-text-primary flex-1">Token Usage</span>
-        <button
-          className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-          onClick={handleRefresh}
-          title="Refresh token data"
-        >
-          <RefreshCw size={12} strokeWidth={2} />
-        </button>
-        <button
-          className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-          onClick={handleClose}
-        >
-          <X size={12} strokeWidth={2} />
-        </button>
+        <Tooltip content="Refresh (⌘R)" side="bottom">
+          <button
+            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+            onClick={handleRefresh}
+          >
+            <RefreshCw size={12} strokeWidth={2} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Close (⌘W)" side="bottom">
+          <button
+            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+            onClick={handleClose}
+          >
+            <X size={12} strokeWidth={2} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Content */}
