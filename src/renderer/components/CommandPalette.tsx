@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Command } from 'cmdk';
+import { Command, defaultFilter } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
 import { FileText } from 'lucide-react';
 import { useSessionStore } from '../stores/session-store';
@@ -299,6 +299,11 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
           loop
           className="[&>label]:hidden"
           shouldFilter={mode === 'commands'}
+          filter={(value, search, keywords) => {
+            const q = search.startsWith('>') ? search.slice(1).trimStart() : search;
+            if (!q) return 1;
+            return defaultFilter(value, q, keywords);
+          }}
         >
           <Command.Input
             autoFocus
