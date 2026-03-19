@@ -1,7 +1,8 @@
-import { sessionIdFromTileId, filePathFromTileId, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID, useLayoutStore } from '../../stores/layout-store';
+import { sessionIdFromTileId, filePathFromTileId, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID, TOKEN_STATS_TILE_ID, useLayoutStore } from '../../stores/layout-store';
 import TerminalTile from '../Terminal/TerminalTile';
 import ActivityFeed from '../Dashboard/ActivityFeed';
 import CommitStats from '../Dashboard/CommitStats';
+import TokenStats from '../Dashboard/TokenStats';
 import FileViewerTile from '../FileViewer/FileViewerTile';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
@@ -48,6 +49,8 @@ function TileFactory({ tileId }: TileFactoryProps): React.JSX.Element {
     content = <ActivityFeed />;
   } else if (tileId === COMMIT_STATS_TILE_ID) {
     content = <CommitStats />;
+  } else if (tileId === TOKEN_STATS_TILE_ID) {
+    content = <TokenStats />;
   } else {
     const filePath = filePathFromTileId(tileId);
     if (filePath) {

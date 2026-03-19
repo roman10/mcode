@@ -83,6 +83,7 @@ export type AppCommand =
   | { command: 'toggle-commit-stats' }
   | { command: 'clear-all-attention' }
   | { command: 'close-all-tiles' }
+  | { command: 'toggle-token-stats' }
   | { command: 'show-command-palette' }
   | { command: 'quick-open' }
   | { command: 'show-create-task' };

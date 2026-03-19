@@ -8,6 +8,7 @@ import { LAYOUT_PERSIST_DEBOUNCE_MS } from '../../shared/constants';
 
 export const DASHBOARD_TILE_ID = 'dashboard';
 export const COMMIT_STATS_TILE_ID = 'commit-stats';
+export const TOKEN_STATS_TILE_ID = 'token-stats';
 export const FILE_TILE_PREFIX = 'file:';
 
 export function filePathFromTileId(tile: string): string | null {
@@ -65,6 +66,9 @@ interface LayoutState {
   addCommitStats(): void;
   removeCommitStats(): void;
   toggleCommitStats(): void;
+  addTokenStats(): void;
+  removeTokenStats(): void;
+  toggleTokenStats(): void;
   removeAnyTile(tileId: string): void;
   persist(): void;
   flushPersist(): void;
@@ -404,6 +408,40 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const result = removeLeaf(state.mosaicTree, COMMIT_STATS_TILE_ID);
       return { mosaicTree: result };
     }),
+
+  addTokenStats: () =>
+    set((state) => {
+      const current = state.mosaicTree;
+      if (!current) {
+        return { mosaicTree: TOKEN_STATS_TILE_ID };
+      }
+      const leaves = getLeaves(current);
+      if (leaves.includes(TOKEN_STATS_TILE_ID)) {
+        return state;
+      }
+      const allLeaves = [...leaves, TOKEN_STATS_TILE_ID];
+      return {
+        mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? TOKEN_STATS_TILE_ID,
+      };
+    }),
+
+  removeTokenStats: () =>
+    set((state) => {
+      if (!state.mosaicTree) return state;
+      const result = removeLeaf(state.mosaicTree, TOKEN_STATS_TILE_ID);
+      return { mosaicTree: result };
+    }),
+
+  toggleTokenStats: () => {
+    const current = get().mosaicTree;
+    const hasTokenStats = current ? getLeaves(current).includes(TOKEN_STATS_TILE_ID) : false;
+    if (hasTokenStats) {
+      get().removeTokenStats();
+    } else {
+      get().addTokenStats();
+    }
+    get().persist();
+  },
 
   removeAnyTile: (tileId) =>
     set((state) => {

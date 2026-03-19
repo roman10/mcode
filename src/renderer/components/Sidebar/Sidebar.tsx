@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
-import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity, GitCommitHorizontal } from 'lucide-react';
-import { useLayoutStore, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID } from '../../stores/layout-store';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity, GitCommitHorizontal, Coins } from 'lucide-react';
+import { useLayoutStore, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID, TOKEN_STATS_TILE_ID } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
+import { useTokenStore } from '../../stores/token-store';
 import { getLeaves } from 'react-mosaic-component';
 import SessionList from './SessionList';
 import TaskQueuePanel from './TaskQueuePanel';
@@ -40,6 +41,13 @@ function Sidebar(): React.JSX.Element {
     if (!s.mosaicTree) return false;
     return getLeaves(s.mosaicTree).includes(COMMIT_STATS_TILE_ID);
   });
+  const toggleTokenStats = useLayoutStore((s) => s.toggleTokenStats);
+  const hasTokenStats = useLayoutStore((s) => {
+    if (!s.mosaicTree) return false;
+    return getLeaves(s.mosaicTree).includes(TOKEN_STATS_TILE_ID);
+  });
+  const todayCost = useTokenStore((s) => s.dailyUsage?.estimatedCostUsd ?? null);
+  const refreshTokens = useTokenStore((s) => s.refreshAll);
   const addSession = useSessionStore((s) => s.addSession);
   const selectSession = useSessionStore((s) => s.selectSession);
   const hookRuntime = useSessionStore((s) => s.hookRuntime);
@@ -58,6 +66,15 @@ function Sidebar(): React.JSX.Element {
   const hasEnded = useSessionStore((s) =>
     Object.values(s.sessions).some((sess) => sess.status === 'ended'),
   );
+
+  // Load token data for sidebar running total + subscribe to live updates
+  useEffect(() => {
+    refreshTokens();
+    const unsub = window.mcode.tokens.onUpdated(() => {
+      refreshTokens();
+    });
+    return unsub;
+  }, [refreshTokens]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -218,7 +235,16 @@ function Sidebar(): React.JSX.Element {
 
         {/* Footer */}
         <div className="flex items-center justify-between px-3 py-2 border-t border-border-default">
-          <span className="text-xs text-text-muted">mcode</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-text-muted">mcode</span>
+            {todayCost !== null && todayCost > 0 && (
+              <Tooltip content="Estimated token cost today" side="top">
+                <span className="text-[11px] text-text-muted">
+                  ~${todayCost.toFixed(2)}
+                </span>
+              </Tooltip>
+            )}
+          </div>
           <div className="flex items-center gap-0.5">
             <Tooltip content={`${hasCommitStats ? 'Hide' : 'Show'} commits (${formatKeys('Shift+B', true)})`} side="top">
               <button
@@ -228,6 +254,16 @@ function Sidebar(): React.JSX.Element {
                 onClick={toggleCommitStats}
               >
                 <GitCommitHorizontal size={14} strokeWidth={1.5} />
+              </button>
+            </Tooltip>
+            <Tooltip content={`${hasTokenStats ? 'Hide' : 'Show'} token usage (${formatKeys('Shift+U', true)})`} side="top">
+              <button
+                className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
+                  hasTokenStats ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
+                }`}
+                onClick={toggleTokenStats}
+              >
+                <Coins size={14} strokeWidth={1.5} />
               </button>
             </Tooltip>
             <Tooltip content={`${hasDashboard ? 'Hide' : 'Show'} activity (${formatKeys('Shift+A', true)})`} side="top">

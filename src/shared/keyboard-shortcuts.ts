@@ -21,6 +21,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Settings', keys: ',', mod: true, category: 'general' },
   { label: 'Toggle Dashboard', keys: 'Shift+A', mod: true, category: 'general' },
   { label: 'Toggle Commit Stats', keys: 'Shift+B', mod: true, category: 'general' },
+  { label: 'Toggle Token Usage', keys: 'Shift+U', mod: true, category: 'general' },
   { label: 'Clear All Attention', keys: 'Shift+M', mod: true, category: 'general' },
   { label: 'Close All Tiles', keys: 'Shift+X', mod: true, category: 'general' },
   { label: 'Quick Open', keys: 'P', mod: true, category: 'general' },

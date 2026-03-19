@@ -513,6 +513,11 @@ app.whenReady().then(async () => {
             click: () => sendCommand({ command: 'toggle-commit-stats' }),
           },
           {
+            label: 'Toggle Token Usage',
+            accelerator: 'CmdOrCtrl+Shift+U',
+            click: () => sendCommand({ command: 'toggle-token-stats' }),
+          },
+          {
             label: 'Quick Open',
             accelerator: 'CmdOrCtrl+P',
             click: () => sendCommand({ command: 'quick-open' }),
