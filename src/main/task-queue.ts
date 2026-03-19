@@ -34,7 +34,25 @@ interface TaskRecord {
 interface DispatchState {
   hasStarted: boolean;
   completedViaIdle: boolean;
+  dispatchedAtMs: number;
 }
+
+/** Strip ANSI escape sequences from terminal output. */
+function stripAnsi(str: string): string {
+  return str.replace(
+    /\x1b\[[0-9;?]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[^[\]]/g,
+    '',
+  );
+}
+
+/** Check if the terminal buffer tail shows Claude Code's idle prompt (❯). */
+function isAtClaudePrompt(rawBufferTail: string): boolean {
+  const clean = stripAnsi(rawBufferTail);
+  return /❯\s*$/.test(clean);
+}
+
+const PROMPT_QUIESCENCE_MS = 2000;
+const PROMPT_CHECK_MIN_MS = 1000;
 
 function toTask(row: TaskRecord): Task {
   return {
@@ -93,8 +111,9 @@ export class TaskQueue {
       },
     );
 
-    // Start periodic dispatch
+    // Start periodic dispatch and prompt-based completion detection
     this.dispatchTimer = setInterval(() => {
+      this.checkDispatchedForPrompt();
       this.dispatchPending();
     }, DISPATCH_INTERVAL_MS);
   }
@@ -327,10 +346,14 @@ export class TaskQueue {
       `UPDATE task_queue SET status = 'dispatched', session_id = ?, dispatched_at = ? WHERE id = ?`,
     ).run(task.targetSessionId, dispatchedAt, task.id);
 
-    this.dispatchStates.set(task.id, { hasStarted: false, completedViaIdle: false });
+    this.dispatchStates.set(task.id, {
+      hasStarted: false,
+      completedViaIdle: false,
+      dispatchedAtMs: Date.now(),
+    });
 
     // Queue-driven PTY input starts a new Claude turn from an idle session.
-    // Mark the session active so the next Stop hook produces a real active -> idle completion edge.
+    // Mark the session active so the UI shows it as working.
     this.sessionManager.updateStatus(task.targetSessionId!, 'active');
 
     logger.info('task', 'Dispatched task to existing session', {
@@ -362,7 +385,11 @@ export class TaskQueue {
         `UPDATE task_queue SET status = 'dispatched', session_id = ?, dispatched_at = ? WHERE id = ?`,
       ).run(session.sessionId, dispatchedAt, task.id);
 
-      this.dispatchStates.set(task.id, { hasStarted: false, completedViaIdle: false });
+      this.dispatchStates.set(task.id, {
+        hasStarted: false,
+        completedViaIdle: false,
+        dispatchedAtMs: Date.now(),
+      });
 
       logger.info('task', 'Dispatched task with new session', {
         taskId: task.id,
@@ -394,11 +421,9 @@ export class TaskQueue {
       state.hasStarted = true;
     }
 
-    if (session.status === 'idle' && state.hasStarted) {
-      state.completedViaIdle = true;
-      this.completeTask(taskId);
-      return;
-    }
+    // Completion is detected via PTY prompt detection (checkDispatchedForPrompt),
+    // not via idle transition — Stop hooks can fire prematurely for skills
+    // or not at all for local slash commands.
 
     if (session.status === 'ended') {
       if (state.completedViaIdle) {
@@ -412,6 +437,38 @@ export class TaskQueue {
           this.failPendingTasksForSession(row.target_session_id);
         }
       }
+    }
+  }
+
+  private checkDispatchedForPrompt(): void {
+    const now = Date.now();
+
+    for (const [taskId, state] of this.dispatchStates) {
+      if (state.completedViaIdle) continue;
+      if (now - state.dispatchedAtMs < PROMPT_CHECK_MIN_MS) continue;
+
+      const task = this.getById(taskId);
+      if (!task || task.status !== 'dispatched' || !task.sessionId) continue;
+
+      // Check PTY quiescence: no new output for 2 seconds
+      const lastDataAt = this.ptyManager.getLastDataAt(task.sessionId);
+      if (lastDataAt === 0) continue;
+      if (now - lastDataAt < PROMPT_QUIESCENCE_MS) continue;
+
+      // Check if terminal shows Claude's idle prompt
+      const buffer = this.ptyManager.getReplayData(task.sessionId);
+      if (!buffer || !isAtClaudePrompt(buffer.slice(-500))) continue;
+
+      logger.info('task', 'Prompt detected in terminal, completing task', {
+        taskId,
+        sessionId: task.sessionId,
+      });
+
+      // Ensure session status is idle (may still be 'active' if no Stop hook fired)
+      this.sessionManager.updateStatus(task.sessionId, 'idle');
+
+      state.completedViaIdle = true;
+      this.completeTask(taskId);
     }
   }
 

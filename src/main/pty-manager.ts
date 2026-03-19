@@ -10,6 +10,7 @@ interface PtyHandle {
   cols: number;
   rows: number;
   ringBuffer: string;
+  lastDataAt: number;
   exitPromise: Promise<void>;
 }
 
@@ -49,6 +50,7 @@ export class PtyManager {
       // Append to ring buffer
       const handle = this.ptys.get(id);
       if (handle) {
+        handle.lastDataAt = Date.now();
         handle.ringBuffer += data;
         if (handle.ringBuffer.length > RING_BUFFER_MAX_BYTES) {
           handle.ringBuffer = handle.ringBuffer.slice(-RING_BUFFER_MAX_BYTES);
@@ -78,6 +80,7 @@ export class PtyManager {
       cols,
       rows,
       ringBuffer: '',
+      lastDataAt: 0,
       exitPromise,
     };
 
@@ -146,6 +149,10 @@ export class PtyManager {
   getReplayData(id: string): string {
     const handle = this.ptys.get(id);
     return handle?.ringBuffer ?? '';
+  }
+
+  getLastDataAt(id: string): number {
+    return this.ptys.get(id)?.lastDataAt ?? 0;
   }
 
   list(): string[] {
