@@ -1,15 +1,47 @@
 import { useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useCommitStore } from '../../stores/commit-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
 import type { CommitHeatmapEntry } from '../../../shared/types';
 
+const RETENTION_DAYS = 90;
+
 function basename(path: string): string {
   return path.split('/').pop() ?? path;
 }
 
-function HeatmapCell({ entry }: { entry: CommitHeatmapEntry }): React.JSX.Element {
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T12:00:00'); // noon to avoid DST issues
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDateLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function daysDiff(a: string, b: string): number {
+  const da = new Date(a + 'T12:00:00').getTime();
+  const db = new Date(b + 'T12:00:00').getTime();
+  return Math.round((db - da) / (86400 * 1000));
+}
+
+function HeatmapCell({
+  entry,
+  isSelected,
+  onSelect,
+}: {
+  entry: CommitHeatmapEntry;
+  isSelected: boolean;
+  onSelect: (date: string) => void;
+}): React.JSX.Element {
   const dayLabel = new Date(entry.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
   let bg = 'bg-bg-elevated';
   if (entry.count > 0) bg = 'bg-green-900';
@@ -20,8 +52,9 @@ function HeatmapCell({ entry }: { entry: CommitHeatmapEntry }): React.JSX.Elemen
   return (
     <div className="flex flex-col items-center gap-0.5">
       <div
-        className={`w-5 h-5 rounded-sm ${bg}`}
+        className={`w-5 h-5 rounded-sm cursor-pointer ${bg} ${isSelected ? 'ring-1 ring-white/40' : ''}`}
         title={`${entry.date}: ${entry.count} commits`}
+        onClick={() => onSelect(entry.date)}
       />
       <span className="text-[9px] text-text-muted">{dayLabel}</span>
     </div>
@@ -48,7 +81,8 @@ function TypePill({ type, count }: { type: string; count: number }): React.JSX.E
 }
 
 function CommitStats(): React.JSX.Element {
-  const { dailyStats, heatmap, streaks, cadence, weeklyTrend, loading, refreshAll } = useCommitStore();
+  const { dailyStats, heatmap, streaks, cadence, weeklyTrend, loading, refreshAll, selectedDate, setSelectedDate } =
+    useCommitStore();
   const removeCommitStats = useLayoutStore((s) => s.removeCommitStats);
   const persist = useLayoutStore((s) => s.persist);
 
@@ -70,23 +104,76 @@ function CommitStats(): React.JSX.Element {
     persist();
   };
 
+  const today = todayStr();
+  const viewDate = selectedDate ?? today;
+  const isToday = selectedDate == null;
+  const oldest = shiftDate(today, -(RETENTION_DAYS - 1));
+  const canGoBack = daysDiff(oldest, viewDate) > 0;
+
+  const handleRefresh = (): void => {
+    window.mcode.commits.refresh().then(() => refreshAll()).catch(console.error);
+  };
+
+  const handleHeatmapSelect = (date: string): void => {
+    setSelectedDate(date === today ? null : date);
+  };
+
+  const handlePrevDay = (): void => {
+    const prev = shiftDate(viewDate, -1);
+    if (daysDiff(oldest, prev) >= 0) {
+      setSelectedDate(prev);
+    }
+  };
+
+  const handleNextDay = (): void => {
+    if (isToday) return;
+    const next = shiftDate(viewDate, 1);
+    setSelectedDate(next >= today ? null : next);
+  };
+
+  const btnClass =
+    'w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors';
+  const btnDisabledClass =
+    'w-5 h-5 flex items-center justify-center rounded text-text-muted/30 cursor-default';
+
+  const toolbar = (
+    <div className="flex items-center gap-1 px-3 py-2 border-b border-border-default shrink-0">
+      <span className="text-sm font-medium text-text-primary flex-1">Commits</span>
+      <Tooltip content="Previous day" side="bottom">
+        <button className={canGoBack ? btnClass : btnDisabledClass} onClick={canGoBack ? handlePrevDay : undefined} aria-disabled={!canGoBack}>
+          <ChevronLeft size={12} strokeWidth={2} />
+        </button>
+      </Tooltip>
+      <button
+        className="text-[11px] px-1.5 py-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors min-w-[48px] text-center"
+        onClick={() => setSelectedDate(null)}
+        title="Go to today"
+      >
+        {isToday ? 'Today' : formatDateLabel(viewDate)}
+      </button>
+      <Tooltip content="Next day" side="bottom">
+        <button className={isToday ? btnDisabledClass : btnClass} onClick={isToday ? undefined : handleNextDay} aria-disabled={isToday}>
+          <ChevronRight size={12} strokeWidth={2} />
+        </button>
+      </Tooltip>
+      <Tooltip content="Refresh" side="bottom">
+        <button className={btnClass} onClick={handleRefresh}>
+          <RefreshCw size={12} strokeWidth={2} />
+        </button>
+      </Tooltip>
+      <Tooltip content="Close (⌘W)" side="bottom">
+        <button className={btnClass} onClick={handleClose}>
+          <X size={12} strokeWidth={2} />
+        </button>
+      </Tooltip>
+    </div>
+  );
+
   if (loading && !dailyStats) {
     return (
       <div className="flex flex-col h-full w-full bg-bg-primary">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
-          <span className="text-sm font-medium text-text-primary flex-1">Commits</span>
-          <Tooltip content="Close (⌘W)" side="bottom">
-            <button
-              className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-              onClick={handleClose}
-            >
-              <X size={12} strokeWidth={2} />
-            </button>
-          </Tooltip>
-        </div>
-        <div className="flex items-center justify-center h-full text-text-muted text-sm">
-          Loading...
-        </div>
+        {toolbar}
+        <div className="flex items-center justify-center h-full text-text-muted text-sm">Loading...</div>
       </div>
     );
   }
@@ -95,21 +182,11 @@ function CommitStats(): React.JSX.Element {
   const totalLines = (dailyStats?.totalInsertions ?? 0) + (dailyStats?.totalDeletions ?? 0);
   const claudeCount = dailyStats?.claudeAssisted ?? 0;
   const soloCount = dailyStats?.soloCount ?? 0;
+  const claudePct = total >= 3 && claudeCount > 0 ? Math.round((claudeCount / total) * 100) : null;
 
   return (
     <div className="flex flex-col h-full w-full bg-bg-primary">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
-        <span className="text-sm font-medium text-text-primary flex-1">Commits</span>
-        <Tooltip content="Close (⌘W)" side="bottom">
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-            onClick={handleClose}
-          >
-            <X size={12} strokeWidth={2} />
-          </button>
-        </Tooltip>
-      </div>
+      {toolbar}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
@@ -129,6 +206,9 @@ function CommitStats(): React.JSX.Element {
           {streaks && streaks.current > 0 && (
             <span className="text-xs text-amber-400 font-medium">
               {streaks.current}d streak
+              {streaks.longest > streaks.current && (
+                <span className="text-text-muted font-normal"> · best {streaks.longest}d</span>
+              )}
             </span>
           )}
         </div>
@@ -136,14 +216,23 @@ function CommitStats(): React.JSX.Element {
         {/* Claude vs solo */}
         {total > 0 && (
           <div className="text-xs text-text-secondary">
-            {claudeCount > 0 && (
-              <span>{claudeCount} with Claude</span>
-            )}
-            {claudeCount > 0 && soloCount > 0 && (
-              <span className="text-text-muted"> · </span>
-            )}
-            {soloCount > 0 && (
-              <span>{soloCount} solo</span>
+            {claudePct != null ? (
+              <>
+                <span className="text-green-400 font-medium">{claudePct}%</span>
+                <span> with Claude</span>
+                {soloCount > 0 && (
+                  <>
+                    <span className="text-text-muted"> · </span>
+                    <span>{soloCount} solo</span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {claudeCount > 0 && <span>{claudeCount} with Claude</span>}
+                {claudeCount > 0 && soloCount > 0 && <span className="text-text-muted"> · </span>}
+                {soloCount > 0 && <span>{soloCount} solo</span>}
+              </>
             )}
           </div>
         )}
@@ -152,7 +241,12 @@ function CommitStats(): React.JSX.Element {
         {heatmap.length > 0 && (
           <div className="flex items-end gap-1">
             {heatmap.map((entry) => (
-              <HeatmapCell key={entry.date} entry={entry} />
+              <HeatmapCell
+                key={entry.date}
+                entry={entry}
+                isSelected={entry.date === viewDate}
+                onSelect={handleHeatmapSelect}
+              />
             ))}
           </div>
         )}
@@ -219,7 +313,7 @@ function CommitStats(): React.JSX.Element {
         {/* Empty state */}
         {total === 0 && (
           <div className="text-sm text-text-muted text-center py-4">
-            No commits today
+            No commits {selectedDate ? `on ${formatDateLabel(selectedDate)}` : 'today'}
           </div>
         )}
       </div>
