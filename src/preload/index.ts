@@ -129,6 +129,9 @@ contextBridge.exposeInMainWorld('mcode', {
     deleteAllEnded: (): Promise<string[]> =>
       ipcRenderer.invoke('session:delete-all-ended'),
 
+    deleteBatch: (sessionIds: string[]): Promise<string[]> =>
+      ipcRenderer.invoke('session:delete-batch', sessionIds),
+
     onDeleted: (
       cb: (sessionId: string) => void,
     ): (() => void) => {

@@ -128,6 +128,21 @@ export function registerSessionTools(
     };
   });
 
+  server.registerTool('session_delete_batch', {
+    description: 'Delete a specific set of ended sessions by their IDs. Returns the list of actually deleted session IDs.',
+    inputSchema: {
+      sessionIds: z.array(z.string()).describe('Array of session IDs to delete (must be ended)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionIds }) => {
+    const deleted = ctx.sessionManager.deleteBatch(sessionIds);
+    return {
+      content: [{ type: 'text', text: deleted.length === 0
+        ? 'No valid ended sessions to delete from the provided IDs'
+        : `Deleted ${deleted.length} session(s): ${deleted.join(', ')}` }],
+    };
+  });
+
   server.registerTool('session_get_status', {
     description: 'Get session status and metadata',
     inputSchema: {

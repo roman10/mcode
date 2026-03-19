@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity, GitCommitHorizontal } from 'lucide-react';
 import { useLayoutStore, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
@@ -7,12 +7,14 @@ import SessionList from './SessionList';
 import TaskQueuePanel from './TaskQueuePanel';
 import NewSessionDialog from './NewSessionDialog';
 import Tooltip from '../shared/Tooltip';
+import DeleteSessionsDialog from './DeleteSessionsDialog';
 import { createTerminalSession } from '../../utils/session-actions';
-import type { SessionCreateInput } from '../../../shared/types';
+import type { SessionCreateInput, SessionInfo } from '../../../shared/types';
 import {
   MIN_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
 } from '../../../shared/constants';
+import { formatKeys } from '../../utils/format-shortcut';
 
 function Sidebar(): React.JSX.Element {
   const setShowSettings = useLayoutStore((s) => s.setShowSettings);
@@ -33,8 +35,7 @@ function Sidebar(): React.JSX.Element {
     if (!s.mosaicTree) return false;
     return getLeaves(s.mosaicTree).includes(DASHBOARD_TILE_ID);
   });
-  const addCommitStats = useLayoutStore((s) => s.addCommitStats);
-  const removeCommitStats = useLayoutStore((s) => s.removeCommitStats);
+  const toggleCommitStats = useLayoutStore((s) => s.toggleCommitStats);
   const hasCommitStats = useLayoutStore((s) => {
     if (!s.mosaicTree) return false;
     return getLeaves(s.mosaicTree).includes(COMMIT_STATS_TILE_ID);
@@ -128,30 +129,18 @@ function Sidebar(): React.JSX.Element {
     persist();
   };
 
-  const handleDeleteAllEnded = async (): Promise<void> => {
-    const endedCount = Object.values(useSessionStore.getState().sessions).filter(
-      (s) => s.status === 'ended',
-    ).length;
-    if (endedCount === 0) return;
-    const confirmed = window.confirm(
-      `Delete ${endedCount} ended session${endedCount === 1 ? '' : 's'}? This cannot be undone.`,
-    );
-    if (!confirmed) return;
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleDeleteBatch = async (sessionIds: string[]): Promise<void> => {
     try {
-      await window.mcode.sessions.deleteAllEnded();
+      await window.mcode.sessions.deleteBatch(sessionIds);
     } catch (err) {
-      console.error('Failed to delete ended sessions:', err);
+      console.error('Failed to delete sessions:', err);
+    } finally {
+      setShowDeleteDialog(false);
     }
   };
 
-  const handleToggleCommitStats = (): void => {
-    if (hasCommitStats) {
-      removeCommitStats();
-    } else {
-      addCommitStats();
-    }
-    persist();
-  };
 
   return (
     <>
@@ -176,10 +165,10 @@ function Sidebar(): React.JSX.Element {
               </Tooltip>
             )}
             {hasEnded && (
-              <Tooltip content="Delete ended sessions" side="bottom">
+              <Tooltip content="Delete ended sessions..." side="bottom">
                 <button
                   className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-bg-elevated transition-colors"
-                  onClick={handleDeleteAllEnded}
+                  onClick={() => setShowDeleteDialog(true)}
                 >
                   <Trash2 size={14} strokeWidth={1.5} />
                 </button>
@@ -231,17 +220,17 @@ function Sidebar(): React.JSX.Element {
         <div className="flex items-center justify-between px-3 py-2 border-t border-border-default">
           <span className="text-xs text-text-muted">mcode</span>
           <div className="flex items-center gap-0.5">
-            <Tooltip content={hasCommitStats ? 'Hide commits' : 'Show commits'} side="top">
+            <Tooltip content={`${hasCommitStats ? 'Hide' : 'Show'} commits (${formatKeys('Shift+B', true)})`} side="top">
               <button
                 className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
                   hasCommitStats ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
                 }`}
-                onClick={handleToggleCommitStats}
+                onClick={toggleCommitStats}
               >
                 <GitCommitHorizontal size={14} strokeWidth={1.5} />
               </button>
             </Tooltip>
-            <Tooltip content={hasDashboard ? 'Hide activity' : 'Show activity'} side="top">
+            <Tooltip content={`${hasDashboard ? 'Hide' : 'Show'} activity (${formatKeys('Shift+A', true)})`} side="top">
               <button
                 className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
                   hasDashboard ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
@@ -251,7 +240,7 @@ function Sidebar(): React.JSX.Element {
                 <Activity size={14} strokeWidth={1.5} />
               </button>
             </Tooltip>
-            <Tooltip content="Settings" side="top">
+            <Tooltip content={`Settings (${formatKeys(',', true)})`} side="top">
               <button
                 className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
                 onClick={() => setShowSettings(true)}
@@ -273,6 +262,17 @@ function Sidebar(): React.JSX.Element {
         <NewSessionDialog
           onClose={handleCloseDialog}
           onCreate={handleCreate}
+        />
+      )}
+
+      {showDeleteDialog && (
+        <DeleteSessionsDialog
+          endedSessions={Object.values(useSessionStore.getState().sessions)
+            .filter((s): s is SessionInfo => s.status === 'ended')
+            .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+          }
+          onClose={() => setShowDeleteDialog(false)}
+          onDelete={handleDeleteBatch}
         />
       )}
     </>

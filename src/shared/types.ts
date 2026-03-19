@@ -283,6 +283,7 @@ export interface MCodeAPI {
     getLastDefaults(): Promise<SessionDefaults | null>;
     delete(sessionId: string): Promise<void>;
     deleteAllEnded(): Promise<string[]>;
+    deleteBatch(sessionIds: string[]): Promise<string[]>;
     onDeleted(callback: (sessionId: string) => void): () => void;
     onDeletedBatch(callback: (sessionIds: string[]) => void): () => void;
   };

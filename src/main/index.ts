@@ -140,6 +140,10 @@ function registerSessionIpc(): void {
     return sessionManager.deleteAllEnded();
   });
 
+  ipcMain.handle('session:delete-batch', (_event, sessionIds: string[]) => {
+    return sessionManager.deleteBatch(sessionIds);
+  });
+
   ipcMain.handle('session:get-last-defaults', () => {
     return sessionManager.getLastDefaults();
   });

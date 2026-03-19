@@ -724,6 +724,39 @@ export class SessionManager {
     return ids;
   }
 
+  deleteBatch(sessionIds: string[]): string[] {
+    const db = getDb();
+    const validIds: string[] = [];
+
+    for (const id of sessionIds) {
+      const row = db
+        .prepare('SELECT status FROM sessions WHERE session_id = ?')
+        .get(id) as { status: string } | undefined;
+      if (row && row.status === 'ended') {
+        validIds.push(id);
+      }
+    }
+
+    if (validIds.length === 0) return [];
+
+    const deleteEvents = db.prepare('DELETE FROM events WHERE session_id = ?');
+    const deleteSession = db.prepare('DELETE FROM sessions WHERE session_id = ?');
+    db.transaction(() => {
+      for (const id of validIds) {
+        deleteEvents.run(id);
+        deleteSession.run(id);
+      }
+    })();
+
+    logger.info('session', 'Deleted batch of sessions', { count: validIds.length });
+
+    const wc = this.getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('session:deleted-batch', validIds);
+    }
+    return validIds;
+  }
+
   async kill(sessionId: string): Promise<void> {
     // PTY's onExit callback handles the status transition to 'ended',
     // so we don't call updateStatus here (avoids double transition).
