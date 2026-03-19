@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity, GitCommitHorizontal, Coins } from 'lucide-react';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity, GitCommitHorizontal, Coins, Users } from 'lucide-react';
 import { useLayoutStore, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID, TOKEN_STATS_TILE_ID } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useTokenStore } from '../../stores/token-store';
@@ -19,6 +19,7 @@ import { formatKeys } from '../../utils/format-shortcut';
 
 function Sidebar(): React.JSX.Element {
   const setShowSettings = useLayoutStore((s) => s.setShowSettings);
+  const setShowAccountsDialog = useLayoutStore((s) => s.setShowAccountsDialog);
   const showNewDialog = useLayoutStore((s) => s.showNewSessionDialog);
   const setShowNewDialog = useLayoutStore((s) => s.setShowNewSessionDialog);
   const splitIntent = useLayoutStore((s) => s.splitIntent);
@@ -274,6 +275,14 @@ function Sidebar(): React.JSX.Element {
                 onClick={toggleDashboard}
               >
                 <Activity size={14} strokeWidth={1.5} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Accounts" side="top">
+              <button
+                className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+                onClick={() => setShowAccountsDialog(true)}
+              >
+                <Users size={14} strokeWidth={1.5} />
               </button>
             </Tooltip>
             <Tooltip content={`Settings (${formatKeys(',', true)})`} side="top">

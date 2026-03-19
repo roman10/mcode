@@ -4,11 +4,13 @@ import Sidebar from './components/Sidebar/Sidebar';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import SettingsDialog from './components/SettingsDialog';
+import AccountsDialog from './components/AccountsDialog';
 import CommandPalette from './components/CommandPalette';
 import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
 import { useEditorStore } from './stores/editor-store';
+import { useAccountsStore } from './stores/accounts-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
@@ -69,6 +71,9 @@ function App(): React.JSX.Element {
 
         // Load editor preferences (vim mode, etc.)
         await useEditorStore.getState().load();
+
+        // Load accounts (non-blocking, used by AccountsDialog and SessionCard)
+        useAccountsStore.getState().refresh().catch(() => {});
 
         // Load task queue
         const tasks = await window.mcode.tasks.list();
@@ -213,6 +218,8 @@ function App(): React.JSX.Element {
   const setShowKeyboardShortcuts = useLayoutStore((s) => s.setShowKeyboardShortcuts);
   const showSettings = useLayoutStore((s) => s.showSettings);
   const setShowSettings = useLayoutStore((s) => s.setShowSettings);
+  const showAccountsDialog = useLayoutStore((s) => s.showAccountsDialog);
+  const setShowAccountsDialog = useLayoutStore((s) => s.setShowAccountsDialog);
   const showCommandPalette = useLayoutStore((s) => s.showCommandPalette);
   const setShowCommandPalette = useLayoutStore((s) => s.setShowCommandPalette);
   const quickOpenInitialMode = useLayoutStore((s) => s.quickOpenInitialMode);
@@ -262,6 +269,9 @@ function App(): React.JSX.Element {
       )}
       {showSettings && (
         <SettingsDialog onClose={() => setShowSettings(false)} />
+      )}
+      {showAccountsDialog && (
+        <AccountsDialog onClose={() => setShowAccountsDialog(false)} />
       )}
       {showCommandPalette && (
         <CommandPalette

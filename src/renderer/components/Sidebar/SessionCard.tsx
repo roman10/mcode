@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { SessionInfo } from '../../../shared/types';
+import { useAccountsStore } from '../../stores/accounts-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import Tooltip from '../shared/Tooltip';
 import StatusBadge from './StatusBadge';
@@ -60,6 +61,11 @@ function SessionCard({
 
   const shortTime = useRelativeTime(session.startedAt);
   const attentionBorder = attentionBorderColors[session.attentionLevel] ?? '';
+  const accountName = useAccountsStore((s) => {
+    if (!session.accountId) return null;
+    const account = s.accounts.find((a) => a.accountId === session.accountId);
+    return account && !account.isDefault ? account.name : null;
+  });
 
   return (
     <div
@@ -105,6 +111,9 @@ function SessionCard({
             )}
             {session.label}
           </span>
+        )}
+        {accountName && (
+          <span className="text-[11px] text-text-muted truncate">{accountName}</span>
         )}
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-text-muted truncate" title={session.cwd}>
