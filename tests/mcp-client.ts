@@ -28,7 +28,7 @@ export class McpTestClient {
     args?: Record<string, unknown>,
   ): Promise<ToolResult> {
     if (!this.client) throw new Error('Not connected');
-    const result = await this.client.callTool({ name, arguments: args });
+    const result = await this.client.callTool({ name, arguments: args ?? {} });
     return result as ToolResult;
   }
 

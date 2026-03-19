@@ -22,7 +22,7 @@ describe('sidebar sessions', () => {
   });
 
   it('shows created session in sidebar', async () => {
-    const session = await createTestSession(client);
+    const session = await createTestSession(client, { sessionType: 'terminal' });
     sessionIds.push(session.sessionId);
 
     // Give renderer time to process the created event
@@ -68,7 +68,7 @@ describe('sidebar sessions', () => {
   });
 
   it('set label persists to DB', async () => {
-    const session = await createTestSession(client);
+    const session = await createTestSession(client, { sessionType: 'terminal' });
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
 

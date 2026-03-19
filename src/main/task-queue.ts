@@ -151,6 +151,9 @@ export class TaskQueue {
         throw new Error('Target session must be in live hook mode');
       }
       if (session.status === 'ended') {
+        if (!session.claudeSessionId) {
+          throw new Error('Target session has ended and cannot be resumed (no Claude session ID)');
+        }
         // Resume the ended session so the task runs with its conversation context
         this.sessionManager.resume(input.targetSessionId);
         logger.info('task', 'Resumed ended session for task dispatch', {

@@ -2,11 +2,14 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 
 interface DailyStats {
+  date: string;
   total: number;
-  claude: number;
-  solo: number;
-  repos: Array<{ repoPath: string; count: number }>;
-  types: Record<string, number>;
+  totalInsertions: number;
+  totalDeletions: number;
+  claudeAssisted: number;
+  soloCount: number;
+  byRepo: Array<{ repoPath: string; count: number; insertions: number; deletions: number }>;
+  byType: Array<{ type: string; count: number }>;
 }
 
 interface HeatmapEntry {
@@ -21,9 +24,9 @@ interface Streaks {
 }
 
 interface Cadence {
-  averageMinutesBetween: number | null;
-  peakHour: number | null;
-  distribution: number[];
+  avgMinutes: number | null;
+  peakHour: string | null;
+  commitsByHour: Record<string, number>;
 }
 
 interface WeeklyTrend {
@@ -67,10 +70,10 @@ describe('commit tracking', () => {
       'commits_get_daily_stats',
     );
     expect(stats.total).toBeGreaterThanOrEqual(0);
-    expect(stats.claude).toBeGreaterThanOrEqual(0);
-    expect(stats.solo).toBeGreaterThanOrEqual(0);
-    expect(Array.isArray(stats.repos)).toBe(true);
-    expect(typeof stats.types).toBe('object');
+    expect(stats.claudeAssisted).toBeGreaterThanOrEqual(0);
+    expect(stats.soloCount).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(stats.byRepo)).toBe(true);
+    expect(Array.isArray(stats.byType)).toBe(true);
   });
 
   it('get_daily_stats accepts date parameter', async () => {
@@ -113,9 +116,9 @@ describe('commit tracking', () => {
     const cadence = await client.callToolJson<Cadence>(
       'commits_get_cadence',
     );
-    expect('averageMinutesBetween' in cadence).toBe(true);
+    expect('avgMinutes' in cadence).toBe(true);
     expect('peakHour' in cadence).toBe(true);
-    expect(Array.isArray(cadence.distribution)).toBe(true);
+    expect(typeof cadence.commitsByHour).toBe('object');
   });
 
   it('get_weekly_trend returns trend info', async () => {

@@ -3,5 +3,5 @@
 printf 'fake claude ready\n'
 
 while IFS= read -r _line; do
-  :
+  printf '❯ '
 done
