@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { X, FileDiff } from 'lucide-react';
+import { X, GitCommitHorizontal } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { EditorView, keymap } from '@codemirror/view';
 import { LanguageDescription } from '@codemirror/language';
@@ -11,23 +11,23 @@ import Tooltip from '../shared/Tooltip';
 import { mcodeEditorExtension, hideCursorExtension, diffTheme } from '../../styles/editor-theme';
 import type { GitDiffContent } from '../../../shared/types';
 
-interface DiffViewerTileProps {
-  absolutePath: string;
-}
-
 const STATUS_COLORS: Record<string, string> = {
   modified: 'text-yellow-400',
   added: 'text-green-400',
   deleted: 'text-red-400',
-  untracked: 'text-text-muted',
 };
 
-function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Element {
+interface CommitDiffViewerTileProps {
+  absolutePath: string;
+  commitHash: string;
+}
+
+function CommitDiffViewerTile({ absolutePath, commitHash }: CommitDiffViewerTileProps): React.JSX.Element {
   const [diffContent, setDiffContent] = useState<GitDiffContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [langExtension, setLangExtension] = useState<Extension | null>(null);
-  const removeDiffTile = useLayoutStore((s) => s.removeDiffTile);
+  const removeAnyTile = useLayoutStore((s) => s.removeAnyTile);
   const persist = useLayoutStore((s) => s.persist);
 
   const filename = useMemo(() => {
@@ -40,37 +40,37 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
     return lastSlash >= 0 ? absolutePath.slice(0, lastSlash) : '';
   }, [absolutePath]);
 
-  // Determine diff status from content
-  const status = useMemo(() => {
-    if (!diffContent || diffContent.binary) return 'modified';
-    if (!diffContent.originalContent) return 'added';
-    if (!diffContent.modifiedContent) return 'deleted';
-    return 'modified';
-  }, [diffContent]);
-
-  // Load diff content
+  // Load diff content for this specific commit
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    // Pass the file's directory as cwd; backend resolves repo root from it
+    // Extract repo root: walk up from the file path to find git root
+    // For commit diffs, we use the directory portion as cwd
     const dir = absolutePath.slice(0, absolutePath.lastIndexOf('/'));
 
-    window.mcode.git.getDiffContent(dir, absolutePath)
-      .then((result) => {
-        if (cancelled) return;
-        setDiffContent(result);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(String(err));
-        setLoading(false);
-      });
+    // First resolve the repo root, then get the commit diff
+    window.mcode.git.getStatus(dir).then((status) => {
+      if (cancelled) return;
+      const repoRoot = status.repoRoot;
+      const relPath = absolutePath.startsWith(repoRoot + '/')
+        ? absolutePath.slice(repoRoot.length + 1)
+        : absolutePath;
+
+      return window.mcode.git.getCommitFileDiff(repoRoot, commitHash, relPath);
+    }).then((result) => {
+      if (cancelled || !result) return;
+      setDiffContent(result);
+      setLoading(false);
+    }).catch((err) => {
+      if (cancelled) return;
+      setError(String(err));
+      setLoading(false);
+    });
 
     return () => { cancelled = true; };
-  }, [absolutePath]);
+  }, [absolutePath, commitHash]);
 
   // Load language extension for syntax highlighting
   useEffect(() => {
@@ -78,16 +78,23 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
     if (desc) {
       desc.load().then((support) => {
         setLangExtension(support);
-      }).catch(() => {
-        // Language loading failed — render without highlighting
-      });
+      }).catch(() => {});
     }
   }, [filename]);
 
+  const tileId = `commit-diff:${commitHash}:${absolutePath}`;
+
   const handleClose = useCallback((): void => {
-    removeDiffTile(absolutePath);
+    removeAnyTile(tileId);
     persist();
-  }, [removeDiffTile, absolutePath, persist]);
+  }, [removeAnyTile, tileId, persist]);
+
+  const status = useMemo(() => {
+    if (!diffContent || diffContent.binary) return 'modified';
+    if (!diffContent.originalContent) return 'added';
+    if (!diffContent.modifiedContent) return 'deleted';
+    return 'modified';
+  }, [diffContent]);
 
   const extensions = useMemo(() => {
     if (!diffContent || diffContent.binary) return [];
@@ -113,16 +120,34 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
     return exts;
   }, [diffContent, langExtension, handleClose]);
 
-  // Show loading state
+  const toolbar = (
+    <div className="flex items-center px-3 py-1 border-b border-border-default shrink-0 gap-2">
+      <GitCommitHorizontal size={14} className="text-text-muted shrink-0" />
+      <span className="text-sm text-text-primary truncate">{filename}</span>
+      <span className={`text-xs font-mono shrink-0 ${STATUS_COLORS[status] ?? 'text-text-muted'}`}>
+        {status === 'added' ? 'A' : status === 'deleted' ? 'D' : 'M'}
+      </span>
+      <span className="text-xs text-text-muted font-mono shrink-0">{commitHash.slice(0, 7)}</span>
+      {directory && (
+        <span className="text-xs text-text-muted truncate">{directory}</span>
+      )}
+      <div className="ml-auto shrink-0">
+        <Tooltip content="Close (⌘W)" side="bottom">
+          <button
+            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+            onClick={handleClose}
+          >
+            <X size={14} strokeWidth={1.5} />
+          </button>
+        </Tooltip>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex flex-col h-full bg-bg-primary">
-        <TileToolbar
-          filename={filename}
-          directory={directory}
-          status={status}
-          onClose={handleClose}
-        />
+        {toolbar}
         <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
           Loading diff...
         </div>
@@ -130,16 +155,10 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
     );
   }
 
-  // Show error
   if (error) {
     return (
       <div className="flex flex-col h-full bg-bg-primary">
-        <TileToolbar
-          filename={filename}
-          directory={directory}
-          status={status}
-          onClose={handleClose}
-        />
+        {toolbar}
         <div className="flex-1 flex items-center justify-center text-red-400 text-sm px-4 text-center">
           {error}
         </div>
@@ -147,16 +166,10 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
     );
   }
 
-  // Binary file
   if (diffContent?.binary) {
     return (
       <div className="flex flex-col h-full bg-bg-primary">
-        <TileToolbar
-          filename={filename}
-          directory={directory}
-          status={status}
-          onClose={handleClose}
-        />
+        {toolbar}
         <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
           Binary file — diff not available
         </div>
@@ -164,32 +177,9 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
     );
   }
 
-  // No changes (stale tile)
-  if (diffContent && !diffContent.binary &&
-      diffContent.originalContent === diffContent.modifiedContent) {
-    return (
-      <div className="flex flex-col h-full bg-bg-primary">
-        <TileToolbar
-          filename={filename}
-          directory={directory}
-          status={status}
-          onClose={handleClose}
-        />
-        <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
-          No changes
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full bg-bg-primary">
-      <TileToolbar
-        filename={filename}
-        directory={directory}
-        status={status}
-        onClose={handleClose}
-      />
+      {toolbar}
       <div className="flex-1 min-h-0 overflow-hidden">
         <CodeMirror
           value={diffContent && !diffContent.binary ? diffContent.modifiedContent : ''}
@@ -209,34 +199,4 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
   );
 }
 
-function TileToolbar({ filename, directory, status, onClose }: {
-  filename: string;
-  directory: string;
-  status: string;
-  onClose: () => void;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-center px-3 py-1 border-b border-border-default shrink-0 gap-2">
-      <FileDiff size={14} className="text-text-muted shrink-0" />
-      <span className="text-sm text-text-primary truncate">{filename}</span>
-      <span className={`text-xs font-mono shrink-0 ${STATUS_COLORS[status] ?? 'text-text-muted'}`}>
-        {status === 'added' ? 'A' : status === 'deleted' ? 'D' : 'M'}
-      </span>
-      {directory && (
-        <span className="text-xs text-text-muted truncate">{directory}</span>
-      )}
-      <div className="ml-auto shrink-0">
-        <Tooltip content="Close (⌘W)" side="bottom">
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-            onClick={onClose}
-          >
-            <X size={14} strokeWidth={1.5} />
-          </button>
-        </Tooltip>
-      </div>
-    </div>
-  );
-}
-
-export default DiffViewerTile;
+export default CommitDiffViewerTile;
