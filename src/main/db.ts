@@ -1,18 +1,25 @@
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 import { join } from 'node:path';
-import { readFileSync, readdirSync } from 'node:fs';
 import { logger } from './logger';
 
 let db: Database.Database | null = null;
 
-function getMigrationsDir(): string {
-  // In dev, migrations are at project root; in prod, they're packaged
-  if (app.isPackaged) {
-    return join(process.resourcesPath, 'db', 'migrations');
-  }
-  return join(__dirname, '../../db/migrations');
-}
+// Embed all migration SQL files at build time via Vite — no runtime filesystem access needed
+const migrationModules = import.meta.glob('../../db/migrations/*.sql', {
+  query: '?raw',
+  eager: true,
+}) as Record<string, { default: string }>;
+
+const migrations = Object.entries(migrationModules)
+  .map(([path, mod]) => {
+    const filename = path.split('/').pop()!;
+    const match = filename.match(/^(\d+)/);
+    if (!match) return null;
+    return { version: parseInt(match[1], 10), filename, sql: mod.default };
+  })
+  .filter((m): m is { version: number; filename: string; sql: string } => m !== null)
+  .sort((a, b) => a.version - b.version);
 
 function applyMigrations(database: Database.Database): void {
   database.exec(`
@@ -29,44 +36,24 @@ function applyMigrations(database: Database.Database): void {
       .map((row) => (row as { version: number }).version),
   );
 
-  const migrationsDir = getMigrationsDir();
-  let files: string[];
-  try {
-    files = readdirSync(migrationsDir)
-      .filter((f) => f.endsWith('.sql'))
-      .sort();
-  } catch {
-    logger.warn('db', 'No migrations directory found', { dir: migrationsDir });
-    return;
-  }
-
   // Check for duplicate version numbers
-  const versionMap = new Map<number, string>();
-  for (const file of files) {
-    const match = file.match(/^(\d+)/);
-    if (!match) continue;
-    const version = parseInt(match[1], 10);
-    if (versionMap.has(version)) {
-      throw new Error(
-        `Duplicate migration version ${version}: ${versionMap.get(version)} and ${file}`,
-      );
+  const versionSet = new Set<number>();
+  for (const m of migrations) {
+    if (versionSet.has(m.version)) {
+      throw new Error(`Duplicate migration version ${m.version}`);
     }
-    versionMap.set(version, file);
+    versionSet.add(m.version);
   }
 
-  for (const file of files) {
-    const match = file.match(/^(\d+)/);
-    if (!match) continue;
-    const version = parseInt(match[1], 10);
-    if (applied.has(version)) continue;
+  for (const m of migrations) {
+    if (applied.has(m.version)) continue;
 
-    const sql = readFileSync(join(migrationsDir, file), 'utf-8');
     const applyMigration = database.transaction(() => {
-      database.exec(sql);
-      database.prepare('INSERT INTO schema_version (version) VALUES (?)').run(version);
+      database.exec(m.sql);
+      database.prepare('INSERT INTO schema_version (version) VALUES (?)').run(m.version);
     });
     applyMigration();
-    logger.info('db', `Applied migration ${file}`);
+    logger.info('db', `Applied migration ${m.filename}`);
   }
 }
 
