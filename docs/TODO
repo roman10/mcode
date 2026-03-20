@@ -1,3 +1,4 @@
 1. resumed session remains starting state. state indicator can be incorrect.
 [upstream] 3. Claude Code plan mode input wrapping doesn't reflow on SIGWINCH. mcode PTY resize chain verified correct (PTY and xterm cols always match).
 4. constants feature
+2. queued tasks like /cru doesn't dequeue properly and can be in running state for a long time after it's done. 
