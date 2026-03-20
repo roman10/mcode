@@ -263,3 +263,45 @@ export async function getTileCount(client: McpTestClient): Promise<number> {
   const text = await client.callToolText('layout_get_tile_count');
   return parseInt(text, 10);
 }
+
+// --- Kanban helpers ---
+
+export interface KanbanColumnEntry {
+  sessionId: string;
+  label: string;
+  status: string;
+  attentionLevel: string;
+}
+
+export interface KanbanState {
+  expandedSessionId: string | null;
+  columns: Record<string, KanbanColumnEntry[]>;
+}
+
+export async function getViewMode(client: McpTestClient): Promise<string> {
+  const text = await client.callToolText('layout_get_view_mode');
+  // Response is "View mode: tiles" or "View mode: kanban"
+  return text.replace('View mode: ', '').trim();
+}
+
+export async function setViewMode(
+  client: McpTestClient,
+  mode: 'tiles' | 'kanban',
+): Promise<void> {
+  await client.callTool('layout_set_view_mode', { mode });
+}
+
+export async function getKanbanState(client: McpTestClient): Promise<KanbanState> {
+  return client.callToolJson<KanbanState>('kanban_get_columns');
+}
+
+export async function expandKanbanSession(
+  client: McpTestClient,
+  sessionId: string,
+): Promise<void> {
+  await client.callTool('kanban_expand_session', { sessionId });
+}
+
+export async function collapseKanban(client: McpTestClient): Promise<void> {
+  await client.callTool('kanban_collapse');
+}

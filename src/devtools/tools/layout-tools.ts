@@ -525,11 +525,14 @@ export function registerLayoutTools(
   });
 
   server.registerTool('kanban_get_columns', {
-    description: 'Get the kanban board columns with their sessions (needs-attention, working, ready, completed)',
+    description: 'Get the kanban board state: expandedSessionId and columns (needs-attention, working, ready, completed) with their sessions',
     annotations: { readOnlyHint: true },
   }, async () => {
     try {
-      const result = await queryRenderer<Record<string, Array<{ sessionId: string; label: string; status: string; attentionLevel: string }>>>(
+      const result = await queryRenderer<{
+        expandedSessionId: string | null;
+        columns: Record<string, Array<{ sessionId: string; label: string; status: string; attentionLevel: string }>>;
+      }>(
         ctx.mainWindow,
         'kanban-get-columns',
         {},

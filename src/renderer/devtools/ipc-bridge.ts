@@ -177,15 +177,19 @@ export function initDevtoolsBridge(): void {
       }
       case 'kanban-get-columns': {
         const { useSessionStore } = await import('../stores/session-store');
+        const { useLayoutStore } = await import('../stores/layout-store');
         const { groupSessionsByColumn } = await import('../components/Kanban/kanban-utils');
         const sessions = useSessionStore.getState().sessions;
         const grouped = groupSessionsByColumn(sessions);
-        result = Object.fromEntries(
-          Object.entries(grouped).map(([col, colSessions]) => [
-            col,
-            colSessions.map((s) => ({ sessionId: s.sessionId, label: s.label, status: s.status, attentionLevel: s.attentionLevel })),
-          ]),
-        );
+        result = {
+          expandedSessionId: useLayoutStore.getState().kanbanExpandedSessionId,
+          columns: Object.fromEntries(
+            Object.entries(grouped).map(([col, colSessions]) => [
+              col,
+              colSessions.map((s) => ({ sessionId: s.sessionId, label: s.label, status: s.status, attentionLevel: s.attentionLevel })),
+            ]),
+          ),
+        };
         break;
       }
       case 'kanban-expand-session': {
