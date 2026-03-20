@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useCommitStore } from '../../stores/commit-store';
 import Tooltip from '../shared/Tooltip';
+import HeatmapGrid from '../shared/HeatmapGrid';
 import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
 import type { CommitHeatmapEntry } from '../../../shared/types';
 
@@ -11,32 +12,16 @@ function basename(path: string): string {
   return path.split('/').pop() ?? path;
 }
 
-function HeatmapCell({
-  entry,
-  isSelected,
-  onSelect,
-}: {
-  entry: CommitHeatmapEntry;
-  isSelected: boolean;
-  onSelect: (date: string) => void;
-}): React.JSX.Element {
-  const dayLabel = new Date(entry.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
-  let bg = 'bg-bg-elevated';
-  if (entry.count > 0) bg = 'bg-green-900';
-  if (entry.count >= 3) bg = 'bg-green-700';
-  if (entry.count >= 6) bg = 'bg-green-500';
-  if (entry.count >= 10) bg = 'bg-green-400';
+function commitLevel(entry: CommitHeatmapEntry): number {
+  if (entry.count >= 10) return 4;
+  if (entry.count >= 6) return 3;
+  if (entry.count >= 3) return 2;
+  if (entry.count > 0) return 1;
+  return 0;
+}
 
-  return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div
-        className={`w-5 h-5 rounded-sm cursor-pointer ${bg} ${isSelected ? 'ring-1 ring-white/40' : ''}`}
-        title={`${entry.date}: ${entry.count} commits`}
-        onClick={() => onSelect(entry.date)}
-      />
-      <span className="text-[9px] text-text-muted">{dayLabel}</span>
-    </div>
-  );
+function commitTooltip(entry: CommitHeatmapEntry): string {
+  return `${entry.date}: ${entry.count} commit${entry.count !== 1 ? 's' : ''}`;
 }
 
 function TypePill({ type, count }: { type: string; count: number }): React.JSX.Element {
@@ -205,16 +190,14 @@ function CommitStats(): React.JSX.Element {
 
         {/* Heatmap */}
         {heatmap.length > 0 && (
-          <div className="flex flex-wrap items-end gap-1">
-            {heatmap.map((entry) => (
-              <HeatmapCell
-                key={entry.date}
-                entry={entry}
-                isSelected={entry.date === viewDate}
-                onSelect={handleHeatmapSelect}
-              />
-            ))}
-          </div>
+          <HeatmapGrid
+            entries={heatmap}
+            getLevel={commitLevel}
+            getTooltip={commitTooltip}
+            selectedDate={viewDate}
+            onSelect={handleHeatmapSelect}
+            colorScale="green"
+          />
         )}
 
         {/* Commit types */}

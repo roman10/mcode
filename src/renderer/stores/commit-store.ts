@@ -35,7 +35,7 @@ export const useCommitStore = create<CommitState>((set, get) => ({
     try {
       const [dailyStats, heatmap, streaks, cadence, weeklyTrend] = await Promise.all([
         window.mcode.commits.getDailyStats(selectedDate ?? undefined),
-        window.mcode.commits.getHeatmap(7),
+        window.mcode.commits.getHeatmap(90),
         window.mcode.commits.getStreaks(),
         window.mcode.commits.getCadence(selectedDate ?? undefined),
         window.mcode.commits.getWeeklyTrend(),

@@ -2,6 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useTokenStore } from '../../stores/token-store';
 import Tooltip from '../shared/Tooltip';
+import HeatmapGrid from '../shared/HeatmapGrid';
 import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
 import type { TokenHeatmapEntry, ModelUsageSummary } from '../../../shared/types';
 
@@ -19,32 +20,16 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-function HeatmapCell({
-  entry,
-  isSelected,
-  onSelect,
-}: {
-  entry: TokenHeatmapEntry;
-  isSelected: boolean;
-  onSelect: (date: string) => void;
-}): React.JSX.Element {
-  const dayLabel = new Date(entry.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
-  let bg = 'bg-bg-elevated';
-  if (entry.estimatedCostUsd > 0) bg = 'bg-emerald-900';
-  if (entry.estimatedCostUsd >= 1) bg = 'bg-emerald-700';
-  if (entry.estimatedCostUsd >= 5) bg = 'bg-emerald-500';
-  if (entry.estimatedCostUsd >= 10) bg = 'bg-emerald-400';
+function tokenLevel(entry: TokenHeatmapEntry): number {
+  if (entry.estimatedCostUsd >= 10) return 4;
+  if (entry.estimatedCostUsd >= 5) return 3;
+  if (entry.estimatedCostUsd >= 1) return 2;
+  if (entry.estimatedCostUsd > 0) return 1;
+  return 0;
+}
 
-  return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div
-        className={`w-5 h-5 rounded-sm cursor-pointer ${bg} ${isSelected ? 'ring-1 ring-white/40' : ''}`}
-        title={`${entry.date}: ${formatCost(entry.estimatedCostUsd)} · ${entry.messageCount} msgs`}
-        onClick={() => onSelect(entry.date)}
-      />
-      <span className="text-[9px] text-text-muted">{dayLabel}</span>
-    </div>
-  );
+function tokenTooltip(entry: TokenHeatmapEntry): string {
+  return `${entry.date}: ${formatCost(entry.estimatedCostUsd)} · ${entry.messageCount} msgs`;
 }
 
 const modelFamilyColors: Record<string, string> = {
@@ -205,16 +190,14 @@ function TokenStats(): React.JSX.Element {
 
         {/* Heatmap */}
         {heatmap.length > 0 && (
-          <div className="flex flex-wrap items-end gap-1">
-            {heatmap.map((entry) => (
-              <HeatmapCell
-                key={entry.date}
-                entry={entry}
-                isSelected={entry.date === viewDate}
-                onSelect={handleHeatmapSelect}
-              />
-            ))}
-          </div>
+          <HeatmapGrid
+            entries={heatmap}
+            getLevel={tokenLevel}
+            getTooltip={tokenTooltip}
+            selectedDate={viewDate}
+            onSelect={handleHeatmapSelect}
+            colorScale="emerald"
+          />
         )}
 
         {/* Model breakdown */}

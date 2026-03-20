@@ -280,7 +280,7 @@ export class CommitTracker {
     }
 
     // Determine the --after timestamp
-    const afterTimestamp = tracked?.last_scanned_at ?? todayStart();
+    const afterTimestamp = tracked?.last_scanned_at ?? nDaysAgoStart(COMMIT_RETENTION_DAYS);
 
     // Detect user's git email for this repo (cache in tracked_repos)
     let authorEmail = tracked?.author_email ?? null;
@@ -730,4 +730,10 @@ function todayDate(): string {
 
 function todayStart(): string {
   return todayDate() + 'T00:00:00';
+}
+
+function nDaysAgoStart(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return localDateStr(d) + 'T00:00:00';
 }

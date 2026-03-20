@@ -29,7 +29,7 @@ export const useTokenStore = create<TokenState>((set, get) => ({
     try {
       const [dailyUsage, heatmap, weeklyTrend] = await Promise.all([
         window.mcode.tokens.getDailyUsage(selectedDate ?? undefined),
-        window.mcode.tokens.getHeatmap(7),
+        window.mcode.tokens.getHeatmap(90),
         window.mcode.tokens.getWeeklyTrend(),
       ]);
       set({ dailyUsage, heatmap, weeklyTrend, loading: false });
