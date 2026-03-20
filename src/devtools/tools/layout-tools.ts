@@ -472,6 +472,123 @@ export function registerLayoutTools(
     }
   });
 
+  // --- View Mode (Tiles / Kanban) ---
+
+  server.registerTool('layout_get_view_mode', {
+    description: 'Get the current view mode (tiles or kanban)',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    try {
+      const result = await queryRenderer<{ viewMode: string }>(
+        ctx.mainWindow,
+        'layout-get-view-mode',
+        {},
+      );
+      return {
+        content: [{ type: 'text', text: `View mode: ${result.viewMode}` }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('layout_set_view_mode', {
+    description: 'Switch the layout view mode to tiles or kanban',
+    annotations: { readOnlyHint: false },
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        mode: { type: 'string', enum: ['tiles', 'kanban'], description: 'The view mode to switch to' },
+      },
+      required: ['mode'],
+    },
+  }, async (args) => {
+    try {
+      const { mode } = args as { mode: string };
+      const result = await queryRenderer<{ viewMode: string }>(
+        ctx.mainWindow,
+        'layout-set-view-mode',
+        { mode },
+      );
+      return {
+        content: [{ type: 'text', text: `View mode set to: ${result.viewMode}` }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('kanban_get_columns', {
+    description: 'Get the kanban board columns with their sessions (needs-attention, working, ready, completed)',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    try {
+      const result = await queryRenderer<Record<string, Array<{ sessionId: string; label: string; status: string; attentionLevel: string }>>>(
+        ctx.mainWindow,
+        'kanban-get-columns',
+        {},
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('kanban_expand_session', {
+    description: 'Expand a session to full terminal view in kanban mode',
+    annotations: { readOnlyHint: false },
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        sessionId: { type: 'string', description: 'The session ID to expand' },
+      },
+      required: ['sessionId'],
+    },
+  }, async (args) => {
+    try {
+      const { sessionId } = args as { sessionId: string };
+      await queryRenderer(ctx.mainWindow, 'kanban-expand-session', { sessionId });
+      return {
+        content: [{ type: 'text', text: `Expanded session ${sessionId} in kanban view` }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('kanban_collapse', {
+    description: 'Collapse expanded terminal back to kanban board overview',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    try {
+      await queryRenderer(ctx.mainWindow, 'kanban-collapse', {});
+      return {
+        content: [{ type: 'text', text: 'Kanban view collapsed to board overview' }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  });
+
+  // --- Sidebar ---
+
   server.registerTool('sidebar_get_active_tab', {
     description: 'Get the currently active sidebar tab',
     annotations: { readOnlyHint: true },

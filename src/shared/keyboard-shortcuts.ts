@@ -24,6 +24,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Show Token Usage', keys: 'Shift+U', mod: true, category: 'general' },
   { label: 'Refresh Token Usage', keys: 'R', mod: true, category: 'general' },
   { label: 'Clear All Attention', keys: 'Shift+M', mod: true, category: 'general' },
+  { label: 'Toggle Layout Mode', keys: 'Shift+L', mod: true, category: 'general' },
   { label: 'Close All Tiles', keys: 'Shift+X', mod: true, category: 'general' },
   { label: 'Quick Open', keys: 'P', mod: true, category: 'general' },
   { label: 'Command Palette', keys: 'Shift+P', mod: true, category: 'general' },

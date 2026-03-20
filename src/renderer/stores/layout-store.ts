@@ -5,7 +5,7 @@ import {
   getLeaves,
 } from 'react-mosaic-component';
 import { LAYOUT_PERSIST_DEBOUNCE_MS } from '../../shared/constants';
-import type { SidebarTab } from '../../shared/types';
+import type { SidebarTab, ViewMode } from '../../shared/types';
 
 /** Legacy tile IDs — stripped from persisted layouts on restore. */
 const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];
@@ -33,6 +33,8 @@ interface LayoutState {
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   activeSidebarTab: SidebarTab;
+  viewMode: ViewMode;
+  kanbanExpandedSessionId: string | null; // transient, not persisted
   splitIntent: SplitIntent | null;
   showNewSessionDialog: boolean;
   showKeyboardShortcuts: boolean;
@@ -52,6 +54,9 @@ interface LayoutState {
   setSidebarWidth(width: number): void;
   toggleSidebar(): void;
   setActiveSidebarTab(tab: SidebarTab): void;
+  setViewMode(mode: ViewMode): void;
+  expandKanbanSession(sessionId: string): void;
+  clearKanbanExpand(): void;
   setSplitIntent(intent: SplitIntent | null): void;
   setShowNewSessionDialog(show: boolean): void;
   setShowKeyboardShortcuts(show: boolean): void;
@@ -169,6 +174,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   sidebarWidth: 280,
   sidebarCollapsed: false,
   activeSidebarTab: 'sessions' as SidebarTab,
+  viewMode: 'tiles' as ViewMode,
+  kanbanExpandedSessionId: null,
   splitIntent: null,
   showNewSessionDialog: false,
   showKeyboardShortcuts: false,
@@ -274,6 +281,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     get().persist();
   },
 
+  setViewMode: (mode) => {
+    set({ viewMode: mode, kanbanExpandedSessionId: null });
+    window.mcode.preferences.set('viewMode', mode).catch(console.error);
+  },
+
+  expandKanbanSession: (sessionId) => set({ kanbanExpandedSessionId: sessionId }),
+
+  clearKanbanExpand: () => set({ kanbanExpandedSessionId: null }),
+
   setSplitIntent: (intent) => set({ splitIntent: intent }),
 
   setShowNewSessionDialog: (show) => set({ showNewSessionDialog: show }),
@@ -370,7 +386,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
 
   restore: async () => {
-    const snapshot = await window.mcode.layout.load();
+    const [snapshot, viewModePref] = await Promise.all([
+      window.mcode.layout.load(),
+      window.mcode.preferences.get('viewMode'),
+    ]);
+    const viewMode: ViewMode = viewModePref === 'kanban' ? 'kanban' : 'tiles';
     if (snapshot) {
       // Strip legacy dashboard/stats tiles from persisted layouts
       let tree = snapshot.mosaicTree;
@@ -388,7 +408,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         sidebarWidth: snapshot.sidebarWidth,
         sidebarCollapsed: snapshot.sidebarCollapsed ?? false,
         activeSidebarTab: snapshot.activeSidebarTab ?? 'sessions',
+        viewMode,
       });
+    } else {
+      set({ viewMode });
     }
   },
 

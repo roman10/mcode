@@ -21,18 +21,35 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const sessionType = useSessionStore((s) => s.sessions[sessionId]?.sessionType);
   const scrollbackLines = useSessionStore((s) => s.sessions[sessionId]?.terminalConfig?.scrollbackLines);
 
-  const isMaximized = useLayoutStore((s) => s.restoreTree !== null);
+  const viewMode = useLayoutStore((s) => s.viewMode);
+  const isMaximized = useLayoutStore((s) =>
+    s.viewMode === 'kanban' ? s.kanbanExpandedSessionId !== null : s.restoreTree !== null,
+  );
 
   const handleClose = (): void => {
-    removeTile(sessionId);
-    persist();
+    if (viewMode === 'kanban') {
+      // In kanban mode, closing the expanded terminal returns to the board
+      useLayoutStore.getState().clearKanbanExpand();
+    } else {
+      removeTile(sessionId);
+      persist();
+    }
   };
 
   const handleToggleMaximize = (): void => {
-    if (useLayoutStore.getState().restoreTree) {
-      useLayoutStore.getState().restoreFromMaximize();
+    const store = useLayoutStore.getState();
+    if (store.viewMode === 'kanban') {
+      if (store.kanbanExpandedSessionId) {
+        store.clearKanbanExpand();
+      } else {
+        store.expandKanbanSession(sessionId);
+      }
     } else {
-      useLayoutStore.getState().maximize(sessionId);
+      if (store.restoreTree) {
+        store.restoreFromMaximize();
+      } else {
+        store.maximize(sessionId);
+      }
     }
   };
 

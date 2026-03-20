@@ -579,6 +579,28 @@ app.whenReady().then(async () => {
           },
           { type: 'separator' },
           {
+            label: 'Layout Mode',
+            submenu: [
+              {
+                label: 'Tiles',
+                type: 'radio',
+                checked: true,
+                click: () => sendCommand({ command: 'set-view-mode', mode: 'tiles' }),
+              },
+              {
+                label: 'Kanban Board',
+                type: 'radio',
+                click: () => sendCommand({ command: 'set-view-mode', mode: 'kanban' }),
+              },
+            ],
+          },
+          {
+            label: 'Toggle Layout Mode',
+            accelerator: 'CmdOrCtrl+Shift+L',
+            click: () => sendCommand({ command: 'toggle-view-mode' }),
+          },
+          { type: 'separator' },
+          {
             label: 'Close All Tiles',
             accelerator: 'CmdOrCtrl+Shift+X',
             click: () => sendCommand({ command: 'close-all-tiles' }),

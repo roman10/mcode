@@ -120,5 +120,15 @@ export function executeAppCommand(command: AppCommand): void {
       }
       break;
     }
+
+    case 'set-view-mode':
+      useLayoutStore.getState().setViewMode(command.mode);
+      break;
+
+    case 'toggle-view-mode': {
+      const current = useLayoutStore.getState().viewMode;
+      useLayoutStore.getState().setViewMode(current === 'tiles' ? 'kanban' : 'tiles');
+      break;
+    }
   }
 }

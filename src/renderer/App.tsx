@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as RadixTooltip from '@radix-ui/react-tooltip';
 import Sidebar from './components/Sidebar/Sidebar';
 import MosaicLayout from './components/Layout/MosaicLayout';
+import KanbanLayout from './components/Kanban/KanbanLayout';
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import SettingsDialog from './components/SettingsDialog';
 import AccountsDialog from './components/AccountsDialog';
@@ -214,6 +215,7 @@ function App(): React.JSX.Element {
   }, []);
 
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
+  const viewMode = useLayoutStore((s) => s.viewMode);
   const showKeyboardShortcuts = useLayoutStore((s) => s.showKeyboardShortcuts);
   const setShowKeyboardShortcuts = useLayoutStore((s) => s.setShowKeyboardShortcuts);
   const showSettings = useLayoutStore((s) => s.showSettings);
@@ -256,11 +258,11 @@ function App(): React.JSX.Element {
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
         <TitleBar />
 
-        {/* Main content: sidebar + mosaic */}
+        {/* Main content: sidebar + layout */}
         <div className="flex flex-1 min-h-0">
           {!sidebarCollapsed && <Sidebar />}
           <div className="flex-1 min-w-0">
-            <MosaicLayout />
+            {viewMode === 'kanban' ? <KanbanLayout /> : <MosaicLayout />}
           </div>
         </div>
       </div>

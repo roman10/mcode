@@ -127,6 +127,22 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'switch-sidebar-tab', tab: 'activity' }),
     },
     {
+      id: 'switch-to-kanban',
+      label: 'Switch to Kanban Board',
+      category: 'Layout',
+      keywords: ['kanban', 'board', 'view', 'layout'],
+      enabled: useLayoutStore.getState().viewMode !== 'kanban',
+      execute: () => executeAppCommand({ command: 'set-view-mode', mode: 'kanban' }),
+    },
+    {
+      id: 'switch-to-tiles',
+      label: 'Switch to Tiles',
+      category: 'Layout',
+      keywords: ['tiles', 'mosaic', 'view', 'layout'],
+      enabled: useLayoutStore.getState().viewMode !== 'tiles',
+      execute: () => executeAppCommand({ command: 'set-view-mode', mode: 'tiles' }),
+    },
+    {
       id: 'close-all-tiles',
       label: 'Close All Tiles',
       category: 'Layout',

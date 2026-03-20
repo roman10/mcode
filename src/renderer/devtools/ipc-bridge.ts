@@ -163,6 +163,44 @@ export function initDevtoolsBridge(): void {
         result = { tab: useLayoutStore.getState().activeSidebarTab };
         break;
       }
+      case 'layout-get-view-mode': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        result = { viewMode: useLayoutStore.getState().viewMode };
+        break;
+      }
+      case 'layout-set-view-mode': {
+        const { mode } = params as { mode: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().setViewMode(mode as import('../../shared/types').ViewMode);
+        result = { viewMode: mode };
+        break;
+      }
+      case 'kanban-get-columns': {
+        const { useSessionStore } = await import('../stores/session-store');
+        const { groupSessionsByColumn } = await import('../components/Kanban/kanban-utils');
+        const sessions = useSessionStore.getState().sessions;
+        const grouped = groupSessionsByColumn(sessions);
+        result = Object.fromEntries(
+          Object.entries(grouped).map(([col, colSessions]) => [
+            col,
+            colSessions.map((s) => ({ sessionId: s.sessionId, label: s.label, status: s.status, attentionLevel: s.attentionLevel })),
+          ]),
+        );
+        break;
+      }
+      case 'kanban-expand-session': {
+        const { sessionId } = params as { sessionId: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().expandKanbanSession(sessionId);
+        result = { expanded: sessionId };
+        break;
+      }
+      case 'kanban-collapse': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().clearKanbanExpand();
+        result = { collapsed: true };
+        break;
+      }
       case 'file-open-viewer': {
         const { absolutePath } = params as { absolutePath: string };
         const { useLayoutStore } = await import('../stores/layout-store');

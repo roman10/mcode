@@ -77,6 +77,7 @@ export interface ExternalSessionInfo {
 }
 
 export type SidebarTab = 'sessions' | 'commits' | 'tokens' | 'activity';
+export type ViewMode = 'tiles' | 'kanban';
 
 export interface LayoutStateSnapshot {
   mosaicTree: MosaicNode<string> | null;
@@ -101,7 +102,9 @@ export type AppCommand =
   | { command: 'close-all-tiles' }
   | { command: 'show-command-palette' }
   | { command: 'quick-open' }
-  | { command: 'show-create-task' };
+  | { command: 'show-create-task' }
+  | { command: 'set-view-mode'; mode: ViewMode }
+  | { command: 'toggle-view-mode' };
 
 // --- Files ---
 
