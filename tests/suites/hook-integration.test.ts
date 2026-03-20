@@ -140,7 +140,7 @@ describe('hook integration', () => {
     expect(res.status).toBe(400);
   });
 
-  it('valid event but unknown session returns 404', async () => {
+  it('valid event but unknown session returns 200 (silently accepted)', async () => {
     const runtime = await getHookRuntime(client);
     if (runtime.state !== 'ready' || !runtime.port) {
       return;
@@ -154,7 +154,7 @@ describe('hook integration', () => {
       },
       body: JSON.stringify({ hook_event_name: 'SessionStart' }),
     });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
   });
 
   it('Stop when already idle does not change attention', async () => {

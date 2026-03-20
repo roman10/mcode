@@ -121,8 +121,11 @@ function handleHookPost(
   }
 
   if (!sessionId) {
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Cannot correlate to an mcode session' }));
+    // Return 200 so external Claude Code sessions and other mcode instances
+    // don't see hook errors — we simply have no opinion about this session.
+    logger.debug('hook-server', 'Ignoring hook from uncorrelated session', { hookEventName });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('{}');
     return;
   }
 
@@ -140,8 +143,14 @@ function handleHookPost(
   try {
     const accepted = onEvent(sessionId, event);
     if (!accepted) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Cannot correlate to an existing mcode session' }));
+      // Session ID was provided but not found in DB — likely from another
+      // mcode instance or a race (session deleted while hook arrived).
+      logger.debug('hook-server', 'Hook event not accepted (session not found)', {
+        sessionId,
+        hookEventName,
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{}');
       return;
     }
   } catch (err) {
