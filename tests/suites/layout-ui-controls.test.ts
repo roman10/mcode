@@ -103,24 +103,16 @@ describe('layout UI controls', () => {
     expect(shownAgain).toBe(!shown);
   });
 
-  it('toggle_dashboard toggles and affects tile count', async () => {
-    const before = await getTileCount(client);
-
+  it('toggle_command_palette toggles state', async () => {
     // First toggle
-    const text1 = await client.callToolText('layout_toggle_dashboard');
-    const added = text1.includes('added');
-    const after1 = await getTileCount(client);
+    const text1 = await client.callToolText('layout_toggle_command_palette');
+    const shown = text1.includes('shown');
 
-    if (added) {
-      expect(after1).toBe(before + 1);
-    } else {
-      expect(after1).toBe(before - 1);
-    }
+    // Second toggle — should return the opposite
+    const text2 = await client.callToolText('layout_toggle_command_palette');
+    const shownAgain = text2.includes('shown');
 
-    // Second toggle — restore
-    await client.callTool('layout_toggle_dashboard');
-    const after2 = await getTileCount(client);
-    expect(after2).toBe(before);
+    expect(shownAgain).toBe(!shown);
   });
 
   it('remove_all_tiles is idempotent', async () => {

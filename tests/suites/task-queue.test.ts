@@ -12,6 +12,7 @@ import {
   listTasks,
   cancelTask,
   waitForTaskStatus,
+  updateTask,
 } from '../helpers';
 
 function futureIso(delayMs = 60000): string {
@@ -296,5 +297,52 @@ describe('task queue', () => {
     ).rejects.toThrow(/live hook mode/i);
 
     await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it('task_update changes prompt of pending task', async () => {
+    const task = await createTask(client, {
+      prompt: 'original prompt',
+      scheduledAt: futureIso(),
+    });
+
+    const updated = await updateTask(client, task.id, { prompt: 'updated prompt' });
+    expect(updated.prompt).toBe('updated prompt');
+
+    // Verify via list
+    const tasks = await listTasks(client);
+    const found = tasks.find((t) => t.id === task.id);
+    expect(found?.prompt).toBe('updated prompt');
+
+    await cancelTask(client, task.id);
+  });
+
+  it('task_update changes priority and scheduledAt', async () => {
+    const task = await createTask(client, {
+      prompt: 'update test',
+      priority: 5,
+      scheduledAt: futureIso(),
+    });
+
+    const newScheduled = futureIso(120000);
+    const updated = await updateTask(client, task.id, {
+      priority: 20,
+      scheduledAt: newScheduled,
+    });
+    expect(updated.priority).toBe(20);
+    expect(updated.scheduledAt).toBe(newScheduled);
+
+    await cancelTask(client, task.id);
+  });
+
+  it('task_update rejects non-pending tasks', async () => {
+    const task = await createTask(client, {
+      prompt: 'will cancel',
+      scheduledAt: futureIso(),
+    });
+    await cancelTask(client, task.id);
+
+    await expect(
+      updateTask(client, task.id, { prompt: 'too late' }),
+    ).rejects.toThrow(/only pending/i);
   });
 });

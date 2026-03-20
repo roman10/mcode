@@ -29,14 +29,16 @@ npx vitest run --config vitest.config.mts -t "resizes terminal"
 ```
 tests/
 ├── mcp-client.ts          # MCP SDK client wrapper (connects to localhost:7532)
-├── helpers.ts             # Composable test helpers (session, hook, task, layout)
+├── helpers.ts             # Composable test helpers (session, hook, task, layout, kanban, file, sidebar)
 ├── suites/                # Test suites organized by feature area
 │   ├── session-lifecycle  # Core session state machine
-│   ├── session-delete     # Session deletion (single + bulk)
+│   ├── session-delete     # Session deletion (single, bulk, batch)
 │   ├── tiling-layout      # Mosaic layout management
-│   ├── layout-ui-controls # Sidebar collapse, dashboard/shortcuts toggle, remove-all
+│   ├── kanban-layout      # Kanban board view mode
+│   ├── layout-ui-controls # Sidebar collapse, command palette/shortcuts toggle, remove-all
 │   ├── sidebar-sessions   # Sidebar ↔ DB consistency
 │   ├── sidebar-interaction # Selection and sidebar width
+│   ├── sidebar-tabs       # Sidebar tab switching
 │   ├── detach-semantics   # Tile removal vs session kill
 │   ├── terminal-io        # Basic terminal read/write
 │   ├── terminal-advanced  # Resize, Ctrl+C, timeouts
@@ -51,8 +53,10 @@ tests/
 │   ├── hook-config        # Hook config merge/remove logic (unit)
 │   ├── hook-integration   # Hook event lifecycle, HTTP errors
 │   ├── attention-system   # Attention levels, priority, clearing
-│   ├── task-queue         # Task CRUD, dispatch, scheduling
-│   └── commit-tracking    # Commit stats, heatmap, streaks, cadence
+│   ├── task-queue         # Task CRUD, update, dispatch, scheduling
+│   ├── commit-tracking    # Commit stats, heatmap, streaks, cadence
+│   ├── file-tools         # File list, read, write, viewer, quick open
+│   └── token-usage        # Token usage stats, heatmap, trends
 └── vitest.config.mts      # Sequential execution, 30s timeout
 ```
 
@@ -79,15 +83,28 @@ tests/
 *Sidebar:*
 - `getSidebarSessions(client)` — lists sessions shown in sidebar
 - `selectSession(client, sessionId)` — selects or deselects a session
+- `getSidebarActiveTab(client)` — gets the currently active sidebar tab
+- `switchSidebarTab(client, tab)` — switches sidebar to a specific tab
 
 *Task queue:*
 - `createTask(client, overrides?)` — creates a task with default prompt and cwd
 - `listTasks(client, filter?)` — lists tasks with optional status/session filters
 - `cancelTask(client, taskId)` — cancels a pending task
 - `waitForTaskStatus(client, taskId, status, timeoutMs?)` — polls until task reaches target status
+- `updateTask(client, taskId, updates)` — updates a pending task's prompt, priority, or scheduledAt
 
 *Layout:*
 - `getTileCount(client)` — reads `layout_get_tile_count`
+
+*Kanban:*
+- `getViewMode(client)` — gets current view mode (tiles or kanban)
+- `setViewMode(client, mode)` — switches view mode
+- `getKanbanState(client)` — gets kanban board state (columns and expandedSessionId)
+- `expandKanbanSession(client, sessionId)` — expands a session in kanban view
+- `collapseKanban(client)` — collapses expanded kanban session
+
+*File:*
+- `writeTestFile(client, relativePath, content, cwd?)` — writes a file via `file_write`
 
 **Execution model**: All suites run sequentially (no parallelism) because they share a single Electron app instance. Each suite manages its own sessions via `beforeAll`/`afterAll` cleanup.
 
@@ -95,19 +112,21 @@ tests/
 
 ## MCP Tools Used
 
-59 tools across 9 categories. Each test case lists the tools it exercises.
+79 tools across 11 categories. Each test case lists the tools it exercises.
 
 | Category | Tools |
 |----------|-------|
-| **Session** (9) | `session_create`, `session_list`, `session_get_status`, `session_kill`, `session_delete`, `session_delete_all_ended`, `session_info`, `session_wait_for_status`, `session_set_label` |
+| **Session** (10) | `session_create`, `session_list`, `session_get_status`, `session_kill`, `session_delete`, `session_delete_all_ended`, `session_delete_batch`, `session_info`, `session_wait_for_status`, `session_set_label` |
 | **Terminal** (7) | `terminal_read_buffer`, `terminal_send_keys`, `terminal_get_dimensions`, `terminal_resize`, `terminal_execute_action`, `terminal_drop_files`, `terminal_wait_for_content` |
-| **Layout** (12) | `layout_get_tree`, `layout_add_tile`, `layout_remove_tile`, `layout_remove_all_tiles`, `layout_get_tile_count`, `layout_get_sidebar_width`, `layout_set_sidebar_width`, `layout_get_sidebar_collapsed`, `layout_set_sidebar_collapsed`, `layout_toggle_keyboard_shortcuts`, `layout_toggle_dashboard`, `sidebar_get_sessions` |
-| **Sidebar** (3) | `sidebar_select_session`, `sidebar_get_selected`, `sidebar_get_tasks` |
+| **Layout** (17) | `layout_get_tree`, `layout_add_tile`, `layout_remove_tile`, `layout_remove_all_tiles`, `layout_get_tile_count`, `layout_get_sidebar_width`, `layout_set_sidebar_width`, `layout_get_sidebar_collapsed`, `layout_set_sidebar_collapsed`, `layout_toggle_keyboard_shortcuts`, `layout_toggle_command_palette`, `sidebar_get_sessions`, `layout_get_view_mode`, `layout_set_view_mode`, `kanban_get_columns`, `kanban_expand_session`, `kanban_collapse` |
+| **Sidebar** (5) | `sidebar_select_session`, `sidebar_get_selected`, `sidebar_get_tasks`, `sidebar_switch_tab`, `sidebar_get_active_tab` |
 | **Window** (3) | `window_screenshot`, `window_get_bounds`, `window_resize` |
 | **App** (5) | `app_get_version`, `app_get_console_logs`, `app_get_hmr_events`, `app_get_sleep_blocker_status`, `app_set_prevent_sleep` |
 | **Hook** (8) | `app_get_hook_runtime`, `app_get_attention_summary`, `hook_inject_event`, `hook_list_recent`, `hook_list_recent_all`, `session_wait_for_attention`, `session_clear_attention`, `session_clear_all_attention` |
-| **Task** (4) | `task_create`, `task_list`, `task_cancel`, `task_wait_for_status` |
+| **Task** (5) | `task_create`, `task_list`, `task_cancel`, `task_update`, `task_wait_for_status` |
 | **Commits** (8) | `commits_get_daily_stats`, `commits_get_heatmap`, `commits_get_streaks`, `commits_get_cadence`, `commits_get_weekly_trend`, `commits_refresh`, `commits_get_scan_mode`, `commits_set_scan_mode` |
+| **File** (5) | `file_list`, `file_read`, `file_write`, `file_open_viewer`, `quick_open_toggle` |
+| **Token** (6) | `tokens_get_session_usage`, `tokens_get_daily_usage`, `tokens_get_model_breakdown`, `tokens_get_weekly_trend`, `tokens_get_heatmap`, `tokens_refresh` |
 
 ---
 
@@ -131,7 +150,7 @@ tests/
 ### 2. Session Delete
 
 **File**: `tests/suites/session-delete.test.ts`
-**What it verifies**: Deleting ended sessions — single and bulk deletion, validation that active sessions cannot be deleted.
+**What it verifies**: Deleting ended sessions — single, bulk, and batch deletion, validation that active sessions cannot be deleted.
 
 **Setup**: Creates 3 sessions, kills 2 to make them "ended", keeps 1 active.
 
@@ -141,6 +160,9 @@ tests/
 | 2 | rejects deleting an active session | `session_delete` | `isError: true` for active session |
 | 3 | delete_all_ended removes all ended sessions | `session_delete_all_ended`, `session_list` | Returns count; deleted IDs gone from list |
 | 4 | delete_all_ended is safe when no ended sessions exist | `session_delete_all_ended` | Returns "No ended sessions to delete" |
+| 5 | deletes a batch of ended sessions | `session_delete_batch`, `session_get_status` | Batch delete 2 ended sessions; both return `isError: true` on subsequent get |
+| 6 | skips active sessions in the batch | `session_delete_batch`, `session_get_status` | Batch with 1 ended + 1 active: only ended deleted, active session survives |
+| 7 | returns message for no valid IDs | `session_delete_batch` | Nonexistent IDs → "No valid ended sessions" |
 
 ### 3. Tiling Layout
 
@@ -156,10 +178,28 @@ tests/
 | 5 | re-adds a removed tile | `layout_add_tile`, `layout_get_tile_count` | Tile count increments back after re-adding |
 | 6 | returns error when adding tile for non-existent session | `layout_add_tile` | isError is true for a fake UUID |
 
-### 4. Layout UI Controls
+### 4. Kanban Layout
+
+**File**: `tests/suites/kanban-layout.test.ts`
+**What it verifies**: Kanban board view mode — view mode switching, column grouping by session state, session expansion, and auto-collapse behavior.
+
+**Setup/teardown**: Saves original view mode in `beforeAll`, restores in `afterAll`.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | switches view mode to kanban and back | `layout_get_view_mode`, `layout_set_view_mode` | Set kanban → read kanban; set tiles → read tiles |
+| 2 | groups active sessions into the working column | `kanban_get_columns` | Active session appears in `working` column |
+| 3 | moves ended sessions to the completed column | `kanban_get_columns` | Killed session appears in `completed` column |
+| 4 | moves sessions with high attention to needs-attention column | `kanban_get_columns`, `hook_inject_event` | PermissionRequest → session in `needs-attention` column |
+| 5 | expands a session and reports expandedSessionId | `kanban_expand_session`, `kanban_get_columns`, `kanban_collapse` | expandedSessionId matches; collapse clears it |
+| 6 | auto-collapses when expanded session is killed | `kanban_expand_session`, `kanban_get_columns`, `session_kill` | expandedSessionId becomes null after kill |
+| 7 | clears expansion when switching view modes | `layout_set_view_mode`, `kanban_get_columns` | Switch tiles→kanban clears expandedSessionId |
+| 8 | maintains tile tree in kanban mode | `layout_get_tile_count` | Tile count still increments when creating sessions in kanban mode |
+
+### 5. Layout UI Controls
 
 **File**: `tests/suites/layout-ui-controls.test.ts`
-**What it verifies**: Sidebar collapse, dashboard/keyboard-shortcuts toggle, and bulk tile removal.
+**What it verifies**: Sidebar collapse, command palette/keyboard-shortcuts toggle, and bulk tile removal.
 
 **Setup**: Creates 2 sessions with tiles, saves original sidebar collapsed state.
 
@@ -170,10 +210,10 @@ tests/
 | 3 | can re-add tiles after remove_all | `layout_add_tile`, `layout_get_tile_count` | Count increases back |
 | 4 | get/set sidebar collapsed round-trips | `layout_get_sidebar_collapsed`, `layout_set_sidebar_collapsed` | Set true → read true; set false → read false; restore original |
 | 5 | toggle_keyboard_shortcuts toggles state | `layout_toggle_keyboard_shortcuts` | Two calls return opposite booleans (net zero change) |
-| 6 | toggle_dashboard toggles and affects tile count | `layout_toggle_dashboard`, `layout_get_tile_count` | Tile count changes; second toggle restores |
+| 6 | toggle_command_palette toggles state | `layout_toggle_command_palette` | Two calls return opposite booleans (net zero change) |
 | 7 | remove_all_tiles is idempotent | `layout_remove_all_tiles`, `layout_get_tile_count` | No error when already 0 tiles |
 
-### 5. Sidebar Sessions
+### 6. Sidebar Sessions
 
 **File**: `tests/suites/sidebar-sessions.test.ts`
 **What it verifies**: Sidebar Zustand store reflects DB state — session appearance, status tracking, label persistence.
@@ -186,7 +226,7 @@ tests/
 | 4 | set label persists to DB | `session_create`, `session_wait_for_status`, `session_set_label`, `session_get_status` | Label change via MCP persists in SQLite (note: sidebar Zustand store does not get notified — no `session:label-change` IPC yet) |
 | 5 | DB and sidebar agree on session status | `session_list`, `sidebar_get_sessions` | For every test session, DB status matches sidebar status |
 
-### 6. Sidebar Interaction
+### 7. Sidebar Interaction
 
 **File**: `tests/suites/sidebar-interaction.test.ts`
 **What it verifies**: Session selection UI state and sidebar width control.
@@ -199,7 +239,21 @@ tests/
 | 4 | gets sidebar width | `layout_get_sidebar_width` | Width is between 200–500px (valid range) |
 | 5 | sets sidebar width and reads it back | `layout_set_sidebar_width`, `layout_get_sidebar_width` | Set to 350px, read back 350px, then restore original |
 
-### 7. Detach Semantics
+### 8. Sidebar Tabs
+
+**File**: `tests/suites/sidebar-tabs.test.ts`
+**What it verifies**: Sidebar tab switching and active tab query.
+
+**Setup/teardown**: Saves original active tab in `beforeAll`, restores in `afterAll`.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | get_active_tab returns current tab | `sidebar_get_active_tab` | Returns one of `sessions`, `commits`, `tokens`, `activity` |
+| 2 | switch_tab switches to each tab | `sidebar_switch_tab`, `sidebar_get_active_tab` | Switch to each tab and verify via get_active_tab |
+| 3 | switch_tab returns confirmation text | `sidebar_switch_tab` | Response contains "Sidebar switched to" and tab name |
+| 4 | switch_tab round-trips correctly | `sidebar_switch_tab`, `sidebar_get_active_tab` | Switch → get → verify match for multiple tabs |
+
+### 9. Detach Semantics
 
 **File**: `tests/suites/detach-semantics.test.ts`
 **What it verifies**: Closing a tile (detach) does NOT kill the session — a key UX distinction.
@@ -210,7 +264,7 @@ tests/
 | 2 | can re-add tile after detach | `layout_add_tile`, `layout_get_tile_count` | Tile count increases when re-adding a detached session |
 | 3 | can kill a detached session | `layout_remove_tile`, `session_kill`, `session_wait_for_status`, `session_get_status` | A session with no tile can still be killed and transitions to `ended` |
 
-### 8. Terminal I/O
+### 10. Terminal I/O
 
 **File**: `tests/suites/terminal-io.test.ts`
 **What it verifies**: Basic terminal input/output — send commands, read buffer, check dimensions.
@@ -223,7 +277,7 @@ tests/
 | 2 | reads buffer with line limit | `terminal_read_buffer` | With `lines: 5`, returned text has at most 5 lines |
 | 3 | gets terminal dimensions | `terminal_get_dimensions` | cols > 0, rows > 0 |
 
-### 9. Terminal Advanced
+### 11. Terminal Advanced
 
 **File**: `tests/suites/terminal-advanced.test.ts`
 **What it verifies**: PTY resize, signal handling, timeout behavior, sequential command isolation.
@@ -237,7 +291,7 @@ tests/
 | 3 | wait_for_content times out on non-matching pattern | `terminal_wait_for_content` | Returns `isError: true` with "Timeout" message after 1s |
 | 4 | handles multiple sequential commands | `terminal_send_keys`, `terminal_wait_for_content` | Two sequential echo commands both appear in buffer; output is not mixed |
 
-### 10. Terminal Actions
+### 12. Terminal Actions
 
 **File**: `tests/suites/terminal-actions.test.ts`
 **What it verifies**: Terminal execute actions (selectAll, copy, clear) and file drop simulation.
@@ -250,7 +304,7 @@ tests/
 | 2 | selectAll + copy returns buffer content | `terminal_send_keys`, `terminal_wait_for_content`, `terminal_execute_action` | Copy after selectAll contains echoed marker |
 | 3 | drop_files writes path to terminal | `terminal_drop_files`, `terminal_read_buffer` | Dropped `package.json` path appears in buffer |
 
-### 11. Window Tools
+### 13. Window Tools
 
 **File**: `tests/suites/window-tools.test.ts`
 **What it verifies**: Electron window management — screenshot capture, bounds query, resize.
@@ -263,7 +317,7 @@ tests/
 | 2 | gets window bounds | `window_get_bounds` | Returns x, y (numbers), width > 0, height > 0 |
 | 3 | resizes window and verifies | `window_resize`, `window_get_bounds` | Resize to 1200x800 (above macOS minimum), bounds match afterward |
 
-### 12. App Introspection
+### 14. App Introspection
 
 **File**: `tests/suites/app-introspection.test.ts`
 **What it verifies**: App metadata and renderer-side capture mechanisms.
@@ -276,7 +330,7 @@ tests/
 | 4 | respects console log limit | `app_get_console_logs` | With `limit: 3`, at most 3 entries returned |
 | 5 | returns HMR events as array | `app_get_hmr_events` | Response is a valid array |
 
-### 13. App Sleep Prevention
+### 15. App Sleep Prevention
 
 **File**: `tests/suites/app-sleep.test.ts`
 **What it verifies**: Sleep prevention controls — enable, disable, status query, idempotent toggling.
@@ -290,7 +344,7 @@ tests/
 | 3 | set_prevent_sleep disables sleep prevention | `app_set_prevent_sleep`, `app_get_sleep_blocker_status` | enabled → false |
 | 4 | toggling is idempotent | `app_set_prevent_sleep` | Set true twice, no error, still enabled |
 
-### 14. App Startup
+### 16. App Startup
 
 **File**: `tests/suites/app-startup.test.ts`
 **What it verifies**: Renderer bridge responds after app startup.
@@ -299,7 +353,7 @@ tests/
 |---|------|-----------|----------------|
 | 1 | responds to renderer bridge queries after startup | `app_get_console_logs` | Returns valid array, every entry has `args` array |
 
-### 15. Error Cases
+### 17. Error Cases
 
 **File**: `tests/suites/error-cases.test.ts`
 **What it verifies**: All tools return proper errors (not crashes) when given non-existent session IDs.
@@ -323,7 +377,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 13 | terminal_execute_action error | `terminal_execute_action` | isError is true |
 | 14 | terminal_drop_files error | `terminal_drop_files` | isError is true |
 
-### 16. Concurrent Sessions
+### 18. Concurrent Sessions
 
 **File**: `tests/suites/concurrent-sessions.test.ts`
 **What it verifies**: The app handles 4 simultaneous sessions — creation, state tracking, independent I/O, and teardown.
@@ -339,7 +393,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 7 | kills all sessions and all transition to ended | `session_kill`, `session_wait_for_status`, `session_get_status` | All 4 reach `ended` with endedAt set |
 | 8 | tile count returns to baseline after kills | `layout_get_tile_count` | Tile count is non-negative |
 
-### 17. Permission Modes
+### 19. Permission Modes
 
 **File**: `tests/suites/permission-modes.test.ts`
 **What it verifies**: Our `PERMISSION_MODES` constant stays in sync with the Claude CLI's accepted `--permission-mode` values.
@@ -350,7 +404,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 |---|------|----------------|
 | 1 | PERMISSION_MODES matches Claude CLI allowed choices | Parses "Allowed choices are ..." from CLI error; verifies our constant has no missing or extra modes |
 
-### 18. Hook Config
+### 20. Hook Config
 
 **File**: `tests/suites/hook-config.test.ts`
 **What it verifies**: Pure unit tests for hook config merging and removal logic (no MCP server needed).
@@ -360,7 +414,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 1 | merges mcode hooks using Claude hook groups | Existing user hooks preserved; mcode hooks appended with correct URL, headers, and `allowedHttpHookUrls` |
 | 2 | removes only mcode-owned hooks and preserves user hooks | Hooks with `X-Mcode-Hook` header removed; user hooks untouched; empty groups pruned |
 
-### 19. Hook Integration
+### 21. Hook Integration
 
 **File**: `tests/suites/hook-integration.test.ts`
 **What it verifies**: Hook event processing lifecycle — event injection, status transitions, attention levels, event persistence, and HTTP error responses.
@@ -383,7 +437,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 14 | PTY exit transitions to ended and clears attention | `session_kill`, `session_wait_for_status` | Status `ended`, attention `none` after kill |
 | 15 | hook_list_recent_all returns events across sessions | `hook_list_recent_all` | Non-empty array with events from multiple sessions |
 
-### 20. Attention System
+### 22. Attention System
 
 **File**: `tests/suites/attention-system.test.ts`
 **What it verifies**: Attention level assignment, priority ordering, clearing, and sidebar sorting by attention.
@@ -401,10 +455,10 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 9 | user selection clears attention for that session only | `sidebar_select_session`, `session_get_status` | selected session cleared, other unchanged |
 | 10 | sidebar sorts sessions by attention level (high first) | `sidebar_get_sessions` | high index < medium index < low index |
 
-### 21. Task Queue
+### 23. Task Queue
 
 **File**: `tests/suites/task-queue.test.ts`
-**What it verifies**: Task CRUD, dispatch to sessions, failure handling, scheduled tasks, and validation.
+**What it verifies**: Task CRUD, update, dispatch to sessions, failure handling, scheduled tasks, and validation.
 
 | # | Test | MCP tools | What it checks |
 |---|------|-----------|----------------|
@@ -421,8 +475,11 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 11 | rejects task targeting ended session | `task_create`, `session_kill` | Throws `/ended/i` |
 | 12 | sidebar_get_tasks returns all tasks | `sidebar_get_tasks`, `task_create`, `task_cancel` | Created task appears in sidebar list |
 | 13 | rejects task targeting fallback-mode Claude session | `task_create`, `session_create` | Throws `/live hook mode/i` |
+| 14 | task_update changes prompt of pending task | `task_update`, `task_create`, `task_list`, `task_cancel` | Updated prompt persists in task list |
+| 15 | task_update changes priority and scheduledAt | `task_update`, `task_create`, `task_cancel` | Both fields updated correctly |
+| 16 | task_update rejects non-pending tasks | `task_update`, `task_create`, `task_cancel` | Throws `/only pending/i` for cancelled task |
 
-### 22. Commit Tracking
+### 24. Commit Tracking
 
 **File**: `tests/suites/commit-tracking.test.ts`
 **What it verifies**: Commit statistics, heatmap, streaks, cadence, weekly trend, and scan mode controls.
@@ -432,15 +489,51 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | # | Test | MCP tools | What it checks |
 |---|------|-----------|----------------|
 | 1 | commits_refresh completes | `commits_refresh` | Response contains "Scan complete" |
-| 2 | get_daily_stats returns valid shape | `commits_get_daily_stats` | Has `total`, `claude`, `solo` (numbers ≥ 0), `repos` (array) |
+| 2 | get_daily_stats returns valid shape | `commits_get_daily_stats` | Has `total`, `claude`, `solo` (numbers >= 0), `repos` (array) |
 | 3 | get_daily_stats accepts date parameter | `commits_get_daily_stats` | Far past date (2020-01-01) → total 0 |
 | 4 | get_heatmap returns array of entries | `commits_get_heatmap` | Default 7 entries, each has `date` and `count` |
 | 5 | get_heatmap respects days parameter | `commits_get_heatmap` | days: 3 → 3 entries |
-| 6 | get_streaks returns streak info | `commits_get_streaks` | Has `current`, `longest` (numbers ≥ 0) |
+| 6 | get_streaks returns streak info | `commits_get_streaks` | Has `current`, `longest` (numbers >= 0) |
 | 7 | get_cadence returns cadence info | `commits_get_cadence` | Has `averageMinutesBetween`, `peakHour`, `distribution` |
 | 8 | get_weekly_trend returns trend info | `commits_get_weekly_trend` | Has `thisWeek`, `lastWeek`, `percentChange` |
 | 9 | get_scan_mode returns current mode | `commits_get_scan_mode` | Has `scanAllBranches` boolean |
 | 10 | set_scan_mode round-trips correctly | `commits_set_scan_mode`, `commits_get_scan_mode` | Toggle, verify change, restore original |
+
+### 25. File Tools
+
+**File**: `tests/suites/file-tools.test.ts`
+**What it verifies**: File listing, reading (text and binary detection), writing with round-trip verification, file viewer, and quick open toggle.
+
+**Teardown**: Deletes temp files created during tests via `fs.unlink`.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | file_list returns files for git repo | `file_list` | `isGitRepo` is `true`, `count > 0`, `files` is array capped at 100 entries |
+| 2 | file_read returns content and language for known file | `file_read` | Reading `package.json` returns `language: "json"`, `lines > 0`, content contains `"name"` |
+| 3 | file_read returns binary message for non-text file | `file_read` | Reading `resources/icon.icns` returns "Binary file" text |
+| 4 | file_write creates file and file_read reads it back | `file_write`, `file_read` | Round-trip: write temp file, read back, content matches |
+| 5 | file_write returns character count | `file_write` | Response contains "Written" and correct character count |
+| 6 | file_open_viewer returns success | `file_open_viewer` | Response contains "Opened file viewer" |
+| 7 | quick_open_toggle returns mode confirmation | `quick_open_toggle` | Toggle with `mode: "files"` and `mode: "commands"` return correct mode text |
+
+### 26. Token Usage
+
+**File**: `tests/suites/token-usage.test.ts`
+**What it verifies**: Token usage tracking — refresh scan, daily/session/model breakdown, weekly trends, and heatmap.
+
+**Setup**: Calls `tokens_refresh` in `beforeAll` to ensure scanner has data.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | tokens_refresh completes and returns summary | `tokens_refresh` | Response contains "Scan complete" |
+| 2 | get_daily_usage returns valid shape | `tokens_get_daily_usage` | Has `date`, `totals` (with token counts), `estimatedCostUsd`, `messageCount`, `byModel`, `topSessions` |
+| 3 | get_daily_usage accepts date parameter | `tokens_get_daily_usage` | Far past date (2020-01-01) → `messageCount === 0`, `estimatedCostUsd === 0` |
+| 4 | get_session_usage returns valid shape | `tokens_get_session_usage` | Has `claudeSessionId`, `models`, `totals`, `estimatedCostUsd`, `messageCount` |
+| 5 | get_session_usage returns zeros for unknown session | `tokens_get_session_usage` | Fake UUID → `messageCount === 0` |
+| 6 | get_model_breakdown returns array | `tokens_get_model_breakdown` | Array; each entry has `model`, `modelFamily`, `totals`, `estimatedCostUsd`, `pctOfTotalCost` |
+| 7 | get_model_breakdown respects days parameter | `tokens_get_model_breakdown` | `days: 1` and `days: 30` both return valid arrays |
+| 8 | get_weekly_trend returns trend shape | `tokens_get_weekly_trend` | Has `thisWeek` and `lastWeek` sub-objects with `outputTokens`, `estimatedCostUsd`, `messageCount` |
+| 9 | get_heatmap returns array with correct length | `tokens_get_heatmap` | Default → 7 entries; `days: 3` → 3 entries; each has `date`, `outputTokens`, `estimatedCostUsd`, `messageCount` |
 
 ---
 
@@ -448,19 +541,22 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 
 | Feature Area | Suites | Tests | Key behaviors verified |
 |-------------|--------|-------|----------------------|
-| Session lifecycle | 1, 2, 15, 16 | 25 | Create, status transitions, list, label, PTY info, kill, delete, bulk delete, idempotent kill, concurrent create/kill, error on missing |
-| Tiling layout | 3, 4, 7, 16 | 19 | Auto-tile on create, add/remove, remove-all, tree structure, detach != kill, re-attach, concurrent tiles |
-| Sidebar | 5, 6 | 10 | Session display, status tracking, DB consistency, selection, width control |
-| Terminal I/O | 8, 9, 10, 15 | 13 | Send/read, buffer limits, dimensions, resize, Ctrl+C, timeout, sequential commands, copy/selectAll/clear, file drop, error on missing |
-| Window | 11 | 3 | Screenshot, bounds, resize |
-| App introspection | 12, 13, 14 | 10 | Version, console logs (filter + limit), HMR events, sleep prevention, renderer bridge |
-| Permission modes | 17 | 1 | PERMISSION_MODES constant matches Claude CLI |
-| Hook config | 18 | 2 | Merge/remove mcode hooks, preserve user hooks |
-| Hook integration | 19 | 15 | Event lifecycle (all hook events), status transitions, event persistence, HTTP error responses, PTY exit, cross-session events |
-| Attention system | 20 | 10 | Attention levels (high/medium/low), priority ordering, clearing, sidebar sorting |
-| Task queue | 21 | 13 | Task CRUD, dispatch, sequential dispatch, failure on session end, scheduling, validation |
-| Commit tracking | 22 | 10 | Daily stats, heatmap, streaks, cadence, weekly trend, scan mode |
-| **Total** | **22** | **133** | |
+| Session lifecycle | 1, 2, 17, 18 | 28 | Create, status transitions, list, label, PTY info, kill, delete, bulk delete, batch delete, idempotent kill, concurrent create/kill, error on missing |
+| Tiling layout | 3, 5, 9, 18 | 19 | Auto-tile on create, add/remove, remove-all, tree structure, detach != kill, re-attach, concurrent tiles |
+| Kanban layout | 4 | 8 | View mode switching, column grouping (working/completed/needs-attention), session expansion, auto-collapse, tile tree in kanban mode |
+| Sidebar | 6, 7, 8 | 14 | Session display, status tracking, DB consistency, selection, width control, tab switching |
+| Terminal I/O | 10, 11, 12, 17 | 13 | Send/read, buffer limits, dimensions, resize, Ctrl+C, timeout, sequential commands, copy/selectAll/clear, file drop, error on missing |
+| Window | 13 | 3 | Screenshot, bounds, resize |
+| App introspection | 14, 15, 16 | 10 | Version, console logs (filter + limit), HMR events, sleep prevention, renderer bridge |
+| Permission modes | 19 | 1 | PERMISSION_MODES constant matches Claude CLI |
+| Hook config | 20 | 2 | Merge/remove mcode hooks, preserve user hooks |
+| Hook integration | 21 | 15 | Event lifecycle (all hook events), status transitions, event persistence, HTTP error responses, PTY exit, cross-session events |
+| Attention system | 22 | 10 | Attention levels (high/medium/low), priority ordering, clearing, sidebar sorting |
+| Task queue | 23 | 16 | Task CRUD, update, dispatch, sequential dispatch, failure on session end, scheduling, validation |
+| Commit tracking | 24 | 10 | Daily stats, heatmap, streaks, cadence, weekly trend, scan mode |
+| File tools | 25 | 7 | File listing (git-aware), read (text + binary), write round-trip, file viewer, quick open |
+| Token usage | 26 | 9 | Refresh scan, daily/session/model usage, weekly trend, heatmap |
+| **Total** | **26** | **167** | |
 
 ## Writing New Tests
 

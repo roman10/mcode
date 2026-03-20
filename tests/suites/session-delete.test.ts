@@ -82,4 +82,63 @@ describe('session delete', () => {
     const result = await client.callToolText('session_delete_all_ended');
     expect(result).toContain('No ended sessions to delete');
   });
+
+  describe('session_delete_batch', () => {
+    it('deletes a batch of ended sessions', async () => {
+      const [s1, s2] = await Promise.all([
+        createTestSession(client),
+        createTestSession(client),
+      ]);
+      sessionIds.push(s1.sessionId, s2.sessionId);
+      await Promise.all([
+        waitForActive(client, s1.sessionId),
+        waitForActive(client, s2.sessionId),
+      ]);
+      await killAndWaitEnded(client, s1.sessionId);
+      await killAndWaitEnded(client, s2.sessionId);
+
+      const text = await client.callToolText('session_delete_batch', {
+        sessionIds: [s1.sessionId, s2.sessionId],
+      });
+      expect(text).toContain('Deleted 2 session(s)');
+
+      // Both should be gone
+      const r1 = await client.callTool('session_get_status', { sessionId: s1.sessionId });
+      expect(r1.isError).toBe(true);
+      const r2 = await client.callTool('session_get_status', { sessionId: s2.sessionId });
+      expect(r2.isError).toBe(true);
+    });
+
+    it('skips active sessions in the batch', async () => {
+      const [s1, s2] = await Promise.all([
+        createTestSession(client),
+        createTestSession(client),
+      ]);
+      sessionIds.push(s1.sessionId, s2.sessionId);
+      await Promise.all([
+        waitForActive(client, s1.sessionId),
+        waitForActive(client, s2.sessionId),
+      ]);
+      // Kill only s1
+      await killAndWaitEnded(client, s1.sessionId);
+
+      const text = await client.callToolText('session_delete_batch', {
+        sessionIds: [s1.sessionId, s2.sessionId],
+      });
+      expect(text).toContain('Deleted 1 session(s)');
+
+      // Active session should still exist
+      const status = await client.callToolJson<SessionInfo>('session_get_status', {
+        sessionId: s2.sessionId,
+      });
+      expect(status.status).toBe('active');
+    });
+
+    it('returns message for no valid IDs', async () => {
+      const text = await client.callToolText('session_delete_batch', {
+        sessionIds: ['nonexistent-id-1', 'nonexistent-id-2'],
+      });
+      expect(text).toContain('No valid ended sessions');
+    });
+  });
 });

@@ -305,3 +305,42 @@ export async function expandKanbanSession(
 export async function collapseKanban(client: McpTestClient): Promise<void> {
   await client.callTool('kanban_collapse');
 }
+
+// --- File helpers ---
+
+export async function writeTestFile(
+  client: McpTestClient,
+  relativePath: string,
+  content: string,
+  cwd?: string,
+): Promise<string> {
+  return client.callToolText('file_write', {
+    cwd: cwd ?? process.cwd(),
+    relativePath,
+    content,
+  });
+}
+
+// --- Sidebar tab helpers ---
+
+export async function getSidebarActiveTab(client: McpTestClient): Promise<string> {
+  const text = await client.callToolText('sidebar_get_active_tab');
+  return text.replace('Active sidebar tab: ', '').trim();
+}
+
+export async function switchSidebarTab(
+  client: McpTestClient,
+  tab: 'sessions' | 'commits' | 'tokens' | 'activity',
+): Promise<string> {
+  return client.callToolText('sidebar_switch_tab', { tab });
+}
+
+// --- Task update helper ---
+
+export async function updateTask(
+  client: McpTestClient,
+  taskId: number,
+  updates: { prompt?: string; priority?: number; scheduledAt?: string | null },
+): Promise<TaskInfo> {
+  return client.callToolJson<TaskInfo>('task_update', { taskId, ...updates });
+}
