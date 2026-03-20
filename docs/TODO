@@ -2,3 +2,6 @@
 [upstream] 3. Claude Code plan mode input wrapping doesn't reflow on SIGWINCH. mcode PTY resize chain verified correct (PTY and xterm cols always match).
 4. constants feature
 2. queued tasks like /cru doesn't dequeue properly and can be in running state for a long time after it's done. 
+3. when permission is requested, the state is not updated to require attention.
+5. ephemeral command execution like "git push"
+6. kanban mode diff viewer — opening a diff from Changes tab in kanban mode falls back to regular file viewer instead of showing a proper diff view

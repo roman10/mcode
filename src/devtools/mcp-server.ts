@@ -11,6 +11,7 @@ import { registerLayoutTools } from './tools/layout-tools';
 import { registerHookTools } from './tools/hook-tools';
 import { registerTaskTools } from './tools/task-tools';
 import { registerCommitTools } from './tools/commit-tools';
+import { registerGitTools } from './tools/git-tools';
 import { registerFileTools } from './tools/file-tools';
 import { registerTokenTools } from './tools/token-tools';
 import type { McpServerContext } from './types';
@@ -31,6 +32,7 @@ function createServer(ctx: McpServerContext): McpServer {
   registerHookTools(server, ctx);
   registerTaskTools(server, ctx);
   registerCommitTools(server, ctx);
+  registerGitTools(server, ctx);
   registerFileTools(server, ctx);
   registerTokenTools(server, ctx);
 

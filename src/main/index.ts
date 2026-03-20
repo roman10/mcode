@@ -6,6 +6,7 @@ import { SessionManager } from './session-manager';
 import { AccountManager } from './account-manager';
 import { TaskQueue } from './task-queue';
 import { CommitTracker } from './commit-tracker';
+import { GitChangesService } from './git-changes';
 import { TokenTracker } from './token-tracker';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister } from './file-lister';
@@ -39,6 +40,7 @@ let sessionManager: SessionManager;
 let accountManager: AccountManager;
 let taskQueue: TaskQueue;
 let commitTracker: CommitTracker;
+let gitChangesService: GitChangesService;
 let tokenTracker: TokenTracker;
 let sleepBlocker: SleepBlocker;
 let fileLister: FileLister;
@@ -324,6 +326,20 @@ function registerCommitIpc(): void {
   });
 }
 
+function registerGitChangesIpc(): void {
+  ipcMain.handle('git:status', (_event, cwd: string) => {
+    return gitChangesService.getStatus(cwd);
+  });
+
+  ipcMain.handle('git:diff-content', (_event, cwd: string, filePath: string) => {
+    return gitChangesService.getDiffContent(cwd, filePath);
+  });
+
+  ipcMain.handle('git:all-statuses', () => {
+    return gitChangesService.getAllStatuses();
+  });
+}
+
 function registerPreferencesIpc(): void {
   ipcMain.handle('preferences:get', (_event, key: string) => {
     return getPreference(key);
@@ -570,6 +586,11 @@ app.whenReady().then(async () => {
             click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'commits' }),
           },
           {
+            label: 'Show Changes',
+            accelerator: 'CmdOrCtrl+Shift+C',
+            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'changes' }),
+          },
+          {
             label: 'Show Token Usage',
             accelerator: 'CmdOrCtrl+Shift+U',
             click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'tokens' }),
@@ -658,6 +679,7 @@ app.whenReady().then(async () => {
     getWebContents,
   );
   commitTracker = new CommitTracker(sessionManager, getWebContents);
+  gitChangesService = new GitChangesService(sessionManager);
   fileLister = new FileLister();
   tokenTracker = new TokenTracker(getWebContents);
   sleepBlocker = new SleepBlocker();
@@ -672,6 +694,7 @@ app.whenReady().then(async () => {
   registerAccountIpc();
   registerTaskIpc();
   registerCommitIpc();
+  registerGitChangesIpc();
   registerTokenIpc();
   registerPreferencesIpc();
 
@@ -711,6 +734,7 @@ app.whenReady().then(async () => {
         sessionManager,
         taskQueue,
         commitTracker,
+        gitChangesService,
         tokenTracker,
         getHookRuntimeInfo: () => hookRuntimeInfo,
         sleepBlocker,

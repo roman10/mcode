@@ -1,6 +1,7 @@
-import { sessionIdFromTileId, filePathFromTileId, useLayoutStore } from '../../stores/layout-store';
+import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, useLayoutStore } from '../../stores/layout-store';
 import TerminalTile from '../Terminal/TerminalTile';
 import FileViewerTile from '../FileViewer/FileViewerTile';
+import DiffViewerTile from '../DiffViewer/DiffViewerTile';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
@@ -43,8 +44,11 @@ function TileFactory({ tileId }: TileFactoryProps): React.JSX.Element {
   // All other tiles get the closable wrapper for Cmd+W support
   let content: React.JSX.Element;
   const filePath = filePathFromTileId(tileId);
+  const diffPath = diffPathFromTileId(tileId);
   if (filePath) {
     content = <FileViewerTile absolutePath={filePath} />;
+  } else if (diffPath) {
+    content = <DiffViewerTile absolutePath={diffPath} />;
   } else {
     content = (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">

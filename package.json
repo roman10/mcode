@@ -15,6 +15,7 @@
     "test:mcp": "vitest run --config vitest.config.mts"
   },
   "dependencies": {
+    "@codemirror/merge": "^6.12.1",
     "@electron-toolkit/utils": "^4.0.0",
     "better-sqlite3": "^12.8.0",
     "electron-log": "^5.4.0",

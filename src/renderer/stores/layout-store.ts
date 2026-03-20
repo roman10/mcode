@@ -11,6 +11,7 @@ import type { SidebarTab, ViewMode } from '../../shared/types';
 const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];
 
 export const FILE_TILE_PREFIX = 'file:';
+export const DIFF_TILE_PREFIX = 'diff:';
 
 export function filePathFromTileId(tile: string): string | null {
   if (tile.startsWith(FILE_TILE_PREFIX)) {
@@ -19,8 +20,19 @@ export function filePathFromTileId(tile: string): string | null {
   return null;
 }
 
+export function diffPathFromTileId(tile: string): string | null {
+  if (tile.startsWith(DIFF_TILE_PREFIX)) {
+    return tile.slice(DIFF_TILE_PREFIX.length);
+  }
+  return null;
+}
+
 function fileTileId(absolutePath: string): string {
   return `${FILE_TILE_PREFIX}${absolutePath}`;
+}
+
+function diffTileId(absolutePath: string): string {
+  return `${DIFF_TILE_PREFIX}${absolutePath}`;
 }
 
 interface SplitIntent {
@@ -76,6 +88,8 @@ interface LayoutState {
   addFileViewer(absolutePath: string): void;
   removeFileTile(absolutePath: string): void;
   stripFileTiles(): void;
+  addDiffViewer(absolutePath: string): void;
+  removeDiffTile(absolutePath: string): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
   removeAnyTile(tileId: string): void;
@@ -386,12 +400,47 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     });
   },
 
+  addDiffViewer: (absolutePath) => {
+    if (get().viewMode === 'kanban') {
+      // Reuse kanban file viewer for diffs (best available surface)
+      get().openKanbanFile(absolutePath);
+      return;
+    }
+    set((state) => {
+      const newTile = diffTileId(absolutePath);
+      const current = state.mosaicTree;
+
+      if (!current) {
+        return { mosaicTree: newTile };
+      }
+
+      const leaves = getLeaves(current);
+      if (leaves.includes(newTile)) {
+        return state;
+      }
+
+      const allLeaves = [...leaves, newTile];
+      return {
+        mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
+      };
+    });
+  },
+
+  removeDiffTile: (absolutePath) => {
+    set((state) => {
+      const target = diffTileId(absolutePath);
+      if (!state.mosaicTree) return state;
+      const result = removeLeaf(state.mosaicTree, target);
+      return { mosaicTree: result };
+    });
+  },
+
   stripFileTiles: () =>
     set((state) => {
       if (!state.mosaicTree) return state;
       const allLeaves = getLeaves(state.mosaicTree);
       const leaves = allLeaves.filter(
-        (leaf) => !leaf.startsWith(FILE_TILE_PREFIX),
+        (leaf) => !leaf.startsWith(FILE_TILE_PREFIX) && !leaf.startsWith(DIFF_TILE_PREFIX),
       );
       if (leaves.length === allLeaves.length) return state;
       if (leaves.length === 0) return { mosaicTree: null };

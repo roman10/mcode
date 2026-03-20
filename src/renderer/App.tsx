@@ -13,6 +13,7 @@ import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
 import { useEditorStore } from './stores/editor-store';
 import { useAccountsStore } from './stores/accounts-store';
+import { useChangesStore } from './stores/changes-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
@@ -253,6 +254,10 @@ function App(): React.JSX.Element {
     Object.values(s.sessions).filter((sess) => sess.attentionLevel !== 'none').length,
   );
 
+  const changesCount = useChangesStore((s) =>
+    s.statuses.reduce((sum, status) => sum + status.files.length, 0),
+  );
+
   const handleActivityBarTabSelect = (tab: SidebarTab): void => {
     if (sidebarCollapsed) {
       setActiveSidebarTab(tab);
@@ -314,6 +319,7 @@ function App(): React.JSX.Element {
             onSettingsClick={() => setShowSettings(true)}
             onAccountsClick={() => setShowAccountsDialog(true)}
             attentionCount={attentionCount}
+            changesCount={changesCount}
           />
           {!sidebarCollapsed && <SidebarPanel />}
           <div className="flex-1 min-w-0">

@@ -76,7 +76,7 @@ export interface ExternalSessionInfo {
   customTitle?: string; // meaningful title from Claude Code, when available
 }
 
-export type SidebarTab = 'sessions' | 'commits' | 'tokens' | 'activity';
+export type SidebarTab = 'sessions' | 'commits' | 'changes' | 'tokens' | 'activity';
 export type ViewMode = 'tiles' | 'kanban';
 
 export interface LayoutStateSnapshot {
@@ -331,6 +331,25 @@ export interface TokenHeatmapEntry {
   messageCount: number;
 }
 
+// --- Git Changes ---
+
+export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked';
+
+export interface GitChangedFile {
+  path: string;           // relative to repo root
+  status: GitFileStatus;
+  oldPath?: string;       // for renamed files
+}
+
+export interface GitStatusResult {
+  repoRoot: string;
+  files: GitChangedFile[];
+}
+
+export type GitDiffContent =
+  | { binary: false; originalContent: string; modifiedContent: string; language: string }
+  | { binary: true };
+
 // --- Devtools ---
 
 export interface ConsoleEntry {
@@ -456,6 +475,12 @@ export interface MCodeAPI {
     getHeatmap(days?: number): Promise<TokenHeatmapEntry[]>;
     refresh(): Promise<void>;
     onUpdated(callback: () => void): () => void;
+  };
+
+  git: {
+    getStatus(cwd: string): Promise<GitStatusResult>;
+    getDiffContent(cwd: string, filePath: string): Promise<GitDiffContent>;
+    getAllStatuses(): Promise<GitStatusResult[]>;
   };
 
   devtools: {

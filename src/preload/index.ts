@@ -21,6 +21,8 @@ import type {
   CommitWeeklyTrend,
   FileListResult,
   FileReadResult,
+  GitStatusResult,
+  GitDiffContent,
   SessionTokenUsage,
   DailyTokenUsage,
   ModelTokenBreakdown,
@@ -340,6 +342,17 @@ contextBridge.exposeInMainWorld('mcode', {
       ipcRenderer.on('tokens:updated', handler);
       return () => ipcRenderer.removeListener('tokens:updated', handler);
     },
+  },
+
+  git: {
+    getStatus: (cwd: string): Promise<GitStatusResult> =>
+      ipcRenderer.invoke('git:status', cwd),
+
+    getDiffContent: (cwd: string, filePath: string): Promise<GitDiffContent> =>
+      ipcRenderer.invoke('git:diff-content', cwd, filePath),
+
+    getAllStatuses: (): Promise<GitStatusResult[]> =>
+      ipcRenderer.invoke('git:all-statuses'),
   },
 
   devtools: {

@@ -108,6 +108,29 @@ const highlightStyle = HighlightStyle.define([
     color: 'var(--color-text-primary)' },
 ]);
 
+/** Diff viewer styling: GitHub-dark addition/deletion colors. */
+export const diffTheme: Extension = EditorView.theme({
+  '.cm-changedLine': {
+    backgroundColor: 'rgba(46, 160, 67, 0.15)',
+  },
+  '.cm-changedText': {
+    backgroundColor: 'rgba(46, 160, 67, 0.3)',
+  },
+  '.cm-deletedChunk': {
+    backgroundColor: 'rgba(248, 81, 73, 0.15)',
+  },
+  '.cm-insertedLine': {
+    backgroundColor: 'rgba(46, 160, 67, 0.15)',
+  },
+  // Merge view gutter markers
+  '.cm-changeGutter': {
+    width: '3px',
+  },
+  '.cm-changeGutter .cm-gutterElement': {
+    padding: '0',
+  },
+}, { dark: true });
+
 /** Combined extension: editor chrome + syntax highlighting. */
 export const mcodeEditorExtension: Extension[] = [
   editorTheme,

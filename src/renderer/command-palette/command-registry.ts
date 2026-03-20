@@ -119,6 +119,15 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'switch-sidebar-tab', tab: 'tokens' }),
     },
     {
+      id: 'show-changes',
+      label: 'Show Changes',
+      category: 'Layout',
+      shortcut: shortcuts.get('Show Changes'),
+      keywords: ['git', 'diff', 'uncommitted'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'switch-sidebar-tab', tab: 'changes' }),
+    },
+    {
       id: 'show-activity',
       label: 'Show Activity',
       category: 'Layout',

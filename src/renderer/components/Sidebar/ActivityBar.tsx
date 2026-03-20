@@ -1,4 +1,4 @@
-import { LayoutList, GitCommitHorizontal, Coins, Activity, Users, Settings } from 'lucide-react';
+import { LayoutList, GitCommitHorizontal, FileDiff, Coins, Activity, Users, Settings } from 'lucide-react';
 import Tooltip from '../shared/Tooltip';
 import { formatKeys } from '../../utils/format-shortcut';
 import type { SidebarTab } from '../../../shared/types';
@@ -34,13 +34,14 @@ function ActivityBarButton({ icon, tab, active, panelCollapsed, onSelect, toolti
   );
 }
 
-function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount }: {
+function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount, changesCount }: {
   activeTab: SidebarTab;
   panelCollapsed: boolean;
   onTabSelect: (tab: SidebarTab) => void;
   onSettingsClick: () => void;
   onAccountsClick: () => void;
   attentionCount: number;
+  changesCount?: number;
 }): React.JSX.Element {
   return (
     <div className="flex flex-col h-full w-12 bg-bg-primary border-r border-border-default shrink-0">
@@ -62,6 +63,15 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
           panelCollapsed={panelCollapsed}
           onSelect={onTabSelect}
           tooltip={`Commits (${formatKeys('Shift+B', true)})`}
+        />
+        <ActivityBarButton
+          icon={<FileDiff size={20} strokeWidth={1.5} />}
+          tab="changes"
+          active={activeTab}
+          panelCollapsed={panelCollapsed}
+          onSelect={onTabSelect}
+          tooltip={`Changes (${formatKeys('Shift+C', true)})`}
+          badge={changesCount}
         />
         <ActivityBarButton
           icon={<Coins size={20} strokeWidth={1.5} />}

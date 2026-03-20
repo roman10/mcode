@@ -21,6 +21,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Settings', keys: ',', mod: true, category: 'general' },
   { label: 'Show Activity', keys: 'Shift+A', mod: true, category: 'general' },
   { label: 'Show Commits', keys: 'Shift+B', mod: true, category: 'general' },
+  { label: 'Show Changes', keys: 'Shift+C', mod: true, category: 'general' },
   { label: 'Show Token Usage', keys: 'Shift+U', mod: true, category: 'general' },
   { label: 'Refresh Token Usage', keys: 'R', mod: true, category: 'general' },
   { label: 'Clear All Attention', keys: 'Shift+M', mod: true, category: 'general' },

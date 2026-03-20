@@ -225,6 +225,14 @@ export function initDevtoolsBridge(): void {
         result = { ok: true };
         break;
       }
+      case 'diff-open-viewer': {
+        const { absolutePath } = params as { absolutePath: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().addDiffViewer(absolutePath);
+        useLayoutStore.getState().persist();
+        result = { ok: true };
+        break;
+      }
       case 'quick-open-toggle': {
         const { mode } = params as { mode: 'files' | 'commands' };
         const { useLayoutStore } = await import('../stores/layout-store');
