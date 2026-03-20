@@ -18,6 +18,7 @@ Not released yet. Skip backward compatibility when we can and aim for clean code
 
 - For every new feature, it shall be exposed to coding agent like Claude Code such that it can be verified automatically. Use composition of existing capabilities when 
 possible, otherwise build new capabilities which can be combined with existing capabilities to automate the feature verification.
+- When testing using MCP / APIs, start a new dev instance with "npm run dev", don't use the current running production version to avoid polluting the production version database.
 
 ## Tech Stack
 
