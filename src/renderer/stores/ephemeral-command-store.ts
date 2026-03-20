@@ -30,6 +30,7 @@ interface EphemeralCommandState {
   selectCommand(id: string | null): void;
   dismissCommand(id: string): void;
   clearCompleted(): void;
+  killCommand(id: string): void;
   setPanelExpanded(expanded: boolean): void;
   togglePanelPinned(): void;
   setPanelHeight(height: number): void;
@@ -46,6 +47,7 @@ export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get)
     set((state) => ({
       commands: [cmd, ...state.commands],
       selectedCommandId: cmd.id,
+      panelExpanded: true,
     })),
 
   appendOutput: (sessionId, data) =>
@@ -125,6 +127,13 @@ export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get)
         panelExpanded: commands.length > 0 ? state.panelExpanded : false,
       };
     }),
+
+  killCommand: (id) => {
+    const cmd = get().commands.find((c) => c.id === id);
+    if (cmd && cmd.status === 'running') {
+      window.mcode.sessions.kill(cmd.sessionId).catch(console.error);
+    }
+  },
 
   setPanelExpanded: (expanded) => set({ panelExpanded: expanded }),
   togglePanelPinned: () => set((state) => ({ panelPinned: !state.panelPinned })),

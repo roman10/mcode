@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
 import { useEphemeralCommandStore } from '../../stores/ephemeral-command-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { runEphemeralCommand } from '../../utils/session-actions';
+import { darkTheme } from '../../styles/theme';
+import { TERMINAL_FONT_FAMILY } from '../../../shared/constants';
 
 const MIN_PANEL_HEIGHT = 100;
 const MAX_PANEL_HEIGHT_RATIO = 0.5; // 50% of viewport
+const OUTPUT_FONT_SIZE = 12;
 
-/** Strip ANSI escape sequences for plain-text display. */
+/** Strip ANSI escape sequences for clipboard copy. */
 function stripAnsi(str: string): string {
   // eslint-disable-next-line no-control-regex
   return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
@@ -20,12 +25,12 @@ function PanelToolbar(): React.JSX.Element {
   const togglePanelPinned = useEphemeralCommandStore((s) => s.togglePanelPinned);
   const setPanelExpanded = useEphemeralCommandStore((s) => s.setPanelExpanded);
   const dismissCommand = useEphemeralCommandStore((s) => s.dismissCommand);
+  const killCommand = useEphemeralCommandStore((s) => s.killCommand);
 
   const selected = commands.find((c) => c.id === selectedCommandId);
 
   const handlePromote = useCallback(() => {
     if (!selected) return;
-    // Open a new terminal session at the same CWD
     window.mcode.sessions.create({
       cwd: selected.cwd,
       sessionType: 'terminal',
@@ -68,7 +73,22 @@ function PanelToolbar(): React.JSX.Element {
         ))}
       </div>
 
-      {/* Actions */}
+      {/* Kill button for running commands */}
+      {selected && selected.status === 'running' && (
+        <button
+          type="button"
+          className="px-1.5 py-0.5 text-xs text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 rounded cursor-pointer flex items-center gap-1 shrink-0"
+          onClick={() => killCommand(selected.id)}
+          title="Stop command"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+            <rect x="1" y="1" width="8" height="8" rx="1" />
+          </svg>
+          Stop
+        </button>
+      )}
+
+      {/* Actions for completed commands */}
       {selected && selected.status !== 'running' && (
         <div className="flex items-center gap-1 shrink-0">
           <button
@@ -135,29 +155,105 @@ function PanelToolbar(): React.JSX.Element {
   );
 }
 
+/** Read-only xterm.js instance that renders ANSI-colored output. */
 function OutputView(): React.JSX.Element {
   const selectedCommandId = useEphemeralCommandStore((s) => s.selectedCommandId);
   const commands = useEphemeralCommandStore((s) => s.commands);
-  const scrollRef = useRef<HTMLPreElement>(null);
-  const autoScrollRef = useRef(true);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
+  /** Tracks how many bytes of the current command's output have been written to xterm. */
+  const writtenLenRef = useRef(0);
+  /** Tracks which command ID the terminal is currently showing. */
+  const renderedCommandIdRef = useRef<string | null>(null);
+  /** Tracks whether the exit code message has been written for the current command. */
+  const exitShownForRef = useRef<string | null>(null);
 
   const selected = commands.find((c) => c.id === selectedCommandId);
-  const output = selected ? stripAnsi(selected.output) : '';
 
-  // Auto-scroll to bottom when new output arrives
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el && autoScrollRef.current) {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [output]);
+  // Initialize / tear down xterm when the container mounts/unmounts.
+  // We use a callback ref so the terminal is created as soon as the div exists.
+  const attachRef = useCallback((container: HTMLDivElement | null) => {
+    // Tear down previous instance
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    if (termRef.current) { termRef.current.dispose(); termRef.current = null; fitRef.current = null; }
 
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    // User is at bottom if within 20px of the end
-    autoScrollRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+    containerRef.current = container;
+    if (!container) return;
+
+    const term = new Terminal({
+      fontSize: OUTPUT_FONT_SIZE,
+      fontFamily: TERMINAL_FONT_FAMILY,
+      theme: { ...darkTheme, cursor: darkTheme.background },
+      cursorBlink: false,
+      cursorInactiveStyle: 'none',
+      disableStdin: true,
+      scrollback: 10000,
+      convertEol: true,
+    });
+
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(container);
+    fit.fit();
+
+    termRef.current = term;
+    fitRef.current = fit;
+    writtenLenRef.current = 0;
+    renderedCommandIdRef.current = null;
+    exitShownForRef.current = null;
+
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(() => fit.fit());
+    });
+    ro.observe(container);
+    roRef.current = ro;
   }, []);
+
+  // Write output incrementally when selected command or its output changes
+  const outputLen = selected?.output.length ?? 0;
+  const selectedStatus = selected?.status;
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+
+    if (!selected) {
+      term.clear();
+      term.reset();
+      writtenLenRef.current = 0;
+      renderedCommandIdRef.current = null;
+      exitShownForRef.current = null;
+      return;
+    }
+
+    // If switching to a different command, reset and rewrite from scratch
+    if (renderedCommandIdRef.current !== selected.id) {
+      term.clear();
+      term.reset();
+      writtenLenRef.current = 0;
+      renderedCommandIdRef.current = selected.id;
+      exitShownForRef.current = null;
+
+      // Write the prompt line
+      term.write(`\x1b[90m$ ${selected.command}\x1b[0m\r\n`);
+    }
+
+    // Write only the new portion of output
+    const alreadyWritten = writtenLenRef.current;
+    if (selected.output.length > alreadyWritten) {
+      const newData = selected.output.slice(alreadyWritten);
+      term.write(newData);
+      writtenLenRef.current = selected.output.length;
+    }
+
+    // Show exit code for errors (once per command)
+    if (selected.status === 'error' && selected.exitCode !== null && exitShownForRef.current !== selected.id) {
+      exitShownForRef.current = selected.id;
+      term.write(`\r\n\x1b[31m[Process exited with code ${selected.exitCode}]\x1b[0m`);
+    }
+  }, [selected, outputLen, selectedStatus]);
 
   if (!selected) {
     return (
@@ -168,23 +264,7 @@ function OutputView(): React.JSX.Element {
   }
 
   return (
-    <pre
-      ref={scrollRef}
-      onScroll={handleScroll}
-      className="flex-1 min-h-0 overflow-y-auto px-3 py-2 text-xs font-mono text-text-primary whitespace-pre-wrap break-all bg-bg-primary"
-    >
-      <span className="text-text-muted">$ {selected.command}</span>
-      {'\n'}
-      {output}
-      {selected.status === 'running' && (
-        <span className="text-text-muted animate-pulse">▊</span>
-      )}
-      {selected.status === 'error' && selected.exitCode !== null && (
-        <span className="text-red-400">
-          {'\n'}[Process exited with code {selected.exitCode}]
-        </span>
-      )}
-    </pre>
+    <div ref={attachRef} className="flex-1 min-h-0 bg-bg-primary [&_.xterm-viewport]:!overflow-y-auto" />
   );
 }
 
@@ -202,7 +282,6 @@ export default function BottomPanel(): React.JSX.Element | null {
 
       const handleMouseMove = (me: MouseEvent): void => {
         const maxHeight = window.innerHeight * MAX_PANEL_HEIGHT_RATIO;
-        // Dragging up increases height (startY - me.clientY is positive when moving up)
         const newHeight = Math.min(
           maxHeight,
           Math.max(MIN_PANEL_HEIGHT, startHeight + (startY - me.clientY)),

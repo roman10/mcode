@@ -4,6 +4,7 @@ function StatusPill({ cmd }: { cmd: EphemeralCommand }): React.JSX.Element {
   const selectCommand = useEphemeralCommandStore((s) => s.selectCommand);
   const selectedCommandId = useEphemeralCommandStore((s) => s.selectedCommandId);
   const dismissCommand = useEphemeralCommandStore((s) => s.dismissCommand);
+  const killCommand = useEphemeralCommandStore((s) => s.killCommand);
   const isSelected = selectedCommandId === cmd.id;
 
   const colorClass = cmd.status === 'error'
@@ -45,6 +46,22 @@ function StatusPill({ cmd }: { cmd: EphemeralCommand }): React.JSX.Element {
         {cmd.repo}
       </span>
 
+      {/* Kill button for running commands */}
+      {cmd.status === 'running' && (
+        <button
+          type="button"
+          className="shrink-0 ml-0.5 text-text-muted hover:text-red-400"
+          onClick={(e) => {
+            e.stopPropagation();
+            killCommand(cmd.id);
+          }}
+          title="Stop command"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+            <rect x="1" y="1" width="8" height="8" rx="1" />
+          </svg>
+        </button>
+      )}
       {/* Dismiss button for completed commands */}
       {cmd.status !== 'running' && (
         <button
