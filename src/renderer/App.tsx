@@ -196,6 +196,34 @@ function App(): React.JSX.Element {
     };
   }, [flushPersist]);
 
+  // Fallback Cmd+W: close the window when no tile handler caught the event.
+  // Tile onKeyDown handlers call stopPropagation(), so this only fires when
+  // focus is outside tiles (sidebar, empty layout, etc.).
+  useEffect(() => {
+    const isMac = navigator.userAgent.includes('Mac');
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && e.key === 'w' && !e.shiftKey) {
+        // Skip when a dialog/modal is open — let the dialog handle dismissal
+        const ls = useLayoutStore.getState();
+        if (
+          ls.showNewSessionDialog ||
+          ls.showKeyboardShortcuts ||
+          ls.showSettings ||
+          ls.showAccountsDialog ||
+          ls.showCommandPalette ||
+          ls.showCreateTaskDialog
+        ) {
+          return;
+        }
+        e.preventDefault();
+        window.close();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Prevent browser from navigating to files dropped outside a terminal
   useEffect(() => {
     const prevent = (e: DragEvent): void => {
