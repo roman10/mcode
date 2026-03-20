@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Command, defaultFilter } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
-import { FileText } from 'lucide-react';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
 import { getCommands } from '../command-palette/command-registry';
+import { basename } from '../utils/path-utils';
+import { getFileIcon } from '../utils/file-icons';
 
 const uf = new uFuzzy({ intraMode: 1 });
 
@@ -23,11 +24,6 @@ interface FileEntry {
 
 interface FilteredEntry extends FileEntry {
   ranges: number[] | null;
-}
-
-function basename(p: string): string {
-  const i = p.lastIndexOf('/');
-  return i >= 0 ? p.slice(i + 1) : p;
 }
 
 function FileSearchItems({
@@ -181,24 +177,24 @@ function FileSearchItems({
             key={`${item.cwd}:${item.path}`}
             value={`${item.cwd}:${item.path}`}
             onSelect={() => handleSelect(item)}
-            className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer
-                       text-text-primary data-[selected=true]:bg-accent/15"
+            className="flex items-center gap-2.5 px-3 py-1.5 text-sm cursor-pointer
+                       text-text-primary data-[selected=true]:bg-accent/20"
           >
-            <FileText size={14} className="shrink-0 text-text-muted" />
-            <span className="truncate min-w-0 flex-1">
-              {item.ranges ? (
+            {getFileIcon(filename)}
+            {item.ranges ? (
+              <span className="truncate min-w-0 flex-1">
                 <HighlightedText text={item.path} ranges={item.ranges} />
-              ) : (
-                <>
-                  <span className="font-medium">{filename}</span>
-                  {directory && (
-                    <span className="text-text-muted ml-2">{directory}</span>
-                  )}
-                </>
-              )}
-            </span>
+              </span>
+            ) : (
+              <>
+                <span className="truncate min-w-0">{filename}</span>
+                {directory && (
+                  <span className="truncate text-text-secondary text-xs ml-auto">{directory}</span>
+                )}
+              </>
+            )}
             {multiRepo && (
-              <span className="shrink-0 text-xs text-text-muted ml-2">{item.repo}</span>
+              <span className="shrink-0 text-xs text-text-muted ml-1 px-1 rounded bg-bg-secondary">{item.repo}</span>
             )}
           </Command.Item>
         );
@@ -282,8 +278,8 @@ function CommandItems({
                   cmd.execute();
                   onClose();
                 }}
-                className="flex items-center justify-between px-4 py-2 text-sm cursor-pointer
-                           text-text-primary data-[selected=true]:bg-accent/15
+                className="flex items-center justify-between px-3 py-1.5 text-sm cursor-pointer
+                           text-text-primary data-[selected=true]:bg-accent/20
                            data-[disabled=true]:text-text-muted data-[disabled=true]:cursor-not-allowed"
               >
                 <span>{cmd.label}</span>
@@ -325,30 +321,15 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Show cwd info in the header for file mode
-  const sessions = useSessionStore((s) => s.sessions);
-  const cwdLabel = useMemo(() => {
-    if (mode !== 'files') return null;
-    const cwds = [...new Set(Object.values(sessions).map((s) => s.cwd))];
-    if (cwds.length === 0) return null;
-    if (cwds.length === 1) return cwds[0];
-    return cwds.map((c) => basename(c)).join(', ');
-  }, [mode, sessions]);
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/50 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-black/50 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-[520px] bg-bg-elevated border border-border-default rounded-lg shadow-xl overflow-hidden"
+        className="w-[600px] max-w-[90vw] bg-bg-elevated border border-border-subtle rounded-lg shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {cwdLabel && (
-          <div className="px-4 pt-2 pb-0">
-            <span className="text-xs text-text-muted truncate block">{cwdLabel}</span>
-          </div>
-        )}
         <Command
           loop
           className="[&>label]:hidden"
@@ -369,9 +350,9 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
                 : '> Type a command...'
             }
             className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
-                       border-b border-border-default outline-none placeholder:text-text-muted"
+                       outline-none placeholder:text-text-muted"
           />
-          <Command.List className="max-h-[50vh] overflow-y-auto py-1">
+          <Command.List className="max-h-[50vh] overflow-y-auto py-1 border-t border-border-subtle">
             {mode === 'files' ? (
               <FileSearchItems query={searchQuery} onClose={onClose} />
             ) : (
