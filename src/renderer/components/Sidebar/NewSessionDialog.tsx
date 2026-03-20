@@ -26,7 +26,6 @@ function NewSessionDialog({
   const [isCreating, setIsCreating] = useState(false);
   const [accounts, setAccounts] = useState<AccountProfile[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
@@ -37,7 +36,6 @@ function NewSessionDialog({
       setUseWorktree(false);
       setWorktreeName('');
       setIsCreating(false);
-      setShowAdvanced(false);
       window.mcode.sessions.getLastDefaults().then((defaults) => {
         if (!defaults) return;
         setCwd(defaults.cwd);
@@ -152,115 +150,102 @@ function NewSessionDialog({
             />
           </div>
 
-          {/* Advanced toggle */}
-          <button
-            type="button"
-            className="text-xs text-text-muted hover:text-text-secondary transition-colors"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-          >
-            {showAdvanced ? '\u25BC' : '\u25B6'} Advanced options
-          </button>
+          {/* Permission mode */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">
+              Permission mode
+            </label>
+            <select
+              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+              value={permissionMode}
+              onChange={(e) => {
+                const value = e.target.value;
+                setPermissionMode(
+                  value === '' || PERMISSION_MODES.includes(value as PermissionMode)
+                    ? (value as PermissionMode | '')
+                    : '',
+                );
+              }}
+            >
+              <option value="">default</option>
+              {PERMISSION_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {mode}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {showAdvanced && (
-            <div className="space-y-4">
-              {/* Permission mode */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">
-                  Permission mode
-                </label>
-                <select
-                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                  value={permissionMode}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setPermissionMode(
-                      value === '' || PERMISSION_MODES.includes(value as PermissionMode)
-                        ? (value as PermissionMode | '')
-                        : '',
-                    );
-                  }}
-                >
-                  <option value="">default</option>
-                  {PERMISSION_MODES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Effort */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">
+              Effort
+            </label>
+            <select
+              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+              value={effort}
+              onChange={(e) => {
+                const value = e.target.value;
+                setEffort(
+                  value === '' || EFFORT_LEVELS.includes(value as EffortLevel)
+                    ? (value as EffortLevel | '')
+                    : '',
+                );
+              }}
+            >
+              <option value="">default</option>
+              {EFFORT_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+          </div>
 
-              {/* Effort */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">
-                  Effort
-                </label>
-                <select
-                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                  value={effort}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setEffort(
-                      value === '' || EFFORT_LEVELS.includes(value as EffortLevel)
-                        ? (value as EffortLevel | '')
-                        : '',
-                    );
-                  }}
-                >
-                  <option value="">default</option>
-                  {EFFORT_LEVELS.map((level) => (
-                    <option key={level} value={level}>
-                      {level}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Account (only shown when multiple accounts exist) */}
-              {accounts.length > 1 && (
-                <div>
-                  <label className="block text-sm text-text-secondary mb-1">
-                    Account
-                  </label>
-                  <select
-                    className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                    value={selectedAccountId}
-                    onChange={(e) => setSelectedAccountId(e.target.value)}
-                  >
-                    {accounts.map((account) => (
-                      <option key={account.accountId} value={account.accountId}>
-                        {account.name}{account.email ? ` (${account.email})` : ''}
-                        {account.isDefault ? ' — default' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Worktree */}
-              <div>
-                <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="accent-accent"
-                    checked={useWorktree}
-                    onChange={(e) => {
-                      setUseWorktree(e.target.checked);
-                      if (!e.target.checked) setWorktreeName('');
-                    }}
-                  />
-                  Run in isolated worktree
-                </label>
-                {useWorktree && (
-                  <input
-                    className="w-full mt-2 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                    value={worktreeName}
-                    onChange={(e) => setWorktreeName(e.target.value)}
-                    placeholder="Auto-generated if empty"
-                  />
-                )}
-              </div>
+          {/* Account (only shown when multiple accounts exist) */}
+          {accounts.length > 1 && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">
+                Account
+              </label>
+              <select
+                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+              >
+                {accounts.map((account) => (
+                  <option key={account.accountId} value={account.accountId}>
+                    {account.name}{account.email ? ` (${account.email})` : ''}
+                    {account.isDefault ? ' — default' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
+
+          {/* Worktree */}
+          <div>
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={useWorktree}
+                onChange={(e) => {
+                  setUseWorktree(e.target.checked);
+                  if (!e.target.checked) setWorktreeName('');
+                }}
+              />
+              Run in isolated worktree
+            </label>
+            {useWorktree && (
+              <input
+                className="w-full mt-2 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                value={worktreeName}
+                onChange={(e) => setWorktreeName(e.target.value)}
+                placeholder="Auto-generated if empty"
+              />
+            )}
+          </div>
         </div>
 
         {/* Actions */}
