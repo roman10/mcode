@@ -30,7 +30,7 @@ The task queue lets you schedule prompts to be dispatched to sessions automatica
 
 ### Creating a task
 
-Click the **+** button in the task queue header to open the create dialog. Specify:
+Click the **+** button in the task queue header to open the create dialog, or press `Cmd+Shift+T`. Specify:
 
 - **Prompt** — the instruction to send
 - **Target session** (optional) — pick an existing session, or leave blank to create a new one

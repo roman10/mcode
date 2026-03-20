@@ -34,12 +34,23 @@ npm run build:mac
 
 When you launch mcode, you see two main areas:
 
-1. **Sidebar** (left) — lists all your sessions with status indicators
-2. **Main area** (right) — a tiling layout where terminal tiles are displayed
+1. **Sidebar** (left) — tabs for sessions, commits, tokens, and activity
+2. **Main area** (right) — a tiling layout (or kanban board) where terminal tiles are displayed
 
 ### Sidebar
 
-The sidebar shows all sessions grouped by date (Today, Yesterday, then by date):
+The sidebar has a **tab bar** at the top with four tabs:
+
+- **Sessions** — session list grouped by date, plus the task queue
+- **Commits** — commit statistics for the day (see [Sidebar Panels](sidebar-panels.md#commit-tracking))
+- **Tokens** — token usage and estimated cost (see [Sidebar Panels](sidebar-panels.md#token-usage))
+- **Activity** — live event feed from all sessions (see [Sidebar Panels](sidebar-panels.md#activity-feed))
+
+Switch tabs by clicking the icons or with `Cmd+Shift+B` (Commits), `Cmd+Shift+U` (Tokens), `Cmd+Shift+A` (Activity).
+
+On the **Sessions tab**, action buttons appear to the right of the tab bar: Close all tiles, Delete ended sessions, Mark all read, New terminal (`Cmd+T`), and New session (`Cmd+N`).
+
+The session list shows all sessions grouped by date (Today, Yesterday, then by date):
 
 - **Green dot** — Active session (Claude Code is running)
 - **Blue dot** — Idle (session is waiting for input)
@@ -51,7 +62,7 @@ Sessions with raised attention show a colored left border (red, amber, or blue) 
 
 You can resize the sidebar by dragging its right edge (200px–500px range).
 
-The sidebar footer has toggle buttons for [Commit Tracking](dashboard.md#commit-tracking), [Activity Feed](dashboard.md#activity-feed), and [Settings](settings.md).
+The **sidebar footer** shows the "mcode" label, today's estimated token cost, an Accounts button, and a [Settings](settings.md) button.
 
 ### Tile Toolbar
 
@@ -72,9 +83,11 @@ Double-click the title in the toolbar to rename the session inline.
    - **Initial prompt** (optional) — what you want Claude to work on
    - **Permission mode** (optional) — controls how Claude handles tool permissions (`default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`)
    - **Effort** (optional) — controls reasoning depth (`low`, `medium`, `high`, `max`)
+   - **Account** (shown when multiple accounts are configured) — select which Claude account to use
+   - **Run in isolated worktree** (checkbox) — creates a git worktree so the session works on an isolated branch; optional branch name field appears when checked
 3. Click **Create Session**
 
-A new terminal tile opens in the main area and Claude Code starts in your chosen directory.
+A new terminal tile opens in the main area and Claude Code starts in your chosen directory. Last-used defaults (directory, permission mode, effort) are remembered.
 
 You can also open a plain terminal with `Cmd+T` (the terminal icon in the sidebar header).
 
@@ -107,6 +120,18 @@ mcode uses a tiling window manager so you can view multiple sessions side by sid
 - **Maximize** — `Cmd+Enter` to toggle a tile between maximized and tiled
 - Your layout is automatically saved and restored on next launch
 
+## Command Palette & Quick Open
+
+Press `Cmd+P` to open Quick Open for fast file search across all sessions. Press `Cmd+Shift+P` for the Command Palette to run any command by name. You can also click the project name in the title bar to open Quick Open.
+
+See [Command Palette & Quick Open](command-palette.md) for full details.
+
+## Kanban View
+
+Press `Cmd+Shift+L` to toggle between the tiling layout and a kanban board that groups sessions into columns: Needs Attention, Working, Ready, and Completed.
+
+See [Kanban View](kanban-view.md) for full details.
+
 ## Keyboard Shortcuts
 
 Press `Cmd+/` to see the full shortcut reference. A few essentials:
@@ -115,10 +140,14 @@ Press `Cmd+/` to see the full shortcut reference. A few essentials:
 |---|---|
 | `Cmd+N` | New Claude session |
 | `Cmd+T` | New terminal |
+| `Cmd+P` | Quick Open |
+| `Cmd+Shift+P` | Command Palette |
 | `Cmd+1`–`9` | Focus session by position |
 | `Cmd+W` | Close tile |
 | `Cmd+Enter` | Maximize / restore tile |
 | `Cmd+F` | Find in terminal |
+| `Cmd+Shift+T` | New task |
+| `Cmd+Shift+L` | Toggle layout mode |
 | `Cmd+,` | Settings |
 | `Cmd+\` | Toggle sidebar |
 
@@ -131,4 +160,4 @@ See [Keyboard Shortcuts](keyboard-shortcuts.md) for the full list.
 - Close tiles you don't need to watch — the session continues running in the background
 - Use the `plan` permission mode when you want Claude to propose changes before making them
 - Press `Cmd+/` to discover all keyboard shortcuts
-- Toggle the [Activity Feed](dashboard.md#activity-feed) to monitor events across all sessions at once
+- Switch to the Activity tab (`Cmd+Shift+A`) to monitor events across all sessions at once

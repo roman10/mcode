@@ -13,3 +13,9 @@ Open settings with `Cmd+,` or click the gear icon in the sidebar footer.
 | Setting | Default | Description |
 |---|---|---|
 | Scan all branches | Off | When off, only commits on the main branch are tracked. Turn on to include commits from all branches. |
+
+## Editor
+
+| Setting | Default | Description |
+|---|---|---|
+| Vim keybindings | Off | Enable vim keybindings in the file viewer. Use `:w` to save and `:q` to close. |

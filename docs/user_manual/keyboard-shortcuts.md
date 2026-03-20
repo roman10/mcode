@@ -8,11 +8,19 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 |---|---|
 | `Cmd+N` | New Claude session |
 | `Cmd+T` | New terminal |
+| `Cmd+Shift+T` | New task |
+| `Cmd+P` | Quick Open (file search) |
+| `Cmd+Shift+P` | Command Palette |
 | `Cmd+\` | Toggle sidebar |
 | `Cmd+/` | Show keyboard shortcuts |
 | `Cmd+,` | Open settings |
-| `Cmd+Shift+A` | Toggle activity feed |
+| `Cmd+Shift+A` | Show Activity |
+| `Cmd+Shift+B` | Show Commits |
+| `Cmd+Shift+U` | Show Token Usage |
+| `Cmd+R` | Refresh Token Usage |
+| `Cmd+Shift+L` | Toggle layout mode |
 | `Cmd+Shift+M` | Clear all attention |
+| `Cmd+W` | Close tile |
 | `Cmd+Shift+X` | Close all tiles |
 
 ## Sessions
@@ -31,7 +39,6 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+A` | Select all |
 | `Cmd+K` | Clear terminal |
 | `Cmd+F` | Find in terminal |
-| `Cmd+W` | Close tile |
 | `Cmd+Shift+W` | Kill session & close tile |
 | `Cmd+D` | Split horizontal |
 | `Cmd+Shift+D` | Split vertical |
