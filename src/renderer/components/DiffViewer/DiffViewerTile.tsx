@@ -189,6 +189,7 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
       <div className="flex-1 min-h-0 overflow-hidden">
         <CodeMirror
           value={diffContent && !diffContent.binary ? diffContent.modifiedContent : ''}
+          theme="none"
           extensions={extensions}
           editable={false}
           basicSetup={{
@@ -197,7 +198,7 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
             highlightActiveLine: false,
             highlightSelectionMatches: false,
           }}
-          style={{ height: '100%', fontSize: '13px' }}
+          className="h-full text-[13px] [&_.cm-editor]:h-full"
         />
       </div>
     </div>

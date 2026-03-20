@@ -108,26 +108,43 @@ const highlightStyle = HighlightStyle.define([
     color: 'var(--color-text-primary)' },
 ]);
 
-/** Diff viewer styling: GitHub-dark addition/deletion colors. */
+/** Diff viewer styling: GitHub-dark addition/deletion colors.
+ *  Color tokens defined in global.css :root (--diff-added-*, --diff-deleted-*). */
 export const diffTheme: Extension = EditorView.theme({
+  // Added / changed lines
   '.cm-changedLine': {
-    backgroundColor: 'rgba(46, 160, 67, 0.15)',
+    backgroundColor: 'var(--diff-added-bg)',
   },
   '.cm-changedText': {
-    backgroundColor: 'rgba(46, 160, 67, 0.3)',
-  },
-  '.cm-deletedChunk': {
-    backgroundColor: 'rgba(248, 81, 73, 0.15)',
+    backgroundColor: 'var(--diff-added-text)',
+    borderRadius: '2px',
   },
   '.cm-insertedLine': {
-    backgroundColor: 'rgba(46, 160, 67, 0.15)',
+    backgroundColor: 'var(--diff-added-bg)',
   },
-  // Merge view gutter markers
+
+  // Deleted chunks (rendered as widgets in unified view)
+  '.cm-deletedChunk': {
+    backgroundColor: 'var(--diff-deleted-bg)',
+    borderLeft: '2px solid var(--diff-deleted-border)',
+  },
+  '.cm-deletedChunk .cm-deletedText': {
+    backgroundColor: 'var(--diff-deleted-text)',
+    borderRadius: '2px',
+  },
+
+  // Gutter markers
   '.cm-changeGutter': {
     width: '3px',
   },
   '.cm-changeGutter .cm-gutterElement': {
     padding: '0',
+  },
+  '.cm-changedLineGutter': {
+    background: 'var(--diff-added-gutter)',
+  },
+  '.cm-deletedLineGutter': {
+    background: 'var(--diff-deleted-gutter)',
   },
 }, { dark: true });
 

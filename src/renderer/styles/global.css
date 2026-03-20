@@ -33,6 +33,15 @@
   --syntax-constant: #79c0ff;
   --syntax-tag: #7ee787;
   --syntax-link: #58a6ff;
+
+  /* Diff highlighting — consumed by CodeMirror diffTheme */
+  --diff-added-bg: rgba(46, 160, 67, 0.15);
+  --diff-added-text: rgba(46, 160, 67, 0.4);
+  --diff-added-gutter: rgba(46, 160, 67, 0.6);
+  --diff-deleted-bg: rgba(248, 81, 73, 0.10);
+  --diff-deleted-text: rgba(248, 81, 73, 0.3);
+  --diff-deleted-border: rgba(248, 81, 73, 0.4);
+  --diff-deleted-gutter: rgba(248, 81, 73, 0.6);
 }
 
 /* react-mosaic-component dark theme overrides */
