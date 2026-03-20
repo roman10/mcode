@@ -11,7 +11,7 @@ import DeleteSessionsDialog from './DeleteSessionsDialog';
 import CommitStats from '../Dashboard/CommitStats';
 import TokenStats from '../Dashboard/TokenStats';
 import ActivityFeed from '../Dashboard/ActivityFeed';
-import { createTerminalSession } from '../../utils/session-actions';
+import { createTerminalSession, autoExpandInKanban } from '../../utils/session-actions';
 import type { SessionCreateInput, SessionInfo } from '../../../shared/types';
 import {
   MIN_SIDEBAR_WIDTH,
@@ -97,6 +97,7 @@ function SidebarPanel(): React.JSX.Element {
 
       persist();
       selectSession(session.sessionId);
+      autoExpandInKanban(session.sessionId);
       setShowNewDialog(false);
     } catch (err) {
       console.error('Failed to create session:', err);
