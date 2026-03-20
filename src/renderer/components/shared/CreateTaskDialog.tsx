@@ -144,6 +144,26 @@ function CreateTaskDialog({
             </div>
           </div>
 
+          {/* Target session */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">
+              Target session
+            </label>
+            <select
+              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
+              value={targetSessionId}
+              onChange={(e) => setTargetSessionId(e.target.value)}
+              disabled={!!defaultTargetSessionId}
+            >
+              <option value="">Auto (new session)</option>
+              {targetableSessions.map((s) => (
+                <option key={s.sessionId} value={s.sessionId}>
+                  {s.label || s.sessionId.slice(0, 8)} — {s.status} · {formatShortTime(s.startedAt)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Advanced toggle */}
           <button
             type="button"
@@ -155,26 +175,6 @@ function CreateTaskDialog({
 
           {showAdvanced && (
             <div className="space-y-4">
-              {/* Target session */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">
-                  Target session
-                </label>
-                <select
-                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
-                  value={targetSessionId}
-                  onChange={(e) => setTargetSessionId(e.target.value)}
-                  disabled={!!defaultTargetSessionId}
-                >
-                  <option value="">Auto (new session)</option>
-                  {targetableSessions.map((s) => (
-                    <option key={s.sessionId} value={s.sessionId}>
-                      {s.label || s.sessionId.slice(0, 8)} — {s.status} · {formatShortTime(s.startedAt)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {/* Priority */}
               <div>
                 <label className="block text-sm text-text-secondary mb-1">
