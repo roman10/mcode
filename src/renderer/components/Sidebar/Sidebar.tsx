@@ -1,21 +1,47 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, Activity, GitCommitHorizontal, Coins, Users } from 'lucide-react';
-import { useLayoutStore, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID, TOKEN_STATS_TILE_ID } from '../../stores/layout-store';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, LayoutList, Activity, GitCommitHorizontal, Coins, Users } from 'lucide-react';
+import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useTokenStore } from '../../stores/token-store';
-import { getLeaves } from 'react-mosaic-component';
 import SessionList from './SessionList';
 import TaskQueuePanel from './TaskQueuePanel';
 import NewSessionDialog from './NewSessionDialog';
 import Tooltip from '../shared/Tooltip';
 import DeleteSessionsDialog from './DeleteSessionsDialog';
+import CommitStats from '../Dashboard/CommitStats';
+import TokenStats from '../Dashboard/TokenStats';
+import ActivityFeed from '../Dashboard/ActivityFeed';
 import { createTerminalSession } from '../../utils/session-actions';
-import type { SessionCreateInput, SessionInfo } from '../../../shared/types';
+import type { SessionCreateInput, SessionInfo, SidebarTab } from '../../../shared/types';
 import {
   MIN_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
 } from '../../../shared/constants';
 import { formatKeys } from '../../utils/format-shortcut';
+
+function SidebarTabButton({ icon, tab, active, onSelect, tooltip }: {
+  icon: React.ReactNode;
+  tab: SidebarTab;
+  active: SidebarTab;
+  onSelect: (tab: SidebarTab) => void;
+  tooltip: string;
+}): React.JSX.Element {
+  const isActive = active === tab;
+  return (
+    <Tooltip content={tooltip} side="bottom">
+      <button
+        className={`w-8 h-8 flex items-center justify-center transition-colors ${
+          isActive
+            ? 'text-text-primary border-b-2 border-accent'
+            : 'text-text-muted hover:text-text-secondary'
+        }`}
+        onClick={() => onSelect(tab)}
+      >
+        {icon}
+      </button>
+    </Tooltip>
+  );
+}
 
 function Sidebar(): React.JSX.Element {
   const setShowSettings = useLayoutStore((s) => s.setShowSettings);
@@ -32,21 +58,8 @@ function Sidebar(): React.JSX.Element {
   const hasTiles = useLayoutStore((s) => s.mosaicTree !== null);
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
-  const toggleDashboard = useLayoutStore((s) => s.toggleDashboard);
-  const hasDashboard = useLayoutStore((s) => {
-    if (!s.mosaicTree) return false;
-    return getLeaves(s.mosaicTree).includes(DASHBOARD_TILE_ID);
-  });
-  const toggleCommitStats = useLayoutStore((s) => s.toggleCommitStats);
-  const hasCommitStats = useLayoutStore((s) => {
-    if (!s.mosaicTree) return false;
-    return getLeaves(s.mosaicTree).includes(COMMIT_STATS_TILE_ID);
-  });
-  const toggleTokenStats = useLayoutStore((s) => s.toggleTokenStats);
-  const hasTokenStats = useLayoutStore((s) => {
-    if (!s.mosaicTree) return false;
-    return getLeaves(s.mosaicTree).includes(TOKEN_STATS_TILE_ID);
-  });
+  const activeSidebarTab = useLayoutStore((s) => s.activeSidebarTab);
+  const setActiveSidebarTab = useLayoutStore((s) => s.setActiveSidebarTab);
   const todayCost = useTokenStore((s) => s.dailyUsage?.estimatedCostUsd ?? null);
   const refreshTokens = useTokenStore((s) => s.refreshAll);
   const addSession = useSessionStore((s) => s.addSession);
@@ -166,76 +179,86 @@ function Sidebar(): React.JSX.Element {
         className="flex flex-col h-full bg-bg-secondary border-r border-border-default shrink-0"
         style={{ width: sidebarWidth }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 py-3 border-b border-border-default">
-          <span className="text-sm font-medium text-text-primary">
-            Sessions
-          </span>
-          <div className="flex items-center gap-0.5">
-            {hasTiles && (
-              <Tooltip content="Close all tiles" side="bottom">
-                <button
-                  className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-                  onClick={handleCloseAllTiles}
-                >
-                  <SquareX size={14} strokeWidth={1.5} />
-                </button>
-              </Tooltip>
-            )}
-            {hasEnded && (
-              <Tooltip content="Delete ended sessions..." side="bottom">
-                <button
-                  className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-bg-elevated transition-colors"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 size={14} strokeWidth={1.5} />
-                </button>
-              </Tooltip>
-            )}
-            {hasAttention && (
-              <Tooltip content="Mark all read" side="bottom">
-                <button
-                  className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-                  onClick={handleMarkAllRead}
-                >
-                  <BellOff size={14} strokeWidth={1.5} />
-                </button>
-              </Tooltip>
-            )}
-            <Tooltip content={`New terminal (${modLabel}T)`} side="bottom">
-              <button
-                className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
-                onClick={() => createTerminalSession().catch(console.error)}
-              >
-                <TerminalSquare size={14} strokeWidth={1.5} />
-              </button>
-            </Tooltip>
-            <Tooltip content={`New Claude session (${modLabel}N)`} side="bottom">
-              <button
-                className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
-                onClick={() => setShowNewDialog(true)}
-              >
-                <Plus size={16} strokeWidth={2} />
-              </button>
-            </Tooltip>
+        {/* Tab bar */}
+        <div className="flex items-center border-b border-border-default shrink-0">
+          <div className="flex items-center">
+            <SidebarTabButton icon={<LayoutList size={14} strokeWidth={1.5} />} tab="sessions" active={activeSidebarTab} onSelect={setActiveSidebarTab} tooltip="Sessions" />
+            <SidebarTabButton icon={<GitCommitHorizontal size={14} strokeWidth={1.5} />} tab="commits" active={activeSidebarTab} onSelect={setActiveSidebarTab} tooltip={`Commits (${formatKeys('Shift+B', true)})`} />
+            <SidebarTabButton icon={<Coins size={14} strokeWidth={1.5} />} tab="tokens" active={activeSidebarTab} onSelect={setActiveSidebarTab} tooltip={`Tokens (${formatKeys('Shift+U', true)})`} />
+            <SidebarTabButton icon={<Activity size={14} strokeWidth={1.5} />} tab="activity" active={activeSidebarTab} onSelect={setActiveSidebarTab} tooltip={`Activity (${formatKeys('Shift+A', true)})`} />
           </div>
+          {activeSidebarTab === 'sessions' && (
+            <div className="flex items-center gap-0.5 ml-auto pr-2">
+              {hasTiles && (
+                <Tooltip content="Close all tiles" side="bottom">
+                  <button
+                    className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+                    onClick={handleCloseAllTiles}
+                  >
+                    <SquareX size={14} strokeWidth={1.5} />
+                  </button>
+                </Tooltip>
+              )}
+              {hasEnded && (
+                <Tooltip content="Delete ended sessions..." side="bottom">
+                  <button
+                    className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-bg-elevated transition-colors"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
+                    <Trash2 size={14} strokeWidth={1.5} />
+                  </button>
+                </Tooltip>
+              )}
+              {hasAttention && (
+                <Tooltip content="Mark all read" side="bottom">
+                  <button
+                    className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
+                    onClick={handleMarkAllRead}
+                  >
+                    <BellOff size={14} strokeWidth={1.5} />
+                  </button>
+                </Tooltip>
+              )}
+              <Tooltip content={`New terminal (${modLabel}T)`} side="bottom">
+                <button
+                  className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+                  onClick={() => createTerminalSession().catch(console.error)}
+                >
+                  <TerminalSquare size={14} strokeWidth={1.5} />
+                </button>
+              </Tooltip>
+              <Tooltip content={`New Claude session (${modLabel}N)`} side="bottom">
+                <button
+                  className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+                  onClick={() => setShowNewDialog(true)}
+                >
+                  <Plus size={16} strokeWidth={2} />
+                </button>
+              </Tooltip>
+            </div>
+          )}
         </div>
 
-        {/* Degraded mode warning */}
-        {hookRuntime.state === 'degraded' && (
-          <div className="px-3 py-1.5 bg-amber-900/30 text-amber-300 text-xs">
-            Live status unavailable
-          </div>
-        )}
-
-        {/* Session list */}
-        <SessionList />
-
-        {/* Task queue */}
-        <TaskQueuePanel />
+        {/* Tab content */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          {activeSidebarTab === 'sessions' && (
+            <>
+              {hookRuntime.state === 'degraded' && (
+                <div className="px-3 py-1.5 bg-amber-900/30 text-amber-300 text-xs shrink-0">
+                  Live status unavailable
+                </div>
+              )}
+              <SessionList />
+              <TaskQueuePanel />
+            </>
+          )}
+          {activeSidebarTab === 'commits' && <CommitStats />}
+          {activeSidebarTab === 'tokens' && <TokenStats />}
+          {activeSidebarTab === 'activity' && <ActivityFeed />}
+        </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border-default">
+        <div className="flex items-center justify-between px-3 py-2 border-t border-border-default shrink-0">
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-text-muted">mcode</span>
             {todayCost !== null && todayCost > 0 && (
@@ -247,36 +270,6 @@ function Sidebar(): React.JSX.Element {
             )}
           </div>
           <div className="flex items-center gap-0.5">
-            <Tooltip content={`${hasCommitStats ? 'Hide' : 'Show'} commits (${formatKeys('Shift+B', true)})`} side="top">
-              <button
-                className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
-                  hasCommitStats ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
-                }`}
-                onClick={toggleCommitStats}
-              >
-                <GitCommitHorizontal size={14} strokeWidth={1.5} />
-              </button>
-            </Tooltip>
-            <Tooltip content={`${hasTokenStats ? 'Hide' : 'Show'} token usage (${formatKeys('Shift+U', true)})`} side="top">
-              <button
-                className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
-                  hasTokenStats ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
-                }`}
-                onClick={toggleTokenStats}
-              >
-                <Coins size={14} strokeWidth={1.5} />
-              </button>
-            </Tooltip>
-            <Tooltip content={`${hasDashboard ? 'Hide' : 'Show'} activity (${formatKeys('Shift+A', true)})`} side="top">
-              <button
-                className={`w-6 h-6 flex items-center justify-center rounded hover:bg-bg-elevated transition-colors ${
-                  hasDashboard ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
-                }`}
-                onClick={toggleDashboard}
-              >
-                <Activity size={14} strokeWidth={1.5} />
-              </button>
-            </Tooltip>
             <Tooltip content="Accounts" side="top">
               <button
                 className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"

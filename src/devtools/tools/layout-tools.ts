@@ -436,19 +436,27 @@ export function registerLayoutTools(
     }
   });
 
-  server.registerTool('layout_toggle_dashboard', {
-    description: 'Toggle the activity dashboard tile (add if missing, remove if present)',
+  server.registerTool('sidebar_switch_tab', {
+    description: 'Switch the sidebar to a specific tab (sessions, commits, tokens, activity)',
     annotations: { readOnlyHint: false },
-  }, async () => {
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        tab: { type: 'string', enum: ['sessions', 'commits', 'tokens', 'activity'], description: 'The sidebar tab to switch to' },
+      },
+      required: ['tab'],
+    },
+  }, async (args) => {
     try {
-      const added = await queryRenderer<boolean>(
+      const { tab } = args as { tab: string };
+      const result = await queryRenderer<{ tab: string }>(
         ctx.mainWindow,
-        'layout-toggle-dashboard',
-        {},
+        'layout-switch-sidebar-tab',
+        { tab },
       );
       return {
         content: [
-          { type: 'text', text: added ? 'Dashboard tile added' : 'Dashboard tile removed' },
+          { type: 'text', text: `Sidebar switched to ${result.tab} tab` },
         ],
       };
     } catch (err) {
@@ -456,7 +464,35 @@ export function registerLayoutTools(
         content: [
           {
             type: 'text',
-            text: `Failed to toggle dashboard: ${err instanceof Error ? err.message : String(err)}`,
+            text: `Failed to switch sidebar tab: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('sidebar_get_active_tab', {
+    description: 'Get the currently active sidebar tab',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    try {
+      const result = await queryRenderer<{ tab: string }>(
+        ctx.mainWindow,
+        'layout-get-sidebar-tab',
+        {},
+      );
+      return {
+        content: [
+          { type: 'text', text: `Active sidebar tab: ${result.tab}` },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to get sidebar tab: ${err instanceof Error ? err.message : String(err)}`,
           },
         ],
         isError: true,

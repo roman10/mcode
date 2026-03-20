@@ -1,7 +1,6 @@
 import { useEffect, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useTokenStore } from '../../stores/token-store';
-import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
 import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
 import type { TokenHeatmapEntry, ModelUsageSummary } from '../../../shared/types';
@@ -69,8 +68,6 @@ function ModelPill({ model, totalCost }: { model: ModelUsageSummary; totalCost: 
 function TokenStats(): React.JSX.Element {
   const { dailyUsage, heatmap, weeklyTrend, loading, refreshAll, selectedDate, setSelectedDate } =
     useTokenStore();
-  const removeTokenStats = useLayoutStore((s) => s.removeTokenStats);
-  const persist = useLayoutStore((s) => s.persist);
 
   useEffect(() => {
     refreshAll();
@@ -82,11 +79,6 @@ function TokenStats(): React.JSX.Element {
     });
     return unsub;
   }, [refreshAll]);
-
-  const handleClose = (): void => {
-    removeTokenStats();
-    persist();
-  };
 
   const handleRefresh = useCallback((): void => {
     window.mcode.tokens.refresh().then(() => refreshAll()).catch(console.error);
@@ -154,11 +146,6 @@ function TokenStats(): React.JSX.Element {
           <RefreshCw size={12} strokeWidth={2} />
         </button>
       </Tooltip>
-      <Tooltip content="Close (⌘W)" side="bottom">
-        <button className={btnClass} onClick={handleClose}>
-          <X size={12} strokeWidth={2} />
-        </button>
-      </Tooltip>
     </div>
   );
 
@@ -218,7 +205,7 @@ function TokenStats(): React.JSX.Element {
 
         {/* Heatmap */}
         {heatmap.length > 0 && (
-          <div className="flex items-end gap-1">
+          <div className="flex flex-wrap items-end gap-1">
             {heatmap.map((entry) => (
               <HeatmapCell
                 key={entry.date}

@@ -200,8 +200,8 @@ contextBridge.exposeInMainWorld('mcode', {
   },
 
   layout: {
-    save: (mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean): Promise<void> =>
-      ipcRenderer.invoke('layout:save', mosaicTree, sidebarWidth, sidebarCollapsed),
+    save: (mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string): Promise<void> =>
+      ipcRenderer.invoke('layout:save', mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab),
 
     load: (): Promise<LayoutStateSnapshot | null> =>
       ipcRenderer.invoke('layout:load'),

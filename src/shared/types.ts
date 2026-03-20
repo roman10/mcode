@@ -76,10 +76,13 @@ export interface ExternalSessionInfo {
   customTitle?: string; // meaningful title from Claude Code, when available
 }
 
+export type SidebarTab = 'sessions' | 'commits' | 'tokens' | 'activity';
+
 export interface LayoutStateSnapshot {
   mosaicTree: MosaicNode<string> | null;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
+  activeSidebarTab: SidebarTab;
 }
 
 // --- App Commands (menu accelerators → renderer) ---
@@ -93,11 +96,9 @@ export type AppCommand =
   | { command: 'toggle-sidebar' }
   | { command: 'show-keyboard-shortcuts' }
   | { command: 'show-settings' }
-  | { command: 'toggle-dashboard' }
-  | { command: 'toggle-commit-stats' }
+  | { command: 'switch-sidebar-tab'; tab: SidebarTab }
   | { command: 'clear-all-attention' }
   | { command: 'close-all-tiles' }
-  | { command: 'toggle-token-stats' }
   | { command: 'show-command-palette' }
   | { command: 'quick-open' }
   | { command: 'show-create-task' };
@@ -397,6 +398,7 @@ export interface MCodeAPI {
       mosaicTree: MosaicNode<string> | null,
       sidebarWidth?: number,
       sidebarCollapsed?: boolean,
+      activeSidebarTab?: SidebarTab,
     ): Promise<void>;
     load(): Promise<LayoutStateSnapshot | null>;
   };

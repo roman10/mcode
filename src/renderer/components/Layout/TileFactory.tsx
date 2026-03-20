@@ -1,8 +1,5 @@
-import { sessionIdFromTileId, filePathFromTileId, DASHBOARD_TILE_ID, COMMIT_STATS_TILE_ID, TOKEN_STATS_TILE_ID, useLayoutStore } from '../../stores/layout-store';
+import { sessionIdFromTileId, filePathFromTileId, useLayoutStore } from '../../stores/layout-store';
 import TerminalTile from '../Terminal/TerminalTile';
-import ActivityFeed from '../Dashboard/ActivityFeed';
-import CommitStats from '../Dashboard/CommitStats';
-import TokenStats from '../Dashboard/TokenStats';
 import FileViewerTile from '../FileViewer/FileViewerTile';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
@@ -45,23 +42,15 @@ function TileFactory({ tileId }: TileFactoryProps): React.JSX.Element {
 
   // All other tiles get the closable wrapper for Cmd+W support
   let content: React.JSX.Element;
-  if (tileId === DASHBOARD_TILE_ID) {
-    content = <ActivityFeed />;
-  } else if (tileId === COMMIT_STATS_TILE_ID) {
-    content = <CommitStats />;
-  } else if (tileId === TOKEN_STATS_TILE_ID) {
-    content = <TokenStats />;
+  const filePath = filePathFromTileId(tileId);
+  if (filePath) {
+    content = <FileViewerTile absolutePath={filePath} />;
   } else {
-    const filePath = filePathFromTileId(tileId);
-    if (filePath) {
-      content = <FileViewerTile absolutePath={filePath} />;
-    } else {
-      content = (
-        <div className="flex items-center justify-center h-full text-text-muted text-sm">
-          Unknown tile: {tileId}
-        </div>
-      );
-    }
+    content = (
+      <div className="flex items-center justify-center h-full text-text-muted text-sm">
+        Unknown tile: {tileId}
+      </div>
+    );
   }
 
   return (

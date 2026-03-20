@@ -5,10 +5,11 @@ import {
   getLeaves,
 } from 'react-mosaic-component';
 import { LAYOUT_PERSIST_DEBOUNCE_MS } from '../../shared/constants';
+import type { SidebarTab } from '../../shared/types';
 
-export const DASHBOARD_TILE_ID = 'dashboard';
-export const COMMIT_STATS_TILE_ID = 'commit-stats';
-export const TOKEN_STATS_TILE_ID = 'token-stats';
+/** Legacy tile IDs — stripped from persisted layouts on restore. */
+const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];
+
 export const FILE_TILE_PREFIX = 'file:';
 
 export function filePathFromTileId(tile: string): string | null {
@@ -31,6 +32,7 @@ interface LayoutState {
   mosaicTree: MosaicNode<string> | null;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
+  activeSidebarTab: SidebarTab;
   splitIntent: SplitIntent | null;
   showNewSessionDialog: boolean;
   showKeyboardShortcuts: boolean;
@@ -49,6 +51,7 @@ interface LayoutState {
   replaceTile(oldSessionId: string, newSessionId: string): void;
   setSidebarWidth(width: number): void;
   toggleSidebar(): void;
+  setActiveSidebarTab(tab: SidebarTab): void;
   setSplitIntent(intent: SplitIntent | null): void;
   setShowNewSessionDialog(show: boolean): void;
   setShowKeyboardShortcuts(show: boolean): void;
@@ -60,17 +63,8 @@ interface LayoutState {
   addFileViewer(absolutePath: string): void;
   removeFileTile(absolutePath: string): void;
   stripFileTiles(): void;
-  toggleDashboard(): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
-  addDashboard(): void;
-  removeDashboard(): void;
-  addCommitStats(): void;
-  removeCommitStats(): void;
-  toggleCommitStats(): void;
-  addTokenStats(): void;
-  removeTokenStats(): void;
-  toggleTokenStats(): void;
   removeAnyTile(tileId: string): void;
   persist(): void;
   flushPersist(): void;
@@ -174,6 +168,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   mosaicTree: null,
   sidebarWidth: 280,
   sidebarCollapsed: false,
+  activeSidebarTab: 'sessions' as SidebarTab,
   splitIntent: null,
   showNewSessionDialog: false,
   showKeyboardShortcuts: false,
@@ -274,6 +269,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     get().persist();
   },
 
+  setActiveSidebarTab: (tab) => {
+    set({ activeSidebarTab: tab });
+    get().persist();
+  },
+
   setSplitIntent: (intent) => set({ splitIntent: intent }),
 
   setShowNewSessionDialog: (show) => set({ showNewSessionDialog: show }),
@@ -327,28 +327,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       return { mosaicTree: createBalancedTreeFromLeaves(leaves) ?? null };
     }),
 
-  toggleDashboard: () => {
-    const current = get().mosaicTree;
-    const hasDashboard = current ? getLeaves(current).includes(DASHBOARD_TILE_ID) : false;
-    if (hasDashboard) {
-      get().removeDashboard();
-    } else {
-      get().addDashboard();
-    }
-    get().persist();
-  },
-
-  toggleCommitStats: () => {
-    const current = get().mosaicTree;
-    const has = current ? getLeaves(current).includes(COMMIT_STATS_TILE_ID) : false;
-    if (has) {
-      get().removeCommitStats();
-    } else {
-      get().addCommitStats();
-    }
-    get().persist();
-  },
-
   maximize: (sessionId) =>
     set((state) => ({
       restoreTree: state.mosaicTree,
@@ -367,86 +345,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       };
     }),
 
-  addDashboard: () =>
-    set((state) => {
-      const current = state.mosaicTree;
-      if (!current) {
-        return { mosaicTree: DASHBOARD_TILE_ID };
-      }
-      const leaves = getLeaves(current);
-      if (leaves.includes(DASHBOARD_TILE_ID)) {
-        return state;
-      }
-      const allLeaves = [...leaves, DASHBOARD_TILE_ID];
-      return {
-        mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? DASHBOARD_TILE_ID,
-      };
-    }),
-
-  removeDashboard: () =>
-    set((state) => {
-      if (!state.mosaicTree) return state;
-      const result = removeLeaf(state.mosaicTree, DASHBOARD_TILE_ID);
-      return { mosaicTree: result };
-    }),
-
-  addCommitStats: () =>
-    set((state) => {
-      const current = state.mosaicTree;
-      if (!current) {
-        return { mosaicTree: COMMIT_STATS_TILE_ID };
-      }
-      const leaves = getLeaves(current);
-      if (leaves.includes(COMMIT_STATS_TILE_ID)) {
-        return state;
-      }
-      const allLeaves = [...leaves, COMMIT_STATS_TILE_ID];
-      return {
-        mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? COMMIT_STATS_TILE_ID,
-      };
-    }),
-
-  removeCommitStats: () =>
-    set((state) => {
-      if (!state.mosaicTree) return state;
-      const result = removeLeaf(state.mosaicTree, COMMIT_STATS_TILE_ID);
-      return { mosaicTree: result };
-    }),
-
-  addTokenStats: () =>
-    set((state) => {
-      const current = state.mosaicTree;
-      if (!current) {
-        return { mosaicTree: TOKEN_STATS_TILE_ID };
-      }
-      const leaves = getLeaves(current);
-      if (leaves.includes(TOKEN_STATS_TILE_ID)) {
-        return state;
-      }
-      const allLeaves = [...leaves, TOKEN_STATS_TILE_ID];
-      return {
-        mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? TOKEN_STATS_TILE_ID,
-      };
-    }),
-
-  removeTokenStats: () =>
-    set((state) => {
-      if (!state.mosaicTree) return state;
-      const result = removeLeaf(state.mosaicTree, TOKEN_STATS_TILE_ID);
-      return { mosaicTree: result };
-    }),
-
-  toggleTokenStats: () => {
-    const current = get().mosaicTree;
-    const hasTokenStats = current ? getLeaves(current).includes(TOKEN_STATS_TILE_ID) : false;
-    if (hasTokenStats) {
-      get().removeTokenStats();
-    } else {
-      get().addTokenStats();
-    }
-    get().persist();
-  },
-
   removeAnyTile: (tileId) =>
     set((state) => {
       if (!state.mosaicTree) return state;
@@ -457,8 +355,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   persist: () => {
     if (persistTimer) clearTimeout(persistTimer);
     persistTimer = setTimeout(() => {
-      const { mosaicTree, sidebarWidth, sidebarCollapsed } = get();
-      window.mcode.layout.save(mosaicTree, sidebarWidth, sidebarCollapsed);
+      const { mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab } = get();
+      window.mcode.layout.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
     }, LAYOUT_PERSIST_DEBOUNCE_MS);
   },
 
@@ -467,17 +365,29 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       clearTimeout(persistTimer);
       persistTimer = null;
     }
-    const { mosaicTree, sidebarWidth, sidebarCollapsed } = get();
-    void window.mcode.layout.save(mosaicTree, sidebarWidth, sidebarCollapsed);
+    const { mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab } = get();
+    void window.mcode.layout.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
   },
 
   restore: async () => {
     const snapshot = await window.mcode.layout.load();
     if (snapshot) {
+      // Strip legacy dashboard/stats tiles from persisted layouts
+      let tree = snapshot.mosaicTree;
+      if (tree) {
+        const leaves = getLeaves(tree);
+        const filtered = leaves.filter((l) => !LEGACY_TILE_IDS.includes(l));
+        if (filtered.length < leaves.length) {
+          tree = filtered.length === 0 ? null
+            : filtered.length === 1 ? filtered[0]
+            : createBalancedTreeFromLeaves(filtered) ?? null;
+        }
+      }
       set({
-        mosaicTree: snapshot.mosaicTree,
+        mosaicTree: tree,
         sidebarWidth: snapshot.sidebarWidth,
         sidebarCollapsed: snapshot.sidebarCollapsed ?? false,
+        activeSidebarTab: snapshot.activeSidebarTab ?? 'sessions',
       });
     }
   },

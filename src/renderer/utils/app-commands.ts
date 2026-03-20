@@ -69,17 +69,20 @@ export function executeAppCommand(command: AppCommand): void {
       break;
     }
 
-    case 'toggle-dashboard':
-      useLayoutStore.getState().toggleDashboard();
+    case 'switch-sidebar-tab': {
+      const store = useLayoutStore.getState();
+      if (store.sidebarCollapsed) {
+        // When collapsed, always switch to the requested tab and show sidebar
+        store.setActiveSidebarTab(command.tab);
+        store.toggleSidebar();
+      } else if (store.activeSidebarTab === command.tab) {
+        // When visible and already on this tab, toggle back to sessions
+        store.setActiveSidebarTab('sessions');
+      } else {
+        store.setActiveSidebarTab(command.tab);
+      }
       break;
-
-    case 'toggle-commit-stats':
-      useLayoutStore.getState().toggleCommitStats();
-      break;
-
-    case 'toggle-token-stats':
-      useLayoutStore.getState().toggleTokenStats();
-      break;
+    }
 
     case 'clear-all-attention':
       window.mcode.sessions.clearAllAttention().catch(console.error);

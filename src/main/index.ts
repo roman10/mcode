@@ -219,8 +219,8 @@ function registerSessionIpc(): void {
 }
 
 function registerLayoutIpc(): void {
-  ipcMain.handle('layout:save', (_event, mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean) => {
-    sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed);
+  ipcMain.handle('layout:save', (_event, mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string) => {
+    sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
   });
 
   ipcMain.handle('layout:load', () => {
@@ -553,19 +553,19 @@ app.whenReady().then(async () => {
             click: () => sendCommand({ command: 'toggle-sidebar' }),
           },
           {
-            label: 'Toggle Dashboard',
+            label: 'Show Activity',
             accelerator: 'CmdOrCtrl+Shift+A',
-            click: () => sendCommand({ command: 'toggle-dashboard' }),
+            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'activity' }),
           },
           {
-            label: 'Toggle Commit Stats',
+            label: 'Show Commits',
             accelerator: 'CmdOrCtrl+Shift+B',
-            click: () => sendCommand({ command: 'toggle-commit-stats' }),
+            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'commits' }),
           },
           {
-            label: 'Toggle Token Usage',
+            label: 'Show Token Usage',
             accelerator: 'CmdOrCtrl+Shift+U',
-            click: () => sendCommand({ command: 'toggle-token-stats' }),
+            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'tokens' }),
           },
           {
             label: 'Quick Open',

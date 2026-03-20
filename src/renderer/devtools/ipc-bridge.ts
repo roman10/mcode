@@ -151,19 +151,16 @@ export function initDevtoolsBridge(): void {
         result = !current;
         break;
       }
-      case 'layout-toggle-dashboard': {
-        const { useLayoutStore, DASHBOARD_TILE_ID } = await import('../stores/layout-store');
-        const { getLeaves } = await import('react-mosaic-component');
-        const store = useLayoutStore.getState();
-        const tree = store.mosaicTree;
-        const has = tree ? getLeaves(tree).includes(DASHBOARD_TILE_ID) : false;
-        if (has) {
-          store.removeDashboard();
-        } else {
-          store.addDashboard();
-        }
-        store.persist();
-        result = !has; // true = added, false = removed
+      case 'layout-switch-sidebar-tab': {
+        const { tab } = params as { tab: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().setActiveSidebarTab(tab as import('../../../shared/types').SidebarTab);
+        result = { tab };
+        break;
+      }
+      case 'layout-get-sidebar-tab': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        result = { tab: useLayoutStore.getState().activeSidebarTab };
         break;
       }
       case 'file-open-viewer': {

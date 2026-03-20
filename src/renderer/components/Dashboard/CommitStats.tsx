@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useCommitStore } from '../../stores/commit-store';
-import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
 import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
 import type { CommitHeatmapEntry } from '../../../shared/types';
@@ -62,8 +61,6 @@ function TypePill({ type, count }: { type: string; count: number }): React.JSX.E
 function CommitStats(): React.JSX.Element {
   const { dailyStats, heatmap, streaks, cadence, weeklyTrend, loading, refreshAll, selectedDate, setSelectedDate } =
     useCommitStore();
-  const removeCommitStats = useLayoutStore((s) => s.removeCommitStats);
-  const persist = useLayoutStore((s) => s.persist);
 
   // Load data on mount
   useEffect(() => {
@@ -77,11 +74,6 @@ function CommitStats(): React.JSX.Element {
     });
     return unsub;
   }, [refreshAll]);
-
-  const handleClose = (): void => {
-    removeCommitStats();
-    persist();
-  };
 
   const today = todayStr();
   const viewDate = selectedDate ?? today;
@@ -138,11 +130,6 @@ function CommitStats(): React.JSX.Element {
       <Tooltip content="Refresh" side="bottom">
         <button className={btnClass} onClick={handleRefresh}>
           <RefreshCw size={12} strokeWidth={2} />
-        </button>
-      </Tooltip>
-      <Tooltip content="Close (⌘W)" side="bottom">
-        <button className={btnClass} onClick={handleClose}>
-          <X size={12} strokeWidth={2} />
         </button>
       </Tooltip>
     </div>
@@ -218,7 +205,7 @@ function CommitStats(): React.JSX.Element {
 
         {/* Heatmap */}
         {heatmap.length > 0 && (
-          <div className="flex items-end gap-1">
+          <div className="flex flex-wrap items-end gap-1">
             {heatmap.map((entry) => (
               <HeatmapCell
                 key={entry.date}

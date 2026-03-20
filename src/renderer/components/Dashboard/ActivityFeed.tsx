@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
-import { useLayoutStore } from '../../stores/layout-store';
-import Tooltip from '../shared/Tooltip';
 import type { HookEvent } from '../../../shared/types';
 import { KNOWN_HOOK_EVENTS } from '../../../shared/constants';
 
@@ -47,8 +44,6 @@ function ActivityFeed(): React.JSX.Element {
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('');
 
   const sessions = useSessionStore((s) => s.sessions);
-  const removeDashboard = useLayoutStore((s) => s.removeDashboard);
-  const persist = useLayoutStore((s) => s.persist);
 
   // Load historical events on mount
   useEffect(() => {
@@ -64,11 +59,6 @@ function ActivityFeed(): React.JSX.Element {
     });
     return unsub;
   }, []);
-
-  const handleClose = (): void => {
-    removeDashboard();
-    persist();
-  };
 
   // Build session options for filter
   const sessionOptions = Object.values(sessions)
@@ -120,15 +110,6 @@ function ActivityFeed(): React.JSX.Element {
             Clear
           </button>
         )}
-
-        <Tooltip content="Close (⌘W)" side="bottom">
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-            onClick={handleClose}
-          >
-            <X size={12} strokeWidth={2} />
-          </button>
-        </Tooltip>
       </div>
 
       {/* Event list */}
