@@ -35,6 +35,9 @@ interface LayoutState {
   activeSidebarTab: SidebarTab;
   viewMode: ViewMode;
   kanbanExpandedSessionId: string | null; // transient, not persisted
+  kanbanOpenFiles: string[]; // transient, not persisted
+  kanbanActiveFile: string | null; // transient, not persisted
+  kanbanSplitRatio: number; // transient, 0-1, default 0.5
   splitIntent: SplitIntent | null;
   showNewSessionDialog: boolean;
   showKeyboardShortcuts: boolean;
@@ -57,6 +60,11 @@ interface LayoutState {
   setViewMode(mode: ViewMode): void;
   expandKanbanSession(sessionId: string): void;
   clearKanbanExpand(): void;
+  openKanbanFile(absolutePath: string): void;
+  closeKanbanFile(absolutePath: string): void;
+  setKanbanActiveFile(absolutePath: string): void;
+  clearKanbanFiles(): void;
+  setKanbanSplitRatio(ratio: number): void;
   setSplitIntent(intent: SplitIntent | null): void;
   setShowNewSessionDialog(show: boolean): void;
   setShowKeyboardShortcuts(show: boolean): void;
@@ -176,6 +184,9 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   activeSidebarTab: 'sessions' as SidebarTab,
   viewMode: 'tiles' as ViewMode,
   kanbanExpandedSessionId: null,
+  kanbanOpenFiles: [],
+  kanbanActiveFile: null,
+  kanbanSplitRatio: 0.5,
   splitIntent: null,
   showNewSessionDialog: false,
   showKeyboardShortcuts: false,
@@ -282,13 +293,47 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
 
   setViewMode: (mode) => {
-    set({ viewMode: mode, kanbanExpandedSessionId: null });
+    set({
+      viewMode: mode,
+      kanbanExpandedSessionId: null,
+      kanbanOpenFiles: [],
+      kanbanActiveFile: null,
+    });
     window.mcode.preferences.set('viewMode', mode).catch(console.error);
   },
 
   expandKanbanSession: (sessionId) => set({ kanbanExpandedSessionId: sessionId }),
 
   clearKanbanExpand: () => set({ kanbanExpandedSessionId: null }),
+
+  openKanbanFile: (absolutePath) =>
+    set((state) => {
+      if (state.kanbanOpenFiles.includes(absolutePath)) {
+        return { kanbanActiveFile: absolutePath };
+      }
+      return {
+        kanbanOpenFiles: [...state.kanbanOpenFiles, absolutePath],
+        kanbanActiveFile: absolutePath,
+      };
+    }),
+
+  closeKanbanFile: (absolutePath) =>
+    set((state) => {
+      const files = state.kanbanOpenFiles.filter((f) => f !== absolutePath);
+      let activeFile = state.kanbanActiveFile;
+      if (activeFile === absolutePath) {
+        // Switch to the previous tab, or next, or null
+        const idx = state.kanbanOpenFiles.indexOf(absolutePath);
+        activeFile = files[Math.min(idx, files.length - 1)] ?? null;
+      }
+      return { kanbanOpenFiles: files, kanbanActiveFile: activeFile };
+    }),
+
+  setKanbanActiveFile: (absolutePath) => set({ kanbanActiveFile: absolutePath }),
+
+  clearKanbanFiles: () => set({ kanbanOpenFiles: [], kanbanActiveFile: null }),
+
+  setKanbanSplitRatio: (ratio) => set({ kanbanSplitRatio: ratio }),
 
   setSplitIntent: (intent) => set({ splitIntent: intent }),
 
@@ -301,7 +346,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   openQuickOpen: (mode) => set({ quickOpenInitialMode: mode, showCommandPalette: true }),
 
-  addFileViewer: (absolutePath) =>
+  addFileViewer: (absolutePath) => {
+    // In kanban mode, use the kanban file viewer instead of mosaic tiles
+    if (get().viewMode === 'kanban') {
+      get().openKanbanFile(absolutePath);
+      return;
+    }
     set((state) => {
       const newTile = fileTileId(absolutePath);
       const current = state.mosaicTree;
@@ -320,15 +370,21 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       return {
         mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
       };
-    }),
+    });
+  },
 
-  removeFileTile: (absolutePath) =>
+  removeFileTile: (absolutePath) => {
+    if (get().viewMode === 'kanban') {
+      get().closeKanbanFile(absolutePath);
+      return;
+    }
     set((state) => {
       const target = fileTileId(absolutePath);
       if (!state.mosaicTree) return state;
       const result = removeLeaf(state.mosaicTree, target);
       return { mosaicTree: result };
-    }),
+    });
+  },
 
   stripFileTiles: () =>
     set((state) => {

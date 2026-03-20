@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
-import TerminalTile from '../Terminal/TerminalTile';
 import KanbanColumn from './KanbanColumn';
+import KanbanExpandedContent from './KanbanExpandedContent';
 import { KANBAN_COLUMNS, groupSessionsByColumn } from './kanban-utils';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
@@ -13,6 +13,7 @@ function KanbanLayout(): React.JSX.Element {
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const selectSession = useSessionStore((s) => s.selectSession);
   const kanbanExpandedSessionId = useLayoutStore((s) => s.kanbanExpandedSessionId);
+  const kanbanOpenFiles = useLayoutStore((s) => s.kanbanOpenFiles);
   const expandKanbanSession = useLayoutStore((s) => s.expandKanbanSession);
   const clearKanbanExpand = useLayoutStore((s) => s.clearKanbanExpand);
 
@@ -75,12 +76,14 @@ function KanbanLayout(): React.JSX.Element {
     }
   }, [selectedSessionId, kanbanExpandedSessionId, handleExpandSession]);
 
-  // If a session is expanded, show its full terminal
-  if (kanbanExpandedSessionId && sessions[kanbanExpandedSessionId]) {
+  // If a session is expanded or files are open, show the expanded content area
+  const hasExpandedSession = kanbanExpandedSessionId && sessions[kanbanExpandedSessionId];
+  const hasOpenFiles = kanbanOpenFiles.length > 0;
+  if (hasExpandedSession || hasOpenFiles) {
     return (
-      <div className="h-full w-full min-h-0 overflow-hidden">
-        <TerminalTile sessionId={kanbanExpandedSessionId} />
-      </div>
+      <KanbanExpandedContent
+        sessionId={hasExpandedSession ? kanbanExpandedSessionId : null}
+      />
     );
   }
 

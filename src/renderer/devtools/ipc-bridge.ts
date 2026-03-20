@@ -190,8 +190,11 @@ export function initDevtoolsBridge(): void {
         const { groupSessionsByColumn } = await import('../components/Kanban/kanban-utils');
         const sessions = useSessionStore.getState().sessions;
         const grouped = groupSessionsByColumn(sessions);
+        const layoutState = useLayoutStore.getState();
         result = {
-          expandedSessionId: useLayoutStore.getState().kanbanExpandedSessionId,
+          expandedSessionId: layoutState.kanbanExpandedSessionId,
+          openFiles: layoutState.kanbanOpenFiles,
+          activeFile: layoutState.kanbanActiveFile,
           columns: Object.fromEntries(
             Object.entries(grouped).map(([col, colSessions]) => [
               col,
