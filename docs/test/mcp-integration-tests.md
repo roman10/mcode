@@ -56,8 +56,10 @@ tests/
 │   ├── task-queue         # Task CRUD, update, dispatch, scheduling
 │   ├── commit-tracking    # Commit stats, heatmap, streaks, cadence
 │   ├── file-tools         # File list, read, write, viewer, quick open
-│   └── token-usage        # Token usage stats, heatmap, trends
-└── vitest.config.mts      # Sequential execution, 30s timeout
+│   ├── token-usage        # Token usage stats, heatmap, trends
+│   └── git-tools          # Git status, diff content, diff viewer
+
+vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 ```
 
 **Test client** (`tests/mcp-client.ts`): Thin wrapper around `@modelcontextprotocol/sdk` Client with `StreamableHTTPClientTransport`. Provides `callTool()` (raw result), `callToolJson<T>()` (auto-parse), and `callToolText()` (extract text).
@@ -112,7 +114,7 @@ tests/
 
 ## MCP Tools Used
 
-79 tools across 11 categories. Each test case lists the tools it exercises.
+83 tools across 12 categories. Each test case lists the tools it exercises.
 
 | Category | Tools |
 |----------|-------|
@@ -127,6 +129,7 @@ tests/
 | **Commits** (8) | `commits_get_daily_stats`, `commits_get_heatmap`, `commits_get_streaks`, `commits_get_cadence`, `commits_get_weekly_trend`, `commits_refresh`, `commits_get_scan_mode`, `commits_set_scan_mode` |
 | **File** (5) | `file_list`, `file_read`, `file_write`, `file_open_viewer`, `quick_open_toggle` |
 | **Token** (6) | `tokens_get_session_usage`, `tokens_get_daily_usage`, `tokens_get_model_breakdown`, `tokens_get_weekly_trend`, `tokens_get_heatmap`, `tokens_refresh` |
+| **Git** (4) | `git_get_status`, `git_get_all_statuses`, `git_get_diff_content`, `git_open_diff_viewer` |
 
 ---
 
@@ -407,12 +410,19 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 ### 20. Hook Config
 
 **File**: `tests/suites/hook-config.test.ts`
-**What it verifies**: Pure unit tests for hook config merging and removal logic (no MCP server needed).
+**What it verifies**: Pure unit tests for hook config merging, removal, port-scoped cleanup, and PID extraction (no MCP server needed).
 
 | # | Test | What it checks |
 |---|------|----------------|
 | 1 | merges mcode hooks using Claude hook groups | Existing user hooks preserved; mcode hooks appended with correct URL, headers, and `allowedHttpHookUrls` |
 | 2 | removes only mcode-owned hooks and preserves user hooks | Hooks with `X-Mcode-Hook` header removed; user hooks untouched; empty groups pruned |
+| 3 | includes PID header in hook entries | Merged hooks include `X-Mcode-PID` header matching `process.pid` |
+| 4 | mergeMcodeHooks preserves other instances' hooks | Two merges on different ports both survive; PreToolUse has entries for both ports |
+| 5 | mergeMcodeHooks replaces its own port on re-merge | Re-merging same port does not duplicate; PreToolUse has exactly one entry |
+| 6 | removeMcodeHooksForPort only removes hooks for specified port | Port 7777 removed, port 7778 preserved |
+| 7 | removeMcodeHooksForPort preserves user hooks | User hooks without `X-Mcode-Hook` header survive port-scoped removal |
+| 8 | extractMcodeHookPortPids finds port+PID pairs from settings | Two merged ports → map size 2, both keyed by port, values are process PIDs |
+| 9 | extractMcodeHookPortPids returns empty map for no hooks | Empty settings → empty map |
 
 ### 21. Hook Integration
 
@@ -535,6 +545,20 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 8 | get_weekly_trend returns trend shape | `tokens_get_weekly_trend` | Has `thisWeek` and `lastWeek` sub-objects with `outputTokens`, `estimatedCostUsd`, `messageCount` |
 | 9 | get_heatmap returns array with correct length | `tokens_get_heatmap` | Default → 7 entries; `days: 3` → 3 entries; each has `date`, `outputTokens`, `estimatedCostUsd`, `messageCount` |
 
+### 27. Git Tools
+
+**File**: `tests/suites/git-tools.test.ts`
+**What it verifies**: Git status queries, diff content retrieval, and diff viewer opening.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | git_get_status returns valid shape for repo cwd | `git_get_status` | Returns object with `repoRoot` and `files` array; each file has `path` and `status` |
+| 2 | git_get_status returns empty files for non-git path | `git_get_status` | Non-git cwd returns empty `files` array (graceful, not error) |
+| 3 | git_get_all_statuses returns array | `git_get_all_statuses` | Returns array (possibly empty) |
+| 4 | git_get_diff_content returns diff shape for known file | `git_get_diff_content` | Returns object with `originalContent`, `modifiedContent`, and `language`, or "Binary file" text |
+| 5 | git_get_diff_content returns empty content for non-existent file | `git_get_diff_content` | Returns `originalContent` and `modifiedContent` as empty strings (graceful, not error) |
+| 6 | git_open_diff_viewer returns success | `git_open_diff_viewer` | Response contains "Opened diff viewer" |
+
 ---
 
 ## Coverage Summary
@@ -549,14 +573,15 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | Window | 13 | 3 | Screenshot, bounds, resize |
 | App introspection | 14, 15, 16 | 10 | Version, console logs (filter + limit), HMR events, sleep prevention, renderer bridge |
 | Permission modes | 19 | 1 | PERMISSION_MODES constant matches Claude CLI |
-| Hook config | 20 | 2 | Merge/remove mcode hooks, preserve user hooks |
+| Hook config | 20 | 9 | Merge/remove mcode hooks, preserve user hooks, PID header, multi-instance, port-scoped removal, port+PID extraction |
 | Hook integration | 21 | 15 | Event lifecycle (all hook events), status transitions, event persistence, HTTP error responses, PTY exit, cross-session events |
 | Attention system | 22 | 10 | Attention levels (high/medium/low), priority ordering, clearing, sidebar sorting |
 | Task queue | 23 | 16 | Task CRUD, update, dispatch, sequential dispatch, failure on session end, scheduling, validation |
 | Commit tracking | 24 | 10 | Daily stats, heatmap, streaks, cadence, weekly trend, scan mode |
 | File tools | 25 | 7 | File listing (git-aware), read (text + binary), write round-trip, file viewer, quick open |
 | Token usage | 26 | 9 | Refresh scan, daily/session/model usage, weekly trend, heatmap |
-| **Total** | **26** | **167** | |
+| Git tools | 27 | 6 | Git status (single repo + all repos), diff content, diff viewer |
+| **Total** | **27** | **180** | |
 
 ## Writing New Tests
 
