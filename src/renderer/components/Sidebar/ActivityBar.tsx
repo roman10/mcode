@@ -43,7 +43,7 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
   attentionCount: number;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-col h-full w-12 bg-bg-secondary border-r border-border-default shrink-0">
+    <div className="flex flex-col h-full w-12 bg-bg-primary border-r border-border-default shrink-0">
       {/* Tab icons */}
       <div className="flex flex-col">
         <ActivityBarButton
