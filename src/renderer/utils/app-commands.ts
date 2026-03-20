@@ -130,5 +130,17 @@ export function executeAppCommand(command: AppCommand): void {
       useLayoutStore.getState().setViewMode(current === 'tiles' ? 'kanban' : 'tiles');
       break;
     }
+
+    case 'run-shell-command': {
+      const ls = useLayoutStore.getState();
+      ls.setShowSettings(false);
+      ls.setShowKeyboardShortcuts(false);
+      if (ls.showCommandPalette) {
+        ls.setShowCommandPalette(false);
+      } else {
+        ls.openQuickOpen('shell');
+      }
+      break;
+    }
   }
 }

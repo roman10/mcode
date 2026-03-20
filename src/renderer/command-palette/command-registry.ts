@@ -70,6 +70,15 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'show-create-task' }),
     },
     {
+      id: 'run-shell-command',
+      label: 'Run Shell Command',
+      category: 'General',
+      shortcut: shortcuts.get('Run Shell Command'),
+      keywords: ['shell', 'terminal', 'execute', 'run', 'command', 'ephemeral'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'run-shell-command' }),
+    },
+    {
       id: 'show-settings',
       label: 'Settings',
       category: 'General',

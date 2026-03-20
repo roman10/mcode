@@ -8,12 +8,15 @@ import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import SettingsDialog from './components/SettingsDialog';
 import AccountsDialog from './components/AccountsDialog';
 import CommandPalette from './components/CommandPalette';
+import StatusBar from './components/EphemeralCommands/StatusBar';
+import BottomPanel from './components/EphemeralCommands/BottomPanel';
 import { useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
 import { useEditorStore } from './stores/editor-store';
 import { useAccountsStore } from './stores/accounts-store';
 import { useChangesStore } from './stores/changes-store';
+import { useEphemeralCommandStore } from './stores/ephemeral-command-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
@@ -172,6 +175,28 @@ function App(): React.JSX.Element {
     return unsub;
   }, [upsertTask, removeTask]);
 
+  // Route pty:data events to ephemeral command store
+  useEffect(() => {
+    const unsub = window.mcode.pty.onData((sessionId, data) => {
+      const { commands, appendOutput } = useEphemeralCommandStore.getState();
+      if (commands.some((c) => c.sessionId === sessionId && c.status === 'running')) {
+        appendOutput(sessionId, data);
+      }
+    });
+    return unsub;
+  }, []);
+
+  // Route pty:exit events to ephemeral command store
+  useEffect(() => {
+    const unsub = window.mcode.pty.onExit((sessionId, payload) => {
+      const { commands, completeCommand } = useEphemeralCommandStore.getState();
+      if (commands.some((c) => c.sessionId === sessionId)) {
+        completeCommand(sessionId, payload.code, payload.signal);
+      }
+    });
+    return unsub;
+  }, []);
+
   // Dock badge: count of high-attention sessions
   useEffect(() => {
     return useSessionStore.subscribe((state) => {
@@ -322,8 +347,12 @@ function App(): React.JSX.Element {
             changesCount={changesCount}
           />
           {!sidebarCollapsed && <SidebarPanel />}
-          <div className="flex-1 min-w-0">
-            {viewMode === 'kanban' ? <KanbanLayout /> : <MosaicLayout />}
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="flex-1 min-h-0">
+              {viewMode === 'kanban' ? <KanbanLayout /> : <MosaicLayout />}
+            </div>
+            <BottomPanel />
+            <StatusBar />
           </div>
         </div>
       </div>

@@ -56,6 +56,7 @@ export interface SessionCreateInput {
   effort?: EffortLevel;
   worktree?: string;
   command?: string;
+  args?: string[];
   sessionType?: SessionType;
   ephemeral?: boolean;
   accountId?: string;
@@ -104,7 +105,8 @@ export type AppCommand =
   | { command: 'quick-open' }
   | { command: 'show-create-task' }
   | { command: 'set-view-mode'; mode: ViewMode }
-  | { command: 'toggle-view-mode' };
+  | { command: 'toggle-view-mode' }
+  | { command: 'run-shell-command' };
 
 // --- Files ---
 

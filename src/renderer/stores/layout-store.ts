@@ -57,7 +57,7 @@ interface LayoutState {
   showAccountsDialog: boolean;
   showCommandPalette: boolean;
   showCreateTaskDialog: boolean;
-  quickOpenInitialMode: 'files' | 'commands';
+  quickOpenInitialMode: 'files' | 'commands' | 'shell';
   restoreTree: MosaicNode<string> | null;
 
   setMosaicTree(tree: MosaicNode<string> | null): void;
@@ -84,7 +84,7 @@ interface LayoutState {
   setShowAccountsDialog(show: boolean): void;
   setShowCommandPalette(show: boolean): void;
   setShowCreateTaskDialog(show: boolean): void;
-  openQuickOpen(mode: 'files' | 'commands'): void;
+  openQuickOpen(mode: 'files' | 'commands' | 'shell'): void;
   addFileViewer(absolutePath: string): void;
   removeFileTile(absolutePath: string): void;
   stripFileTiles(): void;

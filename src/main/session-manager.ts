@@ -220,7 +220,7 @@ export class SessionManager {
     const isTerminal = sessionType === 'terminal';
 
     const command = isTerminal
-      ? (process.env.SHELL || '/bin/zsh')
+      ? (input.command ?? process.env.SHELL ?? '/bin/zsh')
       : (input.command ?? 'claude');
 
     const isClaude = !isTerminal && isClaudeCommand(command);
@@ -233,9 +233,14 @@ export class SessionManager {
 
     const hookMode = isClaude && hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
-    // Build args for CLI (only for Claude sessions)
+    // Build args for CLI
     const args: string[] = [];
-    if (!isTerminal) {
+    if (isTerminal) {
+      // For terminal sessions, pass through caller-provided args (e.g. ['-c', 'git push'])
+      if (input.args) {
+        args.push(...input.args);
+      }
+    } else {
       if (input.worktree !== undefined) {
         args.push('--worktree');
         if (input.worktree) {

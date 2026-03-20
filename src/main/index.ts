@@ -527,6 +527,11 @@ app.whenReady().then(async () => {
             accelerator: 'CmdOrCtrl+Shift+T',
             click: () => sendCommand({ command: 'show-create-task' }),
           },
+          {
+            label: 'Run Shell Command',
+            accelerator: 'CmdOrCtrl+Shift+E',
+            click: () => sendCommand({ command: 'run-shell-command' }),
+          },
         ],
       },
       {
@@ -788,7 +793,9 @@ app.on('before-quit', (e) => {
     tokenTracker.stop();
 
     // Clean up hook config (primary + all secondary account settings)
-    cleanupOnQuit(accountManager.getAllSettingsPaths().slice(1));
+    if (hookRuntimeInfo.port) {
+      cleanupOnQuit(hookRuntimeInfo.port, accountManager.getAllSettingsPaths().slice(1));
+    }
     stopHookServer();
 
     // Mark all active sessions as ended

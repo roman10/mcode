@@ -6,11 +6,12 @@ import { useLayoutStore } from '../stores/layout-store';
 import { getCommands } from '../command-palette/command-registry';
 import { basename } from '../utils/path-utils';
 import { getFileIcon } from '../utils/file-icons';
+import { runEphemeralCommand, resolveEphemeralCwd } from '../utils/session-actions';
 
 const uf = new uFuzzy({ intraMode: 1 });
 
 interface CommandPaletteProps {
-  initialMode: 'files' | 'commands';
+  initialMode: 'files' | 'commands' | 'shell';
   onClose(): void;
 }
 
@@ -300,14 +301,71 @@ function CommandItems({
   );
 }
 
+// --- Shell mode content ---
+
+function ShellModeContent({ query, onClose }: { query: string; onClose: () => void }): React.JSX.Element {
+  const cwd = useMemo(() => resolveEphemeralCwd(), []);
+  const cwdBasename = useMemo(() => basename(cwd), [cwd]);
+
+  const handleRun = useCallback(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    runEphemeralCommand(trimmed, cwd).catch(console.error);
+    onClose();
+  }, [query, cwd, onClose]);
+
+  // Listen for Enter to run the command
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleRun();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleRun]);
+
+  return (
+    <div className="px-4 py-3 text-sm">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-text-muted text-xs">
+          Run in <span className="text-text-secondary font-mono">{cwdBasename}</span>
+        </span>
+      </div>
+      {query ? (
+        <div className="text-text-muted text-xs">
+          Press <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default text-[10px] font-mono">Enter</kbd> to run
+          {' · '}
+          <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default text-[10px] font-mono">Esc</kbd> to cancel
+        </div>
+      ) : (
+        <div className="text-text-muted text-xs">
+          Type a shell command...
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Main palette ---
 
 function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JSX.Element {
-  const [input, setInput] = useState(initialMode === 'commands' ? '> ' : '');
+  const [input, setInput] = useState(
+    initialMode === 'commands' ? '> '
+    : initialMode === 'shell' ? '! '
+    : '',
+  );
 
   // Derive mode from input value
-  const mode = input.startsWith('>') ? 'commands' : 'files';
-  const searchQuery = mode === 'commands' ? input.slice(1).trimStart() : input;
+  const mode = input.startsWith('!')
+    ? 'shell'
+    : input.startsWith('>')
+      ? 'commands'
+      : 'files';
+  const searchQuery = mode === 'commands' || mode === 'shell'
+    ? input.slice(1).trimStart()
+    : input;
 
   // Close on Escape
   useEffect(() => {
@@ -345,16 +403,28 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
             value={input}
             onValueChange={setInput}
             placeholder={
-              mode === 'files'
-                ? 'Search files by name...'
-                : '> Type a command...'
+              mode === 'shell'
+                ? '! Type a shell command...'
+                : mode === 'commands'
+                  ? '> Type a command...'
+                  : 'Search files by name...'
             }
             className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
                        outline-none placeholder:text-text-muted"
           />
           <Command.List className="max-h-[50vh] overflow-y-auto py-1 border-t border-border-subtle">
-            {mode === 'files' ? (
-              <FileSearchItems query={searchQuery} onClose={onClose} />
+            {mode === 'shell' ? (
+              <ShellModeContent query={searchQuery} onClose={onClose} />
+            ) : mode === 'files' ? (
+              <>
+                <FileSearchItems query={searchQuery} onClose={onClose} />
+                {/* Hint for shell mode */}
+                {!searchQuery && (
+                  <div className="px-4 py-1.5 text-[10px] text-text-muted border-t border-border-subtle mt-1">
+                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">!</kbd> to run a shell command
+                  </div>
+                )}
+              </>
             ) : (
               <CommandItems onClose={onClose} />
             )}

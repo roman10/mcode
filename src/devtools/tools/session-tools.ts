@@ -29,12 +29,13 @@ export function registerSessionTools(
       permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the Claude session (ignored for terminal sessions)'),
       effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for the Claude session (ignored for terminal sessions)'),
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
+      args: z.array(z.string()).optional().describe('Arguments for the command (e.g. ["-c", "git push"] for terminal sessions)'),
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
       ephemeral: z.boolean().optional().describe('If true, session is hidden from sidebar and auto-deleted when ended. Use for test/verification sessions.'),
       worktree: z.string().optional().describe('Run session in an isolated git worktree. Pass a name to create a named worktree, or empty string to auto-generate. Ignored for terminal sessions.'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, sessionType, ephemeral, worktree }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, args, sessionType, ephemeral, worktree }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -43,6 +44,7 @@ export function registerSessionTools(
         permissionMode,
         effort,
         command,
+        args,
         sessionType,
         ephemeral,
         worktree,
