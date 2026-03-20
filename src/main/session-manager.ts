@@ -925,16 +925,17 @@ export class SessionManager {
     const db = getDb();
     const row = db
       .prepare(
-        `SELECT cwd, permission_mode, effort FROM sessions
+        `SELECT cwd, permission_mode, effort, account_id FROM sessions
          WHERE session_type = 'claude' AND ephemeral = 0
          ORDER BY started_at DESC LIMIT 1`,
       )
-      .get() as { cwd: string; permission_mode: string | null; effort: string | null } | undefined;
+      .get() as { cwd: string; permission_mode: string | null; effort: string | null; account_id: string | null } | undefined;
     if (!row) return null;
     return {
       cwd: row.cwd,
       permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
       effort: (row.effort as EffortLevel) ?? undefined,
+      accountId: row.account_id ?? undefined,
     };
   }
 

@@ -66,6 +66,7 @@ export interface SessionDefaults {
   cwd: string;
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
+  accountId?: string;
 }
 
 // --- External (non-mcode) Claude Code sessions ---

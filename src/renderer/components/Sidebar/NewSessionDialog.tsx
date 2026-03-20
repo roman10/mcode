@@ -36,16 +36,23 @@ function NewSessionDialog({
       setUseWorktree(false);
       setWorktreeName('');
       setIsCreating(false);
-      window.mcode.sessions.getLastDefaults().then((defaults) => {
-        if (!defaults) return;
-        setCwd(defaults.cwd);
-        if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
-        if (defaults.effort) setEffort(defaults.effort);
-      });
-      window.mcode.accounts.list().then((list) => {
+      Promise.all([
+        window.mcode.sessions.getLastDefaults(),
+        window.mcode.accounts.list(),
+      ]).then(([defaults, list]) => {
         setAccounts(list);
         const defaultAccount = list.find((a) => a.isDefault);
-        if (defaultAccount) setSelectedAccountId(defaultAccount.accountId);
+        const rememberedAccountId = defaults?.accountId;
+        if (rememberedAccountId && list.some((a) => a.accountId === rememberedAccountId)) {
+          setSelectedAccountId(rememberedAccountId);
+        } else {
+          setSelectedAccountId(defaultAccount?.accountId ?? '');
+        }
+        if (defaults) {
+          setCwd(defaults.cwd);
+          if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
+          if (defaults.effort) setEffort(defaults.effort);
+        }
       });
     }
     prevOpenRef.current = open;
