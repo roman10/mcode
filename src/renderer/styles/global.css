@@ -8,7 +8,7 @@
   --color-border-default: #30363d;
   --color-border-focus: #58a6ff;
   --color-text-primary: #e6edf3;
-  --color-text-secondary: #8b949e;
+  --color-text-secondary: #9198a1;
   --color-text-muted: #6e7681;
   --color-accent: #58a6ff;
   --color-border-subtle: #21262d;
@@ -68,4 +68,21 @@
 /* Mosaic zero-height fix */
 .mosaic.mosaic-theme-dark {
   height: 100%;
+}
+
+/* Accessibility: respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Accessibility: global focus-visible indicator */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
 }

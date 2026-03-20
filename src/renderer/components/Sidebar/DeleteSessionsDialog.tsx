@@ -152,7 +152,7 @@ function DeleteSessionsDialog({
         </button>
         <button
           disabled={selected.size === 0 || isDeleting}
-          className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-500 disabled:opacity-50 transition-colors"
+          className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           onClick={handleDelete}
         >
           {isDeleting
@@ -201,13 +201,13 @@ function GroupHeader({
         className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer"
         onClick={onToggleCollapse}
       >
-        <span className="text-[10px] text-text-muted">
+        <span className="text-xs text-text-muted">
           {collapsed ? '\u25B6' : '\u25BC'}
         </span>
         <span className="text-xs font-medium text-text-muted uppercase tracking-wide flex-1 text-left">
           {label}
         </span>
-        <span className="text-[10px] text-text-muted">{count}</span>
+        <span className="text-xs text-text-muted">{count}</span>
       </button>
     </div>
   );

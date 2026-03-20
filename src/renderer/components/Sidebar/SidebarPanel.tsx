@@ -239,7 +239,7 @@ function SidebarPanel(): React.JSX.Element {
           <span className="text-xs text-text-muted">mcode</span>
           {todayCost !== null && todayCost > 0 && (
             <Tooltip content="Estimated token cost today" side="top">
-              <span className="text-[11px] text-text-muted ml-1.5">
+              <span className="text-xs text-text-muted ml-1.5">
                 ~${todayCost.toFixed(2)}
               </span>
             </Tooltip>

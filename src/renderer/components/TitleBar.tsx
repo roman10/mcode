@@ -34,7 +34,7 @@ function TitleBar(): React.JSX.Element {
       >
         <Search size={13} strokeWidth={1.75} />
         <span className="flex-1 text-left truncate">{projectLabel || 'Search'}</span>
-        <kbd className="text-[11px] opacity-50">{formatKeys('P', true)}</kbd>
+        <kbd className="text-xs text-text-muted">{formatKeys('P', true)}</kbd>
       </button>
     </div>
   );

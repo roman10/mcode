@@ -63,7 +63,7 @@ function KanbanCard({
             {labelIcon && <span className="mr-1">{labelIcon}</span>}
             {labelText}
             {accountName && (
-              <span className="text-[10px] text-text-muted ml-1.5">{accountName}</span>
+              <span className="text-xs text-text-muted ml-1.5">{accountName}</span>
             )}
           </span>
           {shortTime && (
@@ -86,8 +86,9 @@ function KanbanCard({
         </div>
       </div>
 
-      {/* Hover actions — hidden until hover to save vertical space */}
-      <div className="hidden group-hover:flex items-center gap-1 px-3 pb-2">
+      {/* Hover actions — collapsed until hover to save vertical space */}
+      <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] focus-within:grid-rows-[1fr] transition-[grid-template-rows] duration-150">
+      <div className="overflow-hidden flex items-center gap-1 px-3 pb-2">
         {session.status !== 'ended' ? (
           <Tooltip content="Kill session" side="top">
             <button
@@ -124,6 +125,7 @@ function KanbanCard({
             Open
           </button>
         </Tooltip>
+      </div>
       </div>
     </div>
   );

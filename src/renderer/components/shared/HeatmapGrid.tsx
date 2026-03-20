@@ -80,13 +80,13 @@ function HeatmapGrid<T extends { date: string }>({
 
   if (entries.length === 0) return <></>;
 
-  const labelWidth = 14;
+  const labelWidth = 16;
   const gridWidth = totalCols * STEP - GAP;
 
   return (
     <div className="flex flex-col gap-1">
       {/* Month labels */}
-      <div className="flex text-[9px] text-text-muted" style={{ marginLeft: labelWidth }}>
+      <div className="flex text-[11px] text-text-muted" style={{ marginLeft: labelWidth }}>
         {monthLabels.map((m) => (
           <span
             key={`${m.label}-${m.col}`}
@@ -110,7 +110,7 @@ function HeatmapGrid<T extends { date: string }>({
           }}
         >
           {WEEKDAY_LABELS.map((label, i) => (
-            <span key={i} className="text-[9px] text-text-muted leading-none flex items-center">
+            <span key={i} className="text-[11px] text-text-muted leading-none flex items-center">
               {label}
             </span>
           ))}

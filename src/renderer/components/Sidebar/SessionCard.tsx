@@ -118,7 +118,7 @@ function SessionCard({
             {labelIcon && <span className="mr-1">{labelIcon}</span>}
             {labelText}
             {accountName && (
-              <span className="text-[10px] text-text-muted ml-1.5">{accountName}</span>
+              <span className="text-xs text-text-muted ml-1.5">{accountName}</span>
             )}
           </span>
         )}
@@ -142,7 +142,7 @@ function SessionCard({
       </div>
 
       {/* Actions */}
-      <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="shrink-0 flex items-center gap-1 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
         {!hasTile && (session.status !== 'ended' || (session.sessionType === 'claude' && session.claudeSessionId)) && (
           <Tooltip content={session.status === 'ended' ? 'View / Resume session' : 'Open tile'} side="top">
             <button

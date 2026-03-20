@@ -33,10 +33,10 @@ function tokenTooltip(entry: TokenHeatmapEntry): string {
 }
 
 const modelFamilyColors: Record<string, string> = {
-  opus: 'bg-purple-900/60 text-purple-300',
-  sonnet: 'bg-blue-900/60 text-blue-300',
-  haiku: 'bg-green-900/60 text-green-300',
-  unknown: 'bg-gray-700/60 text-gray-400',
+  opus: 'bg-purple-900/80 text-purple-300',
+  sonnet: 'bg-blue-900/80 text-blue-300',
+  haiku: 'bg-green-900/80 text-green-300',
+  unknown: 'bg-gray-700/80 text-gray-300',
 };
 
 function ModelPill({ model, totalCost }: { model: ModelUsageSummary; totalCost: number }): React.JSX.Element {
@@ -44,7 +44,7 @@ function ModelPill({ model, totalCost }: { model: ModelUsageSummary; totalCost: 
   const pct = totalCost > 0 ? (model.estimatedCostUsd / totalCost * 100).toFixed(0) : '0';
 
   return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded ${color}`}>
+    <span className={`text-xs px-1.5 py-0.5 rounded ${color}`}>
       {model.model} {formatCost(model.estimatedCostUsd)} ({pct}%)
     </span>
   );
@@ -115,7 +115,7 @@ function TokenStats(): React.JSX.Element {
         </button>
       </Tooltip>
       <button
-        className="text-[11px] px-1.5 py-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors min-w-[48px] text-center"
+        className="text-xs px-1.5 py-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors min-w-[48px] text-center"
         onClick={() => setSelectedDate(null)}
         title="Go to today"
       >
@@ -182,7 +182,7 @@ function TokenStats(): React.JSX.Element {
             </span>
           )}
           {totals && (totalInputTokens > 0 || totals.outputTokens > 0) && (
-            <div className="text-[11px] text-text-muted mt-0.5">
+            <div className="text-xs text-text-muted mt-0.5">
               In: {formatTokens(totalInputTokens)} · Out: {formatTokens(totals.outputTokens)} · Total: {formatTokens(totalInputTokens + totals.outputTokens)}
             </div>
           )}
@@ -211,7 +211,7 @@ function TokenStats(): React.JSX.Element {
 
         {/* Cache efficiency */}
         {cacheReadTokens > 0 && (
-          <div className="text-[11px] text-text-muted">
+          <div className="text-xs text-text-muted">
             Cache: {Math.round(cacheHitRate * 100)}% hit rate
           </div>
         )}
@@ -219,7 +219,7 @@ function TokenStats(): React.JSX.Element {
         {/* Top sessions */}
         {topSessions.length > 0 && (
           <div className="space-y-1.5">
-            <div className="text-[11px] text-text-muted font-medium">
+            <div className="text-xs text-text-muted font-medium">
               Top sessions {isToday ? 'today' : `on ${formatDateLabel(viewDate)}`}
             </div>
             {topSessions.map((s) => (
@@ -237,7 +237,7 @@ function TokenStats(): React.JSX.Element {
 
         {/* Weekly trend */}
         {weeklyTrend && (
-          <div className="text-[11px] text-text-muted">
+          <div className="text-xs text-text-muted">
             This week: {formatCost(weeklyTrend.thisWeek.estimatedCostUsd)}
             {weeklyTrend.pctChange != null && (
               <span className={weeklyTrend.pctChange >= 0 ? 'text-red-400' : 'text-green-400'}>

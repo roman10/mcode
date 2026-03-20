@@ -75,7 +75,7 @@ function TileTaskItem({ task }: TileTaskItemProps): React.JSX.Element {
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
           />
-          <span className="text-[10px] text-text-muted">
+          <span className="text-xs text-text-muted">
             {'\u2318\u21B5'} to save &middot; Esc to cancel
           </span>
         </div>
@@ -97,7 +97,7 @@ function TileTaskItem({ task }: TileTaskItemProps): React.JSX.Element {
               {promptPreview}
             </span>
             {isPending && (
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
                 <button
                   className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
                   onClick={() => {
@@ -118,7 +118,7 @@ function TileTaskItem({ task }: TileTaskItemProps): React.JSX.Element {
               </div>
             )}
             {!isPending && (
-              <span className="text-[10px] text-green-400 shrink-0">
+              <span className="text-xs text-green-400 shrink-0">
                 Running
               </span>
             )}
@@ -126,10 +126,10 @@ function TileTaskItem({ task }: TileTaskItemProps): React.JSX.Element {
           {(task.scheduledAt || task.retryCount > 0) && (
             <div className="flex items-center gap-2 mt-0.5 ml-4">
               {task.scheduledAt && task.status === 'pending' && (
-                <span className="text-[10px] text-text-muted">scheduled</span>
+                <span className="text-xs text-text-muted">scheduled</span>
               )}
               {task.retryCount > 0 && (
-                <span className="text-[10px] text-text-muted">
+                <span className="text-xs text-text-muted">
                   retry {task.retryCount}/{task.maxRetries}
                 </span>
               )}
@@ -179,13 +179,13 @@ function TileTaskPanel({
         className="flex items-center h-6 px-3 cursor-pointer hover:bg-bg-elevated/50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <span className="text-[10px] text-text-muted mr-1.5">
+        <span className="text-xs text-text-muted mr-1.5">
           {expanded ? '\u25BC' : '\u25B6'}
         </span>
         <span className="text-xs text-text-secondary font-medium mr-1.5">
           Tasks
         </span>
-        <span className="text-[10px] bg-bg-elevated text-text-muted px-1 rounded">
+        <span className="text-xs bg-bg-elevated text-text-muted px-1 rounded">
           {sessionTasks.length} queued
         </span>
       </div>

@@ -26,18 +26,18 @@ function commitTooltip(entry: CommitHeatmapEntry): string {
 
 function TypePill({ type, count }: { type: string; count: number }): React.JSX.Element {
   const colors: Record<string, string> = {
-    feat: 'bg-green-900/60 text-green-300',
-    fix: 'bg-red-900/60 text-red-300',
-    refactor: 'bg-blue-900/60 text-blue-300',
-    docs: 'bg-purple-900/60 text-purple-300',
-    test: 'bg-amber-900/60 text-amber-300',
-    chore: 'bg-gray-700/60 text-gray-300',
-    other: 'bg-gray-700/60 text-gray-400',
+    feat: 'bg-green-900/80 text-green-300',
+    fix: 'bg-red-900/80 text-red-300',
+    refactor: 'bg-blue-900/80 text-blue-300',
+    docs: 'bg-purple-900/80 text-purple-300',
+    test: 'bg-amber-900/80 text-amber-300',
+    chore: 'bg-gray-700/80 text-gray-300',
+    other: 'bg-gray-700/80 text-gray-300',
   };
   const color = colors[type] ?? colors.other;
 
   return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded ${color}`}>
+    <span className={`text-xs px-1.5 py-0.5 rounded ${color}`}>
       {type} {count}
     </span>
   );
@@ -101,7 +101,7 @@ function CommitStats(): React.JSX.Element {
         </button>
       </Tooltip>
       <button
-        className="text-[11px] px-1.5 py-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors min-w-[48px] text-center"
+        className="text-xs px-1.5 py-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors min-w-[48px] text-center"
         onClick={() => setSelectedDate(null)}
         title="Go to today"
       >
@@ -221,12 +221,12 @@ function CommitStats(): React.JSX.Element {
                   {repo.count} commit{repo.count !== 1 ? 's' : ''}
                 </span>
                 {repo.insertions > 0 && (
-                  <span className="text-green-400 shrink-0 ml-2 text-[10px]">
+                  <span className="text-green-400 shrink-0 ml-2 text-xs">
                     +{formatNumber(repo.insertions)}
                   </span>
                 )}
                 {repo.deletions > 0 && (
-                  <span className="text-red-400 shrink-0 ml-1 text-[10px]">
+                  <span className="text-red-400 shrink-0 ml-1 text-xs">
                     -{formatNumber(repo.deletions)}
                   </span>
                 )}
@@ -237,7 +237,7 @@ function CommitStats(): React.JSX.Element {
 
         {/* Cadence & trend */}
         {(cadence?.avgMinutes != null || weeklyTrend) && (
-          <div className="text-[11px] text-text-muted space-y-0.5">
+          <div className="text-xs text-text-muted space-y-0.5">
             {cadence?.avgMinutes != null && (
               <div>
                 Cadence: every {cadence.avgMinutes} min

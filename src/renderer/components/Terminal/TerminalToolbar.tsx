@@ -163,7 +163,7 @@ function TerminalToolbar({
 
       {/* Task count badge */}
       {pendingTaskCount > 0 && (
-        <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 rounded ml-1 shrink-0">
+        <span className="text-xs bg-amber-400/20 text-amber-300 px-1.5 rounded ml-1 shrink-0">
           {pendingTaskCount} {pendingTaskCount === 1 ? 'task' : 'tasks'}
         </span>
       )}

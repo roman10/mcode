@@ -73,7 +73,7 @@ function PanelToolbar(): React.JSX.Element {
         <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
-            className="px-1.5 py-0.5 text-[10px] text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
+            className="px-1.5 py-0.5 text-xs text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
             onClick={handlePromote}
             title="Open a new terminal at this directory"
           >
@@ -81,7 +81,7 @@ function PanelToolbar(): React.JSX.Element {
           </button>
           <button
             type="button"
-            className="px-1.5 py-0.5 text-[10px] text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
+            className="px-1.5 py-0.5 text-xs text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
             onClick={handleRetry}
             title="Re-run this command"
           >
@@ -89,7 +89,7 @@ function PanelToolbar(): React.JSX.Element {
           </button>
           <button
             type="button"
-            className="px-1.5 py-0.5 text-[10px] text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
+            className="px-1.5 py-0.5 text-xs text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
             onClick={handleCopy}
             title="Copy output to clipboard"
           >
@@ -97,7 +97,7 @@ function PanelToolbar(): React.JSX.Element {
           </button>
           <button
             type="button"
-            className="px-1.5 py-0.5 text-[10px] text-text-muted hover:text-text-primary cursor-pointer"
+            className="px-1.5 py-0.5 text-xs text-text-muted hover:text-text-primary cursor-pointer"
             onClick={() => dismissCommand(selected.id)}
             title="Dismiss"
           >

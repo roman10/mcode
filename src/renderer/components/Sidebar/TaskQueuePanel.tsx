@@ -42,7 +42,7 @@ function TaskItem({ task }: { task: Task }): React.JSX.Element {
         </span>
         {task.status === 'pending' && (
           <button
-            className="text-xs text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            className="text-xs text-text-muted hover:text-red-400 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0"
             onClick={() => cancelTask(task.id).catch(() => {})}
             title="Cancel task"
           >
@@ -51,16 +51,16 @@ function TaskItem({ task }: { task: Task }): React.JSX.Element {
         )}
       </div>
       <div className="flex items-center gap-2 mt-0.5">
-        <span className="text-[10px] text-text-muted truncate">
+        <span className="text-xs text-text-muted truncate">
           {targetLabel}
         </span>
         {task.scheduledAt && task.status === 'pending' && (
-          <span className="text-[10px] text-text-muted">
+          <span className="text-xs text-text-muted">
             scheduled
           </span>
         )}
         {task.retryCount > 0 && (
-          <span className="text-[10px] text-text-muted">
+          <span className="text-xs text-text-muted">
             retry {task.retryCount}/{task.maxRetries}
           </span>
         )}
@@ -111,9 +111,9 @@ function TaskQueuePanel(): React.JSX.Element {
           onClick={() => setExpanded(!expanded)}
         >
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-text-muted">{expanded ? '\u25BC' : '\u25B6'}</span>
+            <span className="text-xs text-text-muted">{expanded ? '\u25BC' : '\u25B6'}</span>
             <span className="text-xs text-text-secondary font-medium">Tasks</span>
-            <span className="text-[10px] bg-bg-elevated text-text-muted px-1 rounded">
+            <span className="text-xs bg-bg-elevated text-text-muted px-1 rounded">
               {activeCount} active
             </span>
           </div>
@@ -133,12 +133,12 @@ function TaskQueuePanel(): React.JSX.Element {
         {expanded && (
           <div className="max-h-48 overflow-y-auto">
             {isDegraded && (
-              <div className="px-3 py-1.5 text-[10px] text-amber-300">
+              <div className="px-3 py-1.5 text-xs text-amber-300">
                 Task queue requires live hook mode
               </div>
             )}
             {taskList.length === 0 ? (
-              <div className="px-3 py-2 text-[10px] text-text-muted">
+              <div className="px-3 py-2 text-xs text-text-muted">
                 No tasks queued
               </div>
             ) : (

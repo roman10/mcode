@@ -104,7 +104,7 @@ function ActivityFeed(): React.JSX.Element {
 
         {hasFilters && (
           <button
-            className="text-[10px] text-text-muted hover:text-text-secondary"
+            className="text-xs text-text-muted hover:text-text-secondary"
             onClick={() => { setSessionFilter(''); setEventTypeFilter(''); }}
           >
             Clear
@@ -129,7 +129,7 @@ function ActivityFeed(): React.JSX.Element {
                 className="flex items-start gap-2 px-3 py-1.5 border-b border-border-default/50 hover:bg-bg-secondary/50"
               >
                 {/* Timestamp */}
-                <span className="text-[10px] text-text-muted w-12 shrink-0 pt-0.5 text-right">
+                <span className="text-xs text-text-muted w-12 shrink-0 pt-0.5 text-right">
                   {formatRelativeTime(event.createdAt)}
                 </span>
 
@@ -139,7 +139,7 @@ function ActivityFeed(): React.JSX.Element {
                 </span>
 
                 {/* Event badge */}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${colorClass}`}>
+                <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${colorClass}`}>
                   {event.hookEventName}
                 </span>
 

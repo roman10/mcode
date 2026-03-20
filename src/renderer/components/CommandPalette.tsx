@@ -335,9 +335,9 @@ function ShellModeContent({ query, onClose }: { query: string; onClose: () => vo
       </div>
       {query ? (
         <div className="text-text-muted text-xs">
-          Press <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default text-[10px] font-mono">Enter</kbd> to run
+          Press <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default text-xs font-mono">Enter</kbd> to run
           {' · '}
-          <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default text-[10px] font-mono">Esc</kbd> to cancel
+          <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default text-xs font-mono">Esc</kbd> to cancel
         </div>
       ) : (
         <div className="text-text-muted text-xs">
@@ -420,7 +420,7 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
                 <FileSearchItems query={searchQuery} onClose={onClose} />
                 {/* Hint for shell mode */}
                 {!searchQuery && (
-                  <div className="px-4 py-1.5 text-[10px] text-text-muted border-t border-border-subtle mt-1">
+                  <div className="px-4 py-1.5 text-xs text-text-muted border-t border-border-subtle mt-1">
                     Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">!</kbd> to run a shell command
                   </div>
                 )}

@@ -17,9 +17,9 @@ const statusColors: Record<SessionStatus, string> = {
 };
 
 const attentionRingColors: Record<string, string> = {
-  high: 'ring-red-400/60 animate-pulse',
-  medium: 'ring-amber-400/60',
-  low: 'ring-blue-400/40',
+  high: 'ring-red-400/80 animate-pulse',
+  medium: 'ring-amber-400/80',
+  low: 'ring-blue-400/60',
 };
 
 function buildTooltipContent(

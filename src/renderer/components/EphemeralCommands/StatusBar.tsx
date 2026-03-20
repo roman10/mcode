@@ -41,7 +41,7 @@ function StatusPill({ cmd }: { cmd: EphemeralCommand }): React.JSX.Element {
       <span className="truncate max-w-[200px]">{cmd.command}</span>
 
       {/* Repo badge */}
-      <span className="shrink-0 text-[10px] text-text-muted px-1 rounded bg-bg-primary/50">
+      <span className="shrink-0 text-xs text-text-muted px-1 rounded bg-bg-primary/50">
         {cmd.repo}
       </span>
 
@@ -79,7 +79,7 @@ export default function StatusBar(): React.JSX.Element | null {
       {completedCount > 1 && (
         <button
           type="button"
-          className="shrink-0 ml-auto text-[10px] text-text-muted hover:text-text-secondary px-1"
+          className="shrink-0 ml-auto text-xs text-text-muted hover:text-text-secondary px-1"
           onClick={clearCompleted}
         >
           Clear all

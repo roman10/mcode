@@ -77,7 +77,7 @@ function SearchBar({
         className="w-48 bg-transparent text-[13px] text-text-primary placeholder:text-text-muted outline-none"
       />
       {query && (
-        <span className="text-[11px] text-text-secondary tabular-nums whitespace-nowrap">
+        <span className="text-xs text-text-secondary tabular-nums whitespace-nowrap">
           {resultCount > 0 ? `${resultIndex + 1} of ${resultCount}` : 'No results'}
         </span>
       )}

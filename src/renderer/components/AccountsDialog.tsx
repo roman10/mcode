@@ -22,7 +22,7 @@ function AccountRow({ account, onVerify, verifying, onDelete }: AccountRowProps)
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-primary">{account.name}</span>
           {account.isDefault && (
-            <span className="text-[10px] text-text-muted bg-bg-secondary px-1.5 py-0.5 rounded">
+            <span className="text-xs text-text-muted bg-bg-secondary px-1.5 py-0.5 rounded">
               default
             </span>
           )}
@@ -32,7 +32,7 @@ function AccountRow({ account, onVerify, verifying, onDelete }: AccountRowProps)
         </span>
       </div>
       <button
-        className="text-xs text-text-muted hover:text-text-secondary transition-colors shrink-0 disabled:opacity-40"
+        className="text-xs text-text-muted hover:text-text-secondary transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
         onClick={onVerify}
         disabled={verifying}
       >
@@ -157,7 +157,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     >
       {/* Default account */}
       <div className="mb-4">
-        <p className="text-[11px] text-text-muted uppercase tracking-wide mb-2">Default Account</p>
+        <p className="text-xs text-text-muted uppercase tracking-wide mb-2">Default Account</p>
         {defaultAccount && (
           <AccountRow
             account={defaultAccount}
@@ -170,7 +170,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       {/* Secondary accounts */}
       {secondaryAccounts.length > 0 && (
         <div className="mb-4">
-          <p className="text-[11px] text-text-muted uppercase tracking-wide mb-2">Secondary Accounts</p>
+          <p className="text-xs text-text-muted uppercase tracking-wide mb-2">Secondary Accounts</p>
           <div className="space-y-2">
             {secondaryAccounts.map((account) => (
               <AccountRow
@@ -208,7 +208,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       {/* Add account */}
       {showAddForm ? (
         <div className="mb-4 space-y-2">
-          <p className="text-[11px] text-text-muted uppercase tracking-wide">Add Account</p>
+          <p className="text-xs text-text-muted uppercase tracking-wide">Add Account</p>
           <input
             className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
             value={newName}
@@ -226,7 +226,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
           />
           <div className="flex gap-2">
             <button
-              className="flex-1 px-3 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="flex-1 px-3 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
               disabled={!newName.trim() || isCreating}
               onClick={handleCreate}
             >

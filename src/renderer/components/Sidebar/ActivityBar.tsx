@@ -25,7 +25,7 @@ function ActivityBarButton({ icon, tab, active, panelCollapsed, onSelect, toolti
       >
         {icon}
         {badge != null && badge > 0 && (
-          <span className="absolute top-1.5 right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-accent text-[10px] font-medium text-bg-primary px-1">
+          <span className="absolute top-1.5 right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-accent text-xs font-medium text-bg-primary px-1">
             {badge > 99 ? '99+' : badge}
           </span>
         )}

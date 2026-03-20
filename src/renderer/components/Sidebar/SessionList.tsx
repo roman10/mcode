@@ -147,13 +147,13 @@ function SessionList(): React.JSX.Element {
               className={`flex items-center gap-1 px-3 pb-1 cursor-pointer select-none hover:text-text-secondary ${i === 0 ? 'pt-1' : 'pt-3'}`}
               onClick={() => toggleGroup(group.key)}
             >
-              <span className="text-[10px] text-text-muted">
+              <span className="text-xs text-text-muted">
                 {collapsed ? '\u25B6' : '\u25BC'}
               </span>
-              <span className="text-[11px] font-medium text-text-muted uppercase tracking-wide flex-1">
+              <span className="text-xs font-medium text-text-muted uppercase tracking-wide flex-1">
                 {group.label}
               </span>
-              <span className="text-[10px] text-text-muted">
+              <span className="text-xs text-text-muted">
                 {group.sessions.length}
               </span>
             </div>
@@ -185,7 +185,7 @@ function SessionList(): React.JSX.Element {
             className="flex items-center gap-1 px-3 py-1 text-xs text-text-muted hover:text-text-secondary w-full"
             onClick={() => setExternalExpanded(!externalExpanded)}
           >
-            <span className="text-[10px]">{externalExpanded ? '\u25BC' : '\u25B6'}</span>
+            <span className="text-xs">{externalExpanded ? '\u25BC' : '\u25B6'}</span>
             External History ({externalSessions.length}{externalSessions.length >= externalLimit ? '+' : ''})
           </button>
 
@@ -202,18 +202,18 @@ function SessionList(): React.JSX.Element {
                     <span className="block text-xs text-text-secondary truncate">
                       {ext.customTitle ?? ext.slug}
                     </span>
-                    <span className="text-[10px] text-text-muted">
+                    <span className="text-xs text-text-muted">
                       {ext.startedAt ? new Date(ext.startedAt).toLocaleDateString() : 'Unknown date'}
                     </span>
                   </div>
                   {importingId === ext.claudeSessionId && (
-                    <span className="text-[10px] text-text-muted shrink-0">Loading...</span>
+                    <span className="text-xs text-text-muted shrink-0">Loading...</span>
                   )}
                 </div>
               ))}
               {externalSessions.length >= externalLimit && (
                 <button
-                  className="w-full px-3 py-1 text-[10px] text-text-muted hover:text-text-secondary"
+                  className="w-full px-3 py-1 text-xs text-text-muted hover:text-text-secondary"
                   onClick={handleLoadMore}
                   disabled={loadingMore}
                 >

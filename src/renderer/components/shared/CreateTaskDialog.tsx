@@ -231,7 +231,7 @@ function CreateTaskDialog({
           <button
             type="submit"
             disabled={!prompt.trim() || !cwd.trim() || isCreating}
-            className="px-4 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="px-4 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
           >
             {isCreating ? 'Creating...' : 'Create Task'}
           </button>

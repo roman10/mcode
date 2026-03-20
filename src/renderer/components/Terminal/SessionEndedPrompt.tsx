@@ -55,7 +55,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
       <div className="flex flex-row gap-3">
         {canResume && (
           <button
-            className="px-4 py-2 text-sm bg-bg-elevated hover:bg-bg-tertiary text-text-primary rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm bg-bg-elevated hover:bg-bg-tertiary text-text-primary rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={handleResume}
             disabled={busy}
           >
@@ -63,7 +63,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
           </button>
         )}
         <button
-          className="px-4 py-2 text-sm bg-bg-elevated hover:bg-bg-tertiary text-text-primary rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm bg-bg-elevated hover:bg-bg-tertiary text-text-primary rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           onClick={handleStartNew}
           disabled={busy}
         >

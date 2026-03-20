@@ -113,7 +113,7 @@ function ChangesPanel(): React.JSX.Element {
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-text-secondary uppercase tracking-wide">Changes</span>
           {totalFiles > 0 && (
-            <span className="text-[11px] text-text-muted">({totalFiles})</span>
+            <span className="text-xs text-text-muted">({totalFiles})</span>
           )}
         </div>
         <Tooltip content="Refresh" side="bottom">
