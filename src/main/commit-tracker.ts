@@ -7,13 +7,11 @@ import { getPreferenceBool } from './preferences';
 import { logger } from './logger';
 import type {
   HookEvent,
-  CommitRecord,
   DailyCommitStats,
   CommitHeatmapEntry,
   CommitStreakInfo,
   CommitCadenceInfo,
   CommitWeeklyTrend,
-  RepoCommitStats,
 } from '../shared/types';
 
 const execFileAsync = promisify(execFile);
@@ -47,23 +45,6 @@ interface TrackedRepoRecord {
   last_head: string | null;
   author_email: string | null;
   discovered_from: string | null;
-}
-
-interface CommitDbRecord {
-  id: number;
-  repo_path: string;
-  commit_hash: string;
-  commit_message: string | null;
-  commit_type: string | null;
-  author_name: string | null;
-  author_email: string | null;
-  is_claude_assisted: number;
-  committed_at: string;
-  date: string;
-  files_changed: number | null;
-  insertions: number | null;
-  deletions: number | null;
-  created_at: string;
 }
 
 export interface ParsedCommit {
@@ -147,24 +128,6 @@ export function parseGitLogOutput(stdout: string): ParsedCommit[] {
   }
 
   return commits;
-}
-
-function toCommitRecord(row: CommitDbRecord): CommitRecord {
-  return {
-    id: row.id,
-    repoPath: row.repo_path,
-    commitHash: row.commit_hash,
-    commitMessage: row.commit_message,
-    commitType: row.commit_type,
-    authorName: row.author_name,
-    authorEmail: row.author_email,
-    isClaudeAssisted: row.is_claude_assisted === 1,
-    committedAt: row.committed_at,
-    date: row.date,
-    filesChanged: row.files_changed,
-    insertions: row.insertions,
-    deletions: row.deletions,
-  };
 }
 
 export class CommitTracker {
@@ -726,10 +689,6 @@ function localDateStr(d: Date): string {
 
 function todayDate(): string {
   return localDateStr(new Date());
-}
-
-function todayStart(): string {
-  return todayDate() + 'T00:00:00';
 }
 
 function nDaysAgoStart(days: number): string {

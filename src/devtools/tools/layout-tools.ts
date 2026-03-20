@@ -440,15 +440,10 @@ export function registerLayoutTools(
     description: 'Switch the sidebar to a specific tab (sessions, commits, tokens, activity)',
     annotations: { readOnlyHint: false },
     inputSchema: {
-      type: 'object' as const,
-      properties: {
-        tab: { type: 'string', enum: ['sessions', 'commits', 'tokens', 'activity'], description: 'The sidebar tab to switch to' },
-      },
-      required: ['tab'],
+      tab: z.enum(['sessions', 'commits', 'tokens', 'activity']).describe('The sidebar tab to switch to'),
     },
-  }, async (args) => {
+  }, async ({ tab }) => {
     try {
-      const { tab } = args as { tab: string };
       const result = await queryRenderer<{ tab: string }>(
         ctx.mainWindow,
         'layout-switch-sidebar-tab',
@@ -499,15 +494,10 @@ export function registerLayoutTools(
     description: 'Switch the layout view mode to tiles or kanban',
     annotations: { readOnlyHint: false },
     inputSchema: {
-      type: 'object' as const,
-      properties: {
-        mode: { type: 'string', enum: ['tiles', 'kanban'], description: 'The view mode to switch to' },
-      },
-      required: ['mode'],
+      mode: z.enum(['tiles', 'kanban']).describe('The view mode to switch to'),
     },
-  }, async (args) => {
+  }, async ({ mode }) => {
     try {
-      const { mode } = args as { mode: string };
       const result = await queryRenderer<{ viewMode: string }>(
         ctx.mainWindow,
         'layout-set-view-mode',
@@ -552,15 +542,10 @@ export function registerLayoutTools(
     description: 'Expand a session to full terminal view in kanban mode',
     annotations: { readOnlyHint: false },
     inputSchema: {
-      type: 'object' as const,
-      properties: {
-        sessionId: { type: 'string', description: 'The session ID to expand' },
-      },
-      required: ['sessionId'],
+      sessionId: z.string().describe('The session ID to expand'),
     },
-  }, async (args) => {
+  }, async ({ sessionId }) => {
     try {
-      const { sessionId } = args as { sessionId: string };
       await queryRenderer(ctx.mainWindow, 'kanban-expand-session', { sessionId });
       return {
         content: [{ type: 'text', text: `Expanded session ${sessionId} in kanban view` }],

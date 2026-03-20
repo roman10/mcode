@@ -5,7 +5,7 @@ import { getLeaves } from 'react-mosaic-component';
 import SessionCard from './SessionCard';
 import { getOrderedVisibleSessions } from '../../utils/session-ordering';
 import { toDateKey, groupSessionsByDate } from '../../utils/date-grouping';
-import type { ExternalSessionInfo, SessionInfo } from '../../../shared/types';
+import type { ExternalSessionInfo } from '../../../shared/types';
 
 function SessionList(): React.JSX.Element {
   const sessions = useSessionStore((s) => s.sessions);

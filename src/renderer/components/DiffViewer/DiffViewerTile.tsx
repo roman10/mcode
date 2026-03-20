@@ -74,7 +74,7 @@ function DiffViewerTile({ absolutePath }: DiffViewerTileProps): React.JSX.Elemen
 
   // Load language extension for syntax highlighting
   useEffect(() => {
-    const desc = LanguageDescription.matchFilePath(languages, absolutePath);
+    const desc = LanguageDescription.matchFilename(languages, absolutePath);
     if (desc) {
       desc.load().then((support) => {
         setLangExtension(support);
