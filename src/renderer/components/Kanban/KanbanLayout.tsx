@@ -78,7 +78,7 @@ function KanbanLayout(): React.JSX.Element {
   // If a session is expanded, show its full terminal
   if (kanbanExpandedSessionId && sessions[kanbanExpandedSessionId]) {
     return (
-      <div className="h-full w-full">
+      <div className="h-full w-full min-h-0 overflow-hidden">
         <TerminalTile sessionId={kanbanExpandedSessionId} />
       </div>
     );
