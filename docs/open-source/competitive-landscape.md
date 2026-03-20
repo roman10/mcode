@@ -11,7 +11,7 @@ Research on tools similar to mcode: desktop apps, TUIs, and orchestration layers
 - **Open source**: No
 - **Key features**: Native GUI for Claude Code, visual diff review, session sidebar, git worktree integration, permission modes
 - **Multi-session**: Sidebar-based — can run multiple sessions but **single-pane view only** (one session visible at a time)
-- **vs mcode**: No tiling layout, no multi-account. Open feature request for multi-window: https://github.com/anthropics/claude-code/issues/30154
+- **vs mcode**: No tiling layout, no kanban, no multi-account, no task queue, no MCP automation surface. Open feature request for multi-window: https://github.com/anthropics/claude-code/issues/30154
 
 ### OpenAI Codex App
 - **URL**: https://openai.com/index/introducing-the-codex-app/
@@ -47,20 +47,20 @@ Research on tools similar to mcode: desktop apps, TUIs, and orchestration layers
 - **GitHub stars**: ~21K
 - **Key features**: Session checkpoints (rewind conversations), visual project browser, CLAUDE.md editor, usage analytics, custom agents
 - **Platforms**: macOS, Linux, Windows
-- **vs mcode**: Opcode focuses on single-session enhancement. mcode focuses on multi-session tiling. Different niches.
+- **vs mcode**: Opcode focuses on single-session enhancement. mcode focuses on multi-session orchestration with tiling, kanban, task queue, and 82 MCP tools. Different niches.
 
 ### Nimbalyst (formerly Crystal)
 - **URL**: https://nimbalyst.com/ | https://github.com/stravu/crystal
 - **Open source**: Crystal (predecessor) was OSS; Nimbalyst is commercial
 - **Key features**: Multi-session management with kanban board, markdown editor, diagramming, iOS mobile app
 - **Platforms**: macOS, Windows, Linux
-- **vs mcode**: Most similar in concept. Nimbalyst uses kanban; mcode uses terminal tiling. Nimbalyst has mobile app; mcode has multi-account support.
+- **vs mcode**: Most similar in concept. Nimbalyst uses kanban; mcode has both tiling and kanban views. Nimbalyst has mobile app; mcode has multi-account, 82 MCP tools, task queue, and commit/token analytics.
 
 ### Quack
 - **URL**: https://www.quack.build/
 - **Tech**: Tauri + React (~8MB)
 - **Key features**: 10-30+ parallel sessions, visual terminals, Kanban view, multi-model support (Ollama, DeepSeek), free unlimited agents
-- **vs mcode**: Similar scope but no tiling layout, no multi-account. Lighter weight (Tauri vs Electron).
+- **vs mcode**: Similar scope but no tiling layout, no multi-account, no task queue, no MCP automation. Lighter weight (Tauri vs Electron).
 
 ### ClaudeTerminal
 - **URL**: https://github.com/Mr8BitHK/claude-terminal
@@ -68,7 +68,7 @@ Research on tools similar to mcode: desktop apps, TUIs, and orchestration layers
 - **Tech**: Electron 40 + React 19 + xterm.js + Tailwind CSS v4
 - **Key features**: Tabbed terminal sessions, status indicators, session persistence, worktree support
 - **Platforms**: Windows-focused
-- **vs mcode**: **Nearly identical tech stack.** Uses tabs, mcode uses tiling. mcode adds multi-account, SQLite state, react-mosaic tiling.
+- **vs mcode**: **Nearly identical tech stack.** Uses tabs, mcode uses tiling + kanban. mcode adds multi-account, task queue, 82 MCP tools, commit/token analytics, command palette, and SQLite persistence.
 
 ### Sculptor (Imbue)
 - **URL**: https://github.com/imbue-ai/sculptor
@@ -147,14 +147,22 @@ Research on tools similar to mcode: desktop apps, TUIs, and orchestration layers
 | Feature | mcode | Competitors with it |
 |---|---|---|
 | **Tiling layout** (live multi-session view) | Yes | Almost none (most use tabs/sidebar) |
-| **Terminal-native** (node-pty + xterm.js) | Yes | ClaudeTerminal, Agent of Empires |
+| **Kanban view** (drag-and-drop session board) | Yes | Nimbalyst, Quack, Vibe Kanban, Dorothy |
+| **Terminal-native** (node-pty + xterm.js WebGL) | Yes | ClaudeTerminal, Agent of Empires |
 | **Multi-account support** | Yes | Only CLI tools (CCS, claude-env) |
+| **82 MCP tools** (full automation surface) | Yes | None at this depth |
+| **Task queue** (scheduled dispatch with priority) | Yes | Dorothy (GitHub-triggered), Agent Deck (Conductors) |
+| **Command palette + quick open** | Yes | Opcode, Kintsugi |
+| **Commit analytics** (streaks, heatmaps, cadence) | Yes | Mission Control (basic) |
+| **Token usage tracking** (cost, model breakdown) | Yes | Agent Deck, Mission Control |
+| **Hook-driven monitoring** (attention system) | Yes | None at this depth |
+| **File viewer** (read-only code tiles) | Yes | Opcode (project browser), Sculptor (IDE sync) |
 | **Desktop app** | Yes | Many |
 | **Purpose-built for Claude Code** | Yes | Opcode, Quack, Nimbalyst |
-| **Hook-driven monitoring** | Yes | None at this depth |
-| **SQLite-backed persistence** | Yes | Few |
+| **SQLite-backed persistence** (14 migrations) | Yes | Few |
+| **30+ keyboard shortcuts** | Yes | Opcode, Kintsugi |
 
-No single competitor matches the combination of tiling + multi-account + terminal-native + hook-driven monitoring.
+No single competitor matches the combination of tiling + kanban + multi-account + terminal-native + 82 MCP tools + task queue + hook-driven monitoring + commit/token analytics.
 
 ---
 
@@ -164,7 +172,7 @@ No single competitor matches the combination of tiling + multi-account + termina
 - Every major platform shipped multi-agent features in Feb 2026 (Grok, Windsurf, Claude, Codex, Devin)
 - Multiple Show HN posts for session managers; awesome-claude-code lists 20+ orchestrators
 - Teams like incident.io run 4-5 parallel instances as their default workflow
-- Key unsolved pain points: context switching between tabs, status visibility, multi-account rate limits
+- Key unsolved pain points: context switching between tabs, status visibility, multi-account rate limits, lack of automation/MCP surfaces for agent-driven workflows
 
 ---
 

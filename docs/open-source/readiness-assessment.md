@@ -10,13 +10,13 @@
 
 | Dimension | Score | Notes |
 |---|---|---|
-| Feature completeness | 7/10 | Core features solid. Missing: auto-update, settings UI |
+| Feature completeness | 9/10 | Tiling + kanban views, command palette, quick open, file viewer, task queue, commit/token tracking, settings UI, 82 MCP tools. Missing: auto-update |
 | Code quality | 9/10 | Clean architecture, good naming, proper separation, zero TODOs |
 | Documentation (internal) | 8/10 | Excellent design docs, ADRs, architecture walkthroughs |
 | Documentation (external) | 3/10 | No LICENSE, CONTRIBUTING.md, SECURITY.md, build guide |
 | Dependencies | 9/10 | Minimal, modern, no security issues. Only concern: react-mosaic beta |
 | Build system | 8/10 | Works. electron-vite + electron-builder. No cross-platform CI |
-| Tests | 9/10 | 133 tests across 22 suites, all passing |
+| Tests | 9/10 | 169 tests across 26 suites, all passing |
 | CI/CD | 0/10 | None exists |
 | Security | 7/10 | No secrets, CSP configured, context isolation. Fine for desktop |
 | Release process | 0/10 | No automation, no installers, no auto-update |
@@ -60,16 +60,20 @@
 **Tagline:** "Terminal-native tiling IDE for parallel Claude Code sessions"
 
 **Key differentiators to emphasize:**
-1. **See all sessions at once** — react-mosaic tiling, not tabs or sidebar
+1. **See all sessions at once** — react-mosaic tiling + kanban view, not tabs or sidebar
 2. **Multi-account support** — bypass rate limits, isolate work contexts
 3. **Real terminal** — node-pty + xterm.js WebGL, not a chat wrapper
 4. **Deep Claude Code integration** — hook-driven monitoring, attention system, token tracking
+5. **82 MCP tools** — fully automatable via MCP; every feature is agent-accessible
+6. **Task queue** — schedule and dispatch work to sessions with priority and retry logic
+7. **Built-in analytics** — commit tracking (streaks, heatmaps, cadence) + token usage (cost, model breakdown)
+8. **Command palette + quick open** — VS Code-style navigation with fuzzy search
 
 **Positioning against competitors:**
-- vs **Opcode** (21K stars): "Opcode enhances a single session. mcode lets you see and manage many at once."
-- vs **Nimbalyst/Quack**: "Terminal-native with real xterm.js, not a chat wrapper. Plus multi-account."
-- vs **Claude Code Desktop**: "Tiling layout to see all sessions simultaneously, plus multi-account."
-- vs **CLI tools**: "Full desktop GUI with tiling, not just a TUI or CLI wrapper."
+- vs **Opcode** (21K stars): "Opcode enhances a single session. mcode lets you see, manage, and orchestrate many at once with tiling, kanban, and a task queue."
+- vs **Nimbalyst/Quack**: "Terminal-native with real xterm.js, not a chat wrapper. Plus multi-account, 82 MCP tools, and built-in commit/token analytics."
+- vs **Claude Code Desktop**: "Tiling layout to see all sessions simultaneously, plus multi-account, task queue, and full MCP automation."
+- vs **CLI tools**: "Full desktop GUI with tiling, kanban, command palette, and analytics — not just a TUI or CLI wrapper."
 
 ---
 
