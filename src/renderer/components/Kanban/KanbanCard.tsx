@@ -1,6 +1,7 @@
 import type { SessionInfo } from '../../../shared/types';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
+import { splitLabelIcon } from '../../utils/label-utils';
 import StatusBadge from '../Sidebar/StatusBadge';
 import Tooltip from '../shared/Tooltip';
 
@@ -29,6 +30,7 @@ function KanbanCard({
   onDelete,
 }: KanbanCardProps): React.JSX.Element {
   const shortTime = useRelativeTime(session.startedAt);
+  const [labelIcon, labelText] = splitLabelIcon(session.label);
   const attentionBorder = attentionBorderColors[session.attentionLevel] ?? '';
   const accountName = useAccountsStore((s) => {
     if (!session.accountId) return null;
@@ -58,7 +60,8 @@ function KanbanCard({
             {session.sessionType === 'terminal' && (
               <span className="text-text-muted font-mono text-xs mr-1">&gt;_</span>
             )}
-            {session.label}
+            {labelIcon && <span className="mr-1">{labelIcon}</span>}
+            {labelText}
             {accountName && (
               <span className="text-[10px] text-text-muted ml-1.5">{accountName}</span>
             )}

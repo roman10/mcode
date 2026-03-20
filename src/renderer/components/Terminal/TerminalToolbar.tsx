@@ -3,6 +3,7 @@ import { Maximize2, Minimize2, Plus, Square, X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import { useTaskStore } from '../../stores/task-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
+import { splitLabelIcon } from '../../utils/label-utils';
 import Tooltip from '../shared/Tooltip';
 import CreateTaskDialog from '../shared/CreateTaskDialog';
 import type { SessionStatus, CreateTaskInput } from '../../../shared/types';
@@ -38,6 +39,7 @@ function TerminalToolbar({
 }: TerminalToolbarProps): React.JSX.Element {
   const session = useSessionStore((s) => s.sessions[sessionId]);
   const label = session?.label ?? 'Unknown';
+  const [labelIcon, labelText] = splitLabelIcon(label);
   const status = session?.status ?? 'ended';
   const attentionLevel = session?.attentionLevel ?? 'none';
   const lastTool = session?.lastTool;
@@ -68,7 +70,7 @@ function TerminalToolbar({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const startEditing = (): void => {
-    setEditValue(label);
+    setEditValue(labelText);
     setIsEditing(true);
   };
 
@@ -81,9 +83,10 @@ function TerminalToolbar({
 
   const handleRenameSubmit = (): void => {
     const trimmed = editValue.trim();
-    if (trimmed && trimmed !== label) {
-      window.mcode.sessions.setLabel(sessionId, trimmed).catch(console.error);
-      useSessionStore.getState().setLabel(sessionId, trimmed);
+    const full = labelIcon ? `${labelIcon} ${trimmed}` : trimmed;
+    if (trimmed && full !== label) {
+      window.mcode.sessions.setLabel(sessionId, full).catch(console.error);
+      useSessionStore.getState().setLabel(sessionId, full);
     }
     setIsEditing(false);
   };
@@ -124,6 +127,7 @@ function TerminalToolbar({
           {lastTool}
         </span>
       )}
+      {labelIcon && <span className="text-xs mr-1">{labelIcon}</span>}
       {isEditing ? (
         <input
           ref={inputRef}
@@ -134,7 +138,7 @@ function TerminalToolbar({
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleRenameSubmit();
             if (e.key === 'Escape') {
-              setEditValue(label);
+              setEditValue(labelText);
               setIsEditing(false);
             }
           }}
@@ -148,7 +152,7 @@ function TerminalToolbar({
             startEditing();
           }}
         >
-          {label}
+          {labelText}
         </span>
       )}
       {shortTime && (

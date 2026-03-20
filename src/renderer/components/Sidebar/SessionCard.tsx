@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { SessionInfo } from '../../../shared/types';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
+import { splitLabelIcon } from '../../utils/label-utils';
 import Tooltip from '../shared/Tooltip';
 import StatusBadge from './StatusBadge';
 
@@ -36,9 +37,10 @@ function SessionCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [labelIcon, labelText] = splitLabelIcon(session.label);
 
   const startEditing = (): void => {
-    setEditValue(session.label);
+    setEditValue(labelText);
     setIsEditing(true);
   };
 
@@ -51,10 +53,11 @@ function SessionCard({
 
   const handleRenameSubmit = (): void => {
     const trimmed = editValue.trim();
-    if (trimmed && trimmed !== session.label) {
-      onRename(trimmed);
+    const full = labelIcon ? `${labelIcon} ${trimmed}` : trimmed;
+    if (trimmed && full !== session.label) {
+      onRename(full);
     } else {
-      setEditValue(session.label);
+      setEditValue(labelText);
     }
     setIsEditing(false);
   };
@@ -83,20 +86,23 @@ function SessionCard({
       {/* Label + metadata */}
       <div className="flex-1 min-w-0">
         {isEditing ? (
-          <input
-            ref={inputRef}
-            className="w-full bg-bg-primary text-text-primary text-sm px-1 py-0 border border-border-focus rounded outline-none"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={handleRenameSubmit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleRenameSubmit();
-              if (e.key === 'Escape') {
-                setEditValue(session.label);
-                setIsEditing(false);
-              }
-            }}
-          />
+          <div className="flex items-center gap-1">
+            {labelIcon && <span className="text-sm shrink-0">{labelIcon}</span>}
+            <input
+              ref={inputRef}
+              className="flex-1 min-w-0 bg-bg-primary text-text-primary text-sm px-1 py-0 border border-border-focus rounded outline-none"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleRenameSubmit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameSubmit();
+                if (e.key === 'Escape') {
+                  setEditValue(labelText);
+                  setIsEditing(false);
+                }
+              }}
+            />
+          </div>
         ) : (
           <span
             className="block text-sm text-text-primary truncate"
@@ -109,7 +115,8 @@ function SessionCard({
             {session.sessionType === 'terminal' && (
               <span className="text-text-muted font-mono text-xs mr-1">&gt;_</span>
             )}
-            {session.label}
+            {labelIcon && <span className="mr-1">{labelIcon}</span>}
+            {labelText}
             {accountName && (
               <span className="text-[10px] text-text-muted ml-1.5">{accountName}</span>
             )}
