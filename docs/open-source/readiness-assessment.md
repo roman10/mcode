@@ -13,7 +13,7 @@
 | Feature completeness | 9/10 | Tiling + kanban views, command palette, quick open, file viewer, task queue, commit/token tracking, settings UI, 82 MCP tools. Missing: auto-update |
 | Code quality | 9/10 | Clean architecture, good naming, proper separation, zero TODOs |
 | Documentation (internal) | 8/10 | Excellent design docs, ADRs, architecture walkthroughs |
-| Documentation (external) | 4/10 | LICENSE added (Apache 2.0). Still missing: CONTRIBUTING.md, SECURITY.md, build guide |
+| Documentation (external) | 5/10 | LICENSE (Apache 2.0) and CONTRIBUTING.md added. Still missing: SECURITY.md, build guide |
 | Dependencies | 9/10 | Minimal, modern, no security issues. Only concern: react-mosaic beta |
 | Build system | 8/10 | Works. electron-vite + electron-builder. No cross-platform CI |
 | Tests | 9/10 | 169 tests across 26 suites, all passing |
@@ -29,7 +29,7 @@
 
 1. ~~**No LICENSE file**~~ — Added Apache 2.0 (`d4702e6`)
 2. **No CI/CD** — GitHub Actions for test + build on push
-3. **No CONTRIBUTING.md** — external contributors need onboarding
+3. ~~**No CONTRIBUTING.md**~~ — Added (`db45c95`)
 4. **No README for open-source** — need installation instructions, screenshots, feature overview
 
 ## Nice-to-haves (post-launch)
@@ -47,7 +47,7 @@
 | Task | Effort |
 |---|---|
 | ~~Add LICENSE~~ | ~~1 hour~~ |
-| Write CONTRIBUTING.md | 1 day |
+| ~~Write CONTRIBUTING.md~~ | ~~1 day~~ |
 | Rewrite README (screenshots, install, features) | 1-2 days |
 | Set up GitHub Actions CI/CD | 2-3 days |
 | Polish pass (remove debug code, clean warnings) | 1-2 days |
@@ -91,7 +91,7 @@
 ## Launch Checklist
 
 - [x] Choose and add LICENSE file (Apache 2.0)
-- [ ] Write CONTRIBUTING.md (dev setup, PR process, code style)
+- [x] Write CONTRIBUTING.md (dev setup, PR process, code style)
 - [ ] Rewrite README.md (screenshots, features, installation, quick start)
 - [ ] Set up GitHub Actions (lint, test, build on macOS)
 - [ ] Tag v0.1.0 release
