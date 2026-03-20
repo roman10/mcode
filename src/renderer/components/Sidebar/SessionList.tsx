@@ -16,6 +16,8 @@ function SessionList(): React.JSX.Element {
   const mosaicTree = useLayoutStore((s) => s.mosaicTree);
   const addTile = useLayoutStore((s) => s.addTile);
   const persist = useLayoutStore((s) => s.persist);
+  const viewMode = useLayoutStore((s) => s.viewMode);
+  const expandKanbanSession = useLayoutStore((s) => s.expandKanbanSession);
 
   const setExternalSessions = useSessionStore((s) => s.setExternalSessions);
 
@@ -161,7 +163,12 @@ function SessionList(): React.JSX.Element {
                 session={session}
                 isSelected={selectedSessionId === session.sessionId}
                 hasTile={tileSessionIds.has(session.sessionId)}
-                onSelect={() => selectSession(session.sessionId)}
+                onSelect={() => {
+                  selectSession(session.sessionId);
+                  if (viewMode === 'kanban') {
+                    expandKanbanSession(session.sessionId);
+                  }
+                }}
                 onDoubleClick={() => handleDoubleClick(session.sessionId)}
                 onKill={() => handleKill(session.sessionId)}
                 onDelete={() => handleDelete(session.sessionId)}
