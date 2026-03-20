@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
+import { useAccountsStore } from '../../stores/accounts-store';
 
 interface SessionEndedPromptProps {
   sessionId: string;
@@ -8,18 +9,34 @@ interface SessionEndedPromptProps {
 
 function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.Element {
   const session = useSessionStore((s) => s.sessions[sessionId]);
+  const accounts = useAccountsStore((s) => s.accounts);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [resuming, setResuming] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const accountInitialized = useRef(false);
 
   const canResume = session?.sessionType === 'claude' && !!session?.claudeSessionId;
   const busy = resuming || creating;
+
+  // Initialize account selector once accounts are available; preserve user's selection after that
+  useEffect(() => {
+    if (accountInitialized.current) return;
+    if (accounts.length === 0) {
+      useAccountsStore.getState().refresh();
+      return;
+    }
+    accountInitialized.current = true;
+    const defaultAccount = accounts.find((a) => a.isDefault);
+    setSelectedAccountId(session?.accountId ?? defaultAccount?.accountId ?? '');
+  }, [accounts, session?.accountId]);
 
   const handleResume = async (): Promise<void> => {
     setResuming(true);
     setError(null);
     try {
-      await window.mcode.sessions.resume(sessionId);
+      const accountOverride = selectedAccountId || undefined;
+      await window.mcode.sessions.resume(sessionId, accountOverride);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setResuming(false);
@@ -51,6 +68,24 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
       <div className="text-sm text-text-muted">
         Session ended{session?.endedAt ? ` at ${new Date(session.endedAt).toLocaleString()}` : ''}
       </div>
+
+      {accounts.length > 1 && canResume && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-text-muted">Account:</span>
+          <select
+            className="bg-bg-elevated text-text-primary text-sm px-2 py-1 rounded border border-border-default focus:border-border-focus outline-none"
+            value={selectedAccountId}
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+            disabled={busy}
+          >
+            {accounts.map((a) => (
+              <option key={a.accountId} value={a.accountId}>
+                {a.name}{a.email ? ` (${a.email})` : ''}{a.isDefault ? ' — default' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex flex-row gap-3">
         {canResume && (

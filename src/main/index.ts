@@ -200,8 +200,8 @@ function registerSessionIpc(): void {
     sessionManager.clearAllAttention();
   });
 
-  ipcMain.handle('session:resume', (_event, sessionId: string) => {
-    return sessionManager.resume(sessionId);
+  ipcMain.handle('session:resume', (_event, { sessionId, accountId }: { sessionId: string; accountId?: string }) => {
+    return sessionManager.resume(sessionId, accountId);
   });
 
   ipcMain.handle('session:list-external', async (_event, limit?: number) => {

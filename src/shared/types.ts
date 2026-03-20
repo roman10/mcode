@@ -428,7 +428,7 @@ export interface MCodeAPI {
     setTerminalConfig(sessionId: string, config: Partial<TerminalConfig>): Promise<void>;
     clearAttention(sessionId: string): Promise<void>;
     clearAllAttention(): Promise<void>;
-    resume(sessionId: string): Promise<SessionInfo>;
+    resume(sessionId: string, accountId?: string): Promise<SessionInfo>;
     listExternal(limit?: number): Promise<ExternalSessionInfo[]>;
     importExternal(claudeSessionId: string, cwd: string, label?: string): Promise<SessionInfo>;
     onUpdated(callback: (session: SessionInfo) => void): () => void;

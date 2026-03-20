@@ -320,7 +320,7 @@ export class SessionManager {
   }
 
   /** Resume an ended Claude session via `claude --resume`. */
-  resume(sessionId: string): SessionInfo {
+  resume(sessionId: string, accountId?: string): SessionInfo {
     const db = getDb();
     const row = db
       .prepare('SELECT * FROM sessions WHERE session_id = ?')
@@ -358,8 +358,12 @@ export class SessionManager {
       args.push('--effort', row.effort);
     }
 
-    // Re-apply account env if session was created with a secondary account
-    const accountEnv = this.accountManager.getSessionEnv(row.account_id ?? undefined);
+    // Use account override if provided, otherwise fall back to the session's stored account
+    const effectiveAccountId = accountId ?? row.account_id ?? undefined;
+    if (accountId && accountId !== row.account_id) {
+      db.prepare('UPDATE sessions SET account_id = ? WHERE session_id = ?').run(accountId, sessionId);
+    }
+    const accountEnv = this.accountManager.getSessionEnv(effectiveAccountId);
 
     try {
       this.ptyManager.spawn({

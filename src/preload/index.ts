@@ -117,8 +117,8 @@ contextBridge.exposeInMainWorld('mcode', {
     clearAllAttention: (): Promise<void> =>
       ipcRenderer.invoke('session:clear-all-attention'),
 
-    resume: (sessionId: string): Promise<SessionInfo> =>
-      ipcRenderer.invoke('session:resume', sessionId),
+    resume: (sessionId: string, accountId?: string): Promise<SessionInfo> =>
+      ipcRenderer.invoke('session:resume', { sessionId, accountId }),
 
     listExternal: (limit?: number): Promise<ExternalSessionInfo[]> =>
       ipcRenderer.invoke('session:list-external', limit),
