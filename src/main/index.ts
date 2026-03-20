@@ -14,6 +14,7 @@ import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
+import { fixPath } from './fix-path';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
 import type {
   SessionCreateInput, CreateTaskInput, UpdateTaskInput, TaskFilter, HookRuntimeInfo,
@@ -24,6 +25,12 @@ import type {
 // Isolate dev data from production: separate userData/logs directory
 if (!app.isPackaged) {
   app.name = 'mcode-dev';
+}
+
+// Fix PATH for packaged builds — GUI-launched apps get a minimal system PATH
+// that doesn't include user-installed CLI tools like `claude`.
+if (app.isPackaged) {
+  fixPath();
 }
 
 let mainWindow: BrowserWindow | null = null;
