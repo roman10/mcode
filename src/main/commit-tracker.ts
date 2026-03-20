@@ -54,6 +54,8 @@ export interface ParsedCommit {
   authorEmail: string;
   committedAt: string; // ISO 8601
   coAuthor: string;
+  parentHashes: string;  // space-separated parent hashes
+  refs: string;          // raw decoration string from %d
   filesChanged: number | null;
   insertions: number | null;
   deletions: number | null;
@@ -85,24 +87,26 @@ export function parseGitLogOutput(stdout: string): ParsedCommit[] {
     if (!block.trim()) continue;
 
     const lines = block.split('\n');
-    // Lines: 0=hash, 1=subject, 2=authorName, 3=authorEmail, 4=timestamp, 5=coAuthor trailer
-    if (lines.length < 5) continue;
+    // Lines: 0=hash, 1=parents, 2=refs/decorations, 3=subject, 4=authorName, 5=authorEmail, 6=timestamp, 7=coAuthor trailer
+    if (lines.length < 7) continue;
 
     const hash = lines[0].trim();
     if (!hash || hash.length < 7) continue;
 
-    const subject = lines[1] ?? '';
-    const authorName = lines[2] ?? '';
-    const authorEmail = lines[3] ?? '';
-    const committedAt = lines[4] ?? '';
-    const coAuthor = lines[5]?.trim() ?? '';
+    const parentHashes = lines[1]?.trim() ?? '';
+    const refs = lines[2]?.trim() ?? '';
+    const subject = lines[3] ?? '';
+    const authorName = lines[4] ?? '';
+    const authorEmail = lines[5] ?? '';
+    const committedAt = lines[6] ?? '';
+    const coAuthor = lines[7]?.trim() ?? '';
 
     // Parse shortstat from remaining lines
     let filesChanged: number | null = null;
     let insertions: number | null = null;
     let deletions: number | null = null;
 
-    for (let i = 6; i < lines.length; i++) {
+    for (let i = 8; i < lines.length; i++) {
       const statMatch = lines[i].match(
         /(\d+)\s+files?\s+changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/,
       );
@@ -121,6 +125,8 @@ export function parseGitLogOutput(stdout: string): ParsedCommit[] {
       authorEmail,
       committedAt,
       coAuthor,
+      parentHashes,
+      refs,
       filesChanged,
       insertions,
       deletions,
@@ -258,8 +264,15 @@ export class CommitTracker {
     const insertStmt = db.prepare(`
       INSERT OR IGNORE INTO commits
         (repo_path, commit_hash, commit_message, commit_type, author_name, author_email,
-         is_claude_assisted, committed_at, date, files_changed, insertions, deletions)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         is_claude_assisted, committed_at, date, files_changed, insertions, deletions,
+         parent_hashes, refs)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // Backfill parent_hashes/refs for existing commits that lack them
+    const backfillStmt = db.prepare(`
+      UPDATE commits SET parent_hashes = ?, refs = ?
+      WHERE repo_path = ? AND commit_hash = ? AND parent_hashes IS NULL
     `);
 
     let newCount = 0;
@@ -282,8 +295,20 @@ export class CommitTracker {
           commit.filesChanged,
           commit.insertions,
           commit.deletions,
+          commit.parentHashes || null,
+          commit.refs || null,
         );
         if (result.changes > 0) newCount++;
+
+        // Backfill parent_hashes for pre-existing commits
+        if (result.changes === 0 && commit.parentHashes) {
+          backfillStmt.run(
+            commit.parentHashes,
+            commit.refs || null,
+            repoPath,
+            commit.hash,
+          );
+        }
       }
     });
     insertAll();
@@ -652,7 +677,7 @@ export class CommitTracker {
 
       const args = [
         'log',
-        `--format=COMMIT_START%n%H%n%s%n%an%n%ae%n%aI%n%(trailers:key=Co-authored-by,valueonly)`,
+        `--format=COMMIT_START%n%H%n%P%n%d%n%s%n%an%n%ae%n%aI%n%(trailers:key=Co-authored-by,valueonly)`,
         '--shortstat',
         `--after=${after}`,
       ];

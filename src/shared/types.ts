@@ -352,6 +352,36 @@ export type GitDiffContent =
   | { binary: false; originalContent: string; modifiedContent: string; language: string }
   | { binary: true };
 
+// --- Git Commit Graph ---
+
+export interface CommitGraphNode {
+  hash: string;
+  shortHash: string;
+  parents: string[];
+  message: string;
+  authorName: string;
+  authorEmail: string;
+  committedAt: string; // ISO 8601
+  refs: string[];      // branch/tag names pointing to this commit
+  isClaudeAssisted: boolean;
+  filesChanged: number | null;
+  insertions: number | null;
+  deletions: number | null;
+}
+
+export interface CommitGraphResult {
+  repoRoot: string;
+  commits: CommitGraphNode[];
+  hasMore: boolean;
+}
+
+export interface CommitFileEntry {
+  path: string;
+  status: 'A' | 'M' | 'D' | 'R';
+  insertions: number;
+  deletions: number;
+}
+
 // --- Devtools ---
 
 export interface ConsoleEntry {
@@ -483,6 +513,10 @@ export interface MCodeAPI {
     getStatus(cwd: string): Promise<GitStatusResult>;
     getDiffContent(cwd: string, filePath: string): Promise<GitDiffContent>;
     getAllStatuses(): Promise<GitStatusResult[]>;
+    getGraphLog(repoPath: string, limit?: number, offset?: number): Promise<CommitGraphResult>;
+    getTrackedRepos(): Promise<string[]>;
+    getCommitFiles(repoPath: string, commitHash: string): Promise<CommitFileEntry[]>;
+    getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<GitDiffContent>;
   };
 
   devtools: {

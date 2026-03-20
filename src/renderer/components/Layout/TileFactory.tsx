@@ -1,7 +1,8 @@
-import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, useLayoutStore } from '../../stores/layout-store';
+import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId, useLayoutStore } from '../../stores/layout-store';
 import TerminalTile from '../Terminal/TerminalTile';
 import FileViewerTile from '../FileViewer/FileViewerTile';
 import DiffViewerTile from '../DiffViewer/DiffViewerTile';
+import CommitDiffViewerTile from '../DiffViewer/CommitDiffViewerTile';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
@@ -45,8 +46,11 @@ function TileFactory({ tileId }: TileFactoryProps): React.JSX.Element {
   let content: React.JSX.Element;
   const filePath = filePathFromTileId(tileId);
   const diffPath = diffPathFromTileId(tileId);
+  const commitDiff = commitDiffFromTileId(tileId);
   if (filePath) {
     content = <FileViewerTile absolutePath={filePath} />;
+  } else if (commitDiff) {
+    content = <CommitDiffViewerTile absolutePath={commitDiff.absolutePath} commitHash={commitDiff.commitHash} />;
   } else if (diffPath) {
     content = <DiffViewerTile absolutePath={diffPath} />;
   } else {

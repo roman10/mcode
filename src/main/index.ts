@@ -339,6 +339,22 @@ function registerGitChangesIpc(): void {
   ipcMain.handle('git:all-statuses', () => {
     return gitChangesService.getAllStatuses();
   });
+
+  ipcMain.handle('git:graph-log', (_event, repoPath: string, limit?: number, offset?: number) => {
+    return gitChangesService.getGraphLog(repoPath, limit, offset);
+  });
+
+  ipcMain.handle('git:tracked-repos', () => {
+    return gitChangesService.getTrackedRepos();
+  });
+
+  ipcMain.handle('git:commit-files', (_event, repoPath: string, commitHash: string) => {
+    return gitChangesService.getCommitFiles(repoPath, commitHash);
+  });
+
+  ipcMain.handle('git:commit-file-diff', (_event, repoPath: string, commitHash: string, filePath: string) => {
+    return gitChangesService.getCommitFileDiff(repoPath, commitHash, filePath);
+  });
 }
 
 function registerPreferencesIpc(): void {

@@ -12,6 +12,7 @@ const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];
 
 export const FILE_TILE_PREFIX = 'file:';
 export const DIFF_TILE_PREFIX = 'diff:';
+export const COMMIT_DIFF_TILE_PREFIX = 'commit-diff:';
 
 export function filePathFromTileId(tile: string): string | null {
   if (tile.startsWith(FILE_TILE_PREFIX)) {
@@ -27,12 +28,28 @@ export function diffPathFromTileId(tile: string): string | null {
   return null;
 }
 
+/** Parse a commit-diff tile ID: "commit-diff:<hash>:<absolutePath>" */
+export function commitDiffFromTileId(tile: string): { commitHash: string; absolutePath: string } | null {
+  if (!tile.startsWith(COMMIT_DIFF_TILE_PREFIX)) return null;
+  const rest = tile.slice(COMMIT_DIFF_TILE_PREFIX.length);
+  const colonIdx = rest.indexOf(':');
+  if (colonIdx < 0) return null;
+  return {
+    commitHash: rest.slice(0, colonIdx),
+    absolutePath: rest.slice(colonIdx + 1),
+  };
+}
+
 function fileTileId(absolutePath: string): string {
   return `${FILE_TILE_PREFIX}${absolutePath}`;
 }
 
 function diffTileId(absolutePath: string): string {
   return `${DIFF_TILE_PREFIX}${absolutePath}`;
+}
+
+function commitDiffTileId(absolutePath: string, commitHash: string): string {
+  return `${COMMIT_DIFF_TILE_PREFIX}${commitHash}:${absolutePath}`;
 }
 
 interface SplitIntent {
@@ -88,7 +105,7 @@ interface LayoutState {
   addFileViewer(absolutePath: string): void;
   removeFileTile(absolutePath: string): void;
   stripFileTiles(): void;
-  addDiffViewer(absolutePath: string): void;
+  addDiffViewer(absolutePath: string, commitHash?: string): void;
   removeDiffTile(absolutePath: string): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
@@ -400,14 +417,16 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     });
   },
 
-  addDiffViewer: (absolutePath) => {
+  addDiffViewer: (absolutePath, commitHash?) => {
     if (get().viewMode === 'kanban') {
       // Reuse kanban file viewer for diffs (best available surface)
       get().openKanbanFile(absolutePath);
       return;
     }
     set((state) => {
-      const newTile = diffTileId(absolutePath);
+      const newTile = commitHash
+        ? commitDiffTileId(absolutePath, commitHash)
+        : diffTileId(absolutePath);
       const current = state.mosaicTree;
 
       if (!current) {
@@ -440,7 +459,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       if (!state.mosaicTree) return state;
       const allLeaves = getLeaves(state.mosaicTree);
       const leaves = allLeaves.filter(
-        (leaf) => !leaf.startsWith(FILE_TILE_PREFIX) && !leaf.startsWith(DIFF_TILE_PREFIX),
+        (leaf) => !leaf.startsWith(FILE_TILE_PREFIX) && !leaf.startsWith(DIFF_TILE_PREFIX) && !leaf.startsWith(COMMIT_DIFF_TILE_PREFIX),
       );
       if (leaves.length === allLeaves.length) return state;
       if (leaves.length === 0) return { mosaicTree: null };

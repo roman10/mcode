@@ -23,6 +23,8 @@ import type {
   FileReadResult,
   GitStatusResult,
   GitDiffContent,
+  CommitGraphResult,
+  CommitFileEntry,
   SessionTokenUsage,
   DailyTokenUsage,
   ModelTokenBreakdown,
@@ -353,6 +355,18 @@ contextBridge.exposeInMainWorld('mcode', {
 
     getAllStatuses: (): Promise<GitStatusResult[]> =>
       ipcRenderer.invoke('git:all-statuses'),
+
+    getGraphLog: (repoPath: string, limit?: number, offset?: number): Promise<CommitGraphResult> =>
+      ipcRenderer.invoke('git:graph-log', repoPath, limit, offset),
+
+    getTrackedRepos: (): Promise<string[]> =>
+      ipcRenderer.invoke('git:tracked-repos'),
+
+    getCommitFiles: (repoPath: string, commitHash: string): Promise<CommitFileEntry[]> =>
+      ipcRenderer.invoke('git:commit-files', repoPath, commitHash),
+
+    getCommitFileDiff: (repoPath: string, commitHash: string, filePath: string): Promise<GitDiffContent> =>
+      ipcRenderer.invoke('git:commit-file-diff', repoPath, commitHash, filePath),
   },
 
   devtools: {

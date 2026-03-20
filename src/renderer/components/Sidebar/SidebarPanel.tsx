@@ -10,6 +10,7 @@ import Tooltip from '../shared/Tooltip';
 import DeleteSessionsDialog from './DeleteSessionsDialog';
 import CommitStats from '../Dashboard/CommitStats';
 import ChangesPanel from '../Dashboard/ChangesPanel';
+import CommitGraphPanel from '../CommitGraph/CommitGraphPanel';
 import TokenStats from '../Dashboard/TokenStats';
 import ActivityFeed from '../Dashboard/ActivityFeed';
 import { createTerminalSession, autoExpandInKanban } from '../../utils/session-actions';
@@ -229,7 +230,12 @@ function SidebarPanel(): React.JSX.Element {
             </>
           )}
           {activeSidebarTab === 'commits' && <CommitStats />}
-          {activeSidebarTab === 'changes' && <ChangesPanel />}
+          {activeSidebarTab === 'changes' && (
+            <>
+              <ChangesPanel />
+              <CommitGraphPanel />
+            </>
+          )}
           {activeSidebarTab === 'tokens' && <TokenStats />}
           {activeSidebarTab === 'activity' && <ActivityFeed />}
         </div>

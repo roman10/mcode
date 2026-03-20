@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { promisify } from 'node:util';
 import type { SessionManager } from './session-manager';
-import type { GitChangedFile, GitFileStatus, GitStatusResult, GitDiffContent } from '../shared/types';
+import type { GitChangedFile, GitFileStatus, GitStatusResult, GitDiffContent, CommitGraphNode, CommitGraphResult, CommitFileEntry } from '../shared/types';
 
 const execFileAsync = promisify(execFile);
 const GIT_COMMAND_TIMEOUT_MS = 10_000;
@@ -192,4 +192,190 @@ export class GitChangesService {
 
     return results;
   }
+
+  /** Get distinct tracked repo roots from all session cwds. */
+  async getTrackedRepos(): Promise<string[]> {
+    const cwds = this.sessionManager.getDistinctClaudeCwds();
+    const repos = new Set<string>();
+
+    for (const cwd of cwds) {
+      const repoRoot = await this.resolveRepoRoot(cwd);
+      if (repoRoot) repos.add(repoRoot);
+    }
+
+    return [...repos];
+  }
+
+  /** Get commit graph log for a repo. Runs git log with topology info. */
+  async getGraphLog(repoPath: string, limit = 50, offset = 0): Promise<CommitGraphResult> {
+    try {
+      // Use newline-separated fields with a record separator to avoid delimiter conflicts
+      const SEP = 'GRAPH_RECORD';
+      const { stdout } = await execFileAsync(
+        'git',
+        [
+          'log',
+          '--all',
+          '--topo-order',
+          `--format=${SEP}%n%H%n%P%n%h%n%s%n%an%n%ae%n%aI%n%d`,
+          `--skip=${offset}`,
+          `-n`, `${limit + 1}`,
+        ],
+        { cwd: repoPath, timeout: GIT_COMMAND_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 },
+      );
+
+      const blocks = stdout.split(SEP + '\n').filter(Boolean);
+      const hasMore = blocks.length > limit;
+      const commitBlocks = hasMore ? blocks.slice(0, limit) : blocks;
+
+      const commits: CommitGraphNode[] = [];
+      for (const block of commitBlocks) {
+        const lines = block.split('\n');
+        if (lines.length < 7) continue;
+
+        const hash = lines[0]?.trim() ?? '';
+        if (!hash || hash.length < 7) continue;
+
+        const parentStr = lines[1]?.trim() ?? '';
+        const shortHash = lines[2]?.trim() ?? '';
+        const message = lines[3] ?? '';
+        const authorName = lines[4] ?? '';
+        const authorEmail = lines[5] ?? '';
+        const committedAt = lines[6] ?? '';
+        const refsRaw = lines[7]?.trim() ?? '';
+
+        const parents = parentStr ? parentStr.split(' ').filter(Boolean) : [];
+        const refs = parseRefs(refsRaw);
+
+        commits.push({
+          hash,
+          shortHash,
+          parents,
+          message,
+          authorName,
+          authorEmail,
+          committedAt,
+          refs,
+          isClaudeAssisted: false,
+          filesChanged: null,
+          insertions: null,
+          deletions: null,
+        });
+      }
+
+      return { repoRoot: repoPath, commits, hasMore };
+    } catch {
+      return { repoRoot: repoPath, commits: [], hasMore: false };
+    }
+  }
+
+  /** Get list of files changed in a specific commit. */
+  async getCommitFiles(repoPath: string, commitHash: string): Promise<CommitFileEntry[]> {
+    try {
+      // Use diff-tree for the commit's changes; handle root commit (no parent)
+      const { stdout } = await execFileAsync(
+        'git',
+        ['diff-tree', '--no-commit-id', '-r', '--numstat', '--diff-filter=ADMR', '-z', commitHash],
+        { cwd: repoPath, timeout: GIT_COMMAND_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 },
+      );
+
+      // Also get the status letters
+      const { stdout: statusOut } = await execFileAsync(
+        'git',
+        ['diff-tree', '--no-commit-id', '-r', '--name-status', commitHash],
+        { cwd: repoPath, timeout: GIT_COMMAND_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 },
+      );
+
+      // Parse status output: each line is "STATUS\tPATH"
+      const statusMap = new Map<string, 'A' | 'M' | 'D' | 'R'>();
+      for (const line of statusOut.split('\n')) {
+        if (!line) continue;
+        const tab = line.indexOf('\t');
+        if (tab < 0) continue;
+        const code = line[0] as 'A' | 'M' | 'D' | 'R';
+        const path = line.slice(tab + 1);
+        statusMap.set(path, code);
+      }
+
+      // Parse numstat output (null-separated when using -z): "insertions\tdeletions\tpath\0"
+      const entries: CommitFileEntry[] = [];
+      const parts = stdout.split('\0').filter(Boolean);
+      for (const part of parts) {
+        const fields = part.split('\t');
+        if (fields.length < 3) continue;
+        const ins = fields[0] === '-' ? 0 : parseInt(fields[0], 10);
+        const del = fields[1] === '-' ? 0 : parseInt(fields[1], 10);
+        const path = fields[2];
+        entries.push({
+          path,
+          status: statusMap.get(path) ?? 'M',
+          insertions: ins,
+          deletions: del,
+        });
+      }
+
+      return entries;
+    } catch {
+      return [];
+    }
+  }
+
+  /** Get diff content for a specific file at a specific commit. */
+  async getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<GitDiffContent> {
+    const language = inferLanguage(filePath);
+
+    // Get content at commit (after)
+    let modifiedContent = '';
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['show', `${commitHash}:${filePath}`],
+        { cwd: repoPath, timeout: GIT_COMMAND_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 },
+      );
+      modifiedContent = stdout;
+    } catch {
+      // File was deleted in this commit
+    }
+
+    // Get content at parent (before)
+    let originalContent = '';
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['show', `${commitHash}~1:${filePath}`],
+        { cwd: repoPath, timeout: GIT_COMMAND_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 },
+      );
+      originalContent = stdout;
+    } catch {
+      // File was added in this commit (no parent version)
+    }
+
+    // Check for binary content
+    const check = modifiedContent || originalContent;
+    if (check && isBinaryBuffer(Buffer.from(check.slice(0, BINARY_CHECK_SIZE)))) {
+      return { binary: true };
+    }
+
+    return { binary: false, originalContent, modifiedContent, language };
+  }
+}
+
+/** Parse git decoration string like " (HEAD -> main, origin/main, tag: v1.0)" into ref names. */
+function parseRefs(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  // Remove outer parens: " (HEAD -> main, origin/main)" → "HEAD -> main, origin/main"
+  const inner = trimmed.replace(/^\(/, '').replace(/\)$/, '').trim();
+  if (!inner) return [];
+
+  return inner.split(',').map((ref) => {
+    let r = ref.trim();
+    // "HEAD -> main" → "main"
+    const arrow = r.indexOf(' -> ');
+    if (arrow >= 0) r = r.slice(arrow + 4);
+    // "tag: v1.0" → "v1.0"
+    if (r.startsWith('tag: ')) r = r.slice(5);
+    return r.trim();
+  }).filter(Boolean);
 }
