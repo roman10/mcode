@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useAccountsStore } from '../stores/accounts-store';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
+import Dialog from './shared/Dialog';
 import type { AccountProfile } from '../../shared/types';
 
 interface AccountRowProps {
@@ -50,10 +51,11 @@ function AccountRow({ account, onVerify, verifying, onDelete }: AccountRowProps)
 }
 
 interface AccountsDialogProps {
-  onClose(): void;
+  open: boolean;
+  onOpenChange(open: boolean): void;
 }
 
-function AccountsDialog({ onClose }: AccountsDialogProps): React.JSX.Element {
+function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.Element {
   const accounts = useAccountsStore((s) => s.accounts);
   const refresh = useAccountsStore((s) => s.refresh);
   const addSession = useSessionStore((s) => s.addSession);
@@ -98,6 +100,24 @@ function AccountsDialog({ onClose }: AccountsDialogProps): React.JSX.Element {
     }
   };
 
+  // Cmd+Enter to submit add form — use ref to avoid stale closure
+  const handleCreateRef = useRef(handleCreate);
+  handleCreateRef.current = handleCreate;
+
+  useEffect(() => {
+    if (!open || !showAddForm) return;
+    const isMac = navigator.userAgent.includes('Mac');
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && e.key === 'Enter') {
+        e.preventDefault();
+        handleCreateRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, showAddForm]);
+
   const handleVerify = async (accountId: string): Promise<void> => {
     setVerifyingId(accountId);
     setError(null);
@@ -127,123 +147,121 @@ function AccountsDialog({ onClose }: AccountsDialogProps): React.JSX.Element {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      closeOnOverlayClick={false}
+      title="Accounts"
+      width="w-[460px]"
+      className="max-h-[80vh] overflow-y-auto"
     >
-      <div
-        className="bg-bg-elevated border border-border-default rounded-lg p-6 w-[460px] shadow-xl max-h-[80vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-text-primary text-lg font-medium mb-5">Accounts</h2>
-
-        {/* Default account */}
-        <div className="mb-4">
-          <p className="text-[11px] text-text-muted uppercase tracking-wide mb-2">Default Account</p>
-          {defaultAccount && (
-            <AccountRow
-              account={defaultAccount}
-              onVerify={() => handleVerify(defaultAccount.accountId)}
-              verifying={verifyingId === defaultAccount.accountId}
-            />
-          )}
-        </div>
-
-        {/* Secondary accounts */}
-        {secondaryAccounts.length > 0 && (
-          <div className="mb-4">
-            <p className="text-[11px] text-text-muted uppercase tracking-wide mb-2">Secondary Accounts</p>
-            <div className="space-y-2">
-              {secondaryAccounts.map((account) => (
-                <AccountRow
-                  key={account.accountId}
-                  account={account}
-                  onVerify={() => handleVerify(account.accountId)}
-                  verifying={verifyingId === account.accountId}
-                  onDelete={
-                    deletingId === account.accountId
-                      ? undefined
-                      : () => handleDelete(account.accountId)
-                  }
-                />
-              ))}
-            </div>
-          </div>
+      {/* Default account */}
+      <div className="mb-4">
+        <p className="text-[11px] text-text-muted uppercase tracking-wide mb-2">Default Account</p>
+        {defaultAccount && (
+          <AccountRow
+            account={defaultAccount}
+            onVerify={() => handleVerify(defaultAccount.accountId)}
+            verifying={verifyingId === defaultAccount.accountId}
+          />
         )}
-
-        {/* Pending auth notice */}
-        {pendingAccountId && (
-          <div className="mb-4 px-3 py-2.5 bg-amber-900/20 border border-amber-700/30 rounded-md text-xs text-amber-300">
-            A terminal opened with the account&apos;s environment. Run{' '}
-            <code className="bg-bg-primary px-1 rounded font-mono">claude auth login</code>{' '}
-            there, then click Verify on the account row above.
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="mb-4 px-3 py-2 bg-red-900/20 border border-red-700/30 rounded-md text-xs text-red-300">
-            {error}
-          </div>
-        )}
-
-        {/* Add account */}
-        {showAddForm ? (
-          <div className="mb-4 space-y-2">
-            <p className="text-[11px] text-text-muted uppercase tracking-wide">Add Account</p>
-            <input
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Account name (e.g. Work Pro)"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setShowAddForm(false);
-                  setNewName('');
-                }
-                if (e.key === 'Enter') handleCreate();
-              }}
-            />
-            <div className="flex gap-2">
-              <button
-                className="flex-1 px-3 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-50 transition-opacity"
-                disabled={!newName.trim() || isCreating}
-                onClick={handleCreate}
-              >
-                {isCreating ? 'Creating…' : 'Create & Open Auth Terminal'}
-              </button>
-              <button
-                className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-                onClick={() => {
-                  setShowAddForm(false);
-                  setNewName('');
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            className="mb-4 text-sm text-text-muted hover:text-text-secondary transition-colors"
-            onClick={() => setShowAddForm(true)}
-          >
-            + Add Account
-          </button>
-        )}
-
-        {/* Footer */}
-        <div className="flex justify-end">
-          <button
-            className="px-4 py-2 text-sm bg-bg-secondary text-text-secondary border border-border-default rounded hover:bg-bg-elevated transition-colors"
-            onClick={onClose}
-          >
-            Done
-          </button>
-        </div>
       </div>
-    </div>
+
+      {/* Secondary accounts */}
+      {secondaryAccounts.length > 0 && (
+        <div className="mb-4">
+          <p className="text-[11px] text-text-muted uppercase tracking-wide mb-2">Secondary Accounts</p>
+          <div className="space-y-2">
+            {secondaryAccounts.map((account) => (
+              <AccountRow
+                key={account.accountId}
+                account={account}
+                onVerify={() => handleVerify(account.accountId)}
+                verifying={verifyingId === account.accountId}
+                onDelete={
+                  deletingId === account.accountId
+                    ? undefined
+                    : () => handleDelete(account.accountId)
+                }
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pending auth notice */}
+      {pendingAccountId && (
+        <div className="mb-4 px-3 py-2.5 bg-amber-900/20 border border-amber-700/30 rounded-md text-xs text-amber-300">
+          A terminal opened with the account&apos;s environment. Run{' '}
+          <code className="bg-bg-primary px-1 rounded font-mono">claude auth login</code>{' '}
+          there, then click Verify on the account row above.
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="mb-4 px-3 py-2 bg-red-900/20 border border-red-700/30 rounded-md text-xs text-red-300">
+          {error}
+        </div>
+      )}
+
+      {/* Add account */}
+      {showAddForm ? (
+        <div className="mb-4 space-y-2">
+          <p className="text-[11px] text-text-muted uppercase tracking-wide">Add Account</p>
+          <input
+            className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Account name (e.g. Work Pro)"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                setShowAddForm(false);
+                setNewName('');
+              }
+              if (e.key === 'Enter') handleCreate();
+            }}
+          />
+          <div className="flex gap-2">
+            <button
+              className="flex-1 px-3 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-50 transition-opacity"
+              disabled={!newName.trim() || isCreating}
+              onClick={handleCreate}
+            >
+              {isCreating ? 'Creating…' : 'Create & Open Auth Terminal'}
+            </button>
+            <button
+              className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+              onClick={() => {
+                setShowAddForm(false);
+                setNewName('');
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className="mb-4 text-sm text-text-muted hover:text-text-secondary transition-colors"
+          onClick={() => setShowAddForm(true)}
+        >
+          + Add Account
+        </button>
+      )}
+
+      {/* Footer */}
+      <div className="flex justify-end">
+        <button
+          className="px-4 py-2 text-sm bg-bg-secondary text-text-secondary border border-border-default rounded hover:bg-bg-elevated transition-colors"
+          onClick={() => onOpenChange(false)}
+        >
+          Done
+        </button>
+      </div>
+    </Dialog>
   );
 }
 

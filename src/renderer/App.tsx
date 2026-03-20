@@ -231,15 +231,7 @@ function App(): React.JSX.Element {
       const mod = isMac ? e.metaKey : e.ctrlKey;
       if (mod && e.key === 'w' && !e.shiftKey) {
         // Skip when a dialog/modal is open — let the dialog handle dismissal
-        const ls = useLayoutStore.getState();
-        if (
-          ls.showNewSessionDialog ||
-          ls.showKeyboardShortcuts ||
-          ls.showSettings ||
-          ls.showAccountsDialog ||
-          ls.showCommandPalette ||
-          ls.showCreateTaskDialog
-        ) {
+        if (document.querySelector('[role="dialog"]')) {
           return;
         }
         e.preventDefault();
@@ -356,42 +348,50 @@ function App(): React.JSX.Element {
           </div>
         </div>
       </div>
-      {showKeyboardShortcuts && (
-        <KeyboardShortcutsDialog onClose={() => setShowKeyboardShortcuts(false)} />
-      )}
-      {showSettings && (
-        <SettingsDialog onClose={() => setShowSettings(false)} />
-      )}
-      {showAccountsDialog && (
-        <AccountsDialog onClose={() => setShowAccountsDialog(false)} />
-      )}
+      <KeyboardShortcutsDialog
+        open={showKeyboardShortcuts}
+        onOpenChange={setShowKeyboardShortcuts}
+      />
+      <SettingsDialog
+        open={showSettings}
+        onOpenChange={setShowSettings}
+      />
+      <AccountsDialog
+        open={showAccountsDialog}
+        onOpenChange={setShowAccountsDialog}
+      />
       {showCommandPalette && (
         <CommandPalette
           initialMode={quickOpenInitialMode}
           onClose={() => setShowCommandPalette(false)}
         />
       )}
-      {showCreateTaskDialog && (() => {
-        const canTarget =
+      <CreateTaskDialog
+        open={showCreateTaskDialog}
+        onOpenChange={setShowCreateTaskDialog}
+        onCreate={async (input: CreateTaskInput) => {
+          try {
+            await addTask(input);
+          } catch (err) {
+            console.error('Failed to create task:', err);
+          }
+          setShowCreateTaskDialog(false);
+        }}
+        defaultTargetSessionId={
           selectedSession?.sessionType === 'claude' &&
           selectedSession?.hookMode === 'live' &&
-          selectedSession?.status !== 'ended';
-        return (
-          <CreateTaskDialog
-            onClose={() => setShowCreateTaskDialog(false)}
-            onCreate={async (input: CreateTaskInput) => {
-              try {
-                await addTask(input);
-              } catch (err) {
-                console.error('Failed to create task:', err);
-              }
-              setShowCreateTaskDialog(false);
-            }}
-            defaultTargetSessionId={canTarget ? selectedSessionId ?? undefined : undefined}
-            defaultCwd={canTarget ? selectedSession?.cwd : undefined}
-          />
-        );
-      })()}
+          selectedSession?.status !== 'ended'
+            ? selectedSessionId ?? undefined
+            : undefined
+        }
+        defaultCwd={
+          selectedSession?.sessionType === 'claude' &&
+          selectedSession?.hookMode === 'live' &&
+          selectedSession?.status !== 'ended'
+            ? selectedSession?.cwd
+            : undefined
+        }
+      />
     </RadixTooltip.Provider>
   );
 }

@@ -1,17 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { formatShortTime } from '../../hooks/useRelativeTime';
+import Dialog from './Dialog';
 import type { CreateTaskInput } from '../../../shared/types';
 
+const isMac = navigator.userAgent.includes('Mac');
+
 interface CreateTaskDialogProps {
-  onClose(): void;
+  open: boolean;
+  onOpenChange(open: boolean): void;
   onCreate(input: CreateTaskInput): void;
   defaultTargetSessionId?: string;
   defaultCwd?: string;
 }
 
 function CreateTaskDialog({
-  onClose,
+  open,
+  onOpenChange,
   onCreate,
   defaultTargetSessionId,
   defaultCwd,
@@ -35,22 +40,34 @@ function CreateTaskDialog({
       (s.status === 'active' || s.status === 'idle'),
   );
 
+  // Reset form and load defaults when dialog opens
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (!defaultCwd) {
-      window.mcode.sessions.getLastDefaults().then((defaults) => {
-        if (!defaults) return;
-        setCwd(defaults.cwd);
-      });
+    if (open && !prevOpenRef.current) {
+      setPrompt('');
+      setCwd(defaultCwd ?? '');
+      setTargetSessionId(defaultTargetSessionId ?? '');
+      setPriority(0);
+      setScheduledAt('');
+      setMaxRetries(3);
+      setIsCreating(false);
+      if (!defaultCwd) {
+        window.mcode.sessions.getLastDefaults().then((defaults) => {
+          if (!defaults) return;
+          setCwd(defaults.cwd);
+        });
+      }
     }
-  }, [defaultCwd]);
+    prevOpenRef.current = open;
+  });
 
   const handleBrowse = async (): Promise<void> => {
     const dir = await window.mcode.app.selectDirectory();
     if (dir) setCwd(dir);
   };
 
-  const handleSubmit = (e: React.FormEvent): void => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent): void => {
+    e?.preventDefault();
     if (!prompt.trim() || !cwd.trim() || isCreating) return;
 
     setIsCreating(true);
@@ -64,20 +81,31 @@ function CreateTaskDialog({
     });
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
-    >
-      <form
-        className="bg-bg-elevated border border-border-default rounded-lg p-6 w-[420px] shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={handleSubmit}
-      >
-        <h2 className="text-text-primary text-lg font-medium mb-4">
-          New Task
-        </h2>
+  // Cmd+Enter to submit — use ref to avoid stale closure
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && e.key === 'Enter') {
+        e.preventDefault();
+        handleSubmitRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      closeOnOverlayClick={false}
+      title="New Task"
+    >
+      <form onSubmit={handleSubmit}>
         <div className="space-y-4">
           {/* Prompt */}
           <div>
@@ -196,7 +224,7 @@ function CreateTaskDialog({
           <button
             type="button"
             className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-            onClick={onClose}
+            onClick={() => onOpenChange(false)}
           >
             Cancel
           </button>
@@ -209,7 +237,7 @@ function CreateTaskDialog({
           </button>
         </div>
       </form>
-    </div>
+    </Dialog>
   );
 }
 

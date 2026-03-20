@@ -212,14 +212,13 @@ function TerminalToolbar({
         </Tooltip>
       </div>
 
-      {showCreateDialog && (
-        <CreateTaskDialog
-          onClose={() => setShowCreateDialog(false)}
-          onCreate={handleCreateTask}
-          defaultTargetSessionId={sessionId}
-          defaultCwd={session?.cwd}
-        />
-      )}
+      <CreateTaskDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onCreate={handleCreateTask}
+        defaultTargetSessionId={sessionId}
+        defaultCwd={session?.cwd}
+      />
     </div>
   );
 }

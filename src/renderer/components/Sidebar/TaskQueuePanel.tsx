@@ -148,12 +148,11 @@ function TaskQueuePanel(): React.JSX.Element {
         )}
       </div>
 
-      {showCreateDialog && (
-        <CreateTaskDialog
-          onClose={() => setShowCreateDialog(false)}
-          onCreate={handleCreateTask}
-        />
-      )}
+      <CreateTaskDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onCreate={handleCreateTask}
+      />
     </>
   );
 }

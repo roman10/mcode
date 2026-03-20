@@ -107,9 +107,9 @@ function SidebarPanel(): React.JSX.Element {
     }
   };
 
-  const handleCloseDialog = (): void => {
-    setShowNewDialog(false);
-    setSplitIntent(null);
+  const handleNewDialogOpenChange = (open: boolean): void => {
+    setShowNewDialog(open);
+    if (!open) setSplitIntent(null);
   };
 
   const handleMarkAllRead = async (): Promise<void> => {
@@ -253,23 +253,21 @@ function SidebarPanel(): React.JSX.Element {
         onMouseDown={handleMouseDown}
       />
 
-      {showNewDialog && (
-        <NewSessionDialog
-          onClose={handleCloseDialog}
-          onCreate={handleCreate}
-        />
-      )}
+      <NewSessionDialog
+        open={showNewDialog}
+        onOpenChange={handleNewDialogOpenChange}
+        onCreate={handleCreate}
+      />
 
-      {showDeleteDialog && (
-        <DeleteSessionsDialog
-          endedSessions={Object.values(useSessionStore.getState().sessions)
-            .filter((s): s is SessionInfo => s.status === 'ended')
-            .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-          }
-          onClose={() => setShowDeleteDialog(false)}
-          onDelete={handleDeleteBatch}
-        />
-      )}
+      <DeleteSessionsDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        endedSessions={Object.values(useSessionStore.getState().sessions)
+          .filter((s): s is SessionInfo => s.status === 'ended')
+          .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+        }
+        onDelete={handleDeleteBatch}
+      />
     </>
   );
 }

@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Dialog from '../shared/Dialog';
 import type { AccountProfile, SessionCreateInput } from '../../../shared/types';
 import { EFFORT_LEVELS, PERMISSION_MODES, type EffortLevel, type PermissionMode } from '../../../shared/constants';
 
+const isMac = navigator.userAgent.includes('Mac');
+
 interface NewSessionDialogProps {
-  onClose(): void;
+  open: boolean;
+  onOpenChange(open: boolean): void;
   onCreate(input: SessionCreateInput): void;
 }
 
 function NewSessionDialog({
-  onClose,
+  open,
+  onOpenChange,
   onCreate,
 }: NewSessionDialogProps): React.JSX.Element {
   const [cwd, setCwd] = useState('');
@@ -21,28 +26,40 @@ function NewSessionDialog({
   const [isCreating, setIsCreating] = useState(false);
   const [accounts, setAccounts] = useState<AccountProfile[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // Reset form and load defaults when dialog opens
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    window.mcode.sessions.getLastDefaults().then((defaults) => {
-      if (!defaults) return;
-      setCwd(defaults.cwd);
-      if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
-      if (defaults.effort) setEffort(defaults.effort);
-    });
-    window.mcode.accounts.list().then((list) => {
-      setAccounts(list);
-      const defaultAccount = list.find((a) => a.isDefault);
-      if (defaultAccount) setSelectedAccountId(defaultAccount.accountId);
-    });
-  }, []);
+    if (open && !prevOpenRef.current) {
+      setLabel('');
+      setInitialPrompt('');
+      setUseWorktree(false);
+      setWorktreeName('');
+      setIsCreating(false);
+      setShowAdvanced(false);
+      window.mcode.sessions.getLastDefaults().then((defaults) => {
+        if (!defaults) return;
+        setCwd(defaults.cwd);
+        if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
+        if (defaults.effort) setEffort(defaults.effort);
+      });
+      window.mcode.accounts.list().then((list) => {
+        setAccounts(list);
+        const defaultAccount = list.find((a) => a.isDefault);
+        if (defaultAccount) setSelectedAccountId(defaultAccount.accountId);
+      });
+    }
+    prevOpenRef.current = open;
+  });
 
   const handleBrowse = async (): Promise<void> => {
     const dir = await window.mcode.app.selectDirectory();
     if (dir) setCwd(dir);
   };
 
-  const handleSubmit = (e: React.FormEvent): void => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent): void => {
+    e?.preventDefault();
     if (!cwd.trim() || isCreating) return;
 
     setIsCreating(true);
@@ -59,20 +76,31 @@ function NewSessionDialog({
     });
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
-    >
-      <form
-        className="bg-bg-elevated border border-border-default rounded-lg p-6 w-[420px] shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={handleSubmit}
-      >
-        <h2 className="text-text-primary text-lg font-medium mb-4">
-          New Session
-        </h2>
+  // Cmd+Enter to submit — use ref to avoid stale closure
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && e.key === 'Enter') {
+        e.preventDefault();
+        handleSubmitRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      closeOnOverlayClick={false}
+      title="New Session"
+    >
+      <form onSubmit={handleSubmit}>
         <div className="space-y-4">
           {/* Working directory */}
           <div>
@@ -124,102 +152,115 @@ function NewSessionDialog({
             />
           </div>
 
-          {/* Permission mode */}
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">
-              Permission mode
-            </label>
-            <select
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-              value={permissionMode}
-              onChange={(e) => {
-                const value = e.target.value;
-                setPermissionMode(
-                  value === '' || PERMISSION_MODES.includes(value as PermissionMode)
-                    ? (value as PermissionMode | '')
-                    : '',
-                );
-              }}
-            >
-              <option value="">default</option>
-              {PERMISSION_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Advanced toggle */}
+          <button
+            type="button"
+            className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            {showAdvanced ? '\u25BC' : '\u25B6'} Advanced options
+          </button>
 
-          {/* Effort */}
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">
-              Effort
-            </label>
-            <select
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-              value={effort}
-              onChange={(e) => {
-                const value = e.target.value;
-                setEffort(
-                  value === '' || EFFORT_LEVELS.includes(value as EffortLevel)
-                    ? (value as EffortLevel | '')
-                    : '',
-                );
-              }}
-            >
-              <option value="">default</option>
-              {EFFORT_LEVELS.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-          </div>
+          {showAdvanced && (
+            <div className="space-y-4">
+              {/* Permission mode */}
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">
+                  Permission mode
+                </label>
+                <select
+                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                  value={permissionMode}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setPermissionMode(
+                      value === '' || PERMISSION_MODES.includes(value as PermissionMode)
+                        ? (value as PermissionMode | '')
+                        : '',
+                    );
+                  }}
+                >
+                  <option value="">default</option>
+                  {PERMISSION_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {mode}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Account (only shown when multiple accounts exist) */}
-          {accounts.length > 1 && (
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">
-                Account
-              </label>
-              <select
-                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                value={selectedAccountId}
-                onChange={(e) => setSelectedAccountId(e.target.value)}
-              >
-                {accounts.map((account) => (
-                  <option key={account.accountId} value={account.accountId}>
-                    {account.name}{account.email ? ` (${account.email})` : ''}
-                    {account.isDefault ? ' — default' : ''}
-                  </option>
-                ))}
-              </select>
+              {/* Effort */}
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">
+                  Effort
+                </label>
+                <select
+                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                  value={effort}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEffort(
+                      value === '' || EFFORT_LEVELS.includes(value as EffortLevel)
+                        ? (value as EffortLevel | '')
+                        : '',
+                    );
+                  }}
+                >
+                  <option value="">default</option>
+                  {EFFORT_LEVELS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Account (only shown when multiple accounts exist) */}
+              {accounts.length > 1 && (
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">
+                    Account
+                  </label>
+                  <select
+                    className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                    value={selectedAccountId}
+                    onChange={(e) => setSelectedAccountId(e.target.value)}
+                  >
+                    {accounts.map((account) => (
+                      <option key={account.accountId} value={account.accountId}>
+                        {account.name}{account.email ? ` (${account.email})` : ''}
+                        {account.isDefault ? ' — default' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Worktree */}
+              <div>
+                <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-accent"
+                    checked={useWorktree}
+                    onChange={(e) => {
+                      setUseWorktree(e.target.checked);
+                      if (!e.target.checked) setWorktreeName('');
+                    }}
+                  />
+                  Run in isolated worktree
+                </label>
+                {useWorktree && (
+                  <input
+                    className="w-full mt-2 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                    value={worktreeName}
+                    onChange={(e) => setWorktreeName(e.target.value)}
+                    placeholder="Auto-generated if empty"
+                  />
+                )}
+              </div>
             </div>
           )}
-
-          {/* Worktree */}
-          <div>
-            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={useWorktree}
-                onChange={(e) => {
-                  setUseWorktree(e.target.checked);
-                  if (!e.target.checked) setWorktreeName('');
-                }}
-              />
-              Run in isolated worktree
-            </label>
-            {useWorktree && (
-              <input
-                className="w-full mt-2 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                value={worktreeName}
-                onChange={(e) => setWorktreeName(e.target.value)}
-                placeholder="Auto-generated if empty"
-              />
-            )}
-          </div>
         </div>
 
         {/* Actions */}
@@ -227,7 +268,7 @@ function NewSessionDialog({
           <button
             type="button"
             className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-            onClick={onClose}
+            onClick={() => onOpenChange(false)}
           >
             Cancel
           </button>
@@ -240,7 +281,7 @@ function NewSessionDialog({
           </button>
         </div>
       </form>
-    </div>
+    </Dialog>
   );
 }
 
