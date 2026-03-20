@@ -50,6 +50,7 @@ let hookRuntimeInfo: HookRuntimeInfo = {
   warning: null,
 };
 let pruneInterval: ReturnType<typeof setInterval> | null = null;
+let pollSessionStatesInterval: ReturnType<typeof setInterval> | null = null;
 
 function setupCSP(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -704,6 +705,9 @@ app.whenReady().then(async () => {
   // Start task queue dispatch loop
   taskQueue.start();
 
+  // Poll for permission prompts and stale session states (PTY-based fallback)
+  pollSessionStatesInterval = setInterval(() => sessionManager.pollSessionStates(), 2000);
+
   // Start commit tracker and token tracker
   commitTracker.start();
   tokenTracker.start();
@@ -765,10 +769,14 @@ app.on('before-quit', (e) => {
 
     logger.info('app', 'Shutting down...');
 
-    // Clear pruning interval
+    // Clear polling intervals
     if (pruneInterval) {
       clearInterval(pruneInterval);
       pruneInterval = null;
+    }
+    if (pollSessionStatesInterval) {
+      clearInterval(pollSessionStatesInterval);
+      pollSessionStatesInterval = null;
     }
 
     // Release sleep blocker

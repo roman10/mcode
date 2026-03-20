@@ -3,6 +3,7 @@ import type { PtyManager } from './pty-manager';
 import type { SessionManager } from './session-manager';
 import { getDb } from './db';
 import { logger } from './logger';
+import { stripAnsi } from './strip-ansi';
 import type {
   Task,
   TaskStatus,
@@ -35,14 +36,6 @@ interface DispatchState {
   hasStarted: boolean;
   completedViaIdle: boolean;
   dispatchedAtMs: number;
-}
-
-/** Strip ANSI escape sequences from terminal output. */
-function stripAnsi(str: string): string {
-  return str.replace(
-    /\x1b\[[0-9;?]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[^[\]]/g,
-    '',
-  );
 }
 
 /** Check if the terminal buffer tail shows Claude Code's idle prompt (❯). */
@@ -460,7 +453,7 @@ export class TaskQueue {
 
       // Check if terminal shows Claude's idle prompt
       const buffer = this.ptyManager.getReplayData(task.sessionId);
-      if (!buffer || !isAtClaudePrompt(buffer.slice(-500))) continue;
+      if (!buffer || !isAtClaudePrompt(buffer.slice(-2000))) continue;
 
       logger.info('task', 'Prompt detected in terminal, completing task', {
         taskId,

@@ -9,6 +9,7 @@ import type { PtyManager } from './pty-manager';
 import type { AccountManager } from './account-manager';
 import { getDb } from './db';
 import { logger } from './logger';
+import { stripAnsi } from './strip-ansi';
 import {
   DEFAULT_COLS,
   DEFAULT_ROWS,
@@ -283,11 +284,10 @@ export class SessionManager {
         args: args.length > 0 ? args : undefined,
         env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
         onFirstData: () => {
-          // In fallback mode, PTY data drives the starting -> active transition
-          // In live mode, SessionStart hook drives it
-          if (hookMode === 'fallback') {
-            this.updateStatus(sessionId, 'active');
-          }
+          // PTY data drives starting -> active in all modes.
+          // In live mode, SessionStart hook may arrive first — updateStatus
+          // idempotency guard makes this a safe no-op in that case.
+          this.updateStatus(sessionId, 'active');
         },
         onExit: () => {
           this.updateStatus(sessionId, 'ended');
@@ -298,6 +298,15 @@ export class SessionManager {
       db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId);
       throw err;
     }
+
+    // Safety net: if still starting after 15s, force-transition to active
+    setTimeout(() => {
+      const s = this.get(sessionId);
+      if (s && s.status === 'starting') {
+        logger.warn('session', 'Starting timeout, forcing active', { sessionId });
+        this.updateStatus(sessionId, 'active');
+      }
+    }, 15_000);
 
     logger.info('session', 'Created session', { sessionId, cwd, label, hookMode });
 
@@ -357,9 +366,7 @@ export class SessionManager {
         args,
         env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
         onFirstData: () => {
-          if (hookMode === 'fallback') {
-            this.updateStatus(sessionId, 'active');
-          }
+          this.updateStatus(sessionId, 'active');
         },
         onExit: () => {
           this.updateStatus(sessionId, 'ended');
@@ -372,6 +379,15 @@ export class SessionManager {
       ).run(new Date().toISOString(), sessionId);
       throw err;
     }
+
+    // Safety net: if still starting after 15s, force-transition to active
+    setTimeout(() => {
+      const s = this.get(sessionId);
+      if (s && s.status === 'starting') {
+        logger.warn('session', 'Starting timeout, forcing active', { sessionId });
+        this.updateStatus(sessionId, 'active');
+      }
+    }, 15_000);
 
     logger.info('session', 'Resumed session', { sessionId, claudeSessionId: row.claude_session_id, cwd: effectiveCwd, worktree: row.worktree });
 
@@ -407,9 +423,7 @@ export class SessionManager {
         args,
         env: { MCODE_SESSION_ID: sessionId },
         onFirstData: () => {
-          if (hookMode === 'fallback') {
-            this.updateStatus(sessionId, 'active');
-          }
+          this.updateStatus(sessionId, 'active');
         },
         onExit: () => {
           this.updateStatus(sessionId, 'ended');
@@ -419,6 +433,15 @@ export class SessionManager {
       db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId);
       throw err;
     }
+
+    // Safety net: if still starting after 15s, force-transition to active
+    setTimeout(() => {
+      const s = this.get(sessionId);
+      if (s && s.status === 'starting') {
+        logger.warn('session', 'Starting timeout, forcing active', { sessionId });
+        this.updateStatus(sessionId, 'active');
+      }
+    }, 15_000);
 
     logger.info('session', 'Imported external session', { sessionId, claudeSessionId, cwd });
 
@@ -607,14 +630,14 @@ export class SessionManager {
         break;
 
       case 'PreToolUse':
-        if (currentStatus === 'waiting') {
+        if (currentStatus === 'waiting' || currentStatus === 'idle') {
           newStatus = 'active';
         }
         lastTool = event.toolName;
         break;
 
       case 'PostToolUse':
-        if (currentStatus === 'waiting') {
+        if (currentStatus === 'waiting' || currentStatus === 'idle') {
           newStatus = 'active';
         }
         lastTool = event.toolName;
@@ -972,6 +995,90 @@ export class SessionManager {
 
     for (const row of changed) {
       this.broadcastSessionUpdate(row.session_id);
+    }
+  }
+
+  /** Atomically set status + attention in one DB update. */
+  updateStatusWithAttention(
+    sessionId: string,
+    status: SessionStatus,
+    attention: SessionAttentionLevel,
+    reason: string | null,
+  ): void {
+    const db = getDb();
+    const current = db
+      .prepare('SELECT status FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string } | undefined;
+    if (!current || current.status === status || current.status === 'ended') return;
+
+    const previousStatus = current.status as SessionStatus;
+
+    if (status === 'ended') {
+      db.prepare(
+        `UPDATE sessions SET status = ?, ended_at = ?, attention_level = ?, attention_reason = ? WHERE session_id = ?`,
+      ).run(status, new Date().toISOString(), attention, reason, sessionId);
+    } else {
+      db.prepare(
+        `UPDATE sessions SET status = ?, attention_level = ?, attention_reason = ? WHERE session_id = ?`,
+      ).run(status, attention, reason, sessionId);
+    }
+
+    logger.info('session', 'Status+attention changed', { sessionId, status, attention });
+    this.broadcastSessionUpdate(sessionId);
+
+    const session = this.get(sessionId);
+    if (session) this.notifyListeners(session, previousStatus);
+  }
+
+  // --- Permission prompt detection via PTY ---
+
+  private static readonly PERMISSION_PATTERNS = [
+    /Allow\s+once/,
+    /Deny\s+once/,
+    /Allow\s+always/,
+  ];
+
+  private static readonly PERMISSION_QUIESCENCE_MS = 5000;
+  private static readonly WAITING_RECOVERY_MS = 3000;
+
+  /** Poll active sessions for permission prompts and recover stale waiting states. */
+  pollSessionStates(): void {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `SELECT session_id, status, attention_level FROM sessions
+         WHERE status IN ('active', 'idle', 'waiting') AND session_type = 'claude'`,
+      )
+      .all() as { session_id: string; status: string; attention_level: string }[];
+
+    const now = Date.now();
+
+    for (const row of rows) {
+      const buffer = this.ptyManager.getReplayData(row.session_id);
+      if (!buffer) continue;
+
+      const lastDataAt = this.ptyManager.getLastDataAt(row.session_id);
+      const tail = stripAnsi(buffer.slice(-2000));
+      const hasPermissionPrompt = SessionManager.PERMISSION_PATTERNS.some((re) => re.test(tail));
+
+      if (
+        (row.status === 'active' || row.status === 'idle') &&
+        row.attention_level !== 'high' &&
+        hasPermissionPrompt &&
+        lastDataAt > 0 &&
+        now - lastDataAt > SessionManager.PERMISSION_QUIESCENCE_MS
+      ) {
+        // Permission prompt detected: quiescent + pattern visible
+        this.updateStatusWithAttention(row.session_id, 'waiting', 'high', 'Permission prompt detected');
+      } else if (
+        row.status === 'waiting' &&
+        !hasPermissionPrompt &&
+        lastDataAt > 0 &&
+        now - lastDataAt < SessionManager.WAITING_RECOVERY_MS
+      ) {
+        // Permission was answered: recent output + pattern gone
+        this.updateStatus(row.session_id, 'active');
+      }
     }
   }
 
