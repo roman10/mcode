@@ -7,3 +7,4 @@ dist/
 .playwright-mcp/
 .claude/settings.local.json
 .claude/worktrees/
+.claude/plans/
