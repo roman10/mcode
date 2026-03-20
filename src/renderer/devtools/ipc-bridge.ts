@@ -154,8 +154,17 @@ export function initDevtoolsBridge(): void {
       case 'layout-switch-sidebar-tab': {
         const { tab } = params as { tab: string };
         const { useLayoutStore } = await import('../stores/layout-store');
-        useLayoutStore.getState().setActiveSidebarTab(tab as import('../../../shared/types').SidebarTab);
-        result = { tab };
+        const store = useLayoutStore.getState();
+        const targetTab = tab as import('../../shared/types').SidebarTab;
+        if (store.sidebarCollapsed) {
+          store.setActiveSidebarTab(targetTab);
+          store.toggleSidebar();
+        } else if (store.activeSidebarTab === targetTab) {
+          store.toggleSidebar();
+        } else {
+          store.setActiveSidebarTab(targetTab);
+        }
+        result = { tab: useLayoutStore.getState().activeSidebarTab };
         break;
       }
       case 'layout-get-sidebar-tab': {

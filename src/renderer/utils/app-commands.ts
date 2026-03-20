@@ -72,12 +72,12 @@ export function executeAppCommand(command: AppCommand): void {
     case 'switch-sidebar-tab': {
       const store = useLayoutStore.getState();
       if (store.sidebarCollapsed) {
-        // When collapsed, always switch to the requested tab and show sidebar
+        // Panel collapsed: expand to the requested tab
         store.setActiveSidebarTab(command.tab);
         store.toggleSidebar();
       } else if (store.activeSidebarTab === command.tab) {
-        // When visible and already on this tab, toggle back to sessions
-        store.setActiveSidebarTab('sessions');
+        // Same tab: collapse the panel
+        store.toggleSidebar();
       } else {
         store.setActiveSidebarTab(command.tab);
       }

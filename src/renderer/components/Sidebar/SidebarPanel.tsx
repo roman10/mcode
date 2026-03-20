@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Settings, LayoutList, Activity, GitCommitHorizontal, Coins, Users } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useTokenStore } from '../../stores/token-store';
@@ -12,40 +12,13 @@ import CommitStats from '../Dashboard/CommitStats';
 import TokenStats from '../Dashboard/TokenStats';
 import ActivityFeed from '../Dashboard/ActivityFeed';
 import { createTerminalSession } from '../../utils/session-actions';
-import type { SessionCreateInput, SessionInfo, SidebarTab } from '../../../shared/types';
+import type { SessionCreateInput, SessionInfo } from '../../../shared/types';
 import {
   MIN_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
 } from '../../../shared/constants';
-import { formatKeys } from '../../utils/format-shortcut';
 
-function SidebarTabButton({ icon, tab, active, onSelect, tooltip }: {
-  icon: React.ReactNode;
-  tab: SidebarTab;
-  active: SidebarTab;
-  onSelect: (tab: SidebarTab) => void;
-  tooltip: string;
-}): React.JSX.Element {
-  const isActive = active === tab;
-  return (
-    <Tooltip content={tooltip} side="bottom">
-      <button
-        className={`w-8 h-8 flex items-center justify-center transition-colors ${
-          isActive
-            ? 'text-text-primary border-b-2 border-accent'
-            : 'text-text-muted hover:text-text-secondary'
-        }`}
-        onClick={() => onSelect(tab)}
-      >
-        {icon}
-      </button>
-    </Tooltip>
-  );
-}
-
-function Sidebar(): React.JSX.Element {
-  const setShowSettings = useLayoutStore((s) => s.setShowSettings);
-  const setShowAccountsDialog = useLayoutStore((s) => s.setShowAccountsDialog);
+function SidebarPanel(): React.JSX.Element {
   const showNewDialog = useLayoutStore((s) => s.showNewSessionDialog);
   const setShowNewDialog = useLayoutStore((s) => s.setShowNewSessionDialog);
   const splitIntent = useLayoutStore((s) => s.splitIntent);
@@ -59,7 +32,6 @@ function Sidebar(): React.JSX.Element {
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
   const activeSidebarTab = useLayoutStore((s) => s.activeSidebarTab);
-  const setActiveSidebarTab = useLayoutStore((s) => s.setActiveSidebarTab);
   const todayCost = useTokenStore((s) => s.dailyUsage?.estimatedCostUsd ?? null);
   const refreshTokens = useTokenStore((s) => s.refreshAll);
   const addSession = useSessionStore((s) => s.addSession);
@@ -69,19 +41,14 @@ function Sidebar(): React.JSX.Element {
   const isMac = window.mcode.app.getPlatform() === 'darwin';
   const modLabel = isMac ? '⌘' : 'Ctrl+';
 
-  const isResizing = useRef(false);
-
-  // Check if any sessions have attention
   const hasAttention = useSessionStore((s) =>
     Object.values(s.sessions).some((sess) => sess.attentionLevel !== 'none'),
   );
 
-  // Check if any sessions are ended
   const hasEnded = useSessionStore((s) =>
     Object.values(s.sessions).some((sess) => sess.status === 'ended'),
   );
 
-  // Load token data for sidebar running total + subscribe to live updates
   useEffect(() => {
     refreshTokens();
     const unsub = window.mcode.tokens.onUpdated(() => {
@@ -93,8 +60,6 @@ function Sidebar(): React.JSX.Element {
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      isResizing.current = true;
-
       const startX = e.clientX;
       const startWidth = sidebarWidth;
 
@@ -107,7 +72,6 @@ function Sidebar(): React.JSX.Element {
       };
 
       const handleMouseUp = (): void => {
-        isResizing.current = false;
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
         flushPersist();
@@ -124,7 +88,6 @@ function Sidebar(): React.JSX.Element {
       const session = await window.mcode.sessions.create(input);
       addSession(session);
 
-      // If there's a split intent, insert adjacent; otherwise balanced insert
       if (splitIntent) {
         addTileAdjacent(splitIntent.anchorSessionId, session.sessionId, splitIntent.direction);
         setSplitIntent(null);
@@ -172,23 +135,17 @@ function Sidebar(): React.JSX.Element {
     }
   };
 
-
   return (
     <>
       <div
         className="flex flex-col h-full bg-bg-secondary border-r border-border-default shrink-0"
         style={{ width: sidebarWidth }}
       >
-        {/* Tab bar */}
-        <div className="flex items-center border-b border-border-default shrink-0">
-          <div className="flex items-center">
-            <SidebarTabButton icon={<LayoutList size={14} strokeWidth={1.5} />} tab="sessions" active={activeSidebarTab} onSelect={setActiveSidebarTab} tooltip="Sessions" />
-            <SidebarTabButton icon={<GitCommitHorizontal size={14} strokeWidth={1.5} />} tab="commits" active={activeSidebarTab} onSelect={setActiveSidebarTab} tooltip={`Commits (${formatKeys('Shift+B', true)})`} />
-            <SidebarTabButton icon={<Coins size={14} strokeWidth={1.5} />} tab="tokens" active={activeSidebarTab} onSelect={setActiveSidebarTab} tooltip={`Tokens (${formatKeys('Shift+U', true)})`} />
-            <SidebarTabButton icon={<Activity size={14} strokeWidth={1.5} />} tab="activity" active={activeSidebarTab} onSelect={setActiveSidebarTab} tooltip={`Activity (${formatKeys('Shift+A', true)})`} />
-          </div>
-          {activeSidebarTab === 'sessions' && (
-            <div className="flex items-center gap-0.5 ml-auto pr-2">
+        {/* Session actions header */}
+        {activeSidebarTab === 'sessions' && (
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-default shrink-0">
+            <span className="text-xs text-text-secondary uppercase tracking-wide">Sessions</span>
+            <div className="flex items-center gap-0.5">
               {hasTiles && (
                 <Tooltip content="Close all tiles" side="bottom">
                   <button
@@ -236,8 +193,25 @@ function Sidebar(): React.JSX.Element {
                 </button>
               </Tooltip>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Tab content headers for non-session tabs */}
+        {activeSidebarTab === 'commits' && (
+          <div className="flex items-center px-3 py-1.5 border-b border-border-default shrink-0">
+            <span className="text-xs text-text-secondary uppercase tracking-wide">Commits</span>
+          </div>
+        )}
+        {activeSidebarTab === 'tokens' && (
+          <div className="flex items-center px-3 py-1.5 border-b border-border-default shrink-0">
+            <span className="text-xs text-text-secondary uppercase tracking-wide">Tokens</span>
+          </div>
+        )}
+        {activeSidebarTab === 'activity' && (
+          <div className="flex items-center px-3 py-1.5 border-b border-border-default shrink-0">
+            <span className="text-xs text-text-secondary uppercase tracking-wide">Activity</span>
+          </div>
+        )}
 
         {/* Tab content */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -257,36 +231,16 @@ function Sidebar(): React.JSX.Element {
           {activeSidebarTab === 'activity' && <ActivityFeed />}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border-default shrink-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-text-muted">mcode</span>
-            {todayCost !== null && todayCost > 0 && (
-              <Tooltip content="Estimated token cost today" side="top">
-                <span className="text-[11px] text-text-muted">
-                  ~${todayCost.toFixed(2)}
-                </span>
-              </Tooltip>
-            )}
-          </div>
-          <div className="flex items-center gap-0.5">
-            <Tooltip content="Accounts" side="top">
-              <button
-                className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-                onClick={() => setShowAccountsDialog(true)}
-              >
-                <Users size={14} strokeWidth={1.5} />
-              </button>
+        {/* Footer — version and cost only */}
+        <div className="flex items-center px-3 py-1.5 border-t border-border-default shrink-0">
+          <span className="text-xs text-text-muted">mcode</span>
+          {todayCost !== null && todayCost > 0 && (
+            <Tooltip content="Estimated token cost today" side="top">
+              <span className="text-[11px] text-text-muted ml-1.5">
+                ~${todayCost.toFixed(2)}
+              </span>
             </Tooltip>
-            <Tooltip content={`Settings (${formatKeys(',', true)})`} side="top">
-              <button
-                className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"
-                onClick={() => setShowSettings(true)}
-              >
-                <Settings size={14} strokeWidth={1.5} />
-              </button>
-            </Tooltip>
-          </div>
+          )}
         </div>
       </div>
 
@@ -317,4 +271,4 @@ function Sidebar(): React.JSX.Element {
   );
 }
 
-export default Sidebar;
+export default SidebarPanel;

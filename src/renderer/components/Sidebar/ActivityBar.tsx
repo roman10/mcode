@@ -1,0 +1,107 @@
+import { LayoutList, GitCommitHorizontal, Coins, Activity, Users, Settings } from 'lucide-react';
+import Tooltip from '../shared/Tooltip';
+import { formatKeys } from '../../utils/format-shortcut';
+import type { SidebarTab } from '../../../shared/types';
+
+function ActivityBarButton({ icon, tab, active, panelCollapsed, onSelect, tooltip, badge }: {
+  icon: React.ReactNode;
+  tab: SidebarTab;
+  active: SidebarTab;
+  panelCollapsed: boolean;
+  onSelect: (tab: SidebarTab) => void;
+  tooltip: string;
+  badge?: number;
+}): React.JSX.Element {
+  const isActive = active === tab && !panelCollapsed;
+  return (
+    <Tooltip content={tooltip} side="right">
+      <button
+        className={`relative w-12 h-12 flex items-center justify-center transition-colors ${
+          isActive
+            ? 'text-text-primary border-l-2 border-accent'
+            : 'text-text-muted hover:text-text-secondary border-l-2 border-transparent'
+        }`}
+        onClick={() => onSelect(tab)}
+      >
+        {icon}
+        {badge != null && badge > 0 && (
+          <span className="absolute top-1.5 right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-accent text-[10px] font-medium text-bg-primary px-1">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
+      </button>
+    </Tooltip>
+  );
+}
+
+function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount }: {
+  activeTab: SidebarTab;
+  panelCollapsed: boolean;
+  onTabSelect: (tab: SidebarTab) => void;
+  onSettingsClick: () => void;
+  onAccountsClick: () => void;
+  attentionCount: number;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-col h-full w-12 bg-bg-secondary border-r border-border-default shrink-0">
+      {/* Tab icons */}
+      <div className="flex flex-col">
+        <ActivityBarButton
+          icon={<LayoutList size={20} strokeWidth={1.5} />}
+          tab="sessions"
+          active={activeTab}
+          panelCollapsed={panelCollapsed}
+          onSelect={onTabSelect}
+          tooltip="Sessions"
+          badge={attentionCount}
+        />
+        <ActivityBarButton
+          icon={<GitCommitHorizontal size={20} strokeWidth={1.5} />}
+          tab="commits"
+          active={activeTab}
+          panelCollapsed={panelCollapsed}
+          onSelect={onTabSelect}
+          tooltip={`Commits (${formatKeys('Shift+B', true)})`}
+        />
+        <ActivityBarButton
+          icon={<Coins size={20} strokeWidth={1.5} />}
+          tab="tokens"
+          active={activeTab}
+          panelCollapsed={panelCollapsed}
+          onSelect={onTabSelect}
+          tooltip={`Tokens (${formatKeys('Shift+U', true)})`}
+        />
+        <ActivityBarButton
+          icon={<Activity size={20} strokeWidth={1.5} />}
+          tab="activity"
+          active={activeTab}
+          panelCollapsed={panelCollapsed}
+          onSelect={onTabSelect}
+          tooltip={`Activity (${formatKeys('Shift+A', true)})`}
+        />
+      </div>
+
+      {/* Bottom icons */}
+      <div className="mt-auto flex flex-col">
+        <Tooltip content="Accounts" side="right">
+          <button
+            className="w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
+            onClick={onAccountsClick}
+          >
+            <Users size={20} strokeWidth={1.5} />
+          </button>
+        </Tooltip>
+        <Tooltip content={`Settings (${formatKeys(',', true)})`} side="right">
+          <button
+            className="w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
+            onClick={onSettingsClick}
+          >
+            <Settings size={20} strokeWidth={1.5} />
+          </button>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
+export default ActivityBar;

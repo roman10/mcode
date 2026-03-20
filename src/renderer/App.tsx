@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as RadixTooltip from '@radix-ui/react-tooltip';
-import Sidebar from './components/Sidebar/Sidebar';
+import ActivityBar from './components/Sidebar/ActivityBar';
+import SidebarPanel from './components/Sidebar/SidebarPanel';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import KanbanLayout from './components/Kanban/KanbanLayout';
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
@@ -15,7 +16,7 @@ import { useAccountsStore } from './stores/accounts-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
-import type { CreateTaskInput } from '../shared/types';
+import type { CreateTaskInput, SidebarTab } from '../shared/types';
 
 function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -215,7 +216,25 @@ function App(): React.JSX.Element {
   }, []);
 
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
+  const activeSidebarTab = useLayoutStore((s) => s.activeSidebarTab);
+  const setActiveSidebarTab = useLayoutStore((s) => s.setActiveSidebarTab);
   const viewMode = useLayoutStore((s) => s.viewMode);
+
+  const attentionCount = useSessionStore((s) =>
+    Object.values(s.sessions).filter((sess) => sess.attentionLevel !== 'none').length,
+  );
+
+  const handleActivityBarTabSelect = (tab: SidebarTab): void => {
+    if (sidebarCollapsed) {
+      setActiveSidebarTab(tab);
+      toggleSidebar();
+    } else if (activeSidebarTab === tab) {
+      toggleSidebar();
+    } else {
+      setActiveSidebarTab(tab);
+    }
+  };
   const showKeyboardShortcuts = useLayoutStore((s) => s.showKeyboardShortcuts);
   const setShowKeyboardShortcuts = useLayoutStore((s) => s.setShowKeyboardShortcuts);
   const showSettings = useLayoutStore((s) => s.showSettings);
@@ -258,9 +277,17 @@ function App(): React.JSX.Element {
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
         <TitleBar />
 
-        {/* Main content: sidebar + layout */}
+        {/* Main content: activity bar + sidebar panel + layout */}
         <div className="flex flex-1 min-h-0">
-          {!sidebarCollapsed && <Sidebar />}
+          <ActivityBar
+            activeTab={activeSidebarTab}
+            panelCollapsed={sidebarCollapsed}
+            onTabSelect={handleActivityBarTabSelect}
+            onSettingsClick={() => setShowSettings(true)}
+            onAccountsClick={() => setShowAccountsDialog(true)}
+            attentionCount={attentionCount}
+          />
+          {!sidebarCollapsed && <SidebarPanel />}
           <div className="flex-1 min-w-0">
             {viewMode === 'kanban' ? <KanbanLayout /> : <MosaicLayout />}
           </div>
