@@ -205,7 +205,7 @@ export class AccountManager {
     // Re-sync symlinks before spawning
     this.syncSymlinks(accountId);
 
-    return { HOME: account.homeDir };
+    return { HOME: account.homeDir, CLAUDE_CONFIG_DIR: join(account.homeDir, '.claude') };
   }
 
   /**
@@ -217,7 +217,7 @@ export class AccountManager {
 
     const env = account.isDefault
       ? { ...process.env }
-      : { ...process.env, HOME: account.homeDir! };
+      : { ...process.env, HOME: account.homeDir!, CLAUDE_CONFIG_DIR: join(account.homeDir!, '.claude') };
 
     try {
       const { stdout } = await execFileAsync('claude', ['auth', 'status', '--json'], { env });
