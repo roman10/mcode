@@ -5,3 +5,5 @@
 3. when permission is requested, the state is not updated to require attention.
 5. ephemeral command execution like "git push"
 6. kanban mode diff viewer — opening a diff from Changes tab in kanban mode falls back to regular file viewer instead of showing a proper diff view
+7. ephemeral command bottom panel — ANSI stripping is basic (SGR only), does not handle OSC sequences, cursor movement, or other escape types. Consider a proper ANSI-to-HTML library for richer output rendering.
+8. ephemeral command history — persist last 20 commands in preferences, show as suggestions in `!` command palette mode
