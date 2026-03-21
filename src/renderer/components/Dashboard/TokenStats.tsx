@@ -290,7 +290,9 @@ function TokenStats(): React.JSX.Element {
 
         {/* Usage Quota */}
         {(() => {
-          const quotaAccounts = accounts.filter((a) => subscriptionByAccount[a.accountId] != null);
+          const quotaAccounts = accounts.filter(
+            (a) => subscriptionByAccount[a.accountId] != null || a.email != null,
+          );
           if (quotaAccounts.length === 0) return null;
           const multiAccount = quotaAccounts.length > 1;
           return (
@@ -301,13 +303,21 @@ function TokenStats(): React.JSX.Element {
                   <div className="text-xs text-text-muted/70 mt-0.5">{quotaAccounts[0].email ?? quotaAccounts[0].name}</div>
                 )}
               </div>
-              {quotaAccounts.map((a) => (
-                <UsageQuotaSection
-                  key={a.accountId}
-                  usage={subscriptionByAccount[a.accountId]!}
-                  accountName={multiAccount ? a.name : undefined}
-                />
-              ))}
+              {quotaAccounts.map((a) => {
+                const usage = subscriptionByAccount[a.accountId];
+                return usage ? (
+                  <UsageQuotaSection
+                    key={a.accountId}
+                    usage={usage}
+                    accountName={multiAccount ? a.name : undefined}
+                  />
+                ) : (
+                  <div key={a.accountId} className="space-y-1.5">
+                    {multiAccount && <div className="text-xs text-text-muted font-medium">{a.name}</div>}
+                    <div className="text-xs text-text-muted/50">quota unavailable</div>
+                  </div>
+                );
+              })}
             </div>
           );
         })()}

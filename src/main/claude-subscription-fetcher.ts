@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
 import type { AccountProfile, SubscriptionUsage } from '../shared/types';
 
 const execFileAsync = promisify(execFile);
@@ -56,11 +57,17 @@ async function readAccessToken(account: AccountProfile): Promise<string | null> 
     // File not found or unreadable — fall through
   }
 
-  // 2. For default account on macOS, try Keychain
-  if (account.isDefault && process.platform === 'darwin') {
+  // 2. Try Keychain on macOS.
+  // Default account: service name is "Claude Code-credentials".
+  // Secondary accounts: Claude Code appends the first 8 hex chars of sha256(CLAUDE_CONFIG_DIR)
+  // to create an isolated service name, e.g. "Claude Code-credentials-22dfbf9b".
+  if (process.platform === 'darwin') {
+    const serviceName = account.isDefault
+      ? 'Claude Code-credentials'
+      : `Claude Code-credentials-${createHash('sha256').update(join(account.homeDir!, '.claude')).digest('hex').slice(0, 8)}`;
     try {
       const { stdout } = await execFileAsync('security', [
-        'find-generic-password', '-s', 'Claude Code-credentials', '-w',
+        'find-generic-password', '-s', serviceName, '-w',
       ]);
       const token = extractAccessToken(stdout.trim());
       if (token) return token;
