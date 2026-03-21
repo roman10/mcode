@@ -9,7 +9,7 @@ import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { AccountManager } from './account-manager';
 import { getDb } from './db';
 import { logger } from './logger';
-import { stripAnsi } from './strip-ansi';
+import { stripAnsi } from '../shared/strip-ansi';
 import {
   DEFAULT_COLS,
   DEFAULT_ROWS,

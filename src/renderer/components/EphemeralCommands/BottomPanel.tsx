@@ -7,16 +7,11 @@ import { useLayoutStore } from '../../stores/layout-store';
 import { runEphemeralCommand } from '../../utils/session-actions';
 import { darkTheme } from '../../styles/theme';
 import { TERMINAL_FONT_FAMILY } from '../../../shared/constants';
+import { stripAnsi } from '../../../shared/strip-ansi';
 
 const MIN_PANEL_HEIGHT = 100;
 const MAX_PANEL_HEIGHT_RATIO = 0.5; // 50% of viewport
 const OUTPUT_FONT_SIZE = 12;
-
-/** Strip ANSI escape sequences for clipboard copy. */
-function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
-}
 
 function PanelToolbar(): React.JSX.Element {
   const selectedCommandId = useEphemeralCommandStore((s) => s.selectedCommandId);

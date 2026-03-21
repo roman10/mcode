@@ -3,7 +3,7 @@ import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from './session-manager';
 import { getDb } from './db';
 import { logger } from './logger';
-import { stripAnsi } from './strip-ansi';
+import { stripAnsi } from '../shared/strip-ansi';
 import type {
   Task,
   TaskStatus,
