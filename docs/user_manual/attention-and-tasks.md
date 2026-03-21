@@ -47,4 +47,17 @@ Click the **+** button in the task queue header to open the create dialog, or pr
 
 Pending tasks can be cancelled by hovering and clicking **x**.
 
+### Task panel in tiles
+
+When a session has pending or in-progress tasks, a collapsible **Tasks** bar appears at the top of its terminal tile (just below the toolbar). It shows how many tasks are queued, and expands to list them with their status:
+
+- **Amber dot** — Queued (waiting to be dispatched)
+- **Green dot** — Running (currently being dispatched)
+
+For queued tasks you can hover to reveal:
+- **Pencil icon** — edit the task prompt inline; `Cmd+Enter` to save, `Escape` to cancel
+- **× icon** — cancel the task
+
+Click the Tasks bar header to collapse or expand the panel.
+
 The task queue requires the hook runtime to be active. If live status is unavailable, a warning message appears.

@@ -39,14 +39,15 @@ When you launch mcode, you see two main areas:
 
 ### Sidebar
 
-The sidebar has a **tab bar** at the top with four tabs:
+The sidebar has a **tab bar** at the top with five tabs:
 
 - **Sessions** — session list grouped by date, plus the task queue
 - **Commits** — commit statistics for the day (see [Sidebar Panels](sidebar-panels.md#commit-tracking))
+- **Changes** — git changes (staged/unstaged) and commit graph (see [Git Changes](git-changes.md) and [Sidebar Panels](sidebar-panels.md#changes))
 - **Tokens** — token usage and estimated cost (see [Sidebar Panels](sidebar-panels.md#token-usage))
 - **Activity** — live event feed from all sessions (see [Sidebar Panels](sidebar-panels.md#activity-feed))
 
-Switch tabs by clicking the icons or with `Cmd+Shift+B` (Commits), `Cmd+Shift+U` (Tokens), `Cmd+Shift+A` (Activity).
+Switch tabs by clicking the icons or with `Cmd+Shift+B` (Commits), `Cmd+Shift+C` (Changes), `Cmd+Shift+U` (Tokens), `Cmd+Shift+A` (Activity).
 
 On the **Sessions tab**, action buttons appear to the right of the tab bar: Close all tiles, Delete ended sessions, Mark all read, New terminal (`Cmd+T`), and New session (`Cmd+N`).
 
@@ -56,6 +57,7 @@ The session list shows all sessions grouped by date (Today, Yesterday, then by d
 - **Blue dot** — Idle (session is waiting for input)
 - **Red dot** — Waiting (e.g., awaiting permission approval)
 - **Amber dot** — Starting (session is initializing)
+- **Neutral dot** — Detached (PTY connection lost, e.g., after an unclean shutdown; the process may still be running)
 - **Gray dot** — Ended (session has terminated)
 
 Sessions with raised attention show a colored left border (red, amber, or blue) to draw your eye. See [Attention & Tasks](attention-and-tasks.md) for details.
@@ -109,6 +111,16 @@ Double-click the session name in the sidebar or the tile toolbar to edit it inli
 ### Reopening a Closed Session
 
 Hover over the session in the sidebar and click the **+** button to reopen its tile in the layout.
+
+### Context Menu
+
+Right-click any session card in the sidebar to open a context menu with quick actions:
+
+- **Rename** (shortcut: `F2`) — start inline renaming
+- **Open Tile** — open the session's tile in the current layout (running sessions)
+- **View / Resume** — open a tile for the session's output (ended sessions)
+- **Kill Session** — terminate the Claude Code process
+- **Delete Session** — permanently remove the session record (ended sessions only)
 
 ## Tiling Layout
 

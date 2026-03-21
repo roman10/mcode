@@ -1,6 +1,6 @@
 # Sidebar Panels
 
-The sidebar header has four tabs: **Sessions**, **Commits**, **Tokens**, and **Activity**. Click the tab icons to switch, or use the keyboard shortcuts below.
+The sidebar header has five tabs: **Sessions**, **Commits**, **Changes**, **Tokens**, and **Activity**. Click the tab icons to switch, or use the keyboard shortcuts below.
 
 ## Activity Feed
 
@@ -29,6 +29,25 @@ Use the dropdowns at the top of the feed to filter by:
 - **Event type** — show only a particular event type (e.g., just PermissionRequest)
 
 Click **Clear** to reset filters.
+
+## Changes
+
+**Open it:** Click the Changes tab in the sidebar header, or press `Cmd+Shift+C`.
+
+Shows git changes and commit history for repos with active sessions. The tab badge counts unstaged + staged files across all tracked repos.
+
+### Git Changes
+
+Staged and unstaged files for each tracked repo, with per-file and bulk operations. See [Git Changes](git-changes.md) for full details.
+
+### Commit Graph
+
+A visual commit graph for each tracked repo, showing branch topology:
+
+- Each repo is shown as a collapsible section labelled by repo name with a commit count
+- Commits are listed newest-first with branch/merge lane lines on the left
+- Click **Show more** at the bottom of a section to load older commits
+- Click the **refresh** button in the Commits header to reload
 
 ## Commit Tracking
 
