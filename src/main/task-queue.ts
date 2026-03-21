@@ -38,10 +38,21 @@ interface DispatchState {
   dispatchedAtMs: number;
 }
 
-/** Check if the terminal buffer tail shows Claude Code's idle prompt (❯). */
+/**
+ * Check if the terminal buffer tail shows Claude Code's idle prompt (❯).
+ * The raw ring buffer is a linear stream — cursor-repositioned content
+ * (e.g. the status bar) appears AFTER the prompt character.  We therefore
+ * look for the last ❯ and verify only a short tail follows it (status bar
+ * is typically < 300 chars on a single line).
+ */
 function isAtClaudePrompt(rawBufferTail: string): boolean {
   const clean = stripAnsi(rawBufferTail);
-  return /❯\s*$/.test(clean);
+  const lastPrompt = clean.lastIndexOf('❯');
+  if (lastPrompt === -1) return false;
+  const after = clean.slice(lastPrompt + 1);
+  // Status bar is short (< 300 chars) and at most 2 newlines.
+  // Reject if there is substantial multi-line content (Claude still outputting).
+  return after.length < 300 && (after.match(/\n/g) || []).length <= 2;
 }
 
 const PROMPT_QUIESCENCE_MS = 2000;
