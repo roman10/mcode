@@ -724,8 +724,6 @@ app.whenReady().then(async () => {
   // Initialize database
   getDb();
 
-  mainWindow = createMainWindow();
-
   accountManager = new AccountManager();
   accountManager.ensureDefaultAccount();
 
@@ -809,6 +807,11 @@ app.whenReady().then(async () => {
   registerGitChangesIpc();
   registerTokenIpc();
   registerPreferencesIpc();
+
+  // Create window AFTER IPC handlers are registered to avoid a race condition:
+  // in production, loadFile() is near-instant, so the renderer can invoke IPC
+  // handlers before they exist if the window is created earlier.
+  mainWindow = createMainWindow();
 
   // Initialize hook system (server + config reconciliation)
   await initializeHookSystem();
