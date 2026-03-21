@@ -36,7 +36,7 @@ export interface TerminalConfig {
 // --- Session ---
 
 export type SessionType = 'claude' | 'terminal';
-export type SessionStatus = 'starting' | 'active' | 'idle' | 'waiting' | 'ended';
+export type SessionStatus = 'starting' | 'active' | 'idle' | 'waiting' | 'detached' | 'ended';
 export type SessionAttentionLevel = 'none' | 'info' | 'action';
 
 export interface SessionInfo {

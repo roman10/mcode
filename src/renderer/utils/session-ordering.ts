@@ -11,7 +11,8 @@ const statusOrder: Record<SessionStatus, number> = {
   active: 1,
   starting: 2,
   idle: 3,
-  ended: 4,
+  detached: 4,
+  ended: 5,
 };
 
 /**

@@ -1,8 +1,15 @@
 import * as pty from 'node-pty';
-import type { WebContents } from 'electron';
 import type { PtySpawnOptions } from '../shared/types';
+import type { IPtyManager } from '../shared/pty-manager-interface';
 import { PTY_KILL_TIMEOUT_MS, RING_BUFFER_MAX_BYTES } from '../shared/constants';
-import { logger } from './logger';
+
+interface Logger {
+  info(module: string, message: string, data?: Record<string, unknown>): void;
+}
+
+const defaultLogger: Logger = {
+  info: (mod, msg, data) => console.log(`[${mod}]`, msg, data ?? ''),
+};
 
 interface PtyHandle {
   id: string;
@@ -14,12 +21,20 @@ interface PtyHandle {
   exitPromise: Promise<void>;
 }
 
-export class PtyManager {
+export class PtyManager implements IPtyManager {
   private ptys = new Map<string, PtyHandle>();
-  private getWebContents: () => WebContents | null;
+  private onData: (id: string, data: string) => void;
+  private onPtyExit: (id: string, exitCode: number, signal?: number) => void;
+  private logger: Logger;
 
-  constructor(getWebContents: () => WebContents | null) {
-    this.getWebContents = getWebContents;
+  constructor(
+    onData: (id: string, data: string) => void,
+    onPtyExit: (id: string, exitCode: number, signal?: number) => void,
+    logger?: Logger,
+  ) {
+    this.onData = onData;
+    this.onPtyExit = onPtyExit;
+    this.logger = logger ?? defaultLogger;
   }
 
   spawn(options: PtySpawnOptions): string {
@@ -57,20 +72,14 @@ export class PtyManager {
         }
       }
 
-      const wc = this.getWebContents();
-      if (wc && !wc.isDestroyed()) {
-        wc.send('pty:data', id, data);
-      }
+      this.onData(id, data);
     });
 
     proc.onExit(({ exitCode, signal }) => {
-      logger.info('pty', 'Process exited', { id, exitCode, signal });
-      const wc = this.getWebContents();
-      if (wc && !wc.isDestroyed()) {
-        wc.send('pty:exit', id, { code: exitCode, signal });
-      }
+      this.logger.info('pty', 'Process exited', { id, exitCode, signal });
       this.ptys.delete(id);
       if (onExitCb) onExitCb(exitCode, signal);
+      this.onPtyExit(id, exitCode, signal);
       resolveExit();
     });
 
@@ -85,7 +94,7 @@ export class PtyManager {
     };
 
     this.ptys.set(id, handle);
-    logger.info('pty', 'Spawned process', { id, command, cwd, pid: proc.pid });
+    this.logger.info('pty', 'Spawned process', { id, command, cwd, pid: proc.pid });
     return id;
   }
 
@@ -157,5 +166,12 @@ export class PtyManager {
 
   list(): string[] {
     return Array.from(this.ptys.keys());
+  }
+
+  listInfo(): Array<{ id: string; pid: number }> {
+    return Array.from(this.ptys.entries()).map(([id, handle]) => ({
+      id,
+      pid: handle.process.pid,
+    }));
   }
 }

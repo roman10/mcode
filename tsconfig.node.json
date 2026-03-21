@@ -5,7 +5,8 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "src/devtools/**/*"
+    "src/devtools/**/*",
+    "src/broker/**/*"
   ],
   "compilerOptions": {
     "composite": true,

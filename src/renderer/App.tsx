@@ -272,7 +272,7 @@ function App(): React.JSX.Element {
   );
 
   const changesCount = useChangesStore((s) =>
-    s.statuses.reduce((sum, status) => sum + status.files.length, 0),
+    s.statuses.reduce((sum, status) => sum + status.staged.length + status.unstaged.length, 0),
   );
 
   const handleActivityBarTabSelect = (tab: SidebarTab): void => {

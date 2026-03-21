@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import type { PtyManager } from '../main/pty-manager';
+import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from '../main/session-manager';
 import type { TaskQueue } from '../main/task-queue';
 import type { CommitTracker } from '../main/commit-tracker';
@@ -13,7 +13,7 @@ export type { ConsoleEntry, HmrEvent } from '../shared/types';
 
 export interface McpServerContext {
   mainWindow: BrowserWindow;
-  ptyManager: PtyManager;
+  ptyManager: IPtyManager;
   sessionManager: SessionManager;
   taskQueue: TaskQueue;
   commitTracker: CommitTracker;

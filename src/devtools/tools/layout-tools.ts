@@ -5,10 +5,9 @@ import { queryRenderer } from '../ipc';
 import type { SessionAttentionLevel, SessionInfo, SessionStatus } from '../../shared/types';
 
 const attentionOrder: Record<SessionAttentionLevel, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-  none: 3,
+  action: 0,
+  info: 1,
+  none: 2,
 };
 
 const statusOrder: Record<SessionStatus, number> = {
@@ -16,7 +15,8 @@ const statusOrder: Record<SessionStatus, number> = {
   active: 1,
   starting: 2,
   idle: 3,
-  ended: 4,
+  detached: 4,
+  ended: 5,
 };
 
 export function registerLayoutTools(

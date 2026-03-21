@@ -20,6 +20,7 @@ const statusLabels: Record<SessionStatus, string> = {
   active: 'Active',
   idle: 'Idle',
   waiting: 'Waiting',
+  detached: 'Detached',
   ended: 'Ended',
 };
 
@@ -28,6 +29,7 @@ const statusColors: Record<SessionStatus, string> = {
   active: 'text-green-400',
   idle: 'text-blue-400',
   waiting: 'text-red-400',
+  detached: 'text-neutral-400',
   ended: 'text-neutral-500',
 };
 

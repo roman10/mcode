@@ -13,6 +13,7 @@ const statusColors: Record<SessionStatus, string> = {
   active: 'bg-green-400',
   idle: 'bg-blue-400',
   waiting: 'bg-red-400',
+  detached: 'bg-neutral-400',
   ended: 'bg-neutral-500',
 };
 

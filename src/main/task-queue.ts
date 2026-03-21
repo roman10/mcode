@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron';
-import type { PtyManager } from './pty-manager';
+import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from './session-manager';
 import { getDb } from './db';
 import { logger } from './logger';
@@ -70,7 +70,7 @@ const DISPATCH_INTERVAL_MS = 2000;
 
 export class TaskQueue {
   private sessionManager: SessionManager;
-  private ptyManager: PtyManager;
+  private ptyManager: IPtyManager;
   private getHookRuntimeInfo: () => HookRuntimeInfo;
   private getWebContents: () => WebContents | null;
   private maxConcurrentSessions: number;
@@ -81,7 +81,7 @@ export class TaskQueue {
 
   constructor(
     sessionManager: SessionManager,
-    ptyManager: PtyManager,
+    ptyManager: IPtyManager,
     getHookRuntimeInfo: () => HookRuntimeInfo,
     getWebContents: () => WebContents | null,
     options?: { maxConcurrentSessions?: number },

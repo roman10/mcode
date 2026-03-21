@@ -7,6 +7,10 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
+        input: {
+          index: 'src/main/index.ts',
+          'broker-entry': 'src/broker/entry.ts',
+        },
         external: ['node-pty', 'better-sqlite3'],
       },
     },

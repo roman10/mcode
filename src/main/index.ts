@@ -1,7 +1,8 @@
 import { app, BrowserWindow, ipcMain, Menu, session, dialog, shell } from 'electron';
 import { join } from 'node:path';
 import { is, optimizer } from '@electron-toolkit/utils';
-import { PtyManager } from './pty-manager';
+import { BrokerClient } from './broker-client';
+import { ensureBroker, BROKER_SOCKET_PATH } from './broker-launcher';
 import { SessionManager } from './session-manager';
 import { AccountManager } from './account-manager';
 import { TaskQueue } from './task-queue';
@@ -36,7 +37,7 @@ if (app.isPackaged) {
 }
 
 let mainWindow: BrowserWindow | null = null;
-let ptyManager: PtyManager;
+let brokerClient: BrokerClient;
 let sessionManager: SessionManager;
 let accountManager: AccountManager;
 let taskQueue: TaskQueue;
@@ -123,19 +124,19 @@ function getWebContents(): import('electron').WebContents | null {
 
 function registerPtyIpc(): void {
   ipcMain.on('pty:write', (_event, id: string, data: string) => {
-    ptyManager.write(id, data);
+    brokerClient.write(id, data);
   });
 
   ipcMain.on('pty:resize', (_event, id: string, cols: number, rows: number) => {
-    ptyManager.resize(id, cols, rows);
+    brokerClient.resize(id, cols, rows);
   });
 
   ipcMain.handle('pty:kill', (_event, id: string) => {
-    return ptyManager.kill(id);
+    return brokerClient.kill(id);
   });
 
   ipcMain.handle('pty:replay', (_event, sessionId: string) => {
-    return ptyManager.getReplayData(sessionId);
+    return brokerClient.fetchReplayFromBroker(sessionId);
   });
 }
 
@@ -557,6 +558,14 @@ app.whenReady().then(async () => {
           { role: 'hideOthers' },
           { role: 'unhide' },
           { type: 'separator' },
+          {
+            label: 'Quit and Kill All Sessions',
+            accelerator: 'CmdOrCtrl+Shift+Q',
+            click: async () => {
+              await brokerClient.shutdownBroker();
+              app.quit();
+            },
+          },
           { role: 'quit' },
         ],
       },
@@ -720,18 +729,64 @@ app.whenReady().then(async () => {
   accountManager = new AccountManager();
   accountManager.ensureDefaultAccount();
 
-  ptyManager = new PtyManager(getWebContents);
+  // Start (or connect to) PTY broker — holds PTY fds across app restarts
+  await ensureBroker(BROKER_SOCKET_PATH);
+  brokerClient = new BrokerClient();
+  await brokerClient.connect(BROKER_SOCKET_PATH);
+
+  // Forward PTY push events from broker → renderer IPC
+  brokerClient.on('pty.data', (id: string, data: string) => {
+    const wc = getWebContents();
+    if (wc && !wc.isDestroyed()) wc.send('pty:data', id, data);
+  });
+  brokerClient.on('pty.exit', (id: string, code: number, signal?: number) => {
+    const wc = getWebContents();
+    if (wc && !wc.isDestroyed()) wc.send('pty:exit', id, { code, signal });
+  });
+
+  // On broker reconnect (e.g., after broker crash + respawn): reconcile session states
+  brokerClient.on('reconnected', async () => {
+    try {
+      const alive = await brokerClient.listSessions();
+      sessionManager.reconcileDetachedSessions(alive.map((s) => s.id));
+      await Promise.all(alive.map((s) => brokerClient.populateFromBroker(s.id)));
+    } catch (err) {
+      logger.error('app', 'Failed to reconcile after broker reconnect', { err });
+    }
+  });
+
+  // If broker becomes unreachable after retries, try respawning it
+  brokerClient.on('broker-unavailable', async () => {
+    logger.warn('app', 'Broker unavailable — attempting respawn');
+    try {
+      await ensureBroker(BROKER_SOCKET_PATH);
+      await brokerClient.connect(BROKER_SOCKET_PATH);
+      const alive = await brokerClient.listSessions();
+      sessionManager.reconcileDetachedSessions(alive.map((s) => s.id));
+      await Promise.all(alive.map((s) => brokerClient.populateFromBroker(s.id)));
+    } catch (err) {
+      logger.error('app', 'Failed to respawn broker', { err });
+      sessionManager.reconcileDetachedSessions([]);
+    }
+  });
+
   sessionManager = new SessionManager(
-    ptyManager,
+    brokerClient,
     getWebContents,
     () => hookRuntimeInfo,
     accountManager,
   );
   sessionManager.deleteEmptyEnded();
 
+  // Reconcile any sessions left detached from a previous app close
+  const aliveSessions = await brokerClient.listSessions();
+  sessionManager.reconcileDetachedSessions(aliveSessions.map((s) => s.id));
+  // Populate local ring buffers so permission/task detection works immediately
+  await Promise.all(aliveSessions.map((s) => brokerClient.populateFromBroker(s.id)));
+
   taskQueue = new TaskQueue(
     sessionManager,
-    ptyManager,
+    brokerClient,
     () => hookRuntimeInfo,
     getWebContents,
   );
@@ -790,7 +845,7 @@ app.whenReady().then(async () => {
     import('../devtools/mcp-server').then(({ startMcpServer }) => {
       startMcpServer({
         mainWindow: mainWindow!,
-        ptyManager,
+        ptyManager: brokerClient,
         sessionManager,
         taskQueue,
         commitTracker,
@@ -849,16 +904,14 @@ app.on('before-quit', (e) => {
     }
     stopHookServer();
 
-    // Mark all active sessions as ended
-    sessionManager.endAllActive();
+    // Mark running sessions as detached (PTY broker keeps them alive)
+    sessionManager.detachAllActive();
 
-    // Kill all PTYs then quit
-    ptyManager
-      .killAll()
-      .finally(() => {
-        closeDb();
-        app.quit();
-      });
+    // Disconnect from broker (broker stays running, PTYs stay alive)
+    brokerClient.disconnect();
+
+    closeDb();
+    app.quit();
   }
 });
 

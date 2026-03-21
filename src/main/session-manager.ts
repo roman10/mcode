@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { readdir, open as fsOpen } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
-import type { PtyManager } from './pty-manager';
+import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { AccountManager } from './account-manager';
 import { getDb } from './db';
 import { logger } from './logger';
@@ -157,14 +157,14 @@ export type SessionUpdateListener = (
 ) => void;
 
 export class SessionManager {
-  private ptyManager: PtyManager;
+  private ptyManager: IPtyManager;
   private getWebContents: () => WebContents | null;
   private hookRuntimeGetter: () => HookRuntimeInfo;
   private accountManager: AccountManager;
   private sessionListeners = new Set<SessionUpdateListener>();
 
   constructor(
-    ptyManager: PtyManager,
+    ptyManager: IPtyManager,
     getWebContents: () => WebContents | null,
     hookRuntimeGetter: () => HookRuntimeInfo,
     accountManager: AccountManager,
@@ -527,7 +527,7 @@ export class SessionManager {
       .prepare('SELECT status FROM sessions WHERE session_id = ?')
       .get(sessionId) as { status: string } | undefined;
     if (!current || current.status === status) return;
-    // Don't transition away from ended
+    // Don't transition away from ended or detached→ended (both terminal-ish, but detached can recover)
     if (current.status === 'ended') return;
 
     const previousStatus = current.status as SessionStatus;
@@ -1161,9 +1161,41 @@ export class SessionManager {
     const db = getDb();
     const now = new Date().toISOString();
     db.prepare(
-      `UPDATE sessions SET status = 'ended', ended_at = ?, attention_level = 'none', attention_reason = NULL WHERE status != 'ended'`,
+      `UPDATE sessions SET status = 'ended', ended_at = ?, attention_level = 'none', attention_reason = NULL WHERE status NOT IN ('ended', 'detached')`,
     ).run(now);
     logger.info('session', 'Marked all active sessions as ended');
+  }
+
+  /** Mark all running sessions as detached (PTY broker is keeping them alive). Called on normal quit. */
+  detachAllActive(): void {
+    const db = getDb();
+    db.prepare(
+      `UPDATE sessions SET status = 'detached' WHERE status NOT IN ('ended', 'detached')`,
+    ).run();
+    logger.info('session', 'Marked all active sessions as detached');
+  }
+
+  /**
+   * Reconcile detached sessions against what the PTY broker reports as alive.
+   * Called on app open after connecting to the broker.
+   */
+  reconcileDetachedSessions(aliveSessionIds: string[]): void {
+    const db = getDb();
+    const aliveSet = new Set(aliveSessionIds);
+
+    const detached = db
+      .prepare(`SELECT session_id FROM sessions WHERE status = 'detached'`)
+      .all() as Array<{ session_id: string }>;
+
+    for (const { session_id } of detached) {
+      if (aliveSet.has(session_id)) {
+        this.updateStatus(session_id, 'active');
+        logger.info('session', 'Reconnected to running session', { sessionId: session_id });
+      } else {
+        this.updateStatus(session_id, 'ended');
+        logger.info('session', 'Detached session no longer running', { sessionId: session_id });
+      }
+    }
   }
 
   // --- Layout persistence ---
