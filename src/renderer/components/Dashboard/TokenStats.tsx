@@ -295,7 +295,12 @@ function TokenStats(): React.JSX.Element {
           const multiAccount = quotaAccounts.length > 1;
           return (
             <div className="space-y-3">
-              <div className="text-xs text-text-muted font-medium">Usage Quota</div>
+              <div>
+                <div className="text-xs text-text-muted font-medium">Usage Quota</div>
+                {!multiAccount && (quotaAccounts[0].email ?? (!quotaAccounts[0].isDefault ? quotaAccounts[0].name : null)) && (
+                  <div className="text-xs text-text-muted/70 mt-0.5">{quotaAccounts[0].email ?? quotaAccounts[0].name}</div>
+                )}
+              </div>
               {quotaAccounts.map((a) => (
                 <UsageQuotaSection
                   key={a.accountId}
