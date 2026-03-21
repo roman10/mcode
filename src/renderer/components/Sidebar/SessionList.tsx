@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore, sessionIdFromTileId } from '../../stores/layout-store';
 import { getLeaves } from 'react-mosaic-component';
 import SessionCard from './SessionCard';
+import type { SessionCardHandle } from './SessionCard';
 import { getOrderedVisibleSessions } from '../../utils/session-ordering';
 import { toDateKey, groupSessionsByDate } from '../../utils/date-grouping';
 import type { ExternalSessionInfo } from '../../../shared/types';
@@ -20,6 +21,9 @@ function SessionList(): React.JSX.Element {
   const expandKanbanSession = useLayoutStore((s) => s.expandKanbanSession);
 
   const setExternalSessions = useSessionStore((s) => s.setExternalSessions);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Record<string, SessionCardHandle | null>>({});
 
   const [externalExpanded, setExternalExpanded] = useState(false);
   const [externalLimit, setExternalLimit] = useState(20);
@@ -57,21 +61,21 @@ function SessionList(): React.JSX.Element {
 
   const groups = groupSessionsByDate(sorted);
 
-  const handleDoubleClick = (sessionId: string): void => {
+  const handleDoubleClick = useCallback((sessionId: string): void => {
     addTile(sessionId);
     persist();
     selectSession(sessionId);
-  };
+  }, [addTile, persist, selectSession]);
 
-  const handleKill = async (sessionId: string): Promise<void> => {
+  const handleKill = useCallback(async (sessionId: string): Promise<void> => {
     try {
       await window.mcode.sessions.kill(sessionId);
     } catch (err) {
       console.error('Failed to kill session:', err);
     }
-  };
+  }, []);
 
-  const handleDelete = async (sessionId: string): Promise<void> => {
+  const handleDelete = useCallback(async (sessionId: string): Promise<void> => {
     const session = sessions[sessionId];
     if (!session) return;
     const confirmed = window.confirm(`Delete session "${session.label}"? This cannot be undone.`);
@@ -81,7 +85,7 @@ function SessionList(): React.JSX.Element {
     } catch (err) {
       console.error('Failed to delete session:', err);
     }
-  };
+  }, [sessions]);
 
   const handleRename = async (
     sessionId: string,
@@ -94,6 +98,35 @@ function SessionList(): React.JSX.Element {
       console.error('Failed to rename session:', err);
     }
   };
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    if (!selectedSessionId) return;
+    const session = sessions[selectedSessionId];
+    if (!session) return;
+
+    switch (e.key) {
+      case 'F2':
+        e.preventDefault();
+        cardRefs.current[selectedSessionId]?.startEditing();
+        break;
+      case 'Enter':
+        e.preventDefault();
+        handleDoubleClick(selectedSessionId);
+        break;
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        if (session.status === 'ended') {
+          handleDelete(selectedSessionId);
+        } else {
+          handleKill(selectedSessionId);
+        }
+        break;
+    }
+  }, [selectedSessionId, sessions, handleDoubleClick, handleDelete, handleKill]);
 
   const handleLoadMore = async (): Promise<void> => {
     const newLimit = externalLimit + 20;
@@ -136,7 +169,7 @@ function SessionList(): React.JSX.Element {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto py-1 px-1">
+    <div ref={containerRef} className="flex-1 overflow-y-auto py-1 px-1 outline-none" tabIndex={-1} onKeyDown={handleKeyDown}>
       {groups.map((group, i) => {
         const hasAttention = group.sessions.some((s) => s.attentionLevel !== 'none');
         const collapsed = isGroupCollapsed(group.key) && !hasAttention;
@@ -159,6 +192,7 @@ function SessionList(): React.JSX.Element {
             </div>
             {!collapsed && group.sessions.map((session) => (
               <SessionCard
+                ref={(handle) => { cardRefs.current[session.sessionId] = handle; }}
                 key={session.sessionId}
                 session={session}
                 isSelected={selectedSessionId === session.sessionId}
@@ -168,6 +202,7 @@ function SessionList(): React.JSX.Element {
                   if (viewMode === 'kanban') {
                     expandKanbanSession(session.sessionId);
                   }
+                  containerRef.current?.focus();
                 }}
                 onDoubleClick={() => handleDoubleClick(session.sessionId)}
                 onKill={() => handleKill(session.sessionId)}

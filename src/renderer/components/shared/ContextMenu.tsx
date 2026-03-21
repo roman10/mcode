@@ -8,6 +8,7 @@ export interface MenuItem {
   separator?: boolean;
   children?: MenuItem[];
   checked?: boolean;
+  shortcut?: string;
 }
 
 interface ContextMenuProps {
@@ -63,6 +64,9 @@ function SubMenu({ items, parentRect, onAction }: {
             {item.checked ? '✓' : ''}
           </span>
           {item.label}
+          {item.shortcut && (
+            <span className="ml-auto pl-4 text-xs text-text-muted">{item.shortcut}</span>
+          )}
         </button>
       ))}
     </div>
@@ -148,7 +152,7 @@ function ContextMenu({ items, position, onAction, onClose }: ContextMenuProps): 
             key={item.action}
             data-action={item.action}
             disabled={item.enabled === false}
-            className="flex w-full cursor-default px-3 py-1.5 text-left text-[13px] text-text-primary hover:bg-accent/15 disabled:text-text-muted disabled:hover:bg-transparent"
+            className="flex w-full cursor-default items-center px-3 py-1.5 text-left text-[13px] text-text-primary hover:bg-accent/15 disabled:text-text-muted disabled:hover:bg-transparent"
             onPointerEnter={() => setOpenSub(null)}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => {
@@ -156,6 +160,9 @@ function ContextMenu({ items, position, onAction, onClose }: ContextMenuProps): 
             }}
           >
             {item.label}
+            {item.shortcut && (
+              <span className="ml-auto pl-4 text-xs text-text-muted">{item.shortcut}</span>
+            )}
           </button>
         ),
       )}
