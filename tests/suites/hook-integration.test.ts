@@ -61,14 +61,14 @@ describe('hook integration', () => {
     expect(updated.lastTool).toBe('Read');
   });
 
-  it('Stop transitions to idle with low attention', async () => {
+  it('Stop transitions to idle with action attention', async () => {
     const sessionId = sessionIds[0];
     const updated = await injectHookEvent(client, sessionId, 'Stop');
     expect(updated.status).toBe('idle');
-    expect(updated.attentionLevel).toBe('low');
+    expect(updated.attentionLevel).toBe('action');
   });
 
-  it('PermissionRequest transitions to waiting with high attention', async () => {
+  it('PermissionRequest transitions to waiting with action attention', async () => {
     const sessionId = sessionIds[0];
     const updated = await injectHookEvent(
       client,
@@ -77,21 +77,21 @@ describe('hook integration', () => {
       { toolName: 'Bash' },
     );
     expect(updated.status).toBe('waiting');
-    expect(updated.attentionLevel).toBe('high');
+    expect(updated.attentionLevel).toBe('action');
     expect(updated.attentionReason).toContain('Bash');
   });
 
-  it('PostToolUse returns to active but attention stays high', async () => {
+  it('PostToolUse returns to active and clears action attention', async () => {
     const sessionId = sessionIds[0];
     const updated = await injectHookEvent(client, sessionId, 'PostToolUse', {
       toolName: 'Bash',
     });
     expect(updated.status).toBe('active');
-    expect(updated.attentionLevel).toBe('high');
+    expect(updated.attentionLevel).toBe('none');
   });
 
-  it('SessionEnd transitions to ended and clears attention', async () => {
-    // Create a fresh session for this test
+  it('SessionEnd transitions to ended and clears attention (no claudeSessionId)', async () => {
+    // Create a fresh session for this test — no claudeSessionId, so not resumable
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
@@ -102,6 +102,22 @@ describe('hook integration', () => {
     const ended = await injectHookEvent(client, session.sessionId, 'SessionEnd');
     expect(ended.status).toBe('ended');
     expect(ended.attentionLevel).toBe('none');
+  });
+
+  it('SessionEnd sets action attention when session is resumable (has claudeSessionId)', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+
+    // Inject SessionStart with a claudeSessionId — this marks the session as resumable
+    await injectHookEvent(client, session.sessionId, 'SessionStart', {
+      claudeSessionId: 'claude-resume-test-123',
+    });
+
+    const ended = await injectHookEvent(client, session.sessionId, 'SessionEnd');
+    expect(ended.status).toBe('ended');
+    expect(ended.attentionLevel).toBe('action');
+    expect(ended.attentionReason).toBe('Session ended — can resume');
   });
 
   it('events are persisted and retrievable', async () => {
@@ -163,13 +179,13 @@ describe('hook integration', () => {
     await waitForActive(client, session.sessionId);
     await injectHookEvent(client, session.sessionId, 'SessionStart');
 
-    // First Stop → idle + low
+    // First Stop → idle + action
     await injectHookEvent(client, session.sessionId, 'Stop');
     const afterFirst = await client.callToolJson<SessionInfo>('session_get_status', {
       sessionId: session.sessionId,
     });
     expect(afterFirst.status).toBe('idle');
-    expect(afterFirst.attentionLevel).toBe('low');
+    expect(afterFirst.attentionLevel).toBe('action');
 
     // Clear attention manually, then Stop again when already idle
     await client.callTool('session_clear_attention', { sessionId: session.sessionId });
@@ -178,7 +194,7 @@ describe('hook integration', () => {
     });
     expect(afterClear.attentionLevel).toBe('none');
 
-    // Second Stop while already idle — should not set low again
+    // Second Stop while already idle — should not set action again
     const afterSecondStop = await injectHookEvent(client, session.sessionId, 'Stop');
     expect(afterSecondStop.status).toBe('idle');
     expect(afterSecondStop.attentionLevel).toBe('none');

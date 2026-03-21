@@ -579,8 +579,8 @@ export class SessionManager {
 
     // Verify session exists
     let row = db
-      .prepare('SELECT status, attention_level, cwd, worktree FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null } | undefined;
+      .prepare('SELECT status, attention_level, cwd, worktree, claude_session_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; claude_session_id: string | null } | undefined;
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
       return false;
@@ -636,11 +636,21 @@ export class SessionManager {
         if (currentStatus === 'starting') {
           newStatus = 'active';
         }
+        // Clear action attention when Claude starts a session (e.g. after resume)
+        if (currentAttention === 'action') {
+          newAttention = 'none';
+          attentionReason = null;
+        }
         break;
 
       case 'PreToolUse':
         if (currentStatus === 'waiting' || currentStatus === 'idle') {
           newStatus = 'active';
+          // Clear action attention when Claude resumes work (permission answered, new prompt)
+          if (currentAttention === 'action') {
+            newAttention = 'none';
+            attentionReason = null;
+          }
         }
         lastTool = event.toolName;
         break;
@@ -648,50 +658,54 @@ export class SessionManager {
       case 'PostToolUse':
         if (currentStatus === 'waiting' || currentStatus === 'idle') {
           newStatus = 'active';
+          if (currentAttention === 'action') {
+            newAttention = 'none';
+            attentionReason = null;
+          }
         }
         lastTool = event.toolName;
         break;
 
       case 'Stop':
         newStatus = 'idle';
-        // Set low only if was active (avoid noise on repeated stops)
-        if (currentStatus === 'active') {
-          if (currentAttention === 'none') {
-            newAttention = 'low';
-            attentionReason = 'Claude finished its turn';
+        // Set action only if session was active and not already action
+        if (currentStatus === 'active' && currentAttention !== 'action') {
+          // Don't raise action if there are pending tasks that will auto-dispatch
+          const hasPending = db
+            .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
+            .get(sessionId);
+          if (!hasPending) {
+            newAttention = 'action';
+            attentionReason = 'Claude finished — awaiting next input';
           }
         }
         break;
 
       case 'PermissionRequest':
         newStatus = 'waiting';
-        newAttention = 'high';
+        newAttention = 'action';
         attentionReason = event.toolName
           ? `Permission needed: ${event.toolName}`
           : 'Permission needed';
         break;
 
       case 'Notification':
-        // No status change
-        if (currentAttention !== 'high') {
-          newAttention = 'medium';
+        // No status change; info attention unless already action
+        if (currentAttention !== 'action') {
+          newAttention = 'info';
           attentionReason = 'Notification from Claude';
         }
         break;
 
       case 'PostToolUseFailure':
-        if (currentAttention !== 'high') {
-          newAttention = 'medium';
-          attentionReason = event.toolName
-            ? `Tool failed: ${event.toolName}`
-            : 'Tool failure';
-        }
+        // No attention change — Claude handles failures autonomously
         break;
 
       case 'SessionEnd':
         newStatus = 'ended';
-        newAttention = 'none';
-        attentionReason = null;
+        // Resumable sessions (have a claudeSessionId) get action so the user notices
+        newAttention = row.claude_session_id ? 'action' : 'none';
+        attentionReason = row.claude_session_id ? 'Session ended — can resume' : null;
         break;
     }
 
@@ -1073,13 +1087,13 @@ export class SessionManager {
 
       if (
         (row.status === 'active' || row.status === 'idle') &&
-        row.attention_level !== 'high' &&
+        row.attention_level !== 'action' &&
         hasPermissionPrompt &&
         lastDataAt > 0 &&
         now - lastDataAt > SessionManager.PERMISSION_QUIESCENCE_MS
       ) {
         // Permission prompt detected: quiescent + pattern visible
-        this.updateStatusWithAttention(row.session_id, 'waiting', 'high', 'Permission prompt detected');
+        this.updateStatusWithAttention(row.session_id, 'waiting', 'action', 'Permission prompt detected');
       } else if (
         row.status === 'waiting' &&
         !hasPermissionPrompt &&

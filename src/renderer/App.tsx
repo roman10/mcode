@@ -114,10 +114,10 @@ function App(): React.JSX.Element {
 
       upsertSession(session);
 
-      // System notification only when high attention is newly raised.
+      // System notification only when action attention is newly raised.
       if (
-        session.attentionLevel === 'high' &&
-        previousAttention !== 'high' &&
+        session.attentionLevel === 'action' &&
+        previousAttention !== 'action' &&
         !document.hasFocus() &&
         Notification.permission === 'granted'
       ) {
@@ -197,11 +197,11 @@ function App(): React.JSX.Element {
     return unsub;
   }, []);
 
-  // Dock badge: count of high-attention sessions
+  // Dock badge: count of action-attention sessions (those requiring user input)
   useEffect(() => {
     return useSessionStore.subscribe((state) => {
       const highCount = Object.values(state.sessions).filter(
-        (s) => s.attentionLevel === 'high',
+        (s) => s.attentionLevel === 'action',
       ).length;
 
       if (highCount !== prevHighCountRef.current) {
@@ -268,7 +268,7 @@ function App(): React.JSX.Element {
   const viewMode = useLayoutStore((s) => s.viewMode);
 
   const attentionCount = useSessionStore((s) =>
-    Object.values(s.sessions).filter((sess) => sess.attentionLevel !== 'none').length,
+    Object.values(s.sessions).filter((sess) => sess.attentionLevel === 'action').length,
   );
 
   const changesCount = useChangesStore((s) =>

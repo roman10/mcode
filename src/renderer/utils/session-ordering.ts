@@ -1,10 +1,9 @@
 import type { SessionAttentionLevel, SessionInfo, SessionStatus } from '../../shared/types';
 
 const attentionOrder: Record<SessionAttentionLevel, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-  none: 3,
+  action: 0,
+  info:   1,
+  none:   2,
 };
 
 const statusOrder: Record<SessionStatus, number> = {

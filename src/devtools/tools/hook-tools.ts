@@ -24,15 +24,14 @@ export function registerHookTools(
   }, async () => {
     const sessions = ctx.sessionManager.list();
     const counts: Record<SessionAttentionLevel, number> = {
-      high: 0,
-      medium: 0,
-      low: 0,
+      action: 0,
+      info: 0,
       none: 0,
     };
     for (const s of sessions) {
       counts[s.attentionLevel]++;
     }
-    const dockBadge = counts.high > 0 ? String(counts.high) : '';
+    const dockBadge = counts.action > 0 ? String(counts.action) : '';
     return {
       content: [{ type: 'text', text: JSON.stringify({ ...counts, dockBadge }, null, 2) }],
     };
@@ -122,7 +121,7 @@ export function registerHookTools(
     description: 'Wait until a session reaches the specified attention level. Polls every 250ms.',
     inputSchema: {
       sessionId: z.string().describe('The session ID'),
-      attentionLevel: z.enum(['none', 'low', 'medium', 'high']).describe('Target attention level'),
+      attentionLevel: z.enum(['none', 'info', 'action']).describe('Target attention level'),
       timeout_ms: z.number().int().positive().optional().describe('Timeout in milliseconds (default: 15000)'),
     },
     annotations: { readOnlyHint: true },

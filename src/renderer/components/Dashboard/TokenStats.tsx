@@ -102,12 +102,12 @@ function TokenStats(): React.JSX.Element {
 
   // Fetch subscription usage once on mount — independent of date changes
   useEffect(() => {
-    refreshSubscriptionUsage();
+    refreshSubscriptionUsage().catch(console.error);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = useCallback((): void => {
     window.mcode.tokens.refresh().then(() => refreshAll()).catch(console.error);
-    refreshSubscriptionUsage();
+    refreshSubscriptionUsage().catch(console.error);
   }, [refreshAll, refreshSubscriptionUsage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent): void => {

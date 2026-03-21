@@ -37,7 +37,7 @@ export interface TerminalConfig {
 
 export type SessionType = 'claude' | 'terminal';
 export type SessionStatus = 'starting' | 'active' | 'idle' | 'waiting' | 'ended';
-export type SessionAttentionLevel = 'none' | 'low' | 'medium' | 'high';
+export type SessionAttentionLevel = 'none' | 'info' | 'action';
 
 export interface SessionInfo {
   sessionId: string;

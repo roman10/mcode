@@ -18,10 +18,9 @@ interface SessionCardProps {
 }
 
 const attentionBorderColors: Record<string, string> = {
-  high: 'border-l-2 border-l-red-400',
-  medium: 'border-l-2 border-l-amber-400',
-  low: 'border-l-2 border-l-blue-400',
-  none: '',
+  action: 'border-l-2 border-l-red-400',
+  info:   'border-l-2 border-l-amber-400',
+  none:   '',
 };
 
 function SessionCard({

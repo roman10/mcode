@@ -27,9 +27,8 @@ export interface HookRuntimeInfo {
 }
 
 export interface AttentionSummary {
-  high: number;
-  medium: number;
-  low: number;
+  action: number;
+  info: number;
   none: number;
   dockBadge: string;
 }

@@ -41,12 +41,8 @@ export const KANBAN_COLUMNS: KanbanColumnDef[] = [
  * Attention level takes precedence over status.
  */
 export function getKanbanColumn(session: SessionInfo): KanbanColumnId {
-  // High/medium attention or waiting → needs attention
-  if (
-    session.attentionLevel === 'high' ||
-    session.attentionLevel === 'medium' ||
-    session.status === 'waiting'
-  ) {
+  // Action attention or waiting → needs attention (info is informational, no action required)
+  if (session.attentionLevel === 'action' || session.status === 'waiting') {
     return 'needs-attention';
   }
 
@@ -65,10 +61,9 @@ export function getKanbanColumn(session: SessionInfo): KanbanColumnId {
 }
 
 const attentionOrder: Record<string, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-  none: 3,
+  action: 0,
+  info:   1,
+  none:   2,
 };
 
 /**

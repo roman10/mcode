@@ -109,14 +109,14 @@ function TerminalToolbar({
     }
   };
 
-  const highAttentionGlow =
-    attentionLevel === 'high'
+  const actionAttentionGlow =
+    attentionLevel === 'action'
       ? 'shadow-[inset_0_-1px_0_0_rgba(248,113,113,0.5)]'
       : '';
 
   return (
     <div
-      className={`flex items-center h-8 px-3 bg-bg-secondary border-b border-border-default shrink-0 [-webkit-app-region:no-drag] ${highAttentionGlow}`}
+      className={`flex items-center h-8 px-3 bg-bg-secondary border-b border-border-default shrink-0 [-webkit-app-region:no-drag] ${actionAttentionGlow}`}
     >
       {/* Status + label */}
       <span className={`text-xs mr-1.5 ${statusColors[status]}`}>
