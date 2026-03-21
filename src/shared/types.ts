@@ -360,7 +360,8 @@ export interface GitChangedFile {
 
 export interface GitStatusResult {
   repoRoot: string;
-  files: GitChangedFile[];
+  staged: GitChangedFile[];    // index area (X column in porcelain)
+  unstaged: GitChangedFile[];  // worktree area (Y column in porcelain) + untracked
 }
 
 export type GitDiffContent =
@@ -534,6 +535,12 @@ export interface MCodeAPI {
     getTrackedRepos(): Promise<string[]>;
     getCommitFiles(repoPath: string, commitHash: string): Promise<CommitFileEntry[]>;
     getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<GitDiffContent>;
+    stageFile(repoRoot: string, filePath: string): Promise<void>;
+    unstageFile(repoRoot: string, filePath: string): Promise<void>;
+    discardFile(repoRoot: string, filePath: string, isUntracked: boolean): Promise<void>;
+    stageAll(repoRoot: string): Promise<void>;
+    unstageAll(repoRoot: string): Promise<void>;
+    discardAll(repoRoot: string): Promise<void>;
   };
 
   devtools: {

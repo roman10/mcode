@@ -374,6 +374,24 @@ contextBridge.exposeInMainWorld('mcode', {
 
     getCommitFileDiff: (repoPath: string, commitHash: string, filePath: string): Promise<GitDiffContent> =>
       ipcRenderer.invoke('git:commit-file-diff', repoPath, commitHash, filePath),
+
+    stageFile: (repoRoot: string, filePath: string): Promise<void> =>
+      ipcRenderer.invoke('git:stage-file', repoRoot, filePath),
+
+    unstageFile: (repoRoot: string, filePath: string): Promise<void> =>
+      ipcRenderer.invoke('git:unstage-file', repoRoot, filePath),
+
+    discardFile: (repoRoot: string, filePath: string, isUntracked: boolean): Promise<void> =>
+      ipcRenderer.invoke('git:discard-file', repoRoot, filePath, isUntracked),
+
+    stageAll: (repoRoot: string): Promise<void> =>
+      ipcRenderer.invoke('git:stage-all', repoRoot),
+
+    unstageAll: (repoRoot: string): Promise<void> =>
+      ipcRenderer.invoke('git:unstage-all', repoRoot),
+
+    discardAll: (repoRoot: string): Promise<void> =>
+      ipcRenderer.invoke('git:discard-all', repoRoot),
   },
 
   devtools: {

@@ -6,9 +6,15 @@ interface ChangesState {
   loading: boolean;
 
   refreshAll(): Promise<void>;
+  stageFile(repoRoot: string, filePath: string): Promise<void>;
+  unstageFile(repoRoot: string, filePath: string): Promise<void>;
+  discardFile(repoRoot: string, filePath: string, isUntracked: boolean): Promise<void>;
+  stageAll(repoRoot: string): Promise<void>;
+  unstageAll(repoRoot: string): Promise<void>;
+  discardAll(repoRoot: string): Promise<void>;
 }
 
-export const useChangesStore = create<ChangesState>((set) => ({
+export const useChangesStore = create<ChangesState>((set, get) => ({
   statuses: [],
   loading: false,
 
@@ -21,5 +27,35 @@ export const useChangesStore = create<ChangesState>((set) => ({
       console.error('Failed to refresh git statuses:', err);
       set({ loading: false });
     }
+  },
+
+  stageFile: async (repoRoot, filePath) => {
+    await window.mcode.git.stageFile(repoRoot, filePath);
+    await get().refreshAll();
+  },
+
+  unstageFile: async (repoRoot, filePath) => {
+    await window.mcode.git.unstageFile(repoRoot, filePath);
+    await get().refreshAll();
+  },
+
+  discardFile: async (repoRoot, filePath, isUntracked) => {
+    await window.mcode.git.discardFile(repoRoot, filePath, isUntracked);
+    await get().refreshAll();
+  },
+
+  stageAll: async (repoRoot) => {
+    await window.mcode.git.stageAll(repoRoot);
+    await get().refreshAll();
+  },
+
+  unstageAll: async (repoRoot) => {
+    await window.mcode.git.unstageAll(repoRoot);
+    await get().refreshAll();
+  },
+
+  discardAll: async (repoRoot) => {
+    await window.mcode.git.discardAll(repoRoot);
+    await get().refreshAll();
   },
 }));

@@ -38,40 +38,60 @@ function isBinaryBuffer(buffer: Buffer): boolean {
   return false;
 }
 
-/** Parse a single file entry from `git status --porcelain=v1` output. */
-function parseStatusLine(line: string): GitChangedFile | null {
-  if (line.length < 4) return null;
+function codeToStatus(code: string): GitFileStatus {
+  switch (code) {
+    case 'M': return 'modified';
+    case 'A': return 'added';
+    case 'D': return 'deleted';
+    case 'R': return 'renamed';
+    case 'C': return 'added';
+    default: return 'modified';
+  }
+}
+
+/**
+ * Parse a porcelain v1 line into separate staged and unstaged entries.
+ * A file can appear in both (e.g. "MM" — modified in index AND worktree).
+ */
+function parseStatusLine(line: string): { staged: GitChangedFile | null; unstaged: GitChangedFile | null } {
+  if (line.length < 4) return { staged: null, unstaged: null };
 
   const x = line[0]; // index status
   const y = line[1]; // worktree status
   const rest = line.slice(3);
 
-  // Determine status: prefer worktree status (uncommitted), fall back to index
-  let status: GitFileStatus;
-  const code = y !== ' ' ? y : x;
-
-  switch (code) {
-    case 'M': status = 'modified'; break;
-    case 'A': status = 'added'; break;
-    case 'D': status = 'deleted'; break;
-    case 'R': status = 'renamed'; break;
-    case '?': status = 'untracked'; break;
-    default: status = 'modified'; break;
+  // Untracked: both chars are '?'
+  if (x === '?' && y === '?') {
+    return { staged: null, unstaged: { path: rest, status: 'untracked' } };
   }
 
-  // Handle renamed files: "old -> new"
+  // Parse rename syntax "old -> new" if present in either column
+  let newPath = rest;
+  let oldPath: string | undefined;
   if (x === 'R' || y === 'R') {
     const arrow = rest.indexOf(' -> ');
     if (arrow >= 0) {
-      return {
-        path: rest.slice(arrow + 4),
-        status: 'renamed',
-        oldPath: rest.slice(0, arrow),
-      };
+      oldPath = rest.slice(0, arrow);
+      newPath = rest.slice(arrow + 4);
     }
   }
 
-  return { path: rest, status };
+  // Staged entry (from index column X)
+  let staged: GitChangedFile | null = null;
+  if (x !== ' ' && x !== '?') {
+    staged = x === 'R'
+      ? { path: newPath, status: 'renamed', oldPath }
+      : { path: newPath, status: codeToStatus(x) };
+  }
+
+  // Unstaged entry (from worktree column Y)
+  let unstaged: GitChangedFile | null = null;
+  if (y !== ' ' && y !== '?') {
+    // For worktree modifications of a renamed file, use the new path only (no oldPath)
+    unstaged = { path: newPath, status: codeToStatus(y) };
+  }
+
+  return { staged, unstaged };
 }
 
 export class GitChangesService {
@@ -107,7 +127,7 @@ export class GitChangesService {
   async getStatus(cwd: string): Promise<GitStatusResult> {
     const repoRoot = await this.resolveRepoRoot(cwd);
     if (!repoRoot) {
-      return { repoRoot: cwd, files: [] };
+      return { repoRoot: cwd, staged: [], unstaged: [] };
     }
 
     try {
@@ -117,16 +137,18 @@ export class GitChangesService {
         { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS },
       );
 
-      const files: GitChangedFile[] = [];
+      const staged: GitChangedFile[] = [];
+      const unstaged: GitChangedFile[] = [];
       for (const line of stdout.split('\n')) {
         if (!line) continue;
         const parsed = parseStatusLine(line);
-        if (parsed) files.push(parsed);
+        if (parsed.staged) staged.push(parsed.staged);
+        if (parsed.unstaged) unstaged.push(parsed.unstaged);
       }
 
-      return { repoRoot, files };
+      return { repoRoot, staged, unstaged };
     } catch {
-      return { repoRoot, files: [] };
+      return { repoRoot, staged: [], unstaged: [] };
     }
   }
 
@@ -185,7 +207,7 @@ export class GitChangesService {
       seen.add(repoRoot);
 
       const status = await this.getStatus(repoRoot);
-      if (status.files.length > 0) {
+      if (status.staged.length + status.unstaged.length > 0) {
         results.push(status);
       }
     }
@@ -204,6 +226,93 @@ export class GitChangesService {
     }
 
     return [...repos];
+  }
+
+  /** Stage a specific file. */
+  async stageFile(repoRoot: string, filePath: string): Promise<void> {
+    await execFileAsync('git', ['add', '--', filePath], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+  }
+
+  /** Unstage a specific file (move from index back to working tree). */
+  async unstageFile(repoRoot: string, filePath: string): Promise<void> {
+    try {
+      await execFileAsync('git', ['restore', '--staged', '--', filePath], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+    } catch (err) {
+      // Only fall back to `git rm --cached` when HEAD doesn't exist (fresh repo with no commits)
+      const stderr = (err as { stderr?: string }).stderr ?? '';
+      if (!stderr.includes('HEAD')) throw err;
+      await execFileAsync('git', ['rm', '--cached', '--', filePath], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+    }
+  }
+
+  /** Discard working tree changes for a file. For untracked files, deletes them. */
+  async discardFile(repoRoot: string, filePath: string, isUntracked: boolean): Promise<void> {
+    if (isUntracked) {
+      await execFileAsync('git', ['clean', '-f', '--', filePath], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+    } else {
+      await execFileAsync('git', ['restore', '--', filePath], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+    }
+  }
+
+  /** Stage all changes in the repo. */
+  async stageAll(repoRoot: string): Promise<void> {
+    await execFileAsync('git', ['add', '-A'], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+  }
+
+  /** Unstage all staged changes in the repo. */
+  async unstageAll(repoRoot: string): Promise<void> {
+    try {
+      await execFileAsync('git', ['restore', '--staged', '.'], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+    } catch (err) {
+      // Only fall back to `git rm --cached` when HEAD doesn't exist (fresh repo with no commits)
+      const stderr = (err as { stderr?: string }).stderr ?? '';
+      if (!stderr.includes('HEAD')) throw err;
+      await execFileAsync('git', ['rm', '--cached', '-r', '.'], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+    }
+  }
+
+  /** Discard all tracked file changes in the repo (does not delete untracked files). */
+  async discardAll(repoRoot: string): Promise<void> {
+    await execFileAsync('git', ['restore', '.'], { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS });
+  }
+
+  /** Get diff content showing HEAD vs index (staged content) for a specific file. */
+  async getStagedDiffContent(cwd: string, filePath: string): Promise<GitDiffContent> {
+    const repoRoot = await this.resolveRepoRoot(cwd);
+    if (!repoRoot) {
+      return { binary: false, originalContent: '', modifiedContent: '', language: inferLanguage(filePath) };
+    }
+
+    const absolutePath = resolve(cwd, filePath);
+    const relativePath = absolutePath.startsWith(repoRoot + '/')
+      ? absolutePath.slice(repoRoot.length + 1)
+      : filePath;
+    const language = inferLanguage(absolutePath);
+
+    let originalContent = '';
+    try {
+      const { stdout } = await execFileAsync(
+        'git', ['show', `HEAD:${relativePath}`],
+        { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 },
+      );
+      originalContent = stdout;
+    } catch { /* new file — no HEAD version */ }
+
+    let modifiedContent = '';
+    try {
+      const { stdout } = await execFileAsync(
+        'git', ['show', `:${relativePath}`],
+        { cwd: repoRoot, timeout: GIT_COMMAND_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 },
+      );
+      modifiedContent = stdout;
+    } catch { /* deleted from index */ }
+
+    const check = modifiedContent || originalContent;
+    if (check && isBinaryBuffer(Buffer.from(check.slice(0, BINARY_CHECK_SIZE)))) {
+      return { binary: true };
+    }
+
+    return { binary: false, originalContent, modifiedContent, language };
   }
 
   /** Get commit graph log for a repo. Runs git log with topology info. */

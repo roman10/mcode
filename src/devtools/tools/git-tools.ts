@@ -9,7 +9,7 @@ export function registerGitTools(
 ): void {
   server.registerTool('git_get_status', {
     description:
-      'Get git status (uncommitted changes) for a specific working directory. Returns a list of changed files with their status (modified, added, deleted, renamed, untracked).',
+      'Get git status (uncommitted changes) for a specific working directory. Returns staged (index) and unstaged (worktree) file arrays with their status (modified, added, deleted, renamed, untracked).',
     inputSchema: {
       cwd: z.string().describe('Working directory to check git status for'),
     },
@@ -50,6 +50,70 @@ export function registerGitTools(
     return {
       content: [{ type: 'text', text: JSON.stringify(diff, null, 2) }],
     };
+  });
+
+  server.registerTool('git_stage_file', {
+    description: 'Stage a specific file (git add). Moves the file from the working tree to the index.',
+    inputSchema: {
+      repoRoot: z.string().describe('Absolute path to the git repository root'),
+      filePath: z.string().describe('Path to the file relative to the repo root'),
+    },
+  }, async ({ repoRoot, filePath }) => {
+    await ctx.gitChangesService.stageFile(repoRoot, filePath);
+    return { content: [{ type: 'text', text: `Staged: ${filePath}` }] };
+  });
+
+  server.registerTool('git_unstage_file', {
+    description: 'Unstage a specific file (git restore --staged). Moves the file from the index back to the working tree.',
+    inputSchema: {
+      repoRoot: z.string().describe('Absolute path to the git repository root'),
+      filePath: z.string().describe('Path to the file relative to the repo root'),
+    },
+  }, async ({ repoRoot, filePath }) => {
+    await ctx.gitChangesService.unstageFile(repoRoot, filePath);
+    return { content: [{ type: 'text', text: `Unstaged: ${filePath}` }] };
+  });
+
+  server.registerTool('git_discard_file', {
+    description: 'Discard working tree changes for a specific file (git restore). For untracked files, deletes them (git clean -f).',
+    inputSchema: {
+      repoRoot: z.string().describe('Absolute path to the git repository root'),
+      filePath: z.string().describe('Path to the file relative to the repo root'),
+      isUntracked: z.boolean().describe('Whether the file is untracked (not tracked by git)'),
+    },
+  }, async ({ repoRoot, filePath, isUntracked }) => {
+    await ctx.gitChangesService.discardFile(repoRoot, filePath, isUntracked);
+    return { content: [{ type: 'text', text: `Discarded changes: ${filePath}` }] };
+  });
+
+  server.registerTool('git_stage_all', {
+    description: 'Stage all changes in a repository (git add -A).',
+    inputSchema: {
+      repoRoot: z.string().describe('Absolute path to the git repository root'),
+    },
+  }, async ({ repoRoot }) => {
+    await ctx.gitChangesService.stageAll(repoRoot);
+    return { content: [{ type: 'text', text: `Staged all changes in: ${repoRoot}` }] };
+  });
+
+  server.registerTool('git_unstage_all', {
+    description: 'Unstage all staged changes in a repository (git restore --staged .).',
+    inputSchema: {
+      repoRoot: z.string().describe('Absolute path to the git repository root'),
+    },
+  }, async ({ repoRoot }) => {
+    await ctx.gitChangesService.unstageAll(repoRoot);
+    return { content: [{ type: 'text', text: `Unstaged all changes in: ${repoRoot}` }] };
+  });
+
+  server.registerTool('git_discard_all', {
+    description: 'Discard all tracked file changes in a repository (git restore .). Does not delete untracked files — use git_discard_file for those.',
+    inputSchema: {
+      repoRoot: z.string().describe('Absolute path to the git repository root'),
+    },
+  }, async ({ repoRoot }) => {
+    await ctx.gitChangesService.discardAll(repoRoot);
+    return { content: [{ type: 'text', text: `Discarded all tracked changes in: ${repoRoot}` }] };
   });
 
   server.registerTool('git_open_diff_viewer', {

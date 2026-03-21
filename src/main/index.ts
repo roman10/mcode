@@ -356,6 +356,30 @@ function registerGitChangesIpc(): void {
   ipcMain.handle('git:commit-file-diff', (_event, repoPath: string, commitHash: string, filePath: string) => {
     return gitChangesService.getCommitFileDiff(repoPath, commitHash, filePath);
   });
+
+  ipcMain.handle('git:stage-file', (_event, repoRoot: string, filePath: string) => {
+    return gitChangesService.stageFile(repoRoot, filePath);
+  });
+
+  ipcMain.handle('git:unstage-file', (_event, repoRoot: string, filePath: string) => {
+    return gitChangesService.unstageFile(repoRoot, filePath);
+  });
+
+  ipcMain.handle('git:discard-file', (_event, repoRoot: string, filePath: string, isUntracked: boolean) => {
+    return gitChangesService.discardFile(repoRoot, filePath, isUntracked);
+  });
+
+  ipcMain.handle('git:stage-all', (_event, repoRoot: string) => {
+    return gitChangesService.stageAll(repoRoot);
+  });
+
+  ipcMain.handle('git:unstage-all', (_event, repoRoot: string) => {
+    return gitChangesService.unstageAll(repoRoot);
+  });
+
+  ipcMain.handle('git:discard-all', (_event, repoRoot: string) => {
+    return gitChangesService.discardAll(repoRoot);
+  });
 }
 
 function registerPreferencesIpc(): void {
