@@ -3,7 +3,7 @@ import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from './session-manager';
 import { getDb } from './db';
 import { logger } from './logger';
-import { stripAnsi } from '../shared/strip-ansi';
+import { isAtClaudePrompt } from './prompt-detect';
 import type {
   Task,
   TaskStatus,
@@ -36,23 +36,6 @@ interface DispatchState {
   hasStarted: boolean;
   completedViaIdle: boolean;
   dispatchedAtMs: number;
-}
-
-/**
- * Check if the terminal buffer tail shows Claude Code's idle prompt (❯).
- * The raw ring buffer is a linear stream — cursor-repositioned content
- * (e.g. the status bar) appears AFTER the prompt character.  We therefore
- * look for the last ❯ and verify only a short tail follows it (status bar
- * is typically < 300 chars on a single line).
- */
-function isAtClaudePrompt(rawBufferTail: string): boolean {
-  const clean = stripAnsi(rawBufferTail);
-  const lastPrompt = clean.lastIndexOf('❯');
-  if (lastPrompt === -1) return false;
-  const after = clean.slice(lastPrompt + 1);
-  // Status bar is short (< 300 chars) and at most 2 newlines.
-  // Reject if there is substantial multi-line content (Claude still outputting).
-  return after.length < 300 && (after.match(/\n/g) || []).length <= 2;
 }
 
 const PROMPT_QUIESCENCE_MS = 2000;

@@ -10,6 +10,7 @@ import type { AccountManager } from './account-manager';
 import { getDb } from './db';
 import { logger } from './logger';
 import { stripAnsi } from '../shared/strip-ansi';
+import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
 import {
   DEFAULT_COLS,
   DEFAULT_ROWS,
@@ -1054,7 +1055,7 @@ export class SessionManager {
     if (session) this.notifyListeners(session, previousStatus);
   }
 
-  // --- Permission prompt detection via PTY ---
+  // --- PTY-based state detection ---
 
   private static readonly PERMISSION_PATTERNS = [
     /Allow\s+once/,
@@ -1062,10 +1063,10 @@ export class SessionManager {
     /Allow\s+always/,
   ];
 
-  private static readonly PERMISSION_QUIESCENCE_MS = 5000;
+  private static readonly PTY_QUIESCENCE_MS = 5000;
   private static readonly WAITING_RECOVERY_MS = 3000;
 
-  /** Poll active sessions for permission prompts and recover stale waiting states. */
+  /** Poll active sessions for permission prompts, idle prompts, and user-choice menus. */
   pollSessionStates(): void {
     const db = getDb();
     const rows = db
@@ -1083,24 +1084,48 @@ export class SessionManager {
 
       const lastDataAt = this.ptyManager.getLastDataAt(row.session_id);
       const tail = stripAnsi(buffer.slice(-2000));
+      const rawTail = buffer.slice(-2000);
       const hasPermissionPrompt = SessionManager.PERMISSION_PATTERNS.some((re) => re.test(tail));
+      const isQuiescent = lastDataAt > 0 && now - lastDataAt > SessionManager.PTY_QUIESCENCE_MS;
 
       if (
         (row.status === 'active' || row.status === 'idle') &&
         row.attention_level !== 'action' &&
         hasPermissionPrompt &&
-        lastDataAt > 0 &&
-        now - lastDataAt > SessionManager.PERMISSION_QUIESCENCE_MS
+        isQuiescent
       ) {
         // Permission prompt detected: quiescent + pattern visible
         this.updateStatusWithAttention(row.session_id, 'waiting', 'action', 'Permission prompt detected');
       } else if (
+        row.status === 'active' &&
+        row.attention_level !== 'action' &&
+        isQuiescent &&
+        isAtUserChoice(rawTail)
+      ) {
+        // User-choice menu detected (plan mode, AskUserQuestion, etc.)
+        this.updateStatusWithAttention(row.session_id, 'waiting', 'action', 'Waiting for your response');
+      } else if (
+        row.status === 'active' &&
+        isQuiescent &&
+        isAtClaudePrompt(rawTail)
+      ) {
+        // Idle prompt detected: Claude is waiting at ❯ for new input
+        const hasPending = db
+          .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
+          .get(row.session_id);
+        if (hasPending) {
+          this.updateStatus(row.session_id, 'idle');
+        } else {
+          this.updateStatusWithAttention(row.session_id, 'idle', 'action', 'Claude finished — awaiting next input');
+        }
+      } else if (
         row.status === 'waiting' &&
         !hasPermissionPrompt &&
+        !isAtUserChoice(rawTail) &&
         lastDataAt > 0 &&
         now - lastDataAt < SessionManager.WAITING_RECOVERY_MS
       ) {
-        // Permission was answered: recent output + pattern gone
+        // Prompt was answered: recent output + pattern gone
         this.updateStatus(row.session_id, 'active');
       }
     }
