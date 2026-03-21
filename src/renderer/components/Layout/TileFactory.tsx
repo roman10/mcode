@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId, useLayoutStore } from '../../stores/layout-store';
 import TerminalTile from '../Terminal/TerminalTile';
 import FileViewerTile from '../FileViewer/FileViewerTile';
@@ -11,8 +12,13 @@ interface TileFactoryProps {
 }
 
 function ClosableTileWrapper({ tileId, children }: { tileId: string; children: React.ReactNode }): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
   const removeAnyTile = useLayoutStore((s) => s.removeAnyTile);
   const persist = useLayoutStore((s) => s.persist);
+
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     const mod = isMac ? e.metaKey : e.ctrlKey;
@@ -26,6 +32,7 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
 
   return (
     <div
+      ref={ref}
       className="h-full w-full outline-none"
       tabIndex={-1}
       onKeyDown={handleKeyDown}

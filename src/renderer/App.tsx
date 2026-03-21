@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as RadixTooltip from '@radix-ui/react-tooltip';
 import ActivityBar from './components/Sidebar/ActivityBar';
 import SidebarPanel from './components/Sidebar/SidebarPanel';
+import { getLeaves } from 'react-mosaic-component';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import KanbanLayout from './components/Kanban/KanbanLayout';
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
@@ -222,9 +223,8 @@ function App(): React.JSX.Element {
     };
   }, [flushPersist]);
 
-  // Fallback Cmd+W: close the window when no tile handler caught the event.
-  // Tile onKeyDown handlers call stopPropagation(), so this only fires when
-  // focus is outside tiles (sidebar, empty layout, etc.).
+  // Fallback Cmd+W: when focus is outside tiles (sidebar, empty layout, etc.),
+  // close a non-session viewer tile first; only close the window when none remain.
   useEffect(() => {
     const isMac = navigator.userAgent.includes('Mac');
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -235,6 +235,18 @@ function App(): React.JSX.Element {
           return;
         }
         e.preventDefault();
+
+        // Close a non-session tile (viewer) before closing the window
+        const { mosaicTree, removeAnyTile, persist } = useLayoutStore.getState();
+        if (mosaicTree) {
+          const leaves = getLeaves(mosaicTree);
+          const closable = leaves.findLast((id) => !id.startsWith('session:'));
+          if (closable) {
+            removeAnyTile(closable);
+            persist();
+            return;
+          }
+        }
         window.close();
       }
     };
