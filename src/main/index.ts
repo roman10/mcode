@@ -22,6 +22,7 @@ import type {
   ExternalSessionInfo, AppCommand, SessionTokenUsage, DailyTokenUsage,
   ModelTokenBreakdown, TokenWeeklyTrend, TokenHeatmapEntry, AccountProfile,
 } from '../shared/types';
+import { fetchSubscriptionUsage, invalidateSubscriptionCache } from './claude-subscription-fetcher';
 
 // Isolate dev data from production: separate userData/logs directory
 if (!app.isPackaged) {
@@ -427,6 +428,16 @@ function registerAccountIpc(): void {
       accountId,
     });
     return session.sessionId;
+  });
+
+  ipcMain.handle('account:get-subscription-usage', async (_event, accountId: string) => {
+    const account = accountManager.get(accountId);
+    if (!account) return null;
+    return fetchSubscriptionUsage(account);
+  });
+
+  ipcMain.handle('account:invalidate-subscription-cache', (_event, accountId: string) => {
+    invalidateSubscriptionCache(accountId);
   });
 }
 

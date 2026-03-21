@@ -31,6 +31,7 @@ import type {
   TokenWeeklyTrend,
   TokenHeatmapEntry,
   AccountProfile,
+  SubscriptionUsage,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -51,6 +52,12 @@ contextBridge.exposeInMainWorld('mcode', {
 
     openAuthTerminal: (accountId: string): Promise<string> =>
       ipcRenderer.invoke('account:open-auth-terminal', accountId),
+
+    getSubscriptionUsage: (accountId: string): Promise<SubscriptionUsage | null> =>
+      ipcRenderer.invoke('account:get-subscription-usage', accountId),
+
+    invalidateSubscriptionCache: (accountId: string): Promise<void> =>
+      ipcRenderer.invoke('account:invalidate-subscription-cache', accountId),
   },
 
   pty: {

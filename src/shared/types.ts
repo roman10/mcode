@@ -13,6 +13,20 @@ export interface AccountProfile {
   lastUsedAt: string | null;
 }
 
+// --- Subscription Usage ---
+
+export interface RateLimitWindow {
+  utilization: number;     // 0–100 percent
+  resetsAt: string | null; // ISO-8601 datetime, or null
+}
+
+export interface SubscriptionUsage {
+  fiveHour: RateLimitWindow | null;
+  sevenDay: RateLimitWindow | null;
+  sevenDayOpus: RateLimitWindow | null; // null if not present in API response
+  fetchedAt: string; // ISO-8601 timestamp
+}
+
 // --- Terminal Config ---
 
 export interface TerminalConfig {
@@ -405,6 +419,8 @@ export interface MCodeAPI {
     delete(accountId: string): Promise<void>;
     getAuthStatus(accountId: string): Promise<{ loggedIn: boolean; email?: string }>;
     openAuthTerminal(accountId: string): Promise<string>; // returns sessionId of auth terminal
+    getSubscriptionUsage(accountId: string): Promise<SubscriptionUsage | null>;
+    invalidateSubscriptionCache(accountId: string): Promise<void>;
   };
 
   pty: {

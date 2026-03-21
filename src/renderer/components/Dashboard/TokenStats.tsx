@@ -1,10 +1,11 @@
 import { useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useTokenStore } from '../../stores/token-store';
+import { useAccountsStore } from '../../stores/accounts-store';
 import Tooltip from '../shared/Tooltip';
 import HeatmapGrid from '../shared/HeatmapGrid';
-import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
-import type { TokenHeatmapEntry, ModelUsageSummary } from '../../../shared/types';
+import { todayStr, shiftDate, formatDateLabel, daysDiff, formatTimeUntil } from '../../utils/date-nav';
+import type { TokenHeatmapEntry, ModelUsageSummary, SubscriptionUsage } from '../../../shared/types';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 const RETENTION_DAYS = 90;
@@ -50,9 +51,43 @@ function ModelPill({ model, totalCost }: { model: ModelUsageSummary; totalCost: 
   );
 }
 
+function UsageQuotaBar({ label, utilization, resetsAt }: { label: string; utilization: number; resetsAt: string | null }): React.JSX.Element {
+  const pct = Math.min(100, Math.max(0, utilization));
+  const fillColor = pct >= 95 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-blue-500';
+  const timeStr = formatTimeUntil(resetsAt);
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-text-muted w-12 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-bg-elevated overflow-hidden">
+        <div className={`h-full rounded-full ${fillColor} transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-text-muted w-8 text-right shrink-0">{Math.round(pct)}%</span>
+      {timeStr && <span className="text-text-muted/70 shrink-0">{timeStr}</span>}
+    </div>
+  );
+}
+
+function UsageQuotaSection({ usage, accountName }: { usage: SubscriptionUsage; accountName?: string }): React.JSX.Element {
+  return (
+    <div className="space-y-1.5">
+      {accountName && <div className="text-xs text-text-muted font-medium">{accountName}</div>}
+      {usage.fiveHour && (
+        <UsageQuotaBar label="5-hour" utilization={usage.fiveHour.utilization} resetsAt={usage.fiveHour.resetsAt} />
+      )}
+      {usage.sevenDay && (
+        <UsageQuotaBar label="7-day" utilization={usage.sevenDay.utilization} resetsAt={usage.sevenDay.resetsAt} />
+      )}
+      {usage.sevenDayOpus && (
+        <UsageQuotaBar label="Opus" utilization={usage.sevenDayOpus.utilization} resetsAt={usage.sevenDayOpus.resetsAt} />
+      )}
+    </div>
+  );
+}
+
 function TokenStats(): React.JSX.Element {
   const { dailyUsage, heatmap, weeklyTrend, loading, refreshAll, selectedDate, setSelectedDate } =
     useTokenStore();
+  const { accounts, subscriptionByAccount, refreshSubscriptionUsage } = useAccountsStore();
 
   useEffect(() => {
     refreshAll();
@@ -65,9 +100,15 @@ function TokenStats(): React.JSX.Element {
     return unsub;
   }, [refreshAll]);
 
+  // Fetch subscription usage once on mount — independent of date changes
+  useEffect(() => {
+    refreshSubscriptionUsage();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleRefresh = useCallback((): void => {
     window.mcode.tokens.refresh().then(() => refreshAll()).catch(console.error);
-  }, [refreshAll]);
+    refreshSubscriptionUsage();
+  }, [refreshAll, refreshSubscriptionUsage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent): void => {
     const mod = isMac ? e.metaKey : e.ctrlKey;
@@ -246,6 +287,25 @@ function TokenStats(): React.JSX.Element {
             )}
           </div>
         )}
+
+        {/* Usage Quota */}
+        {(() => {
+          const quotaAccounts = accounts.filter((a) => subscriptionByAccount[a.accountId] != null);
+          if (quotaAccounts.length === 0) return null;
+          const multiAccount = quotaAccounts.length > 1;
+          return (
+            <div className="space-y-3">
+              <div className="text-xs text-text-muted font-medium">Usage Quota</div>
+              {quotaAccounts.map((a) => (
+                <UsageQuotaSection
+                  key={a.accountId}
+                  usage={subscriptionByAccount[a.accountId]!}
+                  accountName={multiAccount ? a.name : undefined}
+                />
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Empty state */}
         {cost === 0 && messageCount === 0 && (
