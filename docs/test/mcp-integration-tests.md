@@ -193,7 +193,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 | 1 | switches view mode to kanban and back | `layout_get_view_mode`, `layout_set_view_mode` | Set kanban → read kanban; set tiles → read tiles |
 | 2 | groups active sessions into the working column | `kanban_get_columns` | Active session appears in `working` column |
 | 3 | moves ended sessions to the completed column | `kanban_get_columns` | Killed session appears in `completed` column |
-| 4 | moves sessions with high attention to needs-attention column | `kanban_get_columns`, `hook_inject_event` | PermissionRequest → session in `needs-attention` column |
+| 4 | moves sessions with action attention to needs-attention column | `kanban_get_columns`, `hook_inject_event` | PermissionRequest → session in `needs-attention` column |
 | 5 | expands a session and reports expandedSessionId | `kanban_expand_session`, `kanban_get_columns`, `kanban_collapse` | expandedSessionId matches; collapse clears it |
 | 6 | auto-collapses when expanded session is killed | `kanban_expand_session`, `kanban_get_columns`, `session_kill` | expandedSessionId becomes null after kill |
 | 7 | clears expansion when switching view modes | `layout_set_view_mode`, `kanban_get_columns` | Switch tiles→kanban clears expandedSessionId |
@@ -435,17 +435,18 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 2 | SessionStart transitions to active | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status becomes `active`, claudeSessionId is set |
 | 3 | PreToolUse updates lastTool | `hook_inject_event` | `lastTool` reflects the tool name |
 | 4 | PostToolUse stays active | `hook_inject_event` | Status remains `active` |
-| 5 | Stop transitions to idle with low attention | `hook_inject_event` | Status `idle`, attention `low` |
-| 6 | PermissionRequest transitions to waiting with high attention | `hook_inject_event` | Status `waiting`, attention `high`, reason contains tool name |
-| 7 | PostToolUse returns to active but attention stays high | `hook_inject_event` | Status `active`, attention `high` |
-| 8 | SessionEnd transitions to ended and clears attention | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status `ended`, attention `none` |
-| 9 | events are persisted and retrievable | `hook_list_recent` | Events list is non-empty, contains correct sessionId |
-| 10 | POST garbage to hook server returns 400 | direct HTTP fetch | 400 status on malformed JSON (skipped if runtime not ready) |
-| 11 | valid JSON but unknown event name returns 400 | direct HTTP fetch | 400 for `MadeUpEvent` |
-| 12 | valid event but unknown session returns 404 | direct HTTP fetch | 404 for nonexistent session header |
-| 13 | Stop when already idle does not change attention | `hook_inject_event`, `session_clear_attention`, `session_get_status` | Second Stop on idle session with cleared attention keeps attention `none` |
-| 14 | PTY exit transitions to ended and clears attention | `session_kill`, `session_wait_for_status` | Status `ended`, attention `none` after kill |
-| 15 | hook_list_recent_all returns events across sessions | `hook_list_recent_all` | Non-empty array with events from multiple sessions |
+| 5 | Stop transitions to idle with action attention | `hook_inject_event` | Status `idle`, attention `action` |
+| 6 | PermissionRequest transitions to waiting with action attention | `hook_inject_event` | Status `waiting`, attention `action`, reason contains tool name |
+| 7 | PostToolUse returns to active and clears action attention | `hook_inject_event` | Status `active`, attention `none` |
+| 8 | SessionEnd transitions to ended and clears attention (no claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status `ended`, attention `none` |
+| 9 | SessionEnd sets action attention when session is resumable (has claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status `ended`, attention `action`, reason is "Session ended — can resume" |
+| 10 | events are persisted and retrievable | `hook_list_recent` | Events list is non-empty, contains correct sessionId |
+| 11 | POST garbage to hook server returns 400 | direct HTTP fetch | 400 status on malformed JSON (skipped if runtime not ready) |
+| 12 | valid JSON but unknown event name returns 400 | direct HTTP fetch | 400 for `MadeUpEvent` |
+| 13 | valid event but unknown session returns 200 (silently accepted) | direct HTTP fetch | 200 for nonexistent session header |
+| 14 | Stop when already idle does not change attention | `hook_inject_event`, `session_clear_attention`, `session_get_status` | Second Stop on idle session with cleared attention keeps attention `none` |
+| 15 | PTY exit transitions to ended and clears attention | `session_kill`, `session_wait_for_status` | Status `ended`, attention `none` after kill |
+| 16 | hook_list_recent_all returns events across sessions | `hook_list_recent_all` | Non-empty array with events from multiple sessions |
 
 ### 22. Attention System
 
@@ -454,16 +455,16 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 
 | # | Test | MCP tools | What it checks |
 |---|------|-----------|----------------|
-| 1 | PermissionRequest sets high attention | `hook_inject_event` | attention `high`, status `waiting` |
-| 2 | attention summary reports one high session | `app_get_attention_summary` | `high >= 1`, dockBadge truthy |
-| 3 | Notification sets medium attention on another session | `hook_inject_event` | attention `medium`, status `active` |
-| 4 | Stop sets low attention on a third session | `hook_inject_event` | attention `low`, status `idle` |
+| 1 | PermissionRequest sets action attention | `hook_inject_event` | attention `action`, status `waiting` |
+| 2 | attention summary reports one action session | `app_get_attention_summary` | `action >= 1`, dockBadge truthy |
+| 3 | Notification sets info attention on another session | `hook_inject_event` | attention `info`, status `active` |
+| 4 | Stop sets action attention on a third session (no pending tasks) | `hook_inject_event` | attention `action`, status `idle` |
 | 5 | clear_attention clears one session without changing status | `session_clear_attention` | attention `none`, status unchanged |
 | 6 | clear_all_attention clears all sessions | `session_clear_all_attention`, `app_get_attention_summary` | all counts zero |
-| 7 | high attention is not overridden by medium events | `hook_inject_event` | attention stays `high` after Notification |
-| 8 | PostToolUseFailure sets medium attention | `hook_inject_event` | attention `medium`, reason contains tool name |
+| 7 | action attention is not overridden by info events | `hook_inject_event` | attention stays `action` after Notification |
+| 8 | PostToolUseFailure does not change attention | `hook_inject_event` | attention `none` (Claude handles tool failures autonomously) |
 | 9 | user selection clears attention for that session only | `sidebar_select_session`, `session_get_status` | selected session cleared, other unchanged |
-| 10 | sidebar sorts sessions by attention level (high first) | `sidebar_get_sessions` | high index < medium index < low index |
+| 10 | sidebar sorts sessions: action first, then info, then none | `sidebar_get_sessions` | action index < info index < none index |
 
 ### 23. Task Queue
 
@@ -574,14 +575,14 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | App introspection | 14, 15, 16 | 10 | Version, console logs (filter + limit), HMR events, sleep prevention, renderer bridge |
 | Permission modes | 19 | 1 | PERMISSION_MODES constant matches Claude CLI |
 | Hook config | 20 | 9 | Merge/remove mcode hooks, preserve user hooks, PID header, multi-instance, port-scoped removal, port+PID extraction |
-| Hook integration | 21 | 15 | Event lifecycle (all hook events), status transitions, event persistence, HTTP error responses, PTY exit, cross-session events |
-| Attention system | 22 | 10 | Attention levels (high/medium/low), priority ordering, clearing, sidebar sorting |
+| Hook integration | 21 | 16 | Event lifecycle (all hook events), status transitions, event persistence, HTTP error responses, PTY exit, cross-session events |
+| Attention system | 22 | 10 | Attention levels (action/info/none), priority ordering, clearing, sidebar sorting |
 | Task queue | 23 | 16 | Task CRUD, update, dispatch, sequential dispatch, failure on session end, scheduling, validation |
 | Commit tracking | 24 | 10 | Daily stats, heatmap, streaks, cadence, weekly trend, scan mode |
 | File tools | 25 | 7 | File listing (git-aware), read (text + binary), write round-trip, file viewer, quick open |
 | Token usage | 26 | 9 | Refresh scan, daily/session/model usage, weekly trend, heatmap |
 | Git tools | 27 | 6 | Git status (single repo + all repos), diff content, diff viewer |
-| **Total** | **27** | **180** | |
+| **Total** | **27** | **181** | |
 
 ## Writing New Tests
 
