@@ -947,10 +947,11 @@ app.on('before-quit', (e) => {
     // Release sleep blocker
     sleepBlocker.detach();
 
-    // Stop task queue dispatch, commit tracker, and token tracker
+    // Stop task queue dispatch, commit tracker, token tracker, and update checker
     taskQueue.stop();
     commitTracker.stop();
     tokenTracker.stop();
+    updateChecker.stop();
 
     // Clean up hook config (primary + all secondary account settings)
     if (hookRuntimeInfo.port) {

@@ -499,6 +499,11 @@ export interface MCodeAPI {
     getPathForFile(file: File): string;
     onError(callback: (error: string) => void): () => void;
     onCommand(callback: (command: AppCommand) => void): () => void;
+    onUpdateAvailable(
+      callback: (info: { version: string }) => void,
+    ): () => void;
+    openUpdatePage(): Promise<void>;
+    checkForUpdate(): Promise<void>;
   };
 
   preferences: {

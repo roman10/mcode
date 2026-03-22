@@ -255,6 +255,24 @@ contextBridge.exposeInMainWorld('mcode', {
       ipcRenderer.on('app:command', handler);
       return () => ipcRenderer.removeListener('app:command', handler);
     },
+
+    onUpdateAvailable: (
+      cb: (info: { version: string }) => void,
+    ): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        info: { version: string },
+      ): void => cb(info);
+      ipcRenderer.on('app:update-available', handler);
+      return () =>
+        ipcRenderer.removeListener('app:update-available', handler);
+    },
+
+    openUpdatePage: (): Promise<void> =>
+      ipcRenderer.invoke('app:open-update-page'),
+
+    checkForUpdate: (): Promise<void> =>
+      ipcRenderer.invoke('app:check-for-update'),
   },
 
   tasks: {
