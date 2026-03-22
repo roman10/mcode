@@ -1,5 +1,7 @@
 import { spawn, execFile } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { promisify } from 'node:util';
 import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -16,7 +18,8 @@ function resolveRgPath(): string | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const raw: string = require('@vscode/ripgrep').rgPath;
-    return raw.replace('app.asar', 'app.asar.unpacked');
+    const resolved = raw.replace('app.asar', 'app.asar.unpacked');
+    return existsSync(resolved) ? resolved : null;
   } catch {
     // Fall back to system rg if @vscode/ripgrep is not available
     return null;
@@ -60,8 +63,12 @@ export class FileSearch {
 
     const startTime = Date.now();
 
+    // Filter out overly broad directories (e.g. home dir from auth terminal sessions)
+    const home = homedir();
+    const filteredCwds = cwds.filter((cwd) => cwd !== home);
+
     // Deduplicate cwds by git root
-    const repoRoots = await this.deduplicateByGitRoot(cwds);
+    const repoRoots = await this.deduplicateByGitRoot(filteredCwds);
     if (repoRoots.length === 0) {
       this.emit({ type: 'complete', searchId, totalMatches: 0, totalFiles: 0, truncated: false, durationMs: 0 });
       return searchId;
