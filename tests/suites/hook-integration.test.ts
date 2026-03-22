@@ -120,12 +120,13 @@ describe('hook integration', () => {
     expect(ended.attentionReason).toBe('Session ended — can resume');
   });
 
-  it('events are persisted and retrievable', async () => {
+  it('events are persisted and retrievable with sessionStatus', async () => {
     const sessionId = sessionIds[0];
     const events = await getRecentEvents(client, sessionId);
     expect(events.length).toBeGreaterThan(0);
     expect(events[0].sessionId).toBe(sessionId);
     expect(events[0].hookEventName).toBeTruthy();
+    expect(events[0].sessionStatus).toBeDefined();
   });
 
   it('POST garbage to hook server returns 400 (if runtime is ready)', async () => {
@@ -220,14 +221,34 @@ describe('hook integration', () => {
     expect(ended.attentionLevel).toBe('none');
   });
 
-  it('hook_list_recent_all returns events across sessions', async () => {
+  it('sessionStatus reflects correct state after each event', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+
+    // Inject a sequence of events and verify each resulting sessionStatus
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', { toolName: 'Read' });
+    await injectHookEvent(client, session.sessionId, 'Stop');
+    await injectHookEvent(client, session.sessionId, 'PermissionRequest', { toolName: 'Bash' });
+
+    const events = await getRecentEvents(client, session.sessionId);
+    // Events are DESC order: PermissionRequest, Stop, PreToolUse, SessionStart
+    expect(events[0].sessionStatus).toBe('waiting');
+    expect(events[1].sessionStatus).toBe('idle');
+    expect(events[2].sessionStatus).toBe('active');
+    expect(events[3].sessionStatus).toBe('active');
+  });
+
+  it('hook_list_recent_all returns events with sessionStatus across sessions', async () => {
     // Earlier tests in this suite injected events into multiple sessions.
     // hook_list_recent_all should return events from across all of them.
-    const events = await client.callToolJson<Array<{ sessionId: string }>>(
+    const events = await client.callToolJson<Array<{ sessionId: string; sessionStatus?: string }>>(
       'hook_list_recent_all',
     );
     expect(Array.isArray(events)).toBe(true);
     expect(events.length).toBeGreaterThan(0);
+    expect(events[0].sessionStatus).toBeDefined();
   });
 
   it('hook_clear_all_events removes all events', async () => {

@@ -19,6 +19,15 @@ const EVENT_COLORS: Record<string, string> = {
   Notification: 'bg-purple-800 text-purple-200',
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  starting: 'text-amber-400',
+  active: 'text-green-400',
+  idle: 'text-blue-400',
+  waiting: 'text-red-400',
+  detached: 'text-neutral-400',
+  ended: 'text-neutral-500',
+};
+
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const secs = Math.floor(diff / 1000);
@@ -158,6 +167,13 @@ function ActivityFeed(): React.JSX.Element {
                 <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${colorClass}`}>
                   {event.hookEventName}
                 </span>
+
+                {/* Session status after event */}
+                {event.sessionStatus && (
+                  <span className={`text-xs shrink-0 pt-0.5 ${STATUS_COLORS[event.sessionStatus] ?? 'text-text-muted'}`}>
+                    {event.sessionStatus}
+                  </span>
+                )}
 
                 {/* Detail */}
                 <span className="text-xs text-text-muted truncate flex-1 pt-0.5">

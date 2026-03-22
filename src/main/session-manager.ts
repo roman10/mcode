@@ -603,9 +603,6 @@ export class SessionManager {
       });
     }
 
-    // Persist event
-    this.persistEvent(sessionId, event);
-
     // Persist claude_session_id if present
     if (event.claudeSessionId) {
       db.prepare(
@@ -713,6 +710,9 @@ export class SessionManager {
         break;
     }
 
+    // Persist event with computed status
+    this.persistEvent(sessionId, event, newStatus);
+
     // Build update
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -749,7 +749,7 @@ export class SessionManager {
     }
 
     this.broadcastSessionUpdate(sessionId);
-    this.broadcastHookEvent(event);
+    this.broadcastHookEvent({ ...event, sessionStatus: newStatus });
 
     if (newStatus !== currentStatus) {
       const session = this.get(sessionId);
@@ -759,13 +759,13 @@ export class SessionManager {
     return true;
   }
 
-  private persistEvent(sessionId: string, event: HookEvent): void {
+  private persistEvent(sessionId: string, event: HookEvent, sessionStatus: SessionStatus): void {
     const db = getDb();
     const toolInput = serializeToolInput(event.toolInput);
 
     db.prepare(
-      `INSERT INTO events (session_id, claude_session_id, hook_event_name, tool_name, tool_input, payload, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO events (session_id, claude_session_id, hook_event_name, tool_name, tool_input, payload, created_at, session_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       sessionId,
       event.claudeSessionId,
@@ -774,6 +774,7 @@ export class SessionManager {
       toolInput,
       JSON.stringify(event.payload),
       event.createdAt,
+      sessionStatus,
     );
   }
 
@@ -1168,6 +1169,7 @@ export class SessionManager {
         tool_input: string | null;
         payload: string;
         created_at: string;
+        session_status: string | null;
       }>;
 
     return rows.map((r) => ({
@@ -1178,6 +1180,7 @@ export class SessionManager {
       toolInput: tryParseJson<Record<string, unknown>>(r.tool_input),
       createdAt: r.created_at,
       payload: tryParseJson<Record<string, unknown>>(r.payload) ?? {},
+      sessionStatus: (r.session_status as SessionStatus) ?? undefined,
     }));
   }
 
@@ -1288,6 +1291,7 @@ export class SessionManager {
         tool_input: string | null;
         payload: string;
         created_at: string;
+        session_status: string | null;
       }>;
 
     return rows.map((r) => ({
@@ -1298,6 +1302,7 @@ export class SessionManager {
       toolInput: tryParseJson<Record<string, unknown>>(r.tool_input),
       createdAt: r.created_at,
       payload: tryParseJson<Record<string, unknown>>(r.payload) ?? {},
+      sessionStatus: (r.session_status as SessionStatus) ?? undefined,
     }));
   }
 

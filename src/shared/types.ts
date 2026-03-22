@@ -202,6 +202,8 @@ export interface HookEvent {
   toolInput: Record<string, unknown> | null;
   createdAt: string;
   payload: Record<string, unknown>;
+  /** Session status after this event was processed. Undefined for pre-migration rows. */
+  sessionStatus?: SessionStatus;
 }
 
 // --- Task Queue ---
