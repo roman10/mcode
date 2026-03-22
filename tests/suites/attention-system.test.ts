@@ -3,6 +3,7 @@ import { McpTestClient } from '../mcp-client';
 import {
   createTestSession,
   waitForActive,
+  killAndWaitEnded,
   cleanupSessions,
   injectHookEvent,
   getAttentionSummary,
@@ -146,6 +147,28 @@ describe('attention system', () => {
     const s2Info = await client.callToolJson<SessionInfo>('session_get_status', { sessionId: s2.sessionId });
     expect(s1Info.attentionLevel).toBe('none');
     expect(s2Info.attentionLevel).toBe('info');
+  });
+
+  it('killing a session with active attention clears it', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+
+    // Set action attention
+    const updated = await injectHookEvent(client, session.sessionId, 'PermissionRequest');
+    expect(updated.attentionLevel).toBe('action');
+
+    // Kill the session
+    await killAndWaitEnded(client, session.sessionId);
+
+    // Verify attention is cleared
+    const ended = await client.callToolJson<SessionInfo>('session_get_status', {
+      sessionId: session.sessionId,
+    });
+    expect(ended.status).toBe('ended');
+    expect(ended.attentionLevel).toBe('none');
+    expect(ended.attentionReason).toBeNull();
   });
 
   it('sidebar sorts sessions: action first, then info, then none', async () => {

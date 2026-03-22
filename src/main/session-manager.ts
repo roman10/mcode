@@ -904,9 +904,10 @@ export class SessionManager {
   }
 
   async kill(sessionId: string): Promise<void> {
-    // PTY's onExit callback handles the status transition to 'ended',
-    // so we don't call updateStatus here (avoids double transition).
     await this.ptyManager.kill(sessionId);
+    // Ensure status transitions to 'ended' even if PTY handle was already gone
+    // (e.g., detached sessions). Idempotent — no-op if onExit already fired.
+    this.updateStatus(sessionId, 'ended');
     logger.info('session', 'Killed session', { sessionId });
   }
 
