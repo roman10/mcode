@@ -814,6 +814,34 @@ app.whenReady().then(async () => {
   // handlers before they exist if the window is created earlier.
   mainWindow = createMainWindow();
 
+  // Confirm before closing with active sessions (catches Cmd+W, red X, etc.)
+  let forceClose = false;
+  mainWindow.on('close', (e) => {
+    if (isQuitting || forceClose) return;
+
+    const activeCount = sessionManager.activeSessionCount();
+    if (activeCount === 0) return;
+
+    e.preventDefault();
+
+    dialog
+      .showMessageBox(mainWindow!, {
+        type: 'question',
+        message: `${activeCount} session${activeCount === 1 ? ' is' : 's are'} still running`,
+        detail:
+          'Sessions will continue running in the background. You can reopen the app to reconnect.',
+        buttons: ['Close Window', 'Cancel'],
+        defaultId: 0,
+        cancelId: 1,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          forceClose = true;
+          mainWindow?.close();
+        }
+      });
+  });
+
   // Initialize hook system (server + config reconciliation)
   await initializeHookSystem();
 

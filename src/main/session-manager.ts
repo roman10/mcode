@@ -940,6 +940,15 @@ export class SessionManager {
       .get();
   }
 
+  /** Count sessions in an active-like state. */
+  activeSessionCount(): number {
+    const db = getDb();
+    const row = db
+      .prepare("SELECT COUNT(*) as count FROM sessions WHERE status IN ('starting', 'active', 'idle', 'waiting')")
+      .get() as { count: number };
+    return row.count;
+  }
+
   getLastDefaults(): SessionDefaults | null {
     const db = getDb();
     const row = db
