@@ -1089,7 +1089,6 @@ export class SessionManager {
   ];
 
   private static readonly PTY_QUIESCENCE_MS = 5000;
-  private static readonly WAITING_RECOVERY_MS = 3000;
 
   /** Poll active sessions for permission prompts, idle prompts, and user-choice menus. */
   pollSessionStates(): void {
@@ -1130,7 +1129,7 @@ export class SessionManager {
         // User-choice menu detected (plan mode, AskUserQuestion, etc.)
         this.updateStatusWithAttention(row.session_id, 'waiting', 'action', 'Waiting for your response');
       } else if (
-        row.status === 'active' &&
+        (row.status === 'active' || row.status === 'waiting') &&
         isQuiescent &&
         isAtClaudePrompt(rawTail)
       ) {
@@ -1143,16 +1142,11 @@ export class SessionManager {
         } else {
           this.updateStatusWithAttention(row.session_id, 'idle', 'action', 'Claude finished — awaiting next input');
         }
-      } else if (
-        row.status === 'waiting' &&
-        !hasPermissionPrompt &&
-        !isAtUserChoice(rawTail) &&
-        lastDataAt > 0 &&
-        now - lastDataAt < SessionManager.WAITING_RECOVERY_MS
-      ) {
-        // Prompt was answered: recent output + pattern gone
-        this.updateStatus(row.session_id, 'active');
       }
+      // Note: no explicit waiting → active recovery here. When the user
+      // answers a permission prompt, PreToolUse/PostToolUse hooks handle
+      // the transition. The idle-prompt branch above also covers 'waiting'
+      // as a fallback if hooks fail and Claude reaches the ❯ prompt.
     }
   }
 

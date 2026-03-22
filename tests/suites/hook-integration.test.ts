@@ -240,6 +240,38 @@ describe('hook integration', () => {
     expect(events[3].sessionStatus).toBe('active');
   });
 
+  it('polling does not override hook-driven waiting status', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+
+    // Send terminal data to keep lastDataAt fresh (triggers the old poll recovery condition)
+    await client.callTool('terminal_send_keys', {
+      sessionId: session.sessionId,
+      keys: 'echo poll-test\n',
+    });
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Set waiting via PermissionRequest hook
+    const updated = await injectHookEvent(
+      client,
+      session.sessionId,
+      'PermissionRequest',
+      { toolName: 'ExitPlanMode' },
+    );
+    expect(updated.status).toBe('waiting');
+
+    // Wait for at least one poll cycle (poll runs every 2s)
+    await new Promise((r) => setTimeout(r, 3000));
+
+    // Status should still be waiting — poll should not have reset it
+    const afterPoll = await client.callToolJson<SessionInfo>('session_get_status', {
+      sessionId: session.sessionId,
+    });
+    expect(afterPoll.status).toBe('waiting');
+  });
+
   it('hook_list_recent_all returns events with sessionStatus across sessions', async () => {
     // Earlier tests in this suite injected events into multiple sessions.
     // hook_list_recent_all should return events from across all of them.
