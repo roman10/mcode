@@ -57,14 +57,6 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
           badge={attentionCount}
         />
         <ActivityBarButton
-          icon={<GitCommitHorizontal size={20} strokeWidth={1.5} />}
-          tab="commits"
-          active={activeTab}
-          panelCollapsed={panelCollapsed}
-          onSelect={onTabSelect}
-          tooltip={`Commits (${formatKeys('Shift+B', true)})`}
-        />
-        <ActivityBarButton
           icon={<FileDiff size={20} strokeWidth={1.5} />}
           tab="changes"
           active={activeTab}
@@ -72,6 +64,14 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
           onSelect={onTabSelect}
           tooltip={`Changes (${formatKeys('Shift+C', true)})`}
           badge={changesCount}
+        />
+        <ActivityBarButton
+          icon={<GitCommitHorizontal size={20} strokeWidth={1.5} />}
+          tab="commits"
+          active={activeTab}
+          panelCollapsed={panelCollapsed}
+          onSelect={onTabSelect}
+          tooltip={`Commits (${formatKeys('Shift+B', true)})`}
         />
         <ActivityBarButton
           icon={<Coins size={20} strokeWidth={1.5} />}
