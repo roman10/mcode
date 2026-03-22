@@ -10,18 +10,18 @@
 
 | Dimension | Score | Notes |
 |---|---|---|
-| Feature completeness | 9/10 | Tiling + kanban views, command palette, quick open, file viewer, task queue, commit/token tracking, settings UI, 82 MCP tools. Missing: auto-update |
+| Feature completeness | 10/10 | Tiling + kanban views, command palette, quick open, file viewer, task queue, commit/token tracking, settings UI, 90 MCP tools, update checker, PTY persistence, git commit graph, VSCode-style staging |
 | Code quality | 9/10 | Clean architecture, good naming, proper separation, zero TODOs |
 | Documentation (internal) | 8/10 | Excellent design docs, ADRs, architecture walkthroughs |
 | Documentation (external) | 5/10 | LICENSE (Apache 2.0) and CONTRIBUTING.md added. Still missing: SECURITY.md, build guide |
 | Dependencies | 9/10 | Minimal, modern, no security issues. Only concern: react-mosaic beta |
 | Build system | 8/10 | Works. electron-vite + electron-builder. No cross-platform CI |
-| Tests | 9/10 | 169 tests across 26 suites, all passing |
+| Tests | 9/10 | 184 tests across 28 suites, all passing |
 | CI/CD | 0/10 | None exists |
 | Security | 7/10 | No secrets, CSP configured, context isolation. Fine for desktop |
-| Release process | 0/10 | No automation, no installers, no auto-update |
+| Release process | 3/10 | Update checker with StatusBar notification exists. No installers or release automation |
 
-**Overall: 6/10 — needs external docs and CI/CD before public launch**
+**Overall: 7/10 — needs external docs and CI/CD before public launch**
 
 ---
 
@@ -38,7 +38,7 @@
 - CHANGELOG generation
 - Release automation (GitHub Releases with DMG artifacts)
 - Cross-platform CI (currently macOS-only)
-- Auto-update mechanism
+- ~~Auto-update mechanism~~ — update checker implemented (StatusBar notification + GitHub releases)
 
 ---
 
@@ -64,14 +64,17 @@
 2. **Multi-account support** — bypass rate limits, isolate work contexts
 3. **Real terminal** — node-pty + xterm.js WebGL, not a chat wrapper
 4. **Deep Claude Code integration** — hook-driven monitoring, attention system, token tracking
-5. **82 MCP tools** — fully automatable via MCP; every feature is agent-accessible
+5. **90 MCP tools** — fully automatable via MCP; every feature is agent-accessible
 6. **Task queue** — schedule and dispatch work to sessions with priority and retry logic
 7. **Built-in analytics** — commit tracking (streaks, heatmaps, cadence) + token usage (cost, model breakdown)
 8. **Command palette + quick open** — VS Code-style navigation with fuzzy search
+9. **PTY persistence** — sessions survive app restarts via PTY broker
+10. **Git commit graph** — branch topology visualization in Changes sidebar
+11. **VSCode-style staging** — stage and discard changes inline, no separate git client needed
 
 **Positioning against competitors:**
 - vs **Opcode** (21K stars): "Opcode enhances a single session. mcode lets you see, manage, and orchestrate many at once with tiling, kanban, and a task queue."
-- vs **Nimbalyst/Quack**: "Terminal-native with real xterm.js, not a chat wrapper. Plus multi-account, 82 MCP tools, and built-in commit/token analytics."
+- vs **Nimbalyst/Quack**: "Terminal-native with real xterm.js, not a chat wrapper. Plus multi-account, 90 MCP tools, and built-in commit/token analytics."
 - vs **Claude Code Desktop**: "Tiling layout to see all sessions simultaneously, plus multi-account, task queue, and full MCP automation."
 - vs **CLI tools**: "Full desktop GUI with tiling, kanban, command palette, and analytics — not just a TUI or CLI wrapper."
 
