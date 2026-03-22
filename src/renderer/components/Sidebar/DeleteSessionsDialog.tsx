@@ -31,7 +31,7 @@ function DeleteSessionsDialog({
       setCollapsed({});
     }
     prevOpenRef.current = open;
-  });
+  }, [open, endedSessions]);
 
   const groups = groupSessionsByDate(endedSessions);
 

@@ -254,6 +254,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       webglAddon?.dispose();
       term.dispose();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup must only re-run on identity change
   }, [sessionId, sessionType]);
 
   const handleContextAction = useCallback((action: string) => {

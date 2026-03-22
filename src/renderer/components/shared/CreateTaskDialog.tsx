@@ -61,7 +61,7 @@ function CreateTaskDialog({
       }
     }
     prevOpenRef.current = open;
-  });
+  }, [open, defaultCwd, defaultTargetSessionId]);
 
   const handleBrowse = async (): Promise<void> => {
     const dir = await window.mcode.app.selectDirectory();

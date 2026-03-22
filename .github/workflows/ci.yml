@@ -20,6 +20,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm run test:unit
 
   # Tier 2: Integration tests — runs on main or manual trigger

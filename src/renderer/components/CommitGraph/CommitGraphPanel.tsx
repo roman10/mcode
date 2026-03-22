@@ -17,7 +17,7 @@ function RepoGraphSection({ repoRoot }: { repoRoot: string }): React.JSX.Element
   const graphData = useGraphStore((s) => s.graphs[repoRoot]);
   const fetchMore = useGraphStore((s) => s.fetchMore);
 
-  const commits = graphData?.commits ?? [];
+  const commits = useMemo(() => graphData?.commits ?? [], [graphData?.commits]);
   const hasMore = graphData?.hasMore ?? false;
 
   const rows = useMemo(() => computeLanes(commits), [commits]);

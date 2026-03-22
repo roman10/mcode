@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SlashCommandEntry } from '../../../shared/types';
 
 interface SlashCommandAutocompleteProps {
@@ -42,18 +42,17 @@ function SlashCommandAutocomplete({
   }, [cwd]);
 
   // Filter commands
-  const filtered = visible
-    ? (() => {
-        if (!query) return commands;
-        // Try prefix match first
-        const prefixed = commands.filter((c) =>
-          c.name.toLowerCase().startsWith(query),
-        );
-        if (prefixed.length > 0) return prefixed;
-        // Fall back to includes
-        return commands.filter((c) => c.name.toLowerCase().includes(query));
-      })()
-    : [];
+  const filtered = useMemo(() => {
+    if (!visible) return [];
+    if (!query) return commands;
+    // Try prefix match first
+    const prefixed = commands.filter((c) =>
+      c.name.toLowerCase().startsWith(query),
+    );
+    if (prefixed.length > 0) return prefixed;
+    // Fall back to includes
+    return commands.filter((c) => c.name.toLowerCase().includes(query));
+  }, [visible, query, commands]);
 
   // Reset selection and re-show dropdown when query changes
   useEffect(() => {
