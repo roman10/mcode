@@ -22,7 +22,7 @@ See `src/main/update-checker.ts` for implementation.
    ```json
    "publish": {
      "provider": "github",
-     "owner": "<owner>",
+     "owner": "roman10",
      "repo": "mcode"
    }
    ```
@@ -51,7 +51,7 @@ See `src/main/update-checker.ts` for implementation.
 ## Phase 3 — Homebrew Cask Distribution
 
 **Implementation:**
-1. Create a Homebrew tap repository (e.g., `<owner>/homebrew-tap`)
+1. Create a Homebrew tap repository (e.g., `roman10/homebrew-tap`)
 2. Add cask formula pointing to GitHub Releases DMG URL
 3. Auto-update formula on each release (via GitHub Actions)
 
@@ -61,10 +61,10 @@ cask "mcode" do
   version "0.1.0"
   sha256 "<sha256>"
 
-  url "https://github.com/<owner>/mcode/releases/download/v#{version}/mcode-#{version}-arm64.dmg"
+  url "https://github.com/roman10/mcode/releases/download/v#{version}/mcode-#{version}-arm64.dmg"
   name "mcode"
   desc "Desktop IDE for managing multiple autonomous Claude Code sessions"
-  homepage "https://github.com/<owner>/mcode"
+  homepage "https://github.com/roman10/mcode"
 
   app "mcode.app"
 
@@ -75,4 +75,4 @@ cask "mcode" do
 end
 ```
 
-Users install with `brew install --cask <owner>/tap/mcode` and update with `brew upgrade`.
+Users install with `brew install --cask roman10/tap/mcode` and update with `brew upgrade`.

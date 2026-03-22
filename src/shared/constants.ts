@@ -50,7 +50,7 @@ export const KNOWN_HOOK_EVENTS = [
 export type KnownHookEvent = (typeof KNOWN_HOOK_EVENTS)[number];
 
 // Auto-update
-export const GITHUB_OWNER = 'anthropics'; // TODO: set to actual owner when repo goes public
-export const GITHUB_REPO = 'mcode';       // TODO: set to actual repo name
+export const GITHUB_OWNER = 'roman10';
+export const GITHUB_REPO = 'mcode';
 export const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 export const UPDATE_CHECK_DELAY_MS = 10_000; // 10s after app launch
