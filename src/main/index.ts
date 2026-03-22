@@ -11,8 +11,10 @@ import { GitChangesService } from './git-changes';
 import { TokenTracker } from './token-tracker';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister } from './file-lister';
+import { FileSearch } from './file-search';
 import { UpdateChecker } from './update-checker';
 import { scanSlashCommands } from './slash-command-scanner';
+import { scanSnippets } from './snippet-scanner';
 import { getPreference, setPreference } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
@@ -24,6 +26,7 @@ import type {
   SessionCreateInput, CreateTaskInput, UpdateTaskInput, TaskFilter, HookRuntimeInfo,
   ExternalSessionInfo, AppCommand, SessionTokenUsage, DailyTokenUsage,
   ModelTokenBreakdown, TokenWeeklyTrend, TokenHeatmapEntry, AccountProfile,
+  FileSearchRequest,
 } from '../shared/types';
 import { fetchSubscriptionUsage, invalidateSubscriptionCache } from './claude-subscription-fetcher';
 
@@ -48,6 +51,7 @@ let gitChangesService: GitChangesService;
 let tokenTracker: TokenTracker;
 let sleepBlocker: SleepBlocker;
 let fileLister: FileLister;
+let fileSearch: FileSearch;
 let updateChecker: UpdateChecker;
 let hookRuntimeInfo: HookRuntimeInfo = {
   state: 'initializing',
@@ -488,9 +492,25 @@ function registerFileIpc(): void {
   });
 }
 
+function registerSearchIpc(): void {
+  ipcMain.handle('search:start', (_event, request: FileSearchRequest) => {
+    return fileSearch.search(request);
+  });
+
+  ipcMain.handle('search:cancel', (_event, searchId: string) => {
+    fileSearch.cancel(searchId);
+  });
+}
+
 function registerSlashCommandIpc(): void {
   ipcMain.handle('slash-commands:scan', (_event, cwd: string) => {
     return scanSlashCommands(cwd);
+  });
+}
+
+function registerSnippetIpc(): void {
+  ipcMain.handle('snippets:scan', (_event, cwd: string) => {
+    return scanSnippets(cwd);
   });
 }
 
@@ -606,6 +626,11 @@ app.whenReady().then(async () => {
             label: 'Run Shell Command',
             accelerator: 'CmdOrCtrl+Shift+E',
             click: () => sendCommand({ command: 'run-shell-command' }),
+          },
+          {
+            label: 'Search in Files',
+            accelerator: 'CmdOrCtrl+Shift+F',
+            click: () => sendCommand({ command: 'search-in-files' }),
           },
         ],
       },
@@ -811,6 +836,11 @@ app.whenReady().then(async () => {
   commitTracker = new CommitTracker(sessionManager, getWebContents);
   gitChangesService = new GitChangesService(sessionManager, getWebContents);
   fileLister = new FileLister();
+  fileSearch = new FileSearch();
+  fileSearch.addListener((event) => {
+    const wc = getWebContents();
+    if (wc && !wc.isDestroyed()) wc.send('search:event', event);
+  });
   updateChecker = new UpdateChecker(getWebContents);
   tokenTracker = new TokenTracker(getWebContents);
   sleepBlocker = new SleepBlocker();
@@ -820,7 +850,9 @@ app.whenReady().then(async () => {
   registerSessionIpc();
   registerLayoutIpc();
   registerFileIpc();
+  registerSearchIpc();
   registerSlashCommandIpc();
+  registerSnippetIpc();
   registerAppIpc();
   registerHookIpc();
   registerAccountIpc();
@@ -908,6 +940,7 @@ app.whenReady().then(async () => {
         getHookRuntimeInfo: () => hookRuntimeInfo,
         sleepBlocker,
         fileLister,
+        fileSearch,
         accountManager,
       });
     });
@@ -948,9 +981,10 @@ app.on('before-quit', (e) => {
     // Release sleep blocker
     sleepBlocker.detach();
 
-    // Stop task queue dispatch, commit tracker, token tracker, and update checker
+    // Stop task queue dispatch, commit tracker, token tracker, update checker, and search
     taskQueue.stop();
     commitTracker.stop();
+    fileSearch.cancelAll();
     tokenTracker.stop();
     updateChecker.stop();
 

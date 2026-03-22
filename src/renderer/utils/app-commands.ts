@@ -131,6 +131,19 @@ export function executeAppCommand(command: AppCommand): void {
       break;
     }
 
+    case 'search-in-files': {
+      const store = useLayoutStore.getState();
+      // Ensure sidebar is open on the search tab
+      if (store.sidebarCollapsed) {
+        store.setActiveSidebarTab('search');
+        store.toggleSidebar();
+      } else if (store.activeSidebarTab !== 'search') {
+        store.setActiveSidebarTab('search');
+      }
+      // The SearchPanel component listens for this command to focus its input
+      break;
+    }
+
     case 'run-shell-command': {
       const ls = useLayoutStore.getState();
       ls.setShowSettings(false);

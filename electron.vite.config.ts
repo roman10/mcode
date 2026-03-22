@@ -11,7 +11,7 @@ export default defineConfig({
           index: 'src/main/index.ts',
           'broker-entry': 'src/broker/entry.ts',
         },
-        external: ['node-pty', 'better-sqlite3'],
+        external: ['node-pty', 'better-sqlite3', '@vscode/ripgrep'],
       },
     },
   },

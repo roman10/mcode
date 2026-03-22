@@ -87,6 +87,15 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'show-settings' }),
     },
     {
+      id: 'search-in-files',
+      label: 'Search in Files',
+      category: 'General',
+      shortcut: shortcuts.get('Search in Files'),
+      keywords: ['search', 'find', 'grep', 'ripgrep', 'content'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'search-in-files' }),
+    },
+    {
       id: 'show-shortcuts',
       label: 'Keyboard Shortcuts',
       category: 'General',

@@ -31,6 +31,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Command Palette', keys: 'Shift+P', mod: true, category: 'general' },
   { label: 'New Task', keys: 'Shift+T', mod: true, category: 'general' },
   { label: 'Run Shell Command', keys: 'Shift+E', mod: true, category: 'general' },
+  { label: 'Search in Files', keys: 'Shift+F', mod: true, category: 'general' },
   { label: 'Close Tile', keys: 'W', mod: true, category: 'general' },
 
   // Sessions

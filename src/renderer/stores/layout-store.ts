@@ -74,8 +74,9 @@ interface LayoutState {
   showAccountsDialog: boolean;
   showCommandPalette: boolean;
   showCreateTaskDialog: boolean;
-  quickOpenInitialMode: 'files' | 'commands' | 'shell';
+  quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets';
   restoreTree: MosaicNode<string> | null;
+  pendingFileLine: { path: string; line: number } | null;
 
   setMosaicTree(tree: MosaicNode<string> | null): void;
   addTile(sessionId: string): void;
@@ -102,7 +103,8 @@ interface LayoutState {
   setShowCommandPalette(show: boolean): void;
   setShowCreateTaskDialog(show: boolean): void;
   openQuickOpen(mode: 'files' | 'commands' | 'shell'): void;
-  addFileViewer(absolutePath: string): void;
+  addFileViewer(absolutePath: string, options?: { line?: number }): void;
+  consumePendingFileLine(path: string): number | null;
   removeFileTile(absolutePath: string): void;
   stripFileTiles(): void;
   addDiffViewer(absolutePath: string, commitHash?: string): void;
@@ -227,6 +229,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   showCreateTaskDialog: false,
   quickOpenInitialMode: 'files' as const,
   restoreTree: null,
+  pendingFileLine: null,
 
   setMosaicTree: (tree) => set({ mosaicTree: tree }),
 
@@ -377,7 +380,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   openQuickOpen: (mode) => set({ quickOpenInitialMode: mode, showCommandPalette: true }),
 
-  addFileViewer: (absolutePath) => {
+  addFileViewer: (absolutePath, options) => {
+    // Store pending line target if provided
+    if (options?.line) {
+      set({ pendingFileLine: { path: absolutePath, line: options.line } });
+    }
+
     // In kanban mode, use the kanban file viewer instead of mosaic tiles
     if (get().viewMode === 'kanban') {
       get().openKanbanFile(absolutePath);
@@ -402,6 +410,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
       };
     });
+  },
+
+  consumePendingFileLine: (path) => {
+    const pending = get().pendingFileLine;
+    if (pending && pending.path === path) {
+      set({ pendingFileLine: null });
+      return pending.line;
+    }
+    return null;
   },
 
   removeFileTile: (absolutePath) => {

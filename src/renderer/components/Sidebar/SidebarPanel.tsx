@@ -13,6 +13,7 @@ import ChangesPanel from '../Dashboard/ChangesPanel';
 import CommitGraphPanel from '../CommitGraph/CommitGraphPanel';
 import TokenStats from '../Dashboard/TokenStats';
 import ActivityFeed from '../Dashboard/ActivityFeed';
+import SearchPanel from './SearchPanel';
 import { createTerminalSession, autoExpandInKanban } from '../../utils/session-actions';
 import type { SessionCreateInput, SessionInfo } from '../../../shared/types';
 import {
@@ -218,6 +219,7 @@ function SidebarPanel(): React.JSX.Element {
 
         {/* Tab content */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          {activeSidebarTab === 'search' && <SearchPanel />}
           {activeSidebarTab === 'sessions' && (
             <>
               {hookRuntime.state === 'degraded' && (

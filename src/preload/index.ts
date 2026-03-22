@@ -33,6 +33,9 @@ import type {
   AccountProfile,
   SubscriptionUsage,
   SlashCommandEntry,
+  SnippetEntry,
+  FileSearchRequest,
+  SearchEvent,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -354,6 +357,11 @@ contextBridge.exposeInMainWorld('mcode', {
       ipcRenderer.invoke('slash-commands:scan', cwd),
   },
 
+  snippets: {
+    scan: (cwd: string): Promise<SnippetEntry[]> =>
+      ipcRenderer.invoke('snippets:scan', cwd),
+  },
+
   tokens: {
     getSessionUsage: (claudeSessionId: string): Promise<SessionTokenUsage> =>
       ipcRenderer.invoke('tokens:get-session-usage', claudeSessionId),
@@ -424,6 +432,23 @@ contextBridge.exposeInMainWorld('mcode', {
       const handler = (): void => cb();
       ipcRenderer.on('git:status-changed', handler);
       return () => ipcRenderer.removeListener('git:status-changed', handler);
+    },
+  },
+
+  search: {
+    start: (request: FileSearchRequest): Promise<string> =>
+      ipcRenderer.invoke('search:start', request),
+
+    cancel: (searchId: string): Promise<void> =>
+      ipcRenderer.invoke('search:cancel', searchId),
+
+    onEvent: (cb: (event: SearchEvent) => void): (() => void) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        event: SearchEvent,
+      ): void => cb(event);
+      ipcRenderer.on('search:event', handler);
+      return () => ipcRenderer.removeListener('search:event', handler);
     },
   },
 

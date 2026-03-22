@@ -14,6 +14,8 @@ import { registerCommitTools } from './tools/commit-tools';
 import { registerGitTools } from './tools/git-tools';
 import { registerFileTools } from './tools/file-tools';
 import { registerTokenTools } from './tools/token-tools';
+import { registerSearchTools } from './tools/search-tools';
+import { registerSnippetTools } from './tools/snippet-tools';
 import type { McpServerContext } from './types';
 
 const DEFAULT_PORT = 7532;
@@ -35,6 +37,8 @@ function createServer(ctx: McpServerContext): McpServer {
   registerGitTools(server, ctx);
   registerFileTools(server, ctx);
   registerTokenTools(server, ctx);
+  registerSearchTools(server, ctx);
+  registerSnippetTools(server);
 
   return server;
 }

@@ -18,6 +18,7 @@ import { useEditorStore } from './stores/editor-store';
 import { useAccountsStore } from './stores/accounts-store';
 import { useChangesStore } from './stores/changes-store';
 import { useEphemeralCommandStore } from './stores/ephemeral-command-store';
+import { useSearchStore } from './stores/search-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
@@ -194,6 +195,14 @@ function App(): React.JSX.Element {
       if (commands.some((c) => c.sessionId === sessionId)) {
         completeCommand(sessionId, payload.code, payload.signal);
       }
+    });
+    return unsub;
+  }, []);
+
+  // Route search events to search store
+  useEffect(() => {
+    const unsub = window.mcode.search.onEvent((event) => {
+      useSearchStore.getState().handleEvent(event);
     });
     return unsub;
   }, []);

@@ -7,6 +7,7 @@ import type { GitChangesService } from '../main/git-changes';
 import type { TokenTracker } from '../main/token-tracker';
 import type { SleepBlocker } from '../main/sleep-blocker';
 import type { FileLister } from '../main/file-lister';
+import type { FileSearch } from '../main/file-search';
 import type { AccountManager } from '../main/account-manager';
 import type { HookRuntimeInfo } from '../shared/types';
 
@@ -23,5 +24,6 @@ export interface McpServerContext {
   getHookRuntimeInfo: () => HookRuntimeInfo;
   sleepBlocker: SleepBlocker;
   fileLister: FileLister;
+  fileSearch: FileSearch;
   accountManager: AccountManager;
 }

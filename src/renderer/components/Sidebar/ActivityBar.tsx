@@ -1,4 +1,4 @@
-import { LayoutList, GitCommitHorizontal, FileDiff, Coins, Activity, Users, Settings } from 'lucide-react';
+import { LayoutList, Search, GitCommitHorizontal, FileDiff, Coins, Activity, Users, Settings } from 'lucide-react';
 import Tooltip from '../shared/Tooltip';
 import { formatKeys } from '../../utils/format-shortcut';
 import type { SidebarTab } from '../../../shared/types';
@@ -55,6 +55,14 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
           onSelect={onTabSelect}
           tooltip="Sessions"
           badge={attentionCount}
+        />
+        <ActivityBarButton
+          icon={<Search size={20} strokeWidth={1.5} />}
+          tab="search"
+          active={activeTab}
+          panelCollapsed={panelCollapsed}
+          onSelect={onTabSelect}
+          tooltip={`Search in Files (${formatKeys('Shift+F', true)})`}
         />
         <ActivityBarButton
           icon={<FileDiff size={20} strokeWidth={1.5} />}

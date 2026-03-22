@@ -92,7 +92,7 @@ export interface ExternalSessionInfo {
   customTitle?: string; // meaningful title from Claude Code, when available
 }
 
-export type SidebarTab = 'sessions' | 'changes' | 'commits' | 'tokens' | 'activity';
+export type SidebarTab = 'sessions' | 'search' | 'changes' | 'commits' | 'tokens' | 'activity';
 export type ViewMode = 'tiles' | 'kanban';
 
 export interface LayoutStateSnapshot {
@@ -121,7 +121,8 @@ export type AppCommand =
   | { command: 'show-create-task' }
   | { command: 'set-view-mode'; mode: ViewMode }
   | { command: 'toggle-view-mode' }
-  | { command: 'run-shell-command' };
+  | { command: 'run-shell-command' }
+  | { command: 'search-in-files' };
 
 // --- Slash Commands ---
 
@@ -130,6 +131,46 @@ export interface SlashCommandEntry {
   description: string; // first line of .md file, or built-in description
   source: 'builtin' | 'user' | 'project';
 }
+
+// --- Prompt Snippets ---
+
+export interface SnippetVariable {
+  name: string;
+  description?: string;
+  default?: string;
+}
+
+export interface SnippetEntry {
+  name: string;
+  description: string;
+  source: 'user' | 'project';
+  variables: SnippetVariable[];
+  body: string;
+}
+
+// --- File Search ---
+
+export interface FileSearchMatch {
+  path: string;        // relative to repo root
+  line: number;
+  column: number;
+  matchLength: number;
+  lineContent: string;
+}
+
+export interface FileSearchRequest {
+  id: string;
+  query: string;
+  isRegex: boolean;
+  caseSensitive: boolean;
+  cwds: string[];      // session cwds to search across
+  maxResults?: number;  // default 500
+}
+
+export type SearchEvent =
+  | { type: 'progress'; searchId: string; repoPath: string; repoName: string; matches: FileSearchMatch[] }
+  | { type: 'complete'; searchId: string; totalMatches: number; totalFiles: number; truncated: boolean; durationMs: number }
+  | { type: 'error'; searchId: string; message: string };
 
 // --- Files ---
 
@@ -566,6 +607,16 @@ export interface MCodeAPI {
 
   slashCommands: {
     scan(cwd: string): Promise<SlashCommandEntry[]>;
+  };
+
+  snippets: {
+    scan(cwd: string): Promise<SnippetEntry[]>;
+  };
+
+  search: {
+    start(request: FileSearchRequest): Promise<string>;  // returns searchId
+    cancel(searchId: string): Promise<void>;
+    onEvent(callback: (event: SearchEvent) => void): () => void;
   };
 
   devtools: {

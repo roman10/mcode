@@ -152,7 +152,41 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
       ensureExCommands();
       viewHandlers.set(view, { save: handleSave, close: handleClose });
     }
-  }, [vimEnabled, handleSave, handleClose]);
+
+    // Scroll to pending line target from search results
+    const targetLine = useLayoutStore.getState().consumePendingFileLine(absolutePath);
+    if (targetLine) {
+      requestAnimationFrame(() => {
+        try {
+          const lineInfo = view.state.doc.line(Math.min(targetLine, view.state.doc.lines));
+          view.dispatch({
+            selection: { anchor: lineInfo.from },
+            effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+          });
+        } catch {
+          // Line out of range — ignore
+        }
+      });
+    }
+  }, [vimEnabled, handleSave, handleClose, absolutePath]);
+
+  // Scroll to line when a search result is clicked for an already-open file
+  const pendingFileLine = useLayoutStore((s) => s.pendingFileLine);
+  useEffect(() => {
+    const view = editorViewRef.current;
+    if (!view || !pendingFileLine || pendingFileLine.path !== absolutePath) return;
+    const targetLine = useLayoutStore.getState().consumePendingFileLine(absolutePath);
+    if (!targetLine) return;
+    try {
+      const lineInfo = view.state.doc.line(Math.min(targetLine, view.state.doc.lines));
+      view.dispatch({
+        selection: { anchor: lineInfo.from },
+        effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+      });
+    } catch {
+      // Line out of range — ignore
+    }
+  }, [pendingFileLine, absolutePath]);
 
   // Sync WeakMap when vimEnabled changes (handlers are stable so this rarely fires)
   useEffect(() => {
