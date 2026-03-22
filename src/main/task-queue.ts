@@ -488,9 +488,27 @@ export class TaskQueue {
       state.hasStarted = true;
     }
 
-    // Completion is detected via PTY prompt detection (checkDispatchedForPrompt),
-    // not via idle transition — Stop hooks can fire prematurely for skills
-    // or not at all for local slash commands.
+    // Complete when session goes idle and the ❯ prompt is visible.
+    // The prompt check guards against premature Stop hooks (e.g. mid-skill),
+    // where the session briefly goes idle but the prompt isn't showing.
+    if (session.status === 'idle' && state.hasStarted) {
+      const buffer = this.ptyManager.getReplayData(session.sessionId);
+      if (buffer && isAtClaudePrompt(buffer.slice(-2000))) {
+        state.completedViaIdle = true;
+        this.completeTask(taskId);
+        return;
+      }
+    }
+
+    // Plan mode tasks also complete when a new user-choice menu appears
+    if (session.status === 'waiting' && state.hasStarted && row.plan_mode_action) {
+      const buffer = this.ptyManager.getReplayData(session.sessionId);
+      if (buffer && isAtUserChoice(buffer.slice(-500))) {
+        state.completedViaIdle = true;
+        this.completeTask(taskId);
+        return;
+      }
+    }
 
     if (session.status === 'ended') {
       if (state.completedViaIdle) {
@@ -507,6 +525,10 @@ export class TaskQueue {
     }
   }
 
+  /** Fallback completion detection via PTY polling.
+   *  The primary path is handleSessionUpdate (event-driven via hooks).
+   *  This fallback handles cases where hooks don't fire or the prompt
+   *  wasn't visible at the moment the session went idle. */
   private checkDispatchedForPrompt(): void {
     const now = Date.now();
 
@@ -517,10 +539,18 @@ export class TaskQueue {
       const task = this.getById(taskId);
       if (!task || task.status !== 'dispatched' || !task.sessionId) continue;
 
-      // Check PTY quiescence: no new output for 2 seconds
-      const lastDataAt = this.ptyManager.getLastDataAt(task.sessionId);
-      if (lastDataAt === 0) continue;
-      if (now - lastDataAt < PROMPT_QUIESCENCE_MS) continue;
+      // If session manager already confirmed idle/waiting, skip quiescence —
+      // status bar updates can reset lastDataAt indefinitely.
+      const session = this.sessionManager.get(task.sessionId);
+      const sessionConfirmed = state.hasStarted &&
+        (session?.status === 'idle' || session?.status === 'waiting');
+
+      if (!sessionConfirmed) {
+        // Require PTY quiescence when session manager hasn't confirmed idle yet
+        const lastDataAt = this.ptyManager.getLastDataAt(task.sessionId);
+        if (lastDataAt === 0) continue;
+        if (now - lastDataAt < PROMPT_QUIESCENCE_MS) continue;
+      }
 
       // Check if terminal shows Claude's idle prompt
       const buffer = this.ptyManager.getReplayData(task.sessionId);
@@ -535,7 +565,7 @@ export class TaskQueue {
 
       if (!atIdlePrompt && !atNewMenu) continue;
 
-      logger.info('task', 'Prompt detected in terminal, completing task', {
+      logger.info('task', 'Prompt detected via fallback polling, completing task', {
         taskId,
         sessionId: task.sessionId,
         completedVia: atIdlePrompt ? 'idle-prompt' : 'new-user-choice',
