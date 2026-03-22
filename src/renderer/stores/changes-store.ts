@@ -59,3 +59,10 @@ export const useChangesStore = create<ChangesState>((set, get) => ({
     await get().refreshAll();
   },
 }));
+
+// Auto-refresh when main process detects git status changes from hook events
+if (typeof window !== 'undefined' && window.mcode?.git?.onStatusChanged) {
+  window.mcode.git.onStatusChanged(() => {
+    useChangesStore.getState().refreshAll();
+  });
+}

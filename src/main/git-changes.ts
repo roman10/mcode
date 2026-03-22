@@ -2,11 +2,19 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { promisify } from 'node:util';
+import type { WebContents } from 'electron';
 import type { SessionManager } from './session-manager';
-import type { GitChangedFile, GitFileStatus, GitStatusResult, GitDiffContent, CommitGraphNode, CommitGraphResult, CommitFileEntry } from '../shared/types';
+import type { GitChangedFile, GitFileStatus, GitStatusResult, GitDiffContent, CommitGraphNode, CommitGraphResult, CommitFileEntry, HookEvent } from '../shared/types';
 
 const execFileAsync = promisify(execFile);
 const GIT_COMMAND_TIMEOUT_MS = 10_000;
+
+// Git commands that can modify working tree or index status
+const GIT_STATUS_KEYWORDS = [
+  'commit', 'merge', 'cherry-pick', 'rebase',
+  'add', 'checkout', 'reset', 'stash', 'restore',
+  'revert', 'rm', 'mv', 'clean', 'apply', 'pull',
+];
 const BINARY_CHECK_SIZE = 8_192;
 
 // Map file extension to language identifier for CodeMirror
@@ -96,10 +104,35 @@ function parseStatusLine(line: string): { staged: GitChangedFile | null; unstage
 
 export class GitChangesService {
   private sessionManager: SessionManager;
+  private getWebContents: () => WebContents | null;
   private repoRootCache = new Map<string, string | null>();
 
-  constructor(sessionManager: SessionManager) {
+  constructor(sessionManager: SessionManager, getWebContents: () => WebContents | null) {
     this.sessionManager = sessionManager;
+    this.getWebContents = getWebContents;
+  }
+
+  /** Broadcast git status change to renderer when a hook event indicates a git command ran. */
+  async onHookEvent(sessionId: string, event: HookEvent): Promise<void> {
+    if (event.hookEventName !== 'PostToolUse' || event.toolName !== 'Bash') return;
+
+    const toolInput = event.toolInput as { command?: string } | null;
+    const command = toolInput?.command ?? '';
+    if (!command.includes('git')) return;
+    const hasGitKeyword = GIT_STATUS_KEYWORDS.some((kw) => command.includes(kw));
+    if (!hasGitKeyword) return;
+
+    // Small delay to let git finish writing
+    setTimeout(() => {
+      this.broadcastStatusChanged();
+    }, 500);
+  }
+
+  private broadcastStatusChanged(): void {
+    const wc = this.getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('git:status-changed');
+    }
   }
 
   /** Resolve cwd to git repo root. Cached. */

@@ -488,6 +488,7 @@ async function initializeHookSystem(): Promise<void> {
         if (handled) {
           commitTracker.onHookEvent(sessionId, event).catch(() => {});
           tokenTracker.onHookEvent(sessionId, event).catch(() => {});
+          gitChangesService.onHookEvent(sessionId, event).catch(() => {});
         }
         return handled;
       },
@@ -789,7 +790,7 @@ app.whenReady().then(async () => {
     getWebContents,
   );
   commitTracker = new CommitTracker(sessionManager, getWebContents);
-  gitChangesService = new GitChangesService(sessionManager);
+  gitChangesService = new GitChangesService(sessionManager, getWebContents);
   fileLister = new FileLister();
   tokenTracker = new TokenTracker(getWebContents);
   sleepBlocker = new SleepBlocker();

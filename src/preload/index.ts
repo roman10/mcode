@@ -392,6 +392,12 @@ contextBridge.exposeInMainWorld('mcode', {
 
     discardAll: (repoRoot: string): Promise<void> =>
       ipcRenderer.invoke('git:discard-all', repoRoot),
+
+    onStatusChanged: (cb: () => void): (() => void) => {
+      const handler = (): void => cb();
+      ipcRenderer.on('git:status-changed', handler);
+      return () => ipcRenderer.removeListener('git:status-changed', handler);
+    },
   },
 
   devtools: {

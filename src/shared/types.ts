@@ -541,6 +541,7 @@ export interface MCodeAPI {
     stageAll(repoRoot: string): Promise<void>;
     unstageAll(repoRoot: string): Promise<void>;
     discardAll(repoRoot: string): Promise<void>;
+    onStatusChanged(callback: () => void): () => void;
   };
 
   devtools: {
