@@ -19,9 +19,11 @@ function KanbanLayout(): React.JSX.Element {
 
   const grouped = groupSessionsByColumn(sessions);
 
-  // Auto-collapse if expanded session is deleted
+  // Auto-collapse if expanded session is deleted or ended
   useEffect(() => {
-    if (kanbanExpandedSessionId && !sessions[kanbanExpandedSessionId]) {
+    if (!kanbanExpandedSessionId) return;
+    const session = sessions[kanbanExpandedSessionId];
+    if (!session || session.status === 'ended') {
       clearKanbanExpand();
     }
   }, [kanbanExpandedSessionId, sessions, clearKanbanExpand]);

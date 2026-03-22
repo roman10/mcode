@@ -36,6 +36,10 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     }
   };
 
+  // Stable ref for handleClose so the auto-close effect doesn't re-fire on re-renders
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+
   const handleToggleMaximize = (): void => {
     const store = useLayoutStore.getState();
     if (store.viewMode === 'kanban') {
@@ -89,10 +93,14 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     }
   };
 
-  // Auto-focus the container when the session ends so it can receive keyboard events
+  // Auto-close the tile when the session *transitions* to ended (not on mount).
+  // If a tile is opened for an already-ended session, keep it open with SessionEndedPrompt.
+  const prevStatusRef = useRef(status);
   useEffect(() => {
-    if (status === 'ended') {
-      containerRef.current?.focus();
+    const wasEnded = prevStatusRef.current === 'ended';
+    prevStatusRef.current = status;
+    if (status === 'ended' && !wasEnded) {
+      handleCloseRef.current();
     }
   }, [status]);
 

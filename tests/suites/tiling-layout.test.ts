@@ -3,6 +3,7 @@ import { McpTestClient } from '../mcp-client';
 import {
   createTestSession,
   waitForActive,
+  killAndWaitEnded,
   cleanupSessions,
   getTileCount,
   type SessionInfo,
@@ -96,5 +97,21 @@ describe('tiling layout', () => {
       sessionId: '00000000-0000-0000-0000-000000000000',
     });
     expect(result.isError).toBe(true);
+  });
+
+  it('auto-closes tile when session is killed', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await new Promise((r) => setTimeout(r, 500));
+
+    const before = await getTileCount(client);
+
+    await killAndWaitEnded(client, session.sessionId);
+    // TerminalTile's useEffect auto-closes on status → ended
+    await new Promise((r) => setTimeout(r, 1000));
+
+    const after = await getTileCount(client);
+    expect(after).toBe(before - 1);
   });
 });
