@@ -423,8 +423,12 @@ function registerAccountIpc(): void {
     return accountManager.list();
   });
 
-  ipcMain.handle('account:create', (_event, name: string): AccountProfile => {
+  ipcMain.handle('account:create', (_event, name?: string): AccountProfile => {
     return accountManager.create(name);
+  });
+
+  ipcMain.handle('account:rename', (_event, accountId: string, name: string): void => {
+    accountManager.rename(accountId, name);
   });
 
   ipcMain.handle('account:delete', (_event, accountId: string): void => {
@@ -446,12 +450,10 @@ function registerAccountIpc(): void {
     if (account.isDefault) throw new Error('Default account uses standard auth');
     if (!account.homeDir) throw new Error('Account has no home directory');
 
-    const session = sessionManager.create({
-      cwd: account.homeDir,
-      label: `Auth: ${account.name}`,
-      sessionType: 'terminal',
-      accountId,
-    });
+    const session = sessionManager.create(
+      { cwd: account.homeDir, label: `Auth: ${account.name}`, sessionType: 'terminal', accountId },
+      { initialCommand: 'claude auth login' },
+    );
     return session.sessionId;
   });
 

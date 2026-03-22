@@ -84,22 +84,37 @@ export class AccountManager {
    * Create a secondary account profile.
    * Sets up the account home directory with symlinks mirroring the real home.
    */
-  create(name: string): AccountProfile {
+  create(name?: string): AccountProfile {
     const accountId = randomUUID();
     const accountHome = join(ACCOUNTS_BASE, accountId);
 
     // Create the account home directory and set up symlinks
     this.setupAccountDirectory(accountHome);
 
+    const effectiveName = name?.trim() || this.nextDefaultName();
+
     const db = getDb();
     db.prepare(
       `INSERT INTO account_profiles (account_id, name, email, is_default, home_dir, created_at)
        VALUES (?, ?, NULL, 0, ?, ?)`,
-    ).run(accountId, name, accountHome, new Date().toISOString());
+    ).run(accountId, effectiveName, accountHome, new Date().toISOString());
 
-    logger.info('accounts', 'Created secondary account', { accountId, name, homeDir: accountHome });
+    logger.info('accounts', 'Created secondary account', { accountId, name: effectiveName, homeDir: accountHome });
 
     return this.get(accountId)!;
+  }
+
+  /** Rename an account. */
+  rename(accountId: string, name: string): void {
+    const db = getDb();
+    const row = db
+      .prepare('SELECT account_id FROM account_profiles WHERE account_id = ?')
+      .get(accountId) as { account_id: string } | undefined;
+    if (!row) throw new Error(`Account not found: ${accountId}`);
+
+    db.prepare('UPDATE account_profiles SET name = ? WHERE account_id = ?')
+      .run(name, accountId);
+    logger.info('accounts', 'Renamed account', { accountId, name });
   }
 
   /** Delete a secondary account profile and remove its home directory. */
@@ -247,6 +262,19 @@ export class AccountManager {
   }
 
   // --- Private ---
+
+  private nextDefaultName(): string {
+    const db = getDb();
+    const rows = db
+      .prepare("SELECT name FROM account_profiles WHERE is_default = 0 AND name LIKE 'Account %'")
+      .all() as { name: string }[];
+    let max = 0;
+    for (const { name } of rows) {
+      const match = name.match(/^Account (\d+)$/);
+      if (match) max = Math.max(max, parseInt(match[1], 10));
+    }
+    return `Account ${max + 1}`;
+  }
 
   private setupAccountDirectory(accountHome: string): void {
     const realHome = homedir();

@@ -416,7 +416,8 @@ export interface HmrEvent {
 export interface MCodeAPI {
   accounts: {
     list(): Promise<AccountProfile[]>;
-    create(name: string): Promise<AccountProfile>;
+    create(name?: string): Promise<AccountProfile>;
+    rename(accountId: string, name: string): Promise<void>;
     delete(accountId: string): Promise<void>;
     getAuthStatus(accountId: string): Promise<{ loggedIn: boolean; email?: string }>;
     openAuthTerminal(accountId: string): Promise<string>; // returns sessionId of auth terminal

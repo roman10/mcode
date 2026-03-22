@@ -41,8 +41,11 @@ contextBridge.exposeInMainWorld('mcode', {
     list: (): Promise<AccountProfile[]> =>
       ipcRenderer.invoke('account:list'),
 
-    create: (name: string): Promise<AccountProfile> =>
+    create: (name?: string): Promise<AccountProfile> =>
       ipcRenderer.invoke('account:create', name),
+
+    rename: (accountId: string, name: string): Promise<void> =>
+      ipcRenderer.invoke('account:rename', accountId, name),
 
     delete: (accountId: string): Promise<void> =>
       ipcRenderer.invoke('account:delete', accountId),

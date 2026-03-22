@@ -1,10 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useAccountsStore } from '../stores/accounts-store';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
 import Dialog from './shared/Dialog';
 import type { AccountProfile } from '../../shared/types';
+
+function suggestNameFromEmail(email: string): string {
+  const [localPart, domain] = email.split('@');
+  if (!domain) return localPart;
+  const domainParts = domain.split('.');
+  const main = domainParts[0];
+  const free = new Set(['gmail', 'yahoo', 'hotmail', 'outlook', 'icloud', 'protonmail', 'proton']);
+  const base = free.has(main.toLowerCase()) ? localPart : main;
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
 
 interface AccountRowProps {
   account: AccountProfile;
@@ -63,26 +73,28 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
   const persist = useLayoutStore((s) => s.persist);
   const selectSession = useSessionStore((s) => s.selectSession);
 
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newName, setNewName] = useState('');
   const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Rename prompt state (shown after auth auto-detected)
+  const [renameAccountId, setRenameAccountId] = useState<string | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
   const defaultAccount = accounts.find((a) => a.isDefault);
   const secondaryAccounts = accounts.filter((a) => !a.isDefault);
 
-  const handleCreate = async (): Promise<void> => {
-    if (!newName.trim() || isCreating) return;
+  // One-click add: create account with placeholder name, open auth terminal
+  const handleAddAccount = async (): Promise<void> => {
+    if (isCreating || pendingAccountId) return;
     setIsCreating(true);
     setError(null);
     try {
-      const account = await window.mcode.accounts.create(newName.trim());
+      const account = await window.mcode.accounts.create();
       await refresh();
-      setShowAddForm(false);
-      setNewName('');
 
       const sessionId = await window.mcode.accounts.openAuthTerminal(account.accountId);
       const session = await window.mcode.sessions.get(sessionId);
@@ -100,23 +112,53 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     }
   };
 
-  // Cmd+Enter to submit add form — use ref to avoid stale closure
-  const handleCreateRef = useRef(handleCreate);
-  handleCreateRef.current = handleCreate;
+  // Auto-poll auth status while a pending account exists
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
 
   useEffect(() => {
-    if (!open || !showAddForm) return;
-    const isMac = navigator.userAgent.includes('Mac');
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-      if (mod && e.key === 'Enter') {
-        e.preventDefault();
-        handleCreateRef.current();
+    if (!pendingAccountId) return;
+    const intervalId = setInterval(async () => {
+      try {
+        const status = await window.mcode.accounts.getAuthStatus(pendingAccountId);
+        if (status.loggedIn) {
+          await refreshRef.current();
+          setPendingAccountId(null);
+          if (status.email) {
+            setRenameAccountId(pendingAccountId);
+            setRenameName(suggestNameFromEmail(status.email));
+          }
+        }
+      } catch {
+        // Ignore — terminal/CLI may not be ready yet
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, showAddForm]);
+    }, 4000);
+    return () => clearInterval(intervalId);
+  }, [pendingAccountId]);
+
+  // Auto-focus rename input when it appears
+  useEffect(() => {
+    if (renameAccountId) {
+      setTimeout(() => renameInputRef.current?.focus(), 50);
+    }
+  }, [renameAccountId]);
+
+  const handleRename = useCallback(async (): Promise<void> => {
+    if (!renameAccountId || !renameName.trim()) return;
+    try {
+      await window.mcode.accounts.rename(renameAccountId, renameName.trim());
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setRenameAccountId(null);
+    setRenameName('');
+  }, [renameAccountId, renameName, refresh]);
+
+  const handleSkipRename = useCallback((): void => {
+    setRenameAccountId(null);
+    setRenameName('');
+  }, []);
 
   const handleVerify = async (accountId: string): Promise<void> => {
     setVerifyingId(accountId);
@@ -138,6 +180,10 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     try {
       await window.mcode.accounts.delete(accountId);
       if (pendingAccountId === accountId) setPendingAccountId(null);
+      if (renameAccountId === accountId) {
+        setRenameAccountId(null);
+        setRenameName('');
+      }
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -192,9 +238,43 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       {/* Pending auth notice */}
       {pendingAccountId && (
         <div className="mb-4 px-3 py-2.5 bg-amber-900/20 border border-amber-700/30 rounded-md text-xs text-amber-300">
-          A terminal opened with the account&apos;s environment. Run{' '}
-          <code className="bg-bg-primary px-1 rounded font-mono">claude auth login</code>{' '}
-          there, then click Verify on the account row above.
+          Complete the authentication flow in your browser. This will update automatically.
+        </div>
+      )}
+
+      {/* Rename prompt (shown after auth auto-detected) */}
+      {renameAccountId && (
+        <div className="mb-4 space-y-2">
+          <p className="text-xs text-text-muted uppercase tracking-wide">Name your account</p>
+          <input
+            ref={renameInputRef}
+            className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+            value={renameName}
+            onChange={(e) => setRenameName(e.target.value)}
+            placeholder="Account name"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleRename();
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                handleSkipRename();
+              }
+            }}
+          />
+          <div className="flex gap-2">
+            <button
+              className="flex-1 px-3 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
+              disabled={!renameName.trim()}
+              onClick={handleRename}
+            >
+              Save Name
+            </button>
+            <button
+              className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+              onClick={handleSkipRename}
+            >
+              Skip
+            </button>
+          </div>
         </div>
       )}
 
@@ -205,50 +285,14 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
         </div>
       )}
 
-      {/* Add account */}
-      {showAddForm ? (
-        <div className="mb-4 space-y-2">
-          <p className="text-xs text-text-muted uppercase tracking-wide">Add Account</p>
-          <input
-            className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Account name (e.g. Work Pro)"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.stopPropagation();
-                setShowAddForm(false);
-                setNewName('');
-              }
-              if (e.key === 'Enter') handleCreate();
-            }}
-          />
-          <div className="flex gap-2">
-            <button
-              className="flex-1 px-3 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
-              disabled={!newName.trim() || isCreating}
-              onClick={handleCreate}
-            >
-              {isCreating ? 'Creating…' : 'Create & Open Auth Terminal'}
-            </button>
-            <button
-              className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-              onClick={() => {
-                setShowAddForm(false);
-                setNewName('');
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
+      {/* Add account — one-click button */}
+      {!renameAccountId && (
         <button
-          className="mb-4 text-sm text-text-muted hover:text-text-secondary transition-colors"
-          onClick={() => setShowAddForm(true)}
+          className="mb-4 text-sm text-text-muted hover:text-text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          onClick={handleAddAccount}
+          disabled={isCreating || Boolean(pendingAccountId)}
         >
-          + Add Account
+          {isCreating ? 'Creating…' : '+ Add Account'}
         </button>
       )}
 

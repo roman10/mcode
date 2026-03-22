@@ -209,7 +209,7 @@ export class SessionManager {
     return `${base} (${max + 1})`;
   }
 
-  create(input: SessionCreateInput): SessionInfo {
+  create(input: SessionCreateInput, opts?: { initialCommand?: string }): SessionInfo {
     const sessionId = randomUUID();
     const cwd = input.cwd;
     const label = input.label
@@ -294,6 +294,9 @@ export class SessionManager {
           // In live mode, SessionStart hook may arrive first — updateStatus
           // idempotency guard makes this a safe no-op in that case.
           this.updateStatus(sessionId, 'active');
+          if (opts?.initialCommand) {
+            this.ptyManager.write(sessionId, opts.initialCommand + '\n');
+          }
         },
         onExit: () => {
           this.updateStatus(sessionId, 'ended');
