@@ -33,9 +33,10 @@ export function registerSessionTools(
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
       ephemeral: z.boolean().optional().describe('If true, session is hidden from sidebar and auto-deleted when ended. Use for test/verification sessions.'),
       worktree: z.string().optional().describe('Run session in an isolated git worktree. Pass a name to create a named worktree, or empty string to auto-generate. Ignored for terminal sessions.'),
+      accountId: z.string().optional().describe('Account profile ID to run this session under'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, args, sessionType, ephemeral, worktree }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, args, sessionType, ephemeral, worktree, accountId }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -48,6 +49,7 @@ export function registerSessionTools(
         sessionType,
         ephemeral,
         worktree,
+        accountId,
       });
       // Notify renderer to add session to store (best-effort)
       try {
@@ -249,6 +251,17 @@ export function registerSessionTools(
     const updated = ctx.sessionManager.get(sessionId);
     return {
       content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
+    };
+  });
+
+  server.registerTool('account_list', {
+    description: 'List all account profiles',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    const accounts = ctx.accountManager.list();
+    return {
+      content: [{ type: 'text', text: JSON.stringify(accounts, null, 2) }],
     };
   });
 }

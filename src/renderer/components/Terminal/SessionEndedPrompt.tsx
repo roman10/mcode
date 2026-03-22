@@ -48,10 +48,12 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
     setCreating(true);
     setError(null);
     try {
+      const accountOverride = selectedAccountId || undefined;
       const newSession = await window.mcode.sessions.create({
         cwd: session.cwd,
         permissionMode: session.permissionMode,
         sessionType: session.sessionType,
+        accountId: accountOverride,
       });
       useSessionStore.getState().addSession(newSession);
       useLayoutStore.getState().replaceTile(sessionId, newSession.sessionId);
@@ -69,7 +71,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
         Session ended{session?.endedAt ? ` at ${new Date(session.endedAt).toLocaleString()}` : ''}
       </div>
 
-      {accounts.length > 1 && canResume && (
+      {accounts.length > 1 && (
         <div className="flex items-center gap-2 text-sm">
           <span className="text-text-muted">Account:</span>
           <select

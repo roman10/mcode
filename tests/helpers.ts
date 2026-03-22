@@ -18,6 +18,7 @@ export interface SessionInfo {
   attentionReason: string | null;
   hookMode: string;
   sessionType: string;
+  accountId: string | null;
 }
 
 export interface HookRuntimeInfo {

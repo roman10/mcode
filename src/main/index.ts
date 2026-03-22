@@ -908,6 +908,7 @@ app.whenReady().then(async () => {
         getHookRuntimeInfo: () => hookRuntimeInfo,
         sleepBlocker,
         fileLister,
+        accountManager,
       });
     });
   }
