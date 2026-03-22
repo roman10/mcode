@@ -28,8 +28,6 @@ describe('sidebar interaction', () => {
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
 
-    await new Promise((r) => setTimeout(r, 300));
-
     await client.callTool('sidebar_select_session', {
       sessionId: session.sessionId,
     });
@@ -55,8 +53,6 @@ describe('sidebar interaction', () => {
     const session2 = await createTestSession(client);
     sessionIds.push(session2.sessionId);
     await waitForActive(client, session2.sessionId);
-
-    await new Promise((r) => setTimeout(r, 300));
 
     // Select first
     await client.callTool('sidebar_select_session', {

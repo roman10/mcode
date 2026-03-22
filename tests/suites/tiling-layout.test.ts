@@ -6,6 +6,7 @@ import {
   killAndWaitEnded,
   cleanupSessions,
   getTileCount,
+  waitForTileCount,
   type SessionInfo,
 } from '../helpers';
 
@@ -36,7 +37,7 @@ describe('tiling layout', () => {
     await waitForActive(client, session.sessionId);
 
     // session:created IPC listener in App.tsx auto-adds the tile
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, before + 1);
 
     const after = await getTileCount(client);
     expect(after).toBe(before + 1);
@@ -49,7 +50,7 @@ describe('tiling layout', () => {
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
 
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, before + 1);
 
     const after = await getTileCount(client);
     expect(after).toBe(before + 1);
@@ -69,7 +70,7 @@ describe('tiling layout', () => {
     const before = await getTileCount(client);
 
     await client.callTool('layout_remove_tile', { sessionId });
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForTileCount(client, before - 1);
 
     const after = await getTileCount(client);
     expect(after).toBe(before - 1);
@@ -86,7 +87,7 @@ describe('tiling layout', () => {
     const before = await getTileCount(client);
 
     await client.callTool('layout_add_tile', { sessionId });
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForTileCount(client, before + 1);
 
     const after = await getTileCount(client);
     expect(after).toBe(before + 1);
@@ -100,18 +101,17 @@ describe('tiling layout', () => {
   });
 
   it('auto-closes tile when session is killed', async () => {
+    const before = await getTileCount(client);
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
-
-    const before = await getTileCount(client);
+    await waitForTileCount(client, before + 1);
 
     await killAndWaitEnded(client, session.sessionId);
     // TerminalTile's useEffect auto-closes on status → ended
-    await new Promise((r) => setTimeout(r, 1000));
+    await waitForTileCount(client, before);
 
     const after = await getTileCount(client);
-    expect(after).toBe(before - 1);
+    expect(after).toBe(before);
   });
 });

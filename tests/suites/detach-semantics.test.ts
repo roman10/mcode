@@ -5,6 +5,7 @@ import {
   waitForActive,
   cleanupSessions,
   getTileCount,
+  waitForTileCount,
   type SessionInfo,
 } from '../helpers';
 
@@ -27,14 +28,15 @@ describe('detach semantics (close tile != kill session)', () => {
     await waitForActive(client, session.sessionId);
 
     // Add tile
+    const before = await getTileCount(client);
     await client.callTool('layout_add_tile', { sessionId: session.sessionId });
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForTileCount(client, before + 1);
 
     // Remove tile
     await client.callTool('layout_remove_tile', {
       sessionId: session.sessionId,
     });
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForTileCount(client, before);
 
     // Session should still be active
     const status = await client.callToolJson<SessionInfo>(
@@ -49,7 +51,7 @@ describe('detach semantics (close tile != kill session)', () => {
     const before = await getTileCount(client);
 
     await client.callTool('layout_add_tile', { sessionId });
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForTileCount(client, before + 1);
 
     const after = await getTileCount(client);
     expect(after).toBe(before + 1);
@@ -59,8 +61,9 @@ describe('detach semantics (close tile != kill session)', () => {
     const sessionId = sessionIds[0];
 
     // Remove tile first (detach)
+    const before = await getTileCount(client);
     await client.callTool('layout_remove_tile', { sessionId });
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForTileCount(client, before - 1);
 
     // Kill
     await client.callTool('session_kill', { sessionId });

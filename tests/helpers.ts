@@ -264,6 +264,30 @@ export async function getTileCount(client: McpTestClient): Promise<number> {
   return parseInt(text, 10);
 }
 
+export async function waitForTileCount(
+  client: McpTestClient,
+  expected: number,
+  timeoutMs = 10000,
+): Promise<number> {
+  const text = await client.callToolText('layout_wait_for_tile_count', {
+    expected,
+    timeout_ms: timeoutMs,
+  });
+  return parseInt(text, 10);
+}
+
+export async function waitForViewMode(
+  client: McpTestClient,
+  expected: 'tiles' | 'kanban',
+  timeoutMs = 10000,
+): Promise<string> {
+  const text = await client.callToolText('layout_wait_for_view_mode', {
+    expected,
+    timeout_ms: timeoutMs,
+  });
+  return text.replace('View mode: ', '').trim();
+}
+
 // --- Kanban helpers ---
 
 export interface KanbanColumnEntry {

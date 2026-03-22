@@ -223,6 +223,90 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('layout_wait_for_tile_count', {
+    description: 'Wait until the mosaic layout reaches the expected tile count. Polls every 250ms.',
+    inputSchema: {
+      expected: z.number().int().min(0).describe('The expected number of tiles'),
+      timeout_ms: z.number().int().positive().optional().describe('Timeout in milliseconds (default: 10000)'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ expected, timeout_ms }) => {
+    const timeout = timeout_ms ?? 10000;
+    const pollInterval = 250;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      try {
+        const count = await queryRenderer<number>(ctx.mainWindow, 'layout-tile-count', {});
+        if (count === expected) {
+          return { content: [{ type: 'text', text: String(count) }] };
+        }
+      } catch {
+        // Renderer query failed, retry
+      }
+      await new Promise((r) => setTimeout(r, pollInterval));
+    }
+
+    // Final check
+    try {
+      const count = await queryRenderer<number>(ctx.mainWindow, 'layout-tile-count', {});
+      if (count === expected) {
+        return { content: [{ type: 'text', text: String(count) }] };
+      }
+      return {
+        content: [{ type: 'text', text: `Timeout after ${timeout}ms waiting for tile count ${expected}. Current: ${count}` }],
+        isError: true,
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Timeout: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('layout_wait_for_view_mode', {
+    description: 'Wait until the layout view mode matches the expected value. Polls every 250ms.',
+    inputSchema: {
+      expected: z.enum(['tiles', 'kanban']).describe('The expected view mode'),
+      timeout_ms: z.number().int().positive().optional().describe('Timeout in milliseconds (default: 10000)'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ expected, timeout_ms }) => {
+    const timeout = timeout_ms ?? 10000;
+    const pollInterval = 250;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      try {
+        const result = await queryRenderer<{ viewMode: string }>(ctx.mainWindow, 'layout-get-view-mode', {});
+        if (result.viewMode === expected) {
+          return { content: [{ type: 'text', text: `View mode: ${result.viewMode}` }] };
+        }
+      } catch {
+        // Renderer query failed, retry
+      }
+      await new Promise((r) => setTimeout(r, pollInterval));
+    }
+
+    // Final check
+    try {
+      const result = await queryRenderer<{ viewMode: string }>(ctx.mainWindow, 'layout-get-view-mode', {});
+      if (result.viewMode === expected) {
+        return { content: [{ type: 'text', text: `View mode: ${result.viewMode}` }] };
+      }
+      return {
+        content: [{ type: 'text', text: `Timeout after ${timeout}ms waiting for view mode "${expected}". Current: ${result.viewMode}` }],
+        isError: true,
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `Timeout: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('sidebar_get_sessions', {
     description: 'List sessions shown in the sidebar with their status (excludes ephemeral sessions)',
     annotations: { readOnlyHint: true },

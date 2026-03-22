@@ -5,6 +5,8 @@ import {
   createTestSession,
   waitForActive,
   cleanupSessions,
+  getTileCount,
+  waitForTileCount,
 } from '../helpers';
 
 describe('terminal actions', () => {
@@ -21,8 +23,9 @@ describe('terminal actions', () => {
     await waitForActive(client, sessionId);
 
     // Add tile so terminal buffer is rendered via xterm.js
+    const before = await getTileCount(client);
     await client.callTool('layout_add_tile', { sessionId });
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, before + 1);
   });
 
   afterAll(async () => {

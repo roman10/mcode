@@ -13,6 +13,9 @@ import {
   getKanbanState,
   expandKanbanSession,
   collapseKanban,
+  waitForTileCount,
+  waitForViewMode,
+  waitForAttention,
   type SessionInfo,
 } from '../helpers';
 
@@ -54,10 +57,11 @@ describe('kanban layout', () => {
   it('groups active sessions into the working column', async () => {
     await setViewMode(client, 'kanban');
 
+    const tilesBefore = await getTileCount(client);
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, tilesBefore + 1);
 
     const state = await getKanbanState(client);
     const workingIds = state.columns['working']?.map((s) => s.sessionId) ?? [];
@@ -65,13 +69,14 @@ describe('kanban layout', () => {
   });
 
   it('moves ended sessions to the completed column', async () => {
+    const tilesBefore = await getTileCount(client);
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, tilesBefore + 1);
 
     await killAndWaitEnded(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, tilesBefore);
 
     const state = await getKanbanState(client);
     const completedIds = state.columns['completed']?.map((s) => s.sessionId) ?? [];
@@ -81,13 +86,12 @@ describe('kanban layout', () => {
   it('moves sessions with high attention to needs-attention column', async () => {
     const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
 
     // Inject a PermissionRequest hook event to raise attention to high
     await injectHookEvent(client, session.sessionId, 'PermissionRequest', {
       toolName: 'file:write',
     });
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForAttention(client, session.sessionId, 'action');
 
     const state = await getKanbanState(client);
     const needsAttentionIds = state.columns['needs-attention']?.map((s) => s.sessionId) ?? [];
@@ -97,19 +101,18 @@ describe('kanban layout', () => {
   it('expands a session and reports expandedSessionId', async () => {
     await setViewMode(client, 'kanban');
 
+    const tilesBefore = await getTileCount(client);
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, tilesBefore + 1);
 
     await expandKanbanSession(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 300));
 
     const state = await getKanbanState(client);
     expect(state.expandedSessionId).toBe(session.sessionId);
 
     await collapseKanban(client);
-    await new Promise((r) => setTimeout(r, 300));
 
     const stateAfter = await getKanbanState(client);
     expect(stateAfter.expandedSessionId).toBeNull();
@@ -118,20 +121,20 @@ describe('kanban layout', () => {
   it('auto-collapses when expanded session is killed', async () => {
     await setViewMode(client, 'kanban');
 
+    const tilesBefore = await getTileCount(client);
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, tilesBefore + 1);
 
     await expandKanbanSession(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 300));
 
     const before = await getKanbanState(client);
     expect(before.expandedSessionId).toBe(session.sessionId);
 
     // Kill the session — KanbanLayout's useEffect should auto-collapse
     await killAndWaitEnded(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 1000));
+    await waitForTileCount(client, tilesBefore);
 
     const after = await getKanbanState(client);
     expect(after.expandedSessionId).toBeNull();
@@ -140,18 +143,19 @@ describe('kanban layout', () => {
   it('clears expansion when switching view modes', async () => {
     await setViewMode(client, 'kanban');
 
+    const tilesBefore = await getTileCount(client);
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, tilesBefore + 1);
 
     await expandKanbanSession(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 300));
 
     // Switch to tiles and back — expansion should be cleared
     await setViewMode(client, 'tiles');
+    await waitForViewMode(client, 'tiles');
     await setViewMode(client, 'kanban');
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForViewMode(client, 'kanban');
 
     const state = await getKanbanState(client);
     expect(state.expandedSessionId).toBeNull();
@@ -165,7 +169,7 @@ describe('kanban layout', () => {
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForTileCount(client, tilesBefore + 1);
 
     // Even in kanban mode, the mosaic tree should be updated
     const tilesAfter = await getTileCount(client);
@@ -173,7 +177,7 @@ describe('kanban layout', () => {
 
     // Switch back to tiles — the session should have a tile
     await setViewMode(client, 'tiles');
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForViewMode(client, 'tiles');
 
     const tilesInTileMode = await getTileCount(client);
     expect(tilesInTileMode).toBeGreaterThanOrEqual(tilesAfter);

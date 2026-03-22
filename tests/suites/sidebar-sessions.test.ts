@@ -25,9 +25,6 @@ describe('sidebar sessions', () => {
     const session = await createTestSession(client, { sessionType: 'terminal' });
     sessionIds.push(session.sessionId);
 
-    // Give renderer time to process the created event
-    await new Promise((r) => setTimeout(r, 500));
-
     const sidebarSessions = await client.callToolJson<SessionInfo[]>(
       'sidebar_get_sessions',
     );
@@ -41,9 +38,6 @@ describe('sidebar sessions', () => {
     const sessionId = sessionIds[0];
     await waitForActive(client, sessionId);
 
-    // Give renderer time to receive status update
-    await new Promise((r) => setTimeout(r, 500));
-
     const sidebarSessions = await client.callToolJson<SessionInfo[]>(
       'sidebar_get_sessions',
     );
@@ -55,9 +49,6 @@ describe('sidebar sessions', () => {
   it('sidebar shows ended status after kill', async () => {
     const sessionId = sessionIds[0];
     await killAndWaitEnded(client, sessionId);
-
-    // Give renderer time to update
-    await new Promise((r) => setTimeout(r, 500));
 
     const sidebarSessions = await client.callToolJson<SessionInfo[]>(
       'sidebar_get_sessions',

@@ -5,6 +5,7 @@ import {
   waitForActive,
   cleanupSessions,
   getTileCount,
+  waitForTileCount,
   type SessionInfo,
 } from '../helpers';
 
@@ -26,8 +27,8 @@ describe('layout UI controls', () => {
       waitForActive(client, s1.sessionId),
       waitForActive(client, s2.sessionId),
     ]);
-    // Auto-tile should have added tiles; wait briefly for IPC
-    await new Promise((r) => setTimeout(r, 500));
+    // Wait for auto-tile IPC events
+    await waitForTileCount(client, 2);
 
     // Save original sidebar collapsed state
     const state = await client.callToolJson<{ collapsed: boolean }>(

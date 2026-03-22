@@ -12,6 +12,8 @@
     "build:mac": "npm run build && electron-builder --mac",
     "package": "npm run build && electron-builder",
     "postinstall": "electron-builder install-app-deps",
+    "test": "vitest run --config vitest.unit.config.mts",
+    "test:unit": "vitest run --config vitest.unit.config.mts",
     "test:mcp": "vitest run --config vitest.config.mts"
   },
   "dependencies": {
