@@ -4,6 +4,7 @@ import {
   createTestSession,
   createLiveClaudeTestSession,
   waitForActive,
+  waitForIdle,
   killAndWaitEnded,
   cleanupSessions,
   injectHookEvent,
@@ -82,11 +83,8 @@ describe('task queue', () => {
   it('rejects cancellation of non-pending tasks', async () => {
     const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    const active = await waitForActive(client, session.sessionId);
-    expect(active.hookMode).toBe('live');
-
-    // Inject Stop to make session idle
-    await injectHookEvent(client, session.sessionId, 'Stop');
+    const ready = await waitForIdle(client, session.sessionId);
+    expect(ready.hookMode).toBe('live');
 
     const task = await createTask(client, {
       prompt: 'echo dispatched',
@@ -111,11 +109,8 @@ describe('task queue', () => {
   it('dispatches task to existing idle session', async () => {
     const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    const active = await waitForActive(client, session.sessionId);
-    expect(active.hookMode).toBe('live');
-
-    // Make session idle
-    await injectHookEvent(client, session.sessionId, 'Stop');
+    const ready = await waitForIdle(client, session.sessionId);
+    expect(ready.hookMode).toBe('live');
 
     const task = await createTask(client, {
       prompt: 'follow up work',
@@ -139,9 +134,8 @@ describe('task queue', () => {
   it('dispatches tasks sequentially on same session', async () => {
     const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    const active = await waitForActive(client, session.sessionId);
-    expect(active.hookMode).toBe('live');
-    await injectHookEvent(client, session.sessionId, 'Stop');
+    const ready = await waitForIdle(client, session.sessionId);
+    expect(ready.hookMode).toBe('live');
 
     // Queue 3 tasks on the same session
     const t1 = await createTask(client, { prompt: 'task 1', targetSessionId: session.sessionId });
@@ -183,9 +177,8 @@ describe('task queue', () => {
   it('fails task when target session ends', async () => {
     const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    const active = await waitForActive(client, session.sessionId);
-    expect(active.hookMode).toBe('live');
-    await injectHookEvent(client, session.sessionId, 'Stop');
+    const ready = await waitForIdle(client, session.sessionId);
+    expect(ready.hookMode).toBe('live');
 
     // Queue tasks
     const t1 = await createTask(client, { prompt: 'task 1', targetSessionId: session.sessionId });
@@ -259,8 +252,8 @@ describe('task queue', () => {
   it('rejects task targeting ended session', async () => {
     const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    const active = await waitForActive(client, session.sessionId);
-    expect(active.hookMode).toBe('live');
+    const ready = await waitForIdle(client, session.sessionId);
+    expect(ready.hookMode).toBe('live');
     await killAndWaitEnded(client, session.sessionId);
 
     await expect(

@@ -88,6 +88,18 @@ export async function waitForActive(
   });
 }
 
+export async function waitForIdle(
+  client: McpTestClient,
+  sessionId: string,
+  timeoutMs = 15000,
+): Promise<SessionInfo> {
+  return client.callToolJson<SessionInfo>('session_wait_for_status', {
+    sessionId,
+    status: 'idle',
+    timeout_ms: timeoutMs,
+  });
+}
+
 export async function killAndWaitEnded(
   client: McpTestClient,
   sessionId: string,

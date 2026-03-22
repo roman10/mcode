@@ -290,12 +290,20 @@ export class SessionManager {
         args: args.length > 0 ? args : undefined,
         env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
         onFirstData: () => {
-          // PTY data drives starting -> active in all modes.
+          // PTY data drives starting -> active/idle in all modes.
           // In live mode, SessionStart hook may arrive first — updateStatus
           // idempotency guard makes this a safe no-op in that case.
-          this.updateStatus(sessionId, 'active');
           if (opts?.initialCommand) {
+            // Session has pre-loaded work — mark active so the task queue
+            // won't dispatch to it before the initial command is processed.
+            this.updateStatus(sessionId, 'active');
             this.ptyManager.write(sessionId, opts.initialCommand + '\n');
+          } else if (sessionType === 'claude') {
+            // Claude session with no initial command — it's at the prompt
+            // waiting for user input, so idle is the accurate state.
+            this.updateStatus(sessionId, 'idle');
+          } else {
+            this.updateStatus(sessionId, 'active');
           }
         },
         onExit: () => {
@@ -308,12 +316,13 @@ export class SessionManager {
       throw err;
     }
 
-    // Safety net: if still starting after 15s, force-transition to active
+    // Safety net: if still starting after 15s, force-transition
     setTimeout(() => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
-        logger.warn('session', 'Starting timeout, forcing active', { sessionId });
-        this.updateStatus(sessionId, 'active');
+        const targetStatus = sessionType === 'claude' && !opts?.initialCommand ? 'idle' : 'active';
+        logger.warn('session', 'Starting timeout, forcing status', { sessionId, targetStatus });
+        this.updateStatus(sessionId, targetStatus);
       }
     }, 15_000);
 
@@ -379,7 +388,8 @@ export class SessionManager {
         args,
         env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
         onFirstData: () => {
-          this.updateStatus(sessionId, 'active');
+          // Resumed session waits for user input — idle is accurate.
+          this.updateStatus(sessionId, 'idle');
         },
         onExit: () => {
           this.updateStatus(sessionId, 'ended');
@@ -393,12 +403,12 @@ export class SessionManager {
       throw err;
     }
 
-    // Safety net: if still starting after 15s, force-transition to active
+    // Safety net: if still starting after 15s, force-transition to idle
     setTimeout(() => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
-        logger.warn('session', 'Starting timeout, forcing active', { sessionId });
-        this.updateStatus(sessionId, 'active');
+        logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
+        this.updateStatus(sessionId, 'idle');
       }
     }, 15_000);
 
@@ -436,7 +446,8 @@ export class SessionManager {
         args,
         env: { MCODE_SESSION_ID: sessionId },
         onFirstData: () => {
-          this.updateStatus(sessionId, 'active');
+          // Imported session waits for user input — idle is accurate.
+          this.updateStatus(sessionId, 'idle');
         },
         onExit: () => {
           this.updateStatus(sessionId, 'ended');
@@ -447,12 +458,12 @@ export class SessionManager {
       throw err;
     }
 
-    // Safety net: if still starting after 15s, force-transition to active
+    // Safety net: if still starting after 15s, force-transition to idle
     setTimeout(() => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
-        logger.warn('session', 'Starting timeout, forcing active', { sessionId });
-        this.updateStatus(sessionId, 'active');
+        logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
+        this.updateStatus(sessionId, 'idle');
       }
     }, 15_000);
 
