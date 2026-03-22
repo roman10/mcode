@@ -234,10 +234,11 @@ function CreateTaskDialog({
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="button"
-            className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+            className="inline-flex items-center px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
             onClick={() => onOpenChange(false)}
           >
             Cancel
+            <kbd className="ml-2 text-xs opacity-70 font-mono">Esc</kbd>
           </button>
           <button
             type="submit"

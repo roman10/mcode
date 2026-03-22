@@ -299,10 +299,11 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       {/* Footer */}
       <div className="flex justify-end">
         <button
-          className="px-4 py-2 text-sm bg-bg-secondary text-text-secondary border border-border-default rounded hover:bg-bg-elevated transition-colors"
+          className="inline-flex items-center px-4 py-2 text-sm bg-bg-secondary text-text-secondary border border-border-default rounded hover:bg-bg-elevated transition-colors"
           onClick={() => onOpenChange(false)}
         >
           Done
+          <kbd className="ml-2 text-xs opacity-70 font-mono">Esc</kbd>
         </button>
       </div>
     </Dialog>

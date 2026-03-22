@@ -160,10 +160,11 @@ function RepoSection({
       >
         <div className="flex justify-end gap-2 mt-4">
           <button
-            className="px-3 py-1.5 text-sm rounded border border-border-default text-text-secondary hover:bg-bg-elevated transition-colors"
+            className="inline-flex items-center px-3 py-1.5 text-sm rounded border border-border-default text-text-secondary hover:bg-bg-elevated transition-colors"
             onClick={() => setDiscardConfirm(null)}
           >
             Cancel
+            <kbd className="ml-2 text-xs opacity-70 font-mono">Esc</kbd>
           </button>
           <button
             className="px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 text-white transition-colors"
