@@ -123,6 +123,14 @@ export type AppCommand =
   | { command: 'toggle-view-mode' }
   | { command: 'run-shell-command' };
 
+// --- Slash Commands ---
+
+export interface SlashCommandEntry {
+  name: string; // e.g. "compact", "dr"
+  description: string; // first line of .md file, or built-in description
+  source: 'builtin' | 'user' | 'project';
+}
+
 // --- Files ---
 
 export interface FileListResult {
@@ -159,6 +167,10 @@ export interface HookEvent {
 
 export type TaskStatus = 'pending' | 'dispatched' | 'completed' | 'failed';
 
+export interface PlanModeAction {
+  exitPlanMode: boolean; // UI hint: true = proceed, false = revise
+}
+
 export interface Task {
   id: number;
   prompt: string;
@@ -174,6 +186,7 @@ export interface Task {
   retryCount: number;
   maxRetries: number;
   error: string | null;
+  planModeAction: PlanModeAction | null;
 }
 
 export interface CreateTaskInput {
@@ -183,6 +196,7 @@ export interface CreateTaskInput {
   priority?: number;
   scheduledAt?: string;
   maxRetries?: number;
+  planModeAction?: PlanModeAction;
 }
 
 export interface UpdateTaskInput {
@@ -543,6 +557,10 @@ export interface MCodeAPI {
     unstageAll(repoRoot: string): Promise<void>;
     discardAll(repoRoot: string): Promise<void>;
     onStatusChanged(callback: () => void): () => void;
+  };
+
+  slashCommands: {
+    scan(cwd: string): Promise<SlashCommandEntry[]>;
   };
 
   devtools: {

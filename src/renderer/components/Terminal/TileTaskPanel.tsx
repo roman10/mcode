@@ -1,8 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Pencil, X } from 'lucide-react';
 import { useTaskStore } from '../../stores/task-store';
+import { useSessionStore } from '../../stores/session-store';
 import type { Task, TaskStatus } from '../../../shared/types';
 import Tooltip from '../shared/Tooltip';
+import PlanModeResponseDialog from '../shared/PlanModeResponseDialog';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-amber-400',
@@ -149,7 +151,10 @@ function TileTaskPanel({
   sessionId,
 }: TileTaskPanelProps): React.JSX.Element | null {
   const tasks = useTaskStore((s) => s.tasks);
+  const addTask = useTaskStore((s) => s.addTask);
+  const session = useSessionStore((s) => s.sessions[sessionId]);
   const [expanded, setExpanded] = useState(true);
+  const [planModeDialogOpen, setPlanModeDialogOpen] = useState(false);
 
   const sessionTasks = useMemo(
     () =>
@@ -171,32 +176,75 @@ function TileTaskPanel({
     [tasks, sessionId],
   );
 
-  if (sessionTasks.length === 0) return null;
+  // Show the plan mode banner when the session is waiting for a user-choice menu
+  // (attentionReason "Waiting for your response") and no plan mode task is queued yet
+  const isInPlanMode =
+    session?.status === 'waiting' &&
+    session?.attentionReason === 'Waiting for your response';
+
+  const hasPlanModeTask = sessionTasks.some((t) => t.planModeAction !== null);
+
+  const showPlanModeBanner = isInPlanMode && !hasPlanModeTask;
+
+  if (sessionTasks.length === 0 && !showPlanModeBanner) return null;
 
   return (
-    <div className="border-b border-border-default bg-bg-secondary shrink-0">
-      <div
-        className="flex items-center h-6 px-3 cursor-pointer hover:bg-bg-elevated/50 transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className="text-xs text-text-muted mr-1.5">
-          {expanded ? '\u25BC' : '\u25B6'}
-        </span>
-        <span className="text-xs text-text-secondary font-medium mr-1.5">
-          Tasks
-        </span>
-        <span className="text-xs bg-bg-elevated text-text-muted px-1 rounded">
-          {sessionTasks.length} queued
-        </span>
+    <>
+      <div className="border-b border-border-default bg-bg-secondary shrink-0">
+        {/* Plan mode banner */}
+        {showPlanModeBanner && (
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-default/50 bg-red-950/20">
+            <span className="text-xs text-red-400">Needs response</span>
+            <button
+              className="text-xs text-red-400 hover:text-red-300 transition-colors"
+              onClick={() => setPlanModeDialogOpen(true)}
+            >
+              Queue response ›
+            </button>
+          </div>
+        )}
+
+        {/* Task list */}
+        {sessionTasks.length > 0 && (
+          <>
+            <div
+              className="flex items-center h-6 px-3 cursor-pointer hover:bg-bg-elevated/50 transition-colors"
+              onClick={() => setExpanded(!expanded)}
+            >
+              <span className="text-xs text-text-muted mr-1.5">
+                {expanded ? '\u25BC' : '\u25B6'}
+              </span>
+              <span className="text-xs text-text-secondary font-medium mr-1.5">
+                Tasks
+              </span>
+              <span className="text-xs bg-bg-elevated text-text-muted px-1 rounded">
+                {sessionTasks.length} queued
+              </span>
+            </div>
+            {expanded && (
+              <div className="max-h-32 overflow-y-auto">
+                {sessionTasks.map((task) => (
+                  <TileTaskItem key={task.id} task={task} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
-      {expanded && (
-        <div className="max-h-32 overflow-y-auto">
-          {sessionTasks.map((task) => (
-            <TileTaskItem key={task.id} task={task} />
-          ))}
-        </div>
+
+      {session && (
+        <PlanModeResponseDialog
+          open={planModeDialogOpen}
+          onOpenChange={setPlanModeDialogOpen}
+          targetSessionId={sessionId}
+          cwd={session.cwd}
+          onCreate={(input) => {
+            addTask(input).catch(() => {});
+            setPlanModeDialogOpen(false);
+          }}
+        />
       )}
-    </div>
+    </>
   );
 }
 

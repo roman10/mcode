@@ -36,3 +36,22 @@ export function isAtUserChoice(rawBufferTail: string): boolean {
   const lastChunk = clean.slice(-500);
   return menuPattern.test(lastChunk);
 }
+
+/**
+ * Parse the numbered options from a Claude Code user-choice menu.
+ * Returns an array of {index, text} entries, e.g.:
+ *   [{ index: 1, text: 'Yes, and bypass permissions' },
+ *    { index: 2, text: 'Yes, manually approve edits' },
+ *    { index: 3, text: 'Type here to tell Claude what to change' }]
+ *
+ * Used by the task queue to locate the "Type here" option for plan mode
+ * response tasks.
+ */
+export function parseUserChoices(rawBufferTail: string): { index: number; text: string }[] {
+  const clean = stripAnsi(rawBufferTail.slice(-800));
+  const menuStart = clean.lastIndexOf('❯');
+  if (menuStart === -1) return [];
+  const menuBlock = clean.slice(menuStart);
+  const matches = [...menuBlock.matchAll(/(\d+)\.\s+(.+)/g)];
+  return matches.map((m) => ({ index: parseInt(m[1], 10), text: m[2].trim() }));
+}

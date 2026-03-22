@@ -3,10 +3,11 @@ import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from './session-manager';
 import { getDb } from './db';
 import { logger } from './logger';
-import { isAtClaudePrompt } from './prompt-detect';
+import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from './prompt-detect';
 import type {
   Task,
   TaskStatus,
+  PlanModeAction,
   CreateTaskInput,
   UpdateTaskInput,
   TaskFilter,
@@ -30,6 +31,7 @@ interface TaskRecord {
   max_retries: number;
   error: string | null;
   created_at: string;
+  plan_mode_action: string | null;
 }
 
 interface DispatchState {
@@ -57,6 +59,7 @@ function toTask(row: TaskRecord): Task {
     retryCount: row.retry_count,
     maxRetries: row.max_retries,
     error: row.error,
+    planModeAction: row.plan_mode_action ? (JSON.parse(row.plan_mode_action) as PlanModeAction) : null,
   };
 }
 
@@ -138,6 +141,9 @@ export class TaskQueue {
         throw new Error('Target session must be in live hook mode');
       }
       if (session.status === 'ended') {
+        if (input.planModeAction) {
+          throw new Error('Cannot create plan mode response for an ended session');
+        }
         if (!session.claudeSessionId) {
           throw new Error('Target session has ended and cannot be resumed (no Claude session ID)');
         }
@@ -149,10 +155,14 @@ export class TaskQueue {
       }
     }
 
+    if (input.planModeAction && !input.targetSessionId) {
+      throw new Error('Plan mode response tasks must target an existing session');
+    }
+
     const db = getDb();
     const result = db.prepare(
-      `INSERT INTO task_queue (prompt, cwd, target_session_id, priority, scheduled_at, max_retries)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO task_queue (prompt, cwd, target_session_id, priority, scheduled_at, max_retries, plan_mode_action)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       input.prompt,
       input.cwd,
@@ -160,6 +170,7 @@ export class TaskQueue {
       input.priority ?? 0,
       input.scheduledAt ?? null,
       input.maxRetries ?? 3,
+      input.planModeAction ? JSON.stringify(input.planModeAction) : null,
     );
 
     const taskId = result.lastInsertRowid as number;
@@ -297,7 +308,11 @@ export class TaskQueue {
       const task = toTask(row);
 
       if (task.targetSessionId) {
-        this.dispatchToExistingSession(task);
+        if (task.planModeAction) {
+          this.dispatchPlanModeTask(task);
+        } else {
+          this.dispatchToExistingSession(task);
+        }
       } else {
         this.dispatchNewSession(task);
       }
@@ -353,6 +368,68 @@ export class TaskQueue {
 
     const updated = this.getById(task.id)!;
     this.broadcastChange({ type: 'upsert', task: updated });
+  }
+
+  private dispatchPlanModeTask(task: Task): void {
+    const db = getDb();
+
+    // Check if another task is already dispatched on this session
+    const dispatched = db.prepare(
+      `SELECT id FROM task_queue WHERE target_session_id = ? AND status = 'dispatched' LIMIT 1`,
+    ).get(task.targetSessionId!) as { id: number } | undefined;
+    if (dispatched) return;
+
+    const session = this.sessionManager.get(task.targetSessionId!);
+    if (!session) {
+      this.failTask(task.id, 'Target session no longer exists');
+      return;
+    }
+    if (session.status === 'ended') {
+      this.failTask(task.id, 'Target session has ended');
+      this.failPendingTasksForSession(task.targetSessionId!);
+      return;
+    }
+    if (session.status !== 'waiting') return; // Wait for session to enter plan mode
+
+    const buffer = this.ptyManager.getReplayData(task.targetSessionId!);
+    if (!buffer || !isAtUserChoice(buffer.slice(-500))) return;
+
+    const choices = parseUserChoices(buffer);
+    const typeHere = choices.find((c) => /type here/i.test(c.text));
+    if (!typeHere) return; // Not a plan mode menu (e.g. permission prompt); stay pending
+
+    // Navigate to "Type here" option: (index-1) ↓ presses, then Enter to enter text sub-mode
+    const navKeys = '\x1b[B'.repeat(typeHere.index - 1) + '\r';
+    this.ptyManager.write(task.targetSessionId!, navKeys);
+
+    // Mark dispatched immediately
+    const dispatchedAt = new Date().toISOString();
+    db.prepare(
+      `UPDATE task_queue SET status = 'dispatched', session_id = ?, dispatched_at = ? WHERE id = ?`,
+    ).run(task.targetSessionId, dispatchedAt, task.id);
+
+    this.dispatchStates.set(task.id, {
+      hasStarted: false,
+      completedViaIdle: false,
+      dispatchedAtMs: Date.now(),
+    });
+
+    logger.info('task', 'Dispatched plan mode task', {
+      taskId: task.id,
+      sessionId: task.targetSessionId,
+      typeHereIndex: typeHere.index,
+    });
+
+    const updated = this.getById(task.id)!;
+    this.broadcastChange({ type: 'upsert', task: updated });
+
+    // After the text sub-mode activates (~300ms), type the message
+    setTimeout(() => {
+      const currentSession = this.sessionManager.get(task.targetSessionId!);
+      if (!currentSession || currentSession.status === 'ended') return;
+      this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
+      this.sessionManager.updateStatus(task.targetSessionId!, 'active');
+    }, 300);
   }
 
   private dispatchNewSession(task: Task): void {
@@ -447,15 +524,27 @@ export class TaskQueue {
 
       // Check if terminal shows Claude's idle prompt
       const buffer = this.ptyManager.getReplayData(task.sessionId);
-      if (!buffer || !isAtClaudePrompt(buffer.slice(-2000))) continue;
+      if (!buffer) continue;
+
+      const bufferTail = buffer.slice(-2000);
+      const atIdlePrompt = isAtClaudePrompt(bufferTail);
+
+      // Plan mode tasks also complete when Claude re-enters a user-choice menu
+      // (e.g. "Revise" caused Claude to re-plan and show a new menu).
+      const atNewMenu = task.planModeAction && isAtUserChoice(bufferTail.slice(-500));
+
+      if (!atIdlePrompt && !atNewMenu) continue;
 
       logger.info('task', 'Prompt detected in terminal, completing task', {
         taskId,
         sessionId: task.sessionId,
+        completedVia: atIdlePrompt ? 'idle-prompt' : 'new-user-choice',
       });
 
-      // Ensure session status is idle (may still be 'active' if no Stop hook fired)
-      this.sessionManager.updateStatus(task.sessionId, 'idle');
+      // Ensure session status reflects current state
+      if (atIdlePrompt) {
+        this.sessionManager.updateStatus(task.sessionId, 'idle');
+      }
 
       state.completedViaIdle = true;
       this.completeTask(taskId);

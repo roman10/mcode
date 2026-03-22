@@ -17,9 +17,16 @@ export function registerTaskTools(
       priority: z.number().int().optional().describe('Priority (higher = more urgent, default: 0)'),
       scheduledAt: z.string().optional().describe('ISO 8601 time to schedule dispatch (null = ASAP)'),
       maxRetries: z.number().int().optional().describe('Max retries on failure (default: 3)'),
+      planModeAction: z.object({
+        exitPlanMode: z.boolean().describe('UI hint: true = proceed with plan, false = revise plan'),
+      }).optional().describe(
+        'If set, this is a plan mode response task. When the target session enters plan mode, ' +
+        'the task queue navigates to the "Type here" option and types the prompt as feedback. ' +
+        'Requires targetSessionId. The prompt should express intent, e.g. "proceed with implementation" or "add error handling first".',
+      ),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ prompt, cwd, targetSessionId, priority, scheduledAt, maxRetries }) => {
+  }, async ({ prompt, cwd, targetSessionId, priority, scheduledAt, maxRetries, planModeAction }) => {
     try {
       const task = ctx.taskQueue.create({
         prompt,
@@ -28,6 +35,7 @@ export function registerTaskTools(
         priority,
         scheduledAt,
         maxRetries,
+        planModeAction,
       });
       return {
         content: [{ type: 'text', text: JSON.stringify(task, null, 2) }],
