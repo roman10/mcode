@@ -57,7 +57,8 @@ tests/
 │   ├── commit-tracking    # Commit stats, heatmap, streaks, cadence
 │   ├── file-tools         # File list, read, write, viewer, quick open
 │   ├── token-usage        # Token usage stats, heatmap, trends
-│   └── git-tools          # Git status, diff content, diff viewer
+│   ├── git-tools          # Git status, diff content, diff viewer
+│   └── snippet-tools      # Snippet scanning, frontmatter parsing, variable extraction
 
 vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 ```
@@ -114,7 +115,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 
 ## MCP Tools Used
 
-83 tools across 12 categories. Each test case lists the tools it exercises.
+84 tools across 13 categories. Each test case lists the tools it exercises.
 
 | Category | Tools |
 |----------|-------|
@@ -130,6 +131,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 | **File** (5) | `file_list`, `file_read`, `file_write`, `file_open_viewer`, `quick_open_toggle` |
 | **Token** (6) | `tokens_get_session_usage`, `tokens_get_daily_usage`, `tokens_get_model_breakdown`, `tokens_get_weekly_trend`, `tokens_get_heatmap`, `tokens_refresh` |
 | **Git** (4) | `git_get_status`, `git_get_all_statuses`, `git_get_diff_content`, `git_open_diff_viewer` |
+| **Snippet** (1) | `snippet_list` |
 
 ---
 
@@ -560,6 +562,21 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 5 | git_get_diff_content returns empty content for non-existent file | `git_get_diff_content` | Returns `originalContent` and `modifiedContent` as empty strings (graceful, not error) |
 | 6 | git_open_diff_viewer returns success | `git_open_diff_viewer` | Response contains "Opened diff viewer" |
 
+### 28. Snippet Tools
+
+**File**: `tests/suites/snippet-tools.test.ts`
+**What it verifies**: Snippet scanning — frontmatter parsing, variable extraction (explicit and auto-detected), and empty directory handling.
+
+**Setup**: Creates temp directory with 3 snippet `.md` files (full frontmatter with variables, no variables, no frontmatter with body placeholders). **Teardown**: Removes temp directory.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | snippet_list returns parsed entries for project snippets | `snippet_list` | Returns array with 3 project-level entries |
+| 2 | parses frontmatter with variables correctly | `snippet_list` | "Review PR" has correct name, description, 2 variables (with defaults), body contains placeholders |
+| 3 | parses snippet with no variables | `snippet_list` | "Quick Fix" has empty variables array, body present |
+| 4 | auto-extracts variables from body when no frontmatter variables | `snippet_list` | "deploy" has 2 auto-extracted variables (`service`, `environment`) |
+| 5 | returns empty array for directory with no snippets | `snippet_list` | No error for directory without `.mcode/snippets/`; returns valid array |
+
 ---
 
 ## Coverage Summary
@@ -582,7 +599,8 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | File tools | 25 | 7 | File listing (git-aware), read (text + binary), write round-trip, file viewer, quick open |
 | Token usage | 26 | 9 | Refresh scan, daily/session/model usage, weekly trend, heatmap |
 | Git tools | 27 | 6 | Git status (single repo + all repos), diff content, diff viewer |
-| **Total** | **27** | **181** | |
+| Snippet tools | 28 | 5 | Snippet scanning, frontmatter parsing, variable extraction, empty directory |
+| **Total** | **28** | **186** | |
 
 ## Writing New Tests
 

@@ -21,12 +21,43 @@ Commands are grouped into three categories:
 
 Each command shows its keyboard shortcut (if one exists). Commands are context-aware — for example, "Kill Session" is disabled when no active session is selected.
 
+## Snippet Palette (`@` mode)
+
+Type `@` in Quick Open to switch to snippet mode. Snippets are reusable prompt templates stored as Markdown files.
+
+- **Search**: Fuzzy search across snippet name and description
+- **No variables**: Selecting a snippet inserts its body directly into the active terminal
+- **With variables**: A form appears with labeled inputs (pre-filled with defaults). Press Enter or click Insert to render the template and insert it
+- **Escape in form**: Returns to snippet search (does not close the palette)
+- **Source badge**: Each snippet shows "Project" or "User" to indicate where it comes from
+
+### Snippet file format
+
+Snippets are `.md` files stored in `~/.mcode/snippets/` (user-level) or `<project>/.mcode/snippets/` (project-level). Project snippets override user snippets with the same name.
+
+```markdown
+---
+name: Review PR
+description: Review a pull request with focus areas
+variables:
+  - name: branch
+    description: Branch to review
+    default: main
+  - name: focus
+    description: Focus area
+---
+Review the changes in {{branch}} branch. Focus on {{focus}}.
+```
+
+If no `variables` are defined in the frontmatter, `{{placeholder}}` patterns are auto-extracted from the body.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
 |---|---|
 | `Cmd+P` | Open Quick Open (file search) |
 | `Cmd+Shift+P` | Open Command Palette (commands) |
+| `@` (in Quick Open) | Switch to snippet search |
 | Arrow keys | Navigate results |
 | `Enter` | Select result |
 | `Escape` | Close |
