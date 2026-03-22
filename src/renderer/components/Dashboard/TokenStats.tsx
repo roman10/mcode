@@ -148,30 +148,32 @@ function TokenStats(): React.JSX.Element {
     'w-5 h-5 flex items-center justify-center rounded text-text-muted/30 cursor-default';
 
   const toolbar = (
-    <div className="flex items-center gap-1 px-3 py-2 border-b border-border-default shrink-0">
-      <span className="text-sm font-medium text-text-primary flex-1">Token Usage</span>
-      <Tooltip content="Previous day" side="bottom">
-        <button className={canGoBack ? btnClass : btnDisabledClass} onClick={canGoBack ? handlePrevDay : undefined} aria-disabled={!canGoBack}>
-          <ChevronLeft size={12} strokeWidth={2} />
+    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-default shrink-0">
+      <span className="text-xs text-text-secondary uppercase tracking-wide">Tokens</span>
+      <div className="flex items-center gap-1">
+        <Tooltip content="Previous day" side="bottom">
+          <button className={canGoBack ? btnClass : btnDisabledClass} onClick={canGoBack ? handlePrevDay : undefined} aria-disabled={!canGoBack}>
+            <ChevronLeft size={12} strokeWidth={2} />
+          </button>
+        </Tooltip>
+        <button
+          className="text-xs px-1.5 py-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors min-w-[48px] text-center"
+          onClick={() => setSelectedDate(null)}
+          title="Go to today"
+        >
+          {isToday ? 'Today' : formatDateLabel(viewDate)}
         </button>
-      </Tooltip>
-      <button
-        className="text-xs px-1.5 py-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors min-w-[48px] text-center"
-        onClick={() => setSelectedDate(null)}
-        title="Go to today"
-      >
-        {isToday ? 'Today' : formatDateLabel(viewDate)}
-      </button>
-      <Tooltip content="Next day" side="bottom">
-        <button className={isToday ? btnDisabledClass : btnClass} onClick={isToday ? undefined : handleNextDay} aria-disabled={isToday}>
-          <ChevronRight size={12} strokeWidth={2} />
-        </button>
-      </Tooltip>
-      <Tooltip content="Refresh (⌘R)" side="bottom">
-        <button className={btnClass} onClick={handleRefresh}>
-          <RefreshCw size={12} strokeWidth={2} />
-        </button>
-      </Tooltip>
+        <Tooltip content="Next day" side="bottom">
+          <button className={isToday ? btnDisabledClass : btnClass} onClick={isToday ? undefined : handleNextDay} aria-disabled={isToday}>
+            <ChevronRight size={12} strokeWidth={2} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Refresh (⌘R)" side="bottom">
+          <button className={btnClass} onClick={handleRefresh}>
+            <RefreshCw size={12} strokeWidth={2} />
+          </button>
+        </Tooltip>
+      </div>
     </div>
   );
 

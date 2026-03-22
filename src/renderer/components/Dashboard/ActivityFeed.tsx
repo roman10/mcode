@@ -94,47 +94,48 @@ function ActivityFeed(): React.JSX.Element {
   return (
     <div className="flex flex-col h-full w-full bg-bg-primary">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
-        <span className="text-sm font-medium text-text-primary flex-1">Activity</span>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-default shrink-0">
+        <span className="text-xs text-text-secondary uppercase tracking-wide">Activity</span>
+        <div className="flex items-center gap-2">
+          <SearchableSelect
+            options={sessionOptions}
+            value={sessionFilter}
+            onChange={setSessionFilter}
+            placeholder="All sessions"
+          />
 
-        <SearchableSelect
-          options={sessionOptions}
-          value={sessionFilter}
-          onChange={setSessionFilter}
-          placeholder="All sessions"
-        />
-
-        <select
-          className="text-xs bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-text-secondary"
-          value={eventTypeFilter}
-          onChange={(e) => setEventTypeFilter(e.target.value)}
-        >
-          <option value="">All events</option>
-          {KNOWN_HOOK_EVENTS.map((name) => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
-
-        {hasFilters && (
-          <button
-            className="text-xs text-text-muted hover:text-text-secondary"
-            onClick={() => { setSessionFilter(''); setEventTypeFilter(''); }}
+          <select
+            className="text-xs bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-text-secondary"
+            value={eventTypeFilter}
+            onChange={(e) => setEventTypeFilter(e.target.value)}
           >
-            Clear
-          </button>
-        )}
+            <option value="">All events</option>
+            {KNOWN_HOOK_EVENTS.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
 
-        {events.length > 0 && (
-          <Tooltip content="Clear all activities" side="bottom">
+          {hasFilters && (
             <button
-              type="button"
-              className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-bg-elevated transition-colors"
-              onClick={handleClearAll}
+              className="text-xs text-text-muted hover:text-text-secondary"
+              onClick={() => { setSessionFilter(''); setEventTypeFilter(''); }}
             >
-              <Trash2 size={12} />
+              Clear
             </button>
-          </Tooltip>
-        )}
+          )}
+
+          {events.length > 0 && (
+            <Tooltip content="Clear all activities" side="bottom">
+              <button
+                type="button"
+                className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-bg-elevated transition-colors"
+                onClick={handleClearAll}
+              >
+                <Trash2 size={12} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       {/* Event list */}

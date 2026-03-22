@@ -200,23 +200,6 @@ function SidebarPanel(): React.JSX.Element {
           </div>
         )}
 
-        {/* Tab content headers for non-session tabs */}
-        {activeSidebarTab === 'commits' && (
-          <div className="flex items-center px-3 py-1.5 border-b border-border-default shrink-0">
-            <span className="text-xs text-text-secondary uppercase tracking-wide">Commits</span>
-          </div>
-        )}
-        {activeSidebarTab === 'tokens' && (
-          <div className="flex items-center px-3 py-1.5 border-b border-border-default shrink-0">
-            <span className="text-xs text-text-secondary uppercase tracking-wide">Tokens</span>
-          </div>
-        )}
-        {activeSidebarTab === 'activity' && (
-          <div className="flex items-center px-3 py-1.5 border-b border-border-default shrink-0">
-            <span className="text-xs text-text-secondary uppercase tracking-wide">Activity</span>
-          </div>
-        )}
-
         {/* Tab content */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           {activeSidebarTab === 'search' && <SearchPanel />}
