@@ -267,9 +267,16 @@ function NewSessionDialog({
           <button
             type="submit"
             disabled={!cwd.trim() || isCreating}
-            className="px-4 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
+            className="inline-flex items-center px-4 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
           >
-            {isCreating ? 'Creating...' : 'Create Session'}
+            {isCreating ? 'Creating...' : (
+              <>
+                Create Session
+                <kbd className="ml-2 text-xs opacity-70 font-mono">
+                  {isMac ? '⌘↵' : 'Ctrl+↵'}
+                </kbd>
+              </>
+            )}
           </button>
         </div>
       </form>
