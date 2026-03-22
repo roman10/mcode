@@ -65,7 +65,7 @@ export class FileSearch {
 
     // Filter out overly broad directories (e.g. home dir from auth terminal sessions)
     const home = homedir();
-    const filteredCwds = cwds.filter((cwd) => cwd !== home);
+    const filteredCwds = cwds.filter((cwd) => cwd !== home && existsSync(cwd));
 
     // Deduplicate cwds by git root
     const repoRoots = await this.deduplicateByGitRoot(filteredCwds);
@@ -155,7 +155,11 @@ export class FileSearch {
 
       // 'close' always fires after 'error' (including ENOENT), so checkAllDone is called via the close handler.
       child.on('error', (err) => {
-        this.emit({ type: 'error', searchId, message: err.message });
+        const code = (err as NodeJS.ErrnoException).code;
+        const message = code === 'ENOENT' && this.rgPath === 'rg'
+          ? 'ripgrep (rg) not found. Install with: brew install ripgrep'
+          : err.message;
+        this.emit({ type: 'error', searchId, message });
       });
     }
 
