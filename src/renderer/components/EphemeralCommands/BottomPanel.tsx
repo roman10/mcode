@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { useEphemeralCommandStore } from '../../stores/ephemeral-command-store';
@@ -12,6 +12,7 @@ import { stripAnsi } from '../../../shared/strip-ansi';
 const MIN_PANEL_HEIGHT = 100;
 const MAX_PANEL_HEIGHT_RATIO = 0.5; // 50% of viewport
 const OUTPUT_FONT_SIZE = 12;
+const PANEL_COLLAPSE_DELAY_MS = 3000;
 
 function PanelToolbar(): React.JSX.Element {
   const selectedCommandId = useEphemeralCommandStore((s) => s.selectedCommandId);
@@ -267,7 +268,66 @@ export default function BottomPanel(): React.JSX.Element | null {
   const panelExpanded = useEphemeralCommandStore((s) => s.panelExpanded);
   const panelHeight = useEphemeralCommandStore((s) => s.panelHeight);
   const setPanelHeight = useEphemeralCommandStore((s) => s.setPanelHeight);
+  const setPanelExpanded = useEphemeralCommandStore((s) => s.setPanelExpanded);
   const commands = useEphemeralCommandStore((s) => s.commands);
+  const autoCollapseScheduled = useEphemeralCommandStore((s) => s.autoCollapseScheduled);
+  const cancelAutoCollapse = useEphemeralCommandStore((s) => s.cancelAutoCollapse);
+
+  const [countdownPaused, setCountdownPaused] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const elapsedRef = useRef(0);
+  const resumedAtRef = useRef(0);
+
+  // Manage the collapse timer
+  useEffect(() => {
+    if (!autoCollapseScheduled) {
+      elapsedRef.current = 0;
+      setCountdownPaused(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      return;
+    }
+
+    elapsedRef.current = 0;
+    resumedAtRef.current = Date.now();
+    timerRef.current = setTimeout(() => {
+      setPanelExpanded(false);
+    }, PANEL_COLLAPSE_DELAY_MS);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [autoCollapseScheduled, setPanelExpanded]);
+
+  const handlePanelMouseEnter = useCallback(() => {
+    if (!autoCollapseScheduled) return;
+    setCountdownPaused(true);
+    elapsedRef.current += Date.now() - resumedAtRef.current;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, [autoCollapseScheduled]);
+
+  const handlePanelMouseLeave = useCallback(() => {
+    if (!autoCollapseScheduled) return;
+    setCountdownPaused(false);
+    resumedAtRef.current = Date.now();
+    const remaining = PANEL_COLLAPSE_DELAY_MS - elapsedRef.current;
+    if (remaining <= 0) {
+      setPanelExpanded(false);
+      return;
+    }
+    timerRef.current = setTimeout(() => {
+      setPanelExpanded(false);
+    }, remaining);
+  }, [autoCollapseScheduled, setPanelExpanded]);
+
+  const handlePanelClick = useCallback(() => {
+    if (autoCollapseScheduled) {
+      cancelAutoCollapse();
+    }
+  }, [autoCollapseScheduled, cancelAutoCollapse]);
 
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -306,9 +366,24 @@ export default function BottomPanel(): React.JSX.Element | null {
       />
       {/* Panel content */}
       <div
-        className="shrink-0 flex flex-col bg-bg-elevated border-t border-border-subtle"
+        className="shrink-0 flex flex-col bg-bg-elevated border-t border-border-subtle relative"
         style={{ height: panelHeight }}
+        onMouseEnter={handlePanelMouseEnter}
+        onMouseLeave={handlePanelMouseLeave}
+        onClick={handlePanelClick}
       >
+        {/* Auto-collapse countdown bar */}
+        {autoCollapseScheduled && (
+          <div className="absolute top-0 left-0 right-0 h-[2px] z-10 overflow-hidden">
+            <div
+              className="h-full bg-accent/40"
+              style={{
+                animation: `ephemeral-countdown-deplete ${PANEL_COLLAPSE_DELAY_MS}ms linear forwards`,
+                animationPlayState: countdownPaused ? 'paused' : 'running',
+              }}
+            />
+          </div>
+        )}
         <PanelToolbar />
         <OutputView />
       </div>

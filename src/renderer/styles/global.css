@@ -20,6 +20,11 @@
   to { opacity: 1; }
 }
 
+@keyframes ephemeral-countdown-deplete {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
 :root {
   /* Syntax highlighting — consumed by CodeMirror HighlightStyle */
   --syntax-keyword: #ff7b72;

@@ -23,6 +23,7 @@ interface EphemeralCommandState {
   panelExpanded: boolean;
   panelPinned: boolean;
   panelHeight: number;
+  autoCollapseScheduled: boolean;
 
   addCommand(cmd: EphemeralCommand): void;
   appendOutput(sessionId: string, data: string): void;
@@ -34,6 +35,7 @@ interface EphemeralCommandState {
   setPanelExpanded(expanded: boolean): void;
   togglePanelPinned(): void;
   setPanelHeight(height: number): void;
+  cancelAutoCollapse(): void;
 }
 
 export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get) => ({
@@ -42,12 +44,14 @@ export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get)
   panelExpanded: false,
   panelPinned: false,
   panelHeight: 200,
+  autoCollapseScheduled: false,
 
   addCommand: (cmd) =>
     set((state) => ({
       commands: [cmd, ...state.commands],
       selectedCommandId: cmd.id,
       panelExpanded: true,
+      autoCollapseScheduled: false,
     })),
 
   appendOutput: (sessionId, data) =>
@@ -86,9 +90,9 @@ export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get)
         }, SUCCESS_FADE_MS);
       }
 
-      // Auto-collapse panel when not pinned and no running commands remain
+      // Schedule auto-collapse when not pinned and no running commands remain
       const hasRunning = updated.some((c) => c.status === 'running');
-      const shouldCollapse = !hasRunning && !state.panelPinned && status === 'success';
+      const shouldScheduleCollapse = !hasRunning && !state.panelPinned && status === 'success';
 
       // Trim old completed commands
       let trimmed = updated;
@@ -99,12 +103,12 @@ export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get)
 
       return {
         commands: trimmed,
-        panelExpanded: shouldCollapse ? false : state.panelExpanded,
+        autoCollapseScheduled: shouldScheduleCollapse || state.autoCollapseScheduled,
       };
     }),
 
   selectCommand: (id) =>
-    set({ selectedCommandId: id, panelExpanded: id !== null }),
+    set({ selectedCommandId: id, panelExpanded: id !== null, autoCollapseScheduled: false }),
 
   dismissCommand: (id) =>
     set((state) => {
@@ -115,7 +119,9 @@ export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get)
           : state.selectedCommandId;
       const panelExpanded =
         commands.length === 0 ? false : state.panelExpanded;
-      return { commands, selectedCommandId, panelExpanded };
+      const autoCollapseScheduled =
+        commands.length === 0 ? false : state.autoCollapseScheduled;
+      return { commands, selectedCommandId, panelExpanded, autoCollapseScheduled };
     }),
 
   clearCompleted: () =>
@@ -125,6 +131,7 @@ export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get)
         commands,
         selectedCommandId: commands[0]?.id ?? null,
         panelExpanded: commands.length > 0 ? state.panelExpanded : false,
+        autoCollapseScheduled: false,
       };
     }),
 
@@ -135,7 +142,8 @@ export const useEphemeralCommandStore = create<EphemeralCommandState>((set, get)
     }
   },
 
-  setPanelExpanded: (expanded) => set({ panelExpanded: expanded }),
+  setPanelExpanded: (expanded) => set({ panelExpanded: expanded, autoCollapseScheduled: false }),
   togglePanelPinned: () => set((state) => ({ panelPinned: !state.panelPinned })),
   setPanelHeight: (height) => set({ panelHeight: height }),
+  cancelAutoCollapse: () => set({ autoCollapseScheduled: false }),
 }));
