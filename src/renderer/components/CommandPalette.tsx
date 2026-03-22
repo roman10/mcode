@@ -7,11 +7,12 @@ import { getCommands } from '../command-palette/command-registry';
 import { basename } from '../utils/path-utils';
 import { getFileIcon } from '../utils/file-icons';
 import { runEphemeralCommand, resolveEphemeralCwd } from '../utils/session-actions';
+import SnippetItems from './SnippetItems';
 
 const uf = new uFuzzy({ intraMode: 1 });
 
 interface CommandPaletteProps {
-  initialMode: 'files' | 'commands' | 'shell';
+  initialMode: 'files' | 'commands' | 'shell' | 'snippets';
   onClose(): void;
 }
 
@@ -466,6 +467,7 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
   const [input, setInput] = useState(
     initialMode === 'commands' ? '> '
     : initialMode === 'shell' ? '! '
+    : initialMode === 'snippets' ? '@ '
     : '',
   );
 
@@ -474,17 +476,26 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
     ? 'shell'
     : input.startsWith('>')
       ? 'commands'
-      : 'files';
-  const searchQuery = mode === 'commands' || mode === 'shell'
+      : input.startsWith('@')
+        ? 'snippets'
+        : 'files';
+  const searchQuery = mode === 'commands' || mode === 'shell' || mode === 'snippets'
     ? input.slice(1).trimStart()
     : input;
+
+  // Escape override for snippet variable form (back to search instead of closing)
+  const escapeOverrideRef = useRef<(() => void) | null>(null);
 
   // Close on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        if (escapeOverrideRef.current) {
+          escapeOverrideRef.current();
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -519,21 +530,27 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
                 ? '! Type a shell command...'
                 : mode === 'commands'
                   ? '> Type a command...'
-                  : 'Search files by name...'
+                  : mode === 'snippets'
+                    ? '@ Search snippets...'
+                    : 'Search files by name...'
             }
             className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
                        outline-none placeholder:text-text-muted"
           />
           <Command.List className="max-h-[50vh] overflow-y-auto py-1 border-t border-border-subtle">
-            {mode === 'shell' ? (
+            {mode === 'snippets' ? (
+              <SnippetItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
+            ) : mode === 'shell' ? (
               <ShellModeContent query={searchQuery} onClose={onClose} onSetInput={setInput} />
             ) : mode === 'files' ? (
               <>
                 <FileSearchItems query={searchQuery} onClose={onClose} />
-                {/* Hint for shell mode */}
+                {/* Hints for other modes */}
                 {!searchQuery && (
                   <div className="px-4 py-1.5 text-xs text-text-muted border-t border-border-subtle mt-1">
                     Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">!</kbd> to run a shell command
+                    {' · '}
+                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">@</kbd> to insert a snippet
                   </div>
                 )}
               </>
