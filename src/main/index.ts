@@ -11,6 +11,8 @@ import { GitChangesService } from './git-changes';
 import { TokenTracker } from './token-tracker';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister } from './file-lister';
+import { UpdateChecker } from './update-checker';
+import { scanSlashCommands } from './slash-command-scanner';
 import { getPreference, setPreference } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
@@ -46,6 +48,7 @@ let gitChangesService: GitChangesService;
 let tokenTracker: TokenTracker;
 let sleepBlocker: SleepBlocker;
 let fileLister: FileLister;
+let updateChecker: UpdateChecker;
 let hookRuntimeInfo: HookRuntimeInfo = {
   state: 'initializing',
   port: null,
@@ -257,6 +260,9 @@ function registerAppIpc(): void {
   ipcMain.on('app:set-dock-badge', (_event, text: string) => {
     app.dock?.setBadge(text);
   });
+
+  ipcMain.handle('app:check-for-update', () => updateChecker.checkManual());
+  ipcMain.handle('app:open-update-page', () => updateChecker.openUpdatePage());
 }
 
 function registerTaskIpc(): void {
@@ -479,6 +485,12 @@ function registerFileIpc(): void {
 
   ipcMain.handle('files:write', (_event, cwd: string, relativePath: string, content: string) => {
     return fileLister.writeFile(cwd, relativePath, content);
+  });
+}
+
+function registerSlashCommandIpc(): void {
+  ipcMain.handle('slash-commands:scan', (_event, cwd: string) => {
+    return scanSlashCommands(cwd);
   });
 }
 
@@ -719,6 +731,11 @@ app.whenReady().then(async () => {
             accelerator: 'CmdOrCtrl+/',
             click: () => sendCommand({ command: 'show-keyboard-shortcuts' }),
           },
+          { type: 'separator' },
+          {
+            label: 'Check for Updates...',
+            click: () => updateChecker.checkManual(),
+          },
         ],
       },
     ]),
@@ -794,6 +811,7 @@ app.whenReady().then(async () => {
   commitTracker = new CommitTracker(sessionManager, getWebContents);
   gitChangesService = new GitChangesService(sessionManager, getWebContents);
   fileLister = new FileLister();
+  updateChecker = new UpdateChecker(getWebContents);
   tokenTracker = new TokenTracker(getWebContents);
   sleepBlocker = new SleepBlocker();
   sleepBlocker.attach(sessionManager);
@@ -802,6 +820,7 @@ app.whenReady().then(async () => {
   registerSessionIpc();
   registerLayoutIpc();
   registerFileIpc();
+  registerSlashCommandIpc();
   registerAppIpc();
   registerHookIpc();
   registerAccountIpc();
@@ -853,9 +872,10 @@ app.whenReady().then(async () => {
   // Poll for permission prompts and stale session states (PTY-based fallback)
   pollSessionStatesInterval = setInterval(() => sessionManager.pollSessionStates(), 2000);
 
-  // Start commit tracker and token tracker
+  // Start commit tracker, token tracker, and update checker
   commitTracker.start();
   tokenTracker.start();
+  updateChecker.start();
 
   // Wire commit tracker to hook events and session creation
   sessionManager.onSessionUpdated((session, previousStatus) => {

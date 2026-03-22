@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { formatShortTime } from '../../hooks/useRelativeTime';
 import Dialog from './Dialog';
+import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import type { CreateTaskInput } from '../../../shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
@@ -29,6 +30,7 @@ function CreateTaskDialog({
   const [maxRetries, setMaxRetries] = useState(3);
   const [showAdvanced, setShowAdvanced] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sessions = useSessionStore((s) => s.sessions);
 
@@ -112,14 +114,23 @@ function CreateTaskDialog({
             <label className="block text-sm text-text-secondary mb-1">
               Prompt
             </label>
-            <textarea
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
-              rows={4}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="What should Claude work on?"
-              autoFocus
-            />
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
+                rows={4}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="What should Claude work on?"
+                autoFocus
+              />
+              <SlashCommandAutocomplete
+                prompt={prompt}
+                cwd={cwd}
+                textareaRef={textareaRef}
+                onSelect={(text) => setPrompt(text)}
+              />
+            </div>
           </div>
 
           {/* Working directory */}

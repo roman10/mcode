@@ -32,6 +32,7 @@ import type {
   TokenHeatmapEntry,
   AccountProfile,
   SubscriptionUsage,
+  SlashCommandEntry,
 } from '../shared/types';
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -328,6 +329,11 @@ contextBridge.exposeInMainWorld('mcode', {
 
     write: (cwd: string, relativePath: string, content: string): Promise<void> =>
       ipcRenderer.invoke('files:write', cwd, relativePath, content),
+  },
+
+  slashCommands: {
+    scan: (cwd: string): Promise<SlashCommandEntry[]> =>
+      ipcRenderer.invoke('slash-commands:scan', cwd),
   },
 
   tokens: {
