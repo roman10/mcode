@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import type { HookEvent } from '../../../shared/types';
 import { KNOWN_HOOK_EVENTS } from '../../../shared/constants';
+import SearchableSelect from '../shared/SearchableSelect';
+import Tooltip from '../shared/Tooltip';
 
 const MAX_EVENTS = 200;
 
@@ -63,7 +66,12 @@ function ActivityFeed(): React.JSX.Element {
   // Build session options for filter
   const sessionOptions = Object.values(sessions)
     .filter((s) => !s.ephemeral)
-    .map((s) => ({ id: s.sessionId, label: s.label }));
+    .map((s) => ({ value: s.sessionId, label: s.label }));
+
+  const handleClearAll = async (): Promise<void> => {
+    await window.mcode.hooks.clearAll();
+    setEvents([]);
+  };
 
   // Apply filters
   const filtered = events.filter((e) => {
@@ -80,16 +88,12 @@ function ActivityFeed(): React.JSX.Element {
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
         <span className="text-sm font-medium text-text-primary flex-1">Activity</span>
 
-        <select
-          className="text-xs bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-text-secondary"
+        <SearchableSelect
+          options={sessionOptions}
           value={sessionFilter}
-          onChange={(e) => setSessionFilter(e.target.value)}
-        >
-          <option value="">All sessions</option>
-          {sessionOptions.map((s) => (
-            <option key={s.id} value={s.id}>{s.label}</option>
-          ))}
-        </select>
+          onChange={setSessionFilter}
+          placeholder="All sessions"
+        />
 
         <select
           className="text-xs bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-text-secondary"
@@ -109,6 +113,18 @@ function ActivityFeed(): React.JSX.Element {
           >
             Clear
           </button>
+        )}
+
+        {events.length > 0 && (
+          <Tooltip content="Clear all activities" side="bottom">
+            <button
+              type="button"
+              className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-bg-elevated transition-colors"
+              onClick={handleClearAll}
+            >
+              <Trash2 size={12} />
+            </button>
+          </Tooltip>
         )}
       </div>
 

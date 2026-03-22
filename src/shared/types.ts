@@ -519,6 +519,7 @@ export interface MCodeAPI {
     onEvent(callback: (event: HookEvent) => void): () => void;
     getRecent(sessionId: string, limit?: number): Promise<HookEvent[]>;
     getRecentAll(limit?: number): Promise<HookEvent[]>;
+    clearAll(): Promise<void>;
   };
 
   layout: {

@@ -426,6 +426,10 @@ function registerHookIpc(): void {
   ipcMain.handle('hooks:get-recent-all', (_event, limit?: number) => {
     return sessionManager.getRecentAllEvents(limit ?? 200);
   });
+
+  ipcMain.handle('hooks:clear-all', () => {
+    sessionManager.clearAllEvents();
+  });
 }
 
 function registerAccountIpc(): void {

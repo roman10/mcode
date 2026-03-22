@@ -215,6 +215,9 @@ contextBridge.exposeInMainWorld('mcode', {
 
     getRecentAll: (limit?: number): Promise<HookEvent[]> =>
       ipcRenderer.invoke('hooks:get-recent-all', limit ?? 200),
+
+    clearAll: (): Promise<void> =>
+      ipcRenderer.invoke('hooks:clear-all'),
   },
 
   layout: {

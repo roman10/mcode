@@ -229,4 +229,21 @@ describe('hook integration', () => {
     expect(Array.isArray(events)).toBe(true);
     expect(events.length).toBeGreaterThan(0);
   });
+
+  it('hook_clear_all_events removes all events', async () => {
+    // Verify events exist from earlier tests
+    const before = await client.callToolJson<Array<{ sessionId: string }>>(
+      'hook_list_recent_all',
+    );
+    expect(before.length).toBeGreaterThan(0);
+
+    // Clear all events
+    await client.callTool('hook_clear_all_events');
+
+    // Verify no events remain
+    const after = await client.callToolJson<Array<{ sessionId: string }>>(
+      'hook_list_recent_all',
+    );
+    expect(after.length).toBe(0);
+  });
 });

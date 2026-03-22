@@ -117,6 +117,17 @@ export function registerHookTools(
     };
   });
 
+  server.registerTool('hook_clear_all_events', {
+    description: 'Delete all hook events from the database',
+    inputSchema: {},
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    ctx.sessionManager.clearAllEvents();
+    return {
+      content: [{ type: 'text', text: 'All events cleared' }],
+    };
+  });
+
   server.registerTool('session_wait_for_attention', {
     description: 'Wait until a session reaches the specified attention level. Polls every 250ms.',
     inputSchema: {

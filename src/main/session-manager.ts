@@ -1300,4 +1300,10 @@ export class SessionManager {
       payload: tryParseJson<Record<string, unknown>>(r.payload) ?? {},
     }));
   }
+
+  /** Delete all hook events from the database. */
+  clearAllEvents(): void {
+    const db = getDb();
+    db.prepare('DELETE FROM events').run();
+  }
 }
