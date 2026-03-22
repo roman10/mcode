@@ -88,6 +88,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-mosaic-component": "^7.0.0-beta0",
+    "sql.js": "^1.14.1",
     "tailwindcss": "^4.2.0",
     "typescript": "^5.9.0",
     "vite": "^7.3.0",
