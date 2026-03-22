@@ -19,7 +19,7 @@ function renderTemplate(body: string, values: Record<string, string>): string {
 function insertSnippetText(text: string): boolean {
   const sessionId = useSessionStore.getState().selectedSessionId;
   if (!sessionId) return false;
-  window.mcode.pty.write(sessionId, text).catch(console.error);
+  window.mcode.pty.write(sessionId, text);
   return true;
 }
 

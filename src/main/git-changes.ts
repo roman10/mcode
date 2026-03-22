@@ -113,7 +113,7 @@ export class GitChangesService {
   }
 
   /** Broadcast git status change to renderer when a hook event indicates a git command ran. */
-  async onHookEvent(sessionId: string, event: HookEvent): Promise<void> {
+  async onHookEvent(_sessionId: string, event: HookEvent): Promise<void> {
     if (event.hookEventName !== 'PostToolUse' || event.toolName !== 'Bash') return;
 
     const toolInput = event.toolInput as { command?: string } | null;

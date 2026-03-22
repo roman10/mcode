@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Tier 1: Fast checks — runs on every push/PR (~30s)
+  lint-and-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+
+  # Tier 2: Integration tests — runs on main or manual trigger
+  integration:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Start dev server
+        run: |
+          npm run dev &
+          # Wait for MCP server to be ready
+          for i in $(seq 1 60); do
+            if curl -s http://127.0.0.1:7532/mcp > /dev/null 2>&1; then
+              echo "MCP server ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run integration tests
+        run: npm run test:mcp
+
+      - name: Stop dev server
+        if: always()
+        run: pkill -f "electron-vite" || true
