@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import type { MCodeAPI } from '../shared/types';
+import type { MCodeAPI } from '@shared/types';
 
 declare global {
   interface Window {

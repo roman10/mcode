@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Pencil, X } from 'lucide-react';
 import { useTaskStore } from '../../stores/task-store';
 import { useSessionStore } from '../../stores/session-store';
-import type { Task, TaskStatus } from '../../../shared/types';
+import type { Task, TaskStatus } from '@shared/types';
 import Tooltip from '../shared/Tooltip';
 import PlanModeResponseDialog from '../shared/PlanModeResponseDialog';
 

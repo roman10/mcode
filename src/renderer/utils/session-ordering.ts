@@ -1,4 +1,4 @@
-import type { SessionAttentionLevel, SessionInfo, SessionStatus } from '../../shared/types';
+import type { SessionAttentionLevel, SessionInfo, SessionStatus } from '@shared/types';
 
 const attentionOrder: Record<SessionAttentionLevel, number> = {
   action: 0,

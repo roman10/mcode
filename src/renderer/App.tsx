@@ -22,7 +22,7 @@ import { useSearchStore } from './stores/search-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
-import type { CreateTaskInput, SidebarTab } from '../shared/types';
+import type { CreateTaskInput, SidebarTab } from '@shared/types';
 
 function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -83,6 +83,8 @@ function App(): React.JSX.Element {
 
         // Load accounts (non-blocking, used by AccountsDialog and SessionCard)
         useAccountsStore.getState().refresh().catch(() => {});
+        // Check CLI installation / auth status for sidebar banner
+        useAccountsStore.getState().refreshCliStatus().catch(() => {});
 
         // Load task queue
         const tasks = await window.mcode.tasks.list();
@@ -191,9 +193,10 @@ function App(): React.JSX.Element {
     return unsub;
   }, []);
 
-  // Route pty:exit events to ephemeral command store
+  // Route pty:exit events to ephemeral command store + session exit codes
   useEffect(() => {
     const unsub = window.mcode.pty.onExit((sessionId, payload) => {
+      useSessionStore.getState().setExitCode(sessionId, payload.code);
       const { commands, completeCommand } = useEphemeralCommandStore.getState();
       if (commands.some((c) => c.sessionId === sessionId)) {
         completeCommand(sessionId, payload.code, payload.signal);

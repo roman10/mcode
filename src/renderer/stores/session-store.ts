@@ -1,11 +1,13 @@
 import { create } from 'zustand';
-import type { SessionInfo, ExternalSessionInfo, HookRuntimeInfo } from '../../shared/types';
+import type { SessionInfo, ExternalSessionInfo, HookRuntimeInfo } from '@shared/types';
 
 interface SessionState {
   sessions: Record<string, SessionInfo>;
   externalSessions: ExternalSessionInfo[];
   selectedSessionId: string | null;
   hookRuntime: HookRuntimeInfo;
+  /** Exit codes keyed by sessionId. Populated by pty.onExit events. */
+  exitCodes: Record<string, number>;
 
   addSession(session: SessionInfo): void;
   upsertSession(session: SessionInfo): void;
@@ -15,6 +17,7 @@ interface SessionState {
   setSessions(sessions: SessionInfo[]): void;
   setExternalSessions(sessions: ExternalSessionInfo[]): void;
   setHookRuntime(info: HookRuntimeInfo): void;
+  setExitCode(sessionId: string, code: number): void;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -22,6 +25,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   externalSessions: [],
   selectedSessionId: null,
   hookRuntime: { state: 'initializing', port: null, warning: null },
+  exitCodes: {},
 
   addSession: (session) =>
     set((state) => ({
@@ -36,8 +40,10 @@ export const useSessionStore = create<SessionState>((set) => ({
   removeSession: (id) =>
     set((state) => {
       const { [id]: _, ...rest } = state.sessions;
+      const { [id]: _ec, ...exitCodesRest } = state.exitCodes;
       return {
         sessions: rest,
+        exitCodes: exitCodesRest,
         selectedSessionId:
           state.selectedSessionId === id ? null : state.selectedSessionId,
       };
@@ -70,4 +76,9 @@ export const useSessionStore = create<SessionState>((set) => ({
   setExternalSessions: (sessions) => set({ externalSessions: sessions }),
 
   setHookRuntime: (info) => set({ hookRuntime: info }),
+
+  setExitCode: (sessionId, code) =>
+    set((state) => ({
+      exitCodes: { ...state.exitCodes, [sessionId]: code },
+    })),
 }));

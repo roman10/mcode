@@ -1,7 +1,7 @@
 import type { MosaicNode } from 'react-mosaic-component';
 import { getLeaves } from 'react-mosaic-component';
-import type { SessionInfo } from '../../shared/types';
-import { KEYBOARD_SHORTCUTS } from '../../shared/keyboard-shortcuts';
+import type { SessionInfo } from '@shared/types';
+import { KEYBOARD_SHORTCUTS } from '@shared/keyboard-shortcuts';
 import { formatKeys } from '../utils/format-shortcut';
 import { executeAppCommand } from '../utils/app-commands';
 import { useLayoutStore } from '../stores/layout-store';

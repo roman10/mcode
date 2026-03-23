@@ -155,7 +155,7 @@ export function initDevtoolsBridge(): void {
         const { tab } = params as { tab: string };
         const { useLayoutStore } = await import('../stores/layout-store');
         const store = useLayoutStore.getState();
-        const targetTab = tab as import('../../shared/types').SidebarTab;
+        const targetTab = tab as import('@shared/types').SidebarTab;
         if (store.sidebarCollapsed) {
           store.setActiveSidebarTab(targetTab);
           store.toggleSidebar();
@@ -180,7 +180,7 @@ export function initDevtoolsBridge(): void {
       case 'layout-set-view-mode': {
         const { mode } = params as { mode: string };
         const { useLayoutStore } = await import('../stores/layout-store');
-        useLayoutStore.getState().setViewMode(mode as import('../../shared/types').ViewMode);
+        useLayoutStore.getState().setViewMode(mode as import('@shared/types').ViewMode);
         result = { viewMode: mode };
         break;
       }

@@ -1,4 +1,4 @@
-import type { AppCommand } from '../../shared/types';
+import type { AppCommand } from '@shared/types';
 import { useLayoutStore } from '../stores/layout-store';
 import { useSessionStore } from '../stores/session-store';
 import { getOrderedVisibleSessions } from './session-ordering';

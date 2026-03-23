@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Dialog from './Dialog';
-import type { CreateTaskInput } from '../../../shared/types';
+import type { CreateTaskInput } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
 

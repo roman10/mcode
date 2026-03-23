@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Task, CreateTaskInput, UpdateTaskInput, TaskFilter } from '../../shared/types';
+import type { Task, CreateTaskInput, UpdateTaskInput, TaskFilter } from '@shared/types';
 
 interface TaskState {
   tasks: Record<number, Task>;

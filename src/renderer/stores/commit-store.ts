@@ -5,7 +5,7 @@ import type {
   CommitStreakInfo,
   CommitCadenceInfo,
   CommitWeeklyTrend,
-} from '../../shared/types';
+} from '@shared/types';
 
 interface CommitState {
   dailyStats: DailyCommitStats | null;

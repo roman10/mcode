@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { SquareX, Trash2, BellOff, TerminalSquare, Plus } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
+import { useAccountsStore } from '../../stores/accounts-store';
 import { useTokenStore } from '../../stores/token-store';
 import SessionList from './SessionList';
 import TaskQueuePanel from './TaskQueuePanel';
@@ -15,11 +16,11 @@ import TokenStats from '../Dashboard/TokenStats';
 import ActivityFeed from '../Dashboard/ActivityFeed';
 import SearchPanel from './SearchPanel';
 import { createTerminalSession, autoExpandInKanban } from '../../utils/session-actions';
-import type { SessionCreateInput, SessionInfo } from '../../../shared/types';
+import type { SessionCreateInput, SessionInfo } from '@shared/types';
 import {
   MIN_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
-} from '../../../shared/constants';
+} from '@shared/constants';
 
 function SidebarPanel(): React.JSX.Element {
   const showNewDialog = useLayoutStore((s) => s.showNewSessionDialog);
@@ -40,6 +41,9 @@ function SidebarPanel(): React.JSX.Element {
   const addSession = useSessionStore((s) => s.addSession);
   const selectSession = useSessionStore((s) => s.selectSession);
   const hookRuntime = useSessionStore((s) => s.hookRuntime);
+  const cliStatus = useAccountsStore((s) => s.cliStatus);
+  const cliStatusDismissed = useAccountsStore((s) => s.cliStatusDismissed);
+  const dismissCliStatus = useAccountsStore((s) => s.dismissCliStatus);
 
   const isMac = window.mcode.app.getPlatform() === 'darwin';
   const modLabel = isMac ? '⌘' : 'Ctrl+';
@@ -127,6 +131,24 @@ function SidebarPanel(): React.JSX.Element {
     persist();
   };
 
+  const handleSignIn = async (): Promise<void> => {
+    try {
+      const s = await window.mcode.sessions.create({
+        cwd: window.mcode.app.getHomeDir(),
+        label: 'Sign in',
+        sessionType: 'terminal',
+      });
+      addSession(s);
+      addTile(s.sessionId);
+      persist();
+      selectSession(s.sessionId);
+      // Send auth command after a brief delay for shell init
+      setTimeout(() => window.mcode.pty.write(s.sessionId, 'claude auth login\n'), 300);
+    } catch (err) {
+      console.error('Failed to open sign-in terminal:', err);
+    }
+  };
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleDeleteBatch = async (sessionIds: string[]): Promise<void> => {
@@ -208,6 +230,38 @@ function SidebarPanel(): React.JSX.Element {
               {hookRuntime.state === 'degraded' && (
                 <div className="px-3 py-1.5 bg-amber-900/30 text-amber-300 text-xs shrink-0">
                   Live status unavailable
+                </div>
+              )}
+              {cliStatus === 'cli-not-found' && !cliStatusDismissed && (
+                <div className="px-3 py-1.5 bg-red-900/30 text-red-300 text-xs shrink-0 flex items-center justify-between gap-2">
+                  <span>
+                    Claude Code CLI not found.{' '}
+                    <button
+                      className="underline hover:text-red-200 transition-colors"
+                      onClick={() => window.open('https://docs.anthropic.com/en/docs/claude-code/overview', '_blank')}
+                    >
+                      Install
+                    </button>
+                  </span>
+                  <button className="text-red-400 hover:text-red-200 transition-colors" onClick={dismissCliStatus}>
+                    &times;
+                  </button>
+                </div>
+              )}
+              {cliStatus === 'not-authenticated' && !cliStatusDismissed && (
+                <div className="px-3 py-1.5 bg-amber-900/30 text-amber-300 text-xs shrink-0 flex items-center justify-between gap-2">
+                  <span>
+                    Not signed in to Claude Code.{' '}
+                    <button
+                      className="underline hover:text-amber-200 transition-colors"
+                      onClick={handleSignIn}
+                    >
+                      Sign in
+                    </button>
+                  </span>
+                  <button className="text-amber-400 hover:text-amber-200 transition-colors" onClick={dismissCliStatus}>
+                    &times;
+                  </button>
                 </div>
               )}
               <SessionList />

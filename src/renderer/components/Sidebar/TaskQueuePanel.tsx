@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useTaskStore } from '../../stores/task-store';
 import { useSessionStore } from '../../stores/session-store';
-import type { TaskStatus, Task, CreateTaskInput } from '../../../shared/types';
+import type { TaskStatus, Task, CreateTaskInput } from '@shared/types';
 import Tooltip from '../shared/Tooltip';
 import CreateTaskDialog from '../shared/CreateTaskDialog';
 

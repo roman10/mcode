@@ -5,7 +5,7 @@ import { useAccountsStore } from '../../stores/accounts-store';
 import Tooltip from '../shared/Tooltip';
 import HeatmapGrid from '../shared/HeatmapGrid';
 import { todayStr, shiftDate, formatDateLabel, daysDiff, formatTimeUntil } from '../../utils/date-nav';
-import type { TokenHeatmapEntry, ModelUsageSummary, SubscriptionUsage } from '../../../shared/types';
+import type { TokenHeatmapEntry, ModelUsageSummary, SubscriptionUsage } from '@shared/types';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 const RETENTION_DAYS = 90;

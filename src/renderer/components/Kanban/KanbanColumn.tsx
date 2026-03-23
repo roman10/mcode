@@ -1,4 +1,4 @@
-import type { SessionInfo } from '../../../shared/types';
+import type { SessionInfo } from '@shared/types';
 import type { KanbanColumnDef } from './kanban-utils';
 import KanbanCard from './KanbanCard';
 

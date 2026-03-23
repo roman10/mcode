@@ -4,8 +4,8 @@ import {
   createBalancedTreeFromLeaves,
   getLeaves,
 } from 'react-mosaic-component';
-import { LAYOUT_PERSIST_DEBOUNCE_MS } from '../../shared/constants';
-import type { SidebarTab, ViewMode } from '../../shared/types';
+import { LAYOUT_PERSIST_DEBOUNCE_MS } from '@shared/constants';
+import type { SidebarTab, ViewMode } from '@shared/types';
 
 /** Legacy tile IDs — stripped from persisted layouts on restore. */
 const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];

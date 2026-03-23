@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { KEYBOARD_SHORTCUTS, SHORTCUT_CATEGORIES } from '../../shared/keyboard-shortcuts';
+import { KEYBOARD_SHORTCUTS, SHORTCUT_CATEGORIES } from '@shared/keyboard-shortcuts';
 import { formatKeys } from '../utils/format-shortcut';
 import Dialog from './shared/Dialog';
 

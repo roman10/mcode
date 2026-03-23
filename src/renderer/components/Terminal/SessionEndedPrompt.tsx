@@ -9,6 +9,7 @@ interface SessionEndedPromptProps {
 
 function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.Element {
   const session = useSessionStore((s) => s.sessions[sessionId]);
+  const exitCode = useSessionStore((s) => s.exitCodes[sessionId]);
   const accounts = useAccountsStore((s) => s.accounts);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [resuming, setResuming] = useState(false);
@@ -70,6 +71,18 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
       <div className="text-sm text-text-muted">
         Session ended{session?.endedAt ? ` at ${new Date(session.endedAt).toLocaleString()}` : ''}
       </div>
+
+      {exitCode === 127 && session?.sessionType === 'claude' && (
+        <div className="max-w-sm px-4 py-2.5 bg-red-900/20 border border-red-700/30 rounded-md text-xs text-red-300 text-center">
+          The <code className="bg-red-900/30 px-1 rounded">claude</code> command was not found.{' '}
+          <button
+            className="underline hover:text-red-200 transition-colors"
+            onClick={() => window.open('https://docs.anthropic.com/en/docs/claude-code/overview', '_blank')}
+          >
+            Install Claude Code
+          </button>
+        </div>
+      )}
 
       {accounts.length > 1 && (
         <div className="flex items-center gap-2 text-sm">

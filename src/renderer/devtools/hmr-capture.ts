@@ -1,4 +1,4 @@
-import type { HmrEvent } from '../../shared/types';
+import type { HmrEvent } from '@shared/types';
 
 const MAX_EVENTS = 100;
 const events: HmrEvent[] = [];

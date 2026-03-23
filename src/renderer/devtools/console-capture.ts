@@ -1,4 +1,4 @@
-import type { ConsoleEntry } from '../../shared/types';
+import type { ConsoleEntry } from '@shared/types';
 
 const MAX_ENTRIES = 500;
 const entries: ConsoleEntry[] = [];

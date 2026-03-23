@@ -9,12 +9,12 @@ import {
   TERMINAL_FONT_FAMILY,
   DEFAULT_SCROLLBACK_LINES,
   SCROLLBACK_PRESETS,
-} from '../../../shared/constants';
+} from '@shared/constants';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { shellEscapePath } from '../../../shared/shell-utils';
+import { shellEscapePath } from '@shared/shell-utils';
 import { normalizeClaudeLabel } from '../../utils/label-utils';
 
 interface TerminalInstanceProps {

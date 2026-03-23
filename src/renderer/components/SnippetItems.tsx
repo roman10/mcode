@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Command } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
 import { useSessionStore } from '../stores/session-store';
-import type { SnippetEntry } from '../../shared/types';
+import type { SnippetEntry } from '@shared/types';
 
 const uf = new uFuzzy({ intraMode: 1 });
 

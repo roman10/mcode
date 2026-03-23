@@ -4,7 +4,7 @@ import { useChangesStore } from '../../stores/changes-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
 import Dialog from '../shared/Dialog';
-import type { GitChangedFile, GitFileStatus } from '../../../shared/types';
+import type { GitChangedFile, GitFileStatus } from '@shared/types';
 
 const STATUS_LABELS: Record<GitFileStatus, string> = {
   modified: 'M',

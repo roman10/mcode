@@ -1,4 +1,4 @@
-import type { CommitGraphNode } from '../../shared/types';
+import type { CommitGraphNode } from '@shared/types';
 
 /** Visual connection between two rows in the graph. */
 export interface LaneConnection {

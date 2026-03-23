@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
-import type { HookEvent } from '../../../shared/types';
-import { KNOWN_HOOK_EVENTS } from '../../../shared/constants';
+import type { HookEvent } from '@shared/types';
+import { KNOWN_HOOK_EVENTS } from '@shared/constants';
 import SearchableSelect from '../shared/SearchableSelect';
 import Tooltip from '../shared/Tooltip';
 

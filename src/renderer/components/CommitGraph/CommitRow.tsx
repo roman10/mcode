@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { CommitGraphRow } from '../../utils/lane-algorithm';
-import type { CommitFileEntry } from '../../../shared/types';
+import type { CommitFileEntry } from '@shared/types';
 import { useLayoutStore } from '../../stores/layout-store';
 
 const ROW_HEIGHT = 24;

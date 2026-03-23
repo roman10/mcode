@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CommitGraphNode } from '../../shared/types';
+import type { CommitGraphNode } from '@shared/types';
 
 interface GraphState {
   /** Graph data keyed by repo root path. */

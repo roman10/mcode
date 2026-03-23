@@ -31,428 +31,367 @@ import type {
   TokenWeeklyTrend,
   TokenHeatmapEntry,
   AccountProfile,
+  AuthStatusResult,
+  CliAuthStatus,
   SubscriptionUsage,
   SlashCommandEntry,
   SnippetEntry,
   FileSearchRequest,
   SearchEvent,
 } from '../shared/types';
+import type { IpcInvokeContract, IpcSendContract, IpcPushContract } from '../shared/ipc-contract';
+
+// Typed IPC wrappers — channel names and types are checked against the contract
+
+function typedInvoke<K extends keyof IpcInvokeContract>(
+  channel: K,
+  ...args: IpcInvokeContract[K]['params']
+): Promise<IpcInvokeContract[K]['result']> {
+  return ipcRenderer.invoke(channel, ...args);
+}
+
+function typedSend<K extends keyof IpcSendContract>(
+  channel: K,
+  ...args: IpcSendContract[K]['params']
+): void {
+  ipcRenderer.send(channel, ...args);
+}
+
+function typedListen<K extends keyof IpcPushContract>(
+  channel: K,
+  callback: (...args: IpcPushContract[K]['params']) => void,
+): () => void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handler = (_e: Electron.IpcRendererEvent, ...args: any[]) =>
+    callback(...(args as IpcPushContract[K]['params']));
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
 
 const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
 
 contextBridge.exposeInMainWorld('mcode', {
   accounts: {
     list: (): Promise<AccountProfile[]> =>
-      ipcRenderer.invoke('account:list'),
+      typedInvoke('account:list'),
 
     create: (name?: string): Promise<AccountProfile> =>
-      ipcRenderer.invoke('account:create', name),
+      typedInvoke('account:create', name),
 
     rename: (accountId: string, name: string): Promise<void> =>
-      ipcRenderer.invoke('account:rename', accountId, name),
+      typedInvoke('account:rename', accountId, name),
 
     delete: (accountId: string): Promise<void> =>
-      ipcRenderer.invoke('account:delete', accountId),
+      typedInvoke('account:delete', accountId),
 
-    getAuthStatus: (accountId: string): Promise<{ loggedIn: boolean; email?: string }> =>
-      ipcRenderer.invoke('account:get-auth-status', accountId),
+    getAuthStatus: (accountId: string): Promise<AuthStatusResult> =>
+      typedInvoke('account:get-auth-status', accountId),
+
+    checkCliInstalled: (): Promise<CliAuthStatus> =>
+      typedInvoke('account:check-cli-installed').then((r) => r.status),
 
     openAuthTerminal: (accountId: string): Promise<string> =>
-      ipcRenderer.invoke('account:open-auth-terminal', accountId),
+      typedInvoke('account:open-auth-terminal', accountId),
 
     getSubscriptionUsage: (accountId: string): Promise<SubscriptionUsage | null> =>
-      ipcRenderer.invoke('account:get-subscription-usage', accountId),
+      typedInvoke('account:get-subscription-usage', accountId),
 
     invalidateSubscriptionCache: (accountId: string): Promise<void> =>
-      ipcRenderer.invoke('account:invalidate-subscription-cache', accountId),
+      typedInvoke('account:invalidate-subscription-cache', accountId),
   },
 
   pty: {
     write: (id: string, data: string): void => {
-      ipcRenderer.send('pty:write', id, data);
+      typedSend('pty:write', id, data);
     },
 
     resize: (id: string, cols: number, rows: number): void => {
-      ipcRenderer.send('pty:resize', id, cols, rows);
+      typedSend('pty:resize', id, cols, rows);
     },
 
-    kill: (id: string): Promise<void> => ipcRenderer.invoke('pty:kill', id),
+    kill: (id: string): Promise<void> => typedInvoke('pty:kill', id),
 
-    onData: (cb: (sessionId: string, data: string) => void): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        id: string,
-        data: string,
-      ): void => cb(id, data);
-      ipcRenderer.on('pty:data', handler);
-      return () => ipcRenderer.removeListener('pty:data', handler);
-    },
+    onData: (cb: (sessionId: string, data: string) => void): (() => void) =>
+      typedListen('pty:data', cb),
 
     onExit: (
       cb: (sessionId: string, payload: PtyExitPayload) => void,
-    ): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        id: string,
-        payload: PtyExitPayload,
-      ): void => cb(id, payload);
-      ipcRenderer.on('pty:exit', handler);
-      return () => ipcRenderer.removeListener('pty:exit', handler);
-    },
+    ): (() => void) =>
+      typedListen('pty:exit', cb),
 
     getReplayData: (sessionId: string): Promise<string> =>
-      ipcRenderer.invoke('pty:replay', sessionId),
+      typedInvoke('pty:replay', sessionId),
   },
 
   sessions: {
     create: (input: SessionCreateInput): Promise<SessionInfo> =>
-      ipcRenderer.invoke('session:create', input),
+      typedInvoke('session:create', input),
 
-    list: (): Promise<SessionInfo[]> => ipcRenderer.invoke('session:list'),
+    list: (): Promise<SessionInfo[]> => typedInvoke('session:list'),
 
     get: (sessionId: string): Promise<SessionInfo | null> =>
-      ipcRenderer.invoke('session:get', sessionId),
+      typedInvoke('session:get', sessionId),
 
     kill: (sessionId: string): Promise<void> =>
-      ipcRenderer.invoke('session:kill', sessionId),
+      typedInvoke('session:kill', sessionId),
 
     setLabel: (sessionId: string, label: string): Promise<void> =>
-      ipcRenderer.invoke('session:set-label', sessionId, label),
+      typedInvoke('session:set-label', sessionId, label),
 
     setAutoLabel: (sessionId: string, label: string): Promise<void> =>
-      ipcRenderer.invoke('session:set-auto-label', sessionId, label),
+      typedInvoke('session:set-auto-label', sessionId, label),
 
     setTerminalConfig: (sessionId: string, config: Record<string, unknown>): Promise<void> =>
-      ipcRenderer.invoke('session:set-terminal-config', sessionId, config),
+      typedInvoke('session:set-terminal-config', sessionId, config),
 
     clearAttention: (sessionId: string): Promise<void> =>
-      ipcRenderer.invoke('session:clear-attention', sessionId),
+      typedInvoke('session:clear-attention', sessionId),
 
     clearAllAttention: (): Promise<void> =>
-      ipcRenderer.invoke('session:clear-all-attention'),
+      typedInvoke('session:clear-all-attention'),
 
     resume: (sessionId: string, accountId?: string): Promise<SessionInfo> =>
-      ipcRenderer.invoke('session:resume', { sessionId, accountId }),
+      typedInvoke('session:resume', { sessionId, accountId }),
 
     listExternal: (limit?: number): Promise<ExternalSessionInfo[]> =>
-      ipcRenderer.invoke('session:list-external', limit),
+      typedInvoke('session:list-external', limit),
 
     importExternal: (claudeSessionId: string, cwd: string, label?: string): Promise<SessionInfo> =>
-      ipcRenderer.invoke('session:import-external', claudeSessionId, cwd, label),
+      typedInvoke('session:import-external', claudeSessionId, cwd, label),
 
-    onUpdated: (
-      cb: (session: SessionInfo) => void,
-    ): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        session: SessionInfo,
-      ): void => cb(session);
-      ipcRenderer.on('session:updated', handler);
-      return () => ipcRenderer.removeListener('session:updated', handler);
-    },
+    onUpdated: (cb: (session: SessionInfo) => void): (() => void) =>
+      typedListen('session:updated', cb),
 
-    onCreated: (
-      cb: (session: SessionInfo) => void,
-    ): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        session: SessionInfo,
-      ): void => cb(session);
-      ipcRenderer.on('session:created', handler);
-      return () => ipcRenderer.removeListener('session:created', handler);
-    },
+    onCreated: (cb: (session: SessionInfo) => void): (() => void) =>
+      typedListen('session:created', cb),
 
     getLastDefaults: (): Promise<SessionDefaults | null> =>
-      ipcRenderer.invoke('session:get-last-defaults'),
+      typedInvoke('session:get-last-defaults'),
 
     delete: (sessionId: string): Promise<void> =>
-      ipcRenderer.invoke('session:delete', sessionId),
+      typedInvoke('session:delete', sessionId),
 
     deleteAllEnded: (): Promise<string[]> =>
-      ipcRenderer.invoke('session:delete-all-ended'),
+      typedInvoke('session:delete-all-ended'),
 
     deleteBatch: (sessionIds: string[]): Promise<string[]> =>
-      ipcRenderer.invoke('session:delete-batch', sessionIds),
+      typedInvoke('session:delete-batch', sessionIds),
 
-    onDeleted: (
-      cb: (sessionId: string) => void,
-    ): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        sessionId: string,
-      ): void => cb(sessionId);
-      ipcRenderer.on('session:deleted', handler);
-      return () => ipcRenderer.removeListener('session:deleted', handler);
-    },
+    onDeleted: (cb: (sessionId: string) => void): (() => void) =>
+      typedListen('session:deleted', cb),
 
-    onDeletedBatch: (
-      cb: (sessionIds: string[]) => void,
-    ): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        sessionIds: string[],
-      ): void => cb(sessionIds);
-      ipcRenderer.on('session:deleted-batch', handler);
-      return () => ipcRenderer.removeListener('session:deleted-batch', handler);
-    },
+    onDeletedBatch: (cb: (sessionIds: string[]) => void): (() => void) =>
+      typedListen('session:deleted-batch', cb),
   },
 
   hooks: {
     getRuntime: (): Promise<HookRuntimeInfo> =>
-      ipcRenderer.invoke('hooks:get-runtime'),
+      typedInvoke('hooks:get-runtime'),
 
-    onEvent: (cb: (event: HookEvent) => void): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        event: HookEvent,
-      ): void => cb(event);
-      ipcRenderer.on('hook:event', handler);
-      return () => ipcRenderer.removeListener('hook:event', handler);
-    },
+    onEvent: (cb: (event: HookEvent) => void): (() => void) =>
+      typedListen('hook:event', cb),
 
     getRecent: (sessionId: string, limit?: number): Promise<HookEvent[]> =>
-      ipcRenderer.invoke('hooks:get-recent', sessionId, limit ?? 50),
+      typedInvoke('hooks:get-recent', sessionId, limit ?? 50),
 
     getRecentAll: (limit?: number): Promise<HookEvent[]> =>
-      ipcRenderer.invoke('hooks:get-recent-all', limit ?? 200),
+      typedInvoke('hooks:get-recent-all', limit ?? 200),
 
     clearAll: (): Promise<void> =>
-      ipcRenderer.invoke('hooks:clear-all'),
+      typedInvoke('hooks:clear-all'),
   },
 
   layout: {
     save: (mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string): Promise<void> =>
-      ipcRenderer.invoke('layout:save', mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab),
+      typedInvoke('layout:save', mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab),
 
     load: (): Promise<LayoutStateSnapshot | null> =>
-      ipcRenderer.invoke('layout:load'),
+      typedInvoke('layout:load'),
   },
 
   app: {
-    getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version'),
+    getVersion: (): Promise<string> => typedInvoke('app:get-version'),
 
     getPlatform: (): string => process.platform,
 
     getHomeDir: (): string => homeDir,
 
     selectDirectory: (): Promise<string | null> =>
-      ipcRenderer.invoke('app:select-directory'),
+      typedInvoke('app:select-directory'),
 
     setDockBadge: (text: string): void => {
-      ipcRenderer.send('app:set-dock-badge', text);
+      typedSend('app:set-dock-badge', text);
     },
 
     getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 
-    onError: (cb: (error: string) => void): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        error: string,
-      ): void => cb(error);
-      ipcRenderer.on('app:error', handler);
-      return () => ipcRenderer.removeListener('app:error', handler);
-    },
+    onError: (cb: (error: string) => void): (() => void) =>
+      typedListen('app:error', cb),
 
-    onCommand: (cb: (command: AppCommand) => void): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        command: AppCommand,
-      ): void => cb(command);
-      ipcRenderer.on('app:command', handler);
-      return () => ipcRenderer.removeListener('app:command', handler);
-    },
+    onCommand: (cb: (command: AppCommand) => void): (() => void) =>
+      typedListen('app:command', cb),
 
-    onUpdateAvailable: (
-      cb: (info: { version: string }) => void,
-    ): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        info: { version: string },
-      ): void => cb(info);
-      ipcRenderer.on('app:update-available', handler);
-      return () =>
-        ipcRenderer.removeListener('app:update-available', handler);
-    },
+    onUpdateAvailable: (cb: (info: { version: string }) => void): (() => void) =>
+      typedListen('app:update-available', cb),
 
     openUpdatePage: (): Promise<void> =>
-      ipcRenderer.invoke('app:open-update-page'),
+      typedInvoke('app:open-update-page'),
 
     checkForUpdate: (): Promise<void> =>
-      ipcRenderer.invoke('app:check-for-update'),
+      typedInvoke('app:check-for-update'),
   },
 
   tasks: {
     create: (input: CreateTaskInput): Promise<number> =>
-      ipcRenderer.invoke('task:create', input).then((task: Task) => task.id),
+      typedInvoke('task:create', input).then((task) => task.id),
 
     list: (filter?: TaskFilter): Promise<Task[]> =>
-      ipcRenderer.invoke('task:list', filter),
+      typedInvoke('task:list', filter),
 
     update: (taskId: number, input: UpdateTaskInput): Promise<Task> =>
-      ipcRenderer.invoke('task:update', taskId, input),
+      typedInvoke('task:update', taskId, input),
 
     cancel: (taskId: number): Promise<void> =>
-      ipcRenderer.invoke('task:cancel', taskId),
+      typedInvoke('task:cancel', taskId),
 
-    onChanged: (cb: (event: TaskChangeEvent) => void): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        event: TaskChangeEvent,
-      ): void => cb(event);
-      ipcRenderer.on('task:changed', handler);
-      return () => ipcRenderer.removeListener('task:changed', handler);
-    },
+    onChanged: (cb: (event: TaskChangeEvent) => void): (() => void) =>
+      typedListen('task:changed', cb),
   },
 
   preferences: {
     get: (key: string): Promise<string | null> =>
-      ipcRenderer.invoke('preferences:get', key),
+      typedInvoke('preferences:get', key),
 
     set: (key: string, value: string): Promise<void> =>
-      ipcRenderer.invoke('preferences:set', key, value),
+      typedInvoke('preferences:set', key, value),
 
     getSleepStatus: (): Promise<{ enabled: boolean; blocking: boolean }> =>
-      ipcRenderer.invoke('preferences:get-sleep-status'),
+      typedInvoke('preferences:get-sleep-status'),
 
     setPreventSleep: (enabled: boolean): Promise<void> =>
-      ipcRenderer.invoke('preferences:set-prevent-sleep', enabled),
+      typedInvoke('preferences:set-prevent-sleep', enabled),
   },
 
   commits: {
     getDailyStats: (date?: string): Promise<DailyCommitStats> =>
-      ipcRenderer.invoke('commits:get-daily-stats', date),
+      typedInvoke('commits:get-daily-stats', date),
 
     getHeatmap: (days?: number): Promise<CommitHeatmapEntry[]> =>
-      ipcRenderer.invoke('commits:get-heatmap', days),
+      typedInvoke('commits:get-heatmap', days),
 
     getStreaks: (): Promise<CommitStreakInfo> =>
-      ipcRenderer.invoke('commits:get-streaks'),
+      typedInvoke('commits:get-streaks'),
 
     getCadence: (date?: string): Promise<CommitCadenceInfo> =>
-      ipcRenderer.invoke('commits:get-cadence', date),
+      typedInvoke('commits:get-cadence', date),
 
     getWeeklyTrend: (): Promise<CommitWeeklyTrend> =>
-      ipcRenderer.invoke('commits:get-weekly-trend'),
+      typedInvoke('commits:get-weekly-trend'),
 
     refresh: (): Promise<void> =>
-      ipcRenderer.invoke('commits:refresh'),
+      typedInvoke('commits:refresh'),
 
-    onUpdated: (cb: () => void): (() => void) => {
-      const handler = (): void => cb();
-      ipcRenderer.on('commits:updated', handler);
-      return () => ipcRenderer.removeListener('commits:updated', handler);
-    },
+    onUpdated: (cb: () => void): (() => void) =>
+      typedListen('commits:updated', cb),
   },
 
   files: {
     list: (cwd: string): Promise<FileListResult> =>
-      ipcRenderer.invoke('files:list', cwd),
+      typedInvoke('files:list', cwd),
 
     read: (cwd: string, relativePath: string): Promise<FileReadResult> =>
-      ipcRenderer.invoke('files:read', cwd, relativePath),
+      typedInvoke('files:read', cwd, relativePath),
 
     write: (cwd: string, relativePath: string, content: string): Promise<void> =>
-      ipcRenderer.invoke('files:write', cwd, relativePath, content),
+      typedInvoke('files:write', cwd, relativePath, content),
   },
 
   slashCommands: {
     scan: (cwd: string): Promise<SlashCommandEntry[]> =>
-      ipcRenderer.invoke('slash-commands:scan', cwd),
+      typedInvoke('slash-commands:scan', cwd),
   },
 
   snippets: {
     scan: (cwd: string): Promise<SnippetEntry[]> =>
-      ipcRenderer.invoke('snippets:scan', cwd),
+      typedInvoke('snippets:scan', cwd),
   },
 
   tokens: {
     getSessionUsage: (claudeSessionId: string): Promise<SessionTokenUsage> =>
-      ipcRenderer.invoke('tokens:get-session-usage', claudeSessionId),
+      typedInvoke('tokens:get-session-usage', claudeSessionId),
 
     getDailyUsage: (date?: string): Promise<DailyTokenUsage> =>
-      ipcRenderer.invoke('tokens:get-daily-usage', date),
+      typedInvoke('tokens:get-daily-usage', date),
 
     getModelBreakdown: (days?: number): Promise<ModelTokenBreakdown[]> =>
-      ipcRenderer.invoke('tokens:get-model-breakdown', days),
+      typedInvoke('tokens:get-model-breakdown', days),
 
     getWeeklyTrend: (): Promise<TokenWeeklyTrend> =>
-      ipcRenderer.invoke('tokens:get-weekly-trend'),
+      typedInvoke('tokens:get-weekly-trend'),
 
     getHeatmap: (days?: number): Promise<TokenHeatmapEntry[]> =>
-      ipcRenderer.invoke('tokens:get-heatmap', days),
+      typedInvoke('tokens:get-heatmap', days),
 
     refresh: (): Promise<void> =>
-      ipcRenderer.invoke('tokens:refresh'),
+      typedInvoke('tokens:refresh'),
 
-    onUpdated: (cb: () => void): (() => void) => {
-      const handler = (): void => cb();
-      ipcRenderer.on('tokens:updated', handler);
-      return () => ipcRenderer.removeListener('tokens:updated', handler);
-    },
+    onUpdated: (cb: () => void): (() => void) =>
+      typedListen('tokens:updated', cb),
   },
 
   git: {
     getStatus: (cwd: string): Promise<GitStatusResult> =>
-      ipcRenderer.invoke('git:status', cwd),
+      typedInvoke('git:status', cwd),
 
     getDiffContent: (cwd: string, filePath: string): Promise<GitDiffContent> =>
-      ipcRenderer.invoke('git:diff-content', cwd, filePath),
+      typedInvoke('git:diff-content', cwd, filePath),
 
     getAllStatuses: (): Promise<GitStatusResult[]> =>
-      ipcRenderer.invoke('git:all-statuses'),
+      typedInvoke('git:all-statuses'),
 
     getGraphLog: (repoPath: string, limit?: number, offset?: number): Promise<CommitGraphResult> =>
-      ipcRenderer.invoke('git:graph-log', repoPath, limit, offset),
+      typedInvoke('git:graph-log', repoPath, limit, offset),
 
     getTrackedRepos: (): Promise<string[]> =>
-      ipcRenderer.invoke('git:tracked-repos'),
+      typedInvoke('git:tracked-repos'),
 
     getCommitFiles: (repoPath: string, commitHash: string): Promise<CommitFileEntry[]> =>
-      ipcRenderer.invoke('git:commit-files', repoPath, commitHash),
+      typedInvoke('git:commit-files', repoPath, commitHash),
 
     getCommitFileDiff: (repoPath: string, commitHash: string, filePath: string): Promise<GitDiffContent> =>
-      ipcRenderer.invoke('git:commit-file-diff', repoPath, commitHash, filePath),
+      typedInvoke('git:commit-file-diff', repoPath, commitHash, filePath),
 
     stageFile: (repoRoot: string, filePath: string): Promise<void> =>
-      ipcRenderer.invoke('git:stage-file', repoRoot, filePath),
+      typedInvoke('git:stage-file', repoRoot, filePath),
 
     unstageFile: (repoRoot: string, filePath: string): Promise<void> =>
-      ipcRenderer.invoke('git:unstage-file', repoRoot, filePath),
+      typedInvoke('git:unstage-file', repoRoot, filePath),
 
     discardFile: (repoRoot: string, filePath: string, isUntracked: boolean): Promise<void> =>
-      ipcRenderer.invoke('git:discard-file', repoRoot, filePath, isUntracked),
+      typedInvoke('git:discard-file', repoRoot, filePath, isUntracked),
 
     stageAll: (repoRoot: string): Promise<void> =>
-      ipcRenderer.invoke('git:stage-all', repoRoot),
+      typedInvoke('git:stage-all', repoRoot),
 
     unstageAll: (repoRoot: string): Promise<void> =>
-      ipcRenderer.invoke('git:unstage-all', repoRoot),
+      typedInvoke('git:unstage-all', repoRoot),
 
     discardAll: (repoRoot: string): Promise<void> =>
-      ipcRenderer.invoke('git:discard-all', repoRoot),
+      typedInvoke('git:discard-all', repoRoot),
 
-    onStatusChanged: (cb: () => void): (() => void) => {
-      const handler = (): void => cb();
-      ipcRenderer.on('git:status-changed', handler);
-      return () => ipcRenderer.removeListener('git:status-changed', handler);
-    },
+    onStatusChanged: (cb: () => void): (() => void) =>
+      typedListen('git:status-changed', cb),
   },
 
   search: {
     start: (request: FileSearchRequest): Promise<string> =>
-      ipcRenderer.invoke('search:start', request),
+      typedInvoke('search:start', request),
 
     cancel: (searchId: string): Promise<void> =>
-      ipcRenderer.invoke('search:cancel', searchId),
+      typedInvoke('search:cancel', searchId),
 
-    onEvent: (cb: (event: SearchEvent) => void): (() => void) => {
-      const handler = (
-        _e: Electron.IpcRendererEvent,
-        event: SearchEvent,
-      ): void => cb(event);
-      ipcRenderer.on('search:event', handler);
-      return () => ipcRenderer.removeListener('search:event', handler);
-    },
+    onEvent: (cb: (event: SearchEvent) => void): (() => void) =>
+      typedListen('search:event', cb),
   },
 
   devtools: {
@@ -463,15 +402,7 @@ contextBridge.exposeInMainWorld('mcode', {
         params: Record<string, unknown>,
       ) => void,
     ): void => {
-      ipcRenderer.on(
-        'devtools:query',
-        (
-          _e: Electron.IpcRendererEvent,
-          requestId: string,
-          type: string,
-          params: Record<string, unknown>,
-        ) => cb(requestId, type, params),
-      );
+      typedListen('devtools:query', cb);
     },
 
     sendResponse: (requestId: string, data: unknown): void => {

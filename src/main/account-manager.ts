@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getDb } from './db';
 import { logger } from './logger';
-import type { AccountProfile } from '../shared/types';
+import type { AccountProfile, AuthStatusResult } from '../shared/types';
 
 const execFileAsync = promisify(execFile);
 
@@ -225,8 +225,9 @@ export class AccountManager {
 
   /**
    * Check auth status for an account by running `claude auth status --json`.
+   * Returns tri-state: 'ok' | 'cli-not-found' | 'not-authenticated'.
    */
-  async getAuthStatus(accountId: string): Promise<{ loggedIn: boolean; email?: string }> {
+  async getAuthStatus(accountId: string): Promise<AuthStatusResult> {
     const account = this.get(accountId);
     if (!account) throw new Error(`Account not found: ${accountId}`);
 
@@ -237,10 +238,28 @@ export class AccountManager {
     try {
       const { stdout } = await execFileAsync('claude', ['auth', 'status', '--json'], { env });
       const status = JSON.parse(stdout) as { loggedIn?: boolean; email?: string };
-      return { loggedIn: Boolean(status.loggedIn), email: status.email };
-    } catch {
-      return { loggedIn: false };
+      if (status.loggedIn) {
+        return { status: 'ok', email: status.email };
+      }
+      return { status: 'not-authenticated' };
+    } catch (err) {
+      // ENOENT means the `claude` binary is not in PATH
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { status: 'cli-not-found' };
+      }
+      // Other errors (non-zero exit, parse failure) → treat as not authenticated
+      return { status: 'not-authenticated' };
     }
+  }
+
+  /**
+   * Quick check whether the `claude` CLI is installed and the default account
+   * is authenticated. Used at startup for the sidebar banner.
+   */
+  async checkCliInstalled(): Promise<AuthStatusResult> {
+    const defaultAcc = this.getDefault();
+    if (!defaultAcc) return { status: 'not-authenticated' };
+    return this.getAuthStatus(defaultAcc.accountId);
   }
 
   /**

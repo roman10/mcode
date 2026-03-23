@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, session, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
 import { join } from 'node:path';
 import { is, optimizer } from '@electron-toolkit/utils';
 import { BrokerClient } from './broker-client';
@@ -21,14 +21,34 @@ import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { fixPath } from './fix-path';
+import { buildApplicationMenu } from './menu';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
 import type {
-  SessionCreateInput, CreateTaskInput, UpdateTaskInput, TaskFilter, HookRuntimeInfo,
-  ExternalSessionInfo, AppCommand, SessionTokenUsage, DailyTokenUsage,
-  ModelTokenBreakdown, TokenWeeklyTrend, TokenHeatmapEntry, AccountProfile,
-  FileSearchRequest,
+  HookRuntimeInfo, ExternalSessionInfo, AppCommand, LayoutStateSnapshot,
 } from '../shared/types';
+import type { IpcInvokeContract, IpcInvokeHandler, IpcSendContract, IpcSendHandler } from '../shared/ipc-contract';
 import { fetchSubscriptionUsage, invalidateSubscriptionCache } from './claude-subscription-fetcher';
+
+// Typed IPC wrappers — channel names and parameter types are checked against the contract
+function typedHandle<K extends keyof IpcInvokeContract>(
+  channel: K,
+  handler: IpcInvokeHandler<K>,
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ipcMain.handle(channel, (_event, ...args: any[]) =>
+    handler(...(args as IpcInvokeContract[K]['params'])),
+  );
+}
+
+function typedOn<K extends keyof IpcSendContract>(
+  channel: K,
+  handler: IpcSendHandler<K>,
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ipcMain.on(channel, (_event, ...args: any[]) =>
+    handler(...(args as IpcSendContract[K]['params'])),
+  );
+}
 
 // Isolate dev data from production: separate userData/logs directory
 if (!app.isPackaged) {
@@ -130,96 +150,85 @@ function getWebContents(): import('electron').WebContents | null {
 }
 
 function registerPtyIpc(): void {
-  ipcMain.on('pty:write', (_event, id: string, data: string) => {
+  typedOn('pty:write', (id, data) => {
     brokerClient.write(id, data);
   });
 
-  ipcMain.on('pty:resize', (_event, id: string, cols: number, rows: number) => {
+  typedOn('pty:resize', (id, cols, rows) => {
     brokerClient.resize(id, cols, rows);
   });
 
-  ipcMain.handle('pty:kill', (_event, id: string) => {
+  typedHandle('pty:kill', (id) => {
     return brokerClient.kill(id);
   });
 
-  ipcMain.handle('pty:replay', (_event, sessionId: string) => {
+  typedHandle('pty:replay', (sessionId) => {
     return brokerClient.fetchReplayFromBroker(sessionId);
   });
 }
 
 function registerSessionIpc(): void {
-  ipcMain.handle('session:create', (_event, input: SessionCreateInput) => {
+  typedHandle('session:create', (input) => {
     return sessionManager.create(input);
   });
 
-  ipcMain.handle('session:list', () => {
+  typedHandle('session:list', () => {
     return sessionManager.list();
   });
 
-  ipcMain.handle('session:get', (_event, sessionId: string) => {
+  typedHandle('session:get', (sessionId) => {
     return sessionManager.get(sessionId);
   });
 
-  ipcMain.handle('session:kill', (_event, sessionId: string) => {
+  typedHandle('session:kill', (sessionId) => {
     return sessionManager.kill(sessionId);
   });
 
-  ipcMain.handle('session:delete', (_event, sessionId: string) => {
+  typedHandle('session:delete', (sessionId) => {
     sessionManager.delete(sessionId);
   });
 
-  ipcMain.handle('session:delete-all-ended', () => {
+  typedHandle('session:delete-all-ended', () => {
     return sessionManager.deleteAllEnded();
   });
 
-  ipcMain.handle('session:delete-batch', (_event, sessionIds: string[]) => {
+  typedHandle('session:delete-batch', (sessionIds) => {
     return sessionManager.deleteBatch(sessionIds);
   });
 
-  ipcMain.handle('session:get-last-defaults', () => {
+  typedHandle('session:get-last-defaults', () => {
     return sessionManager.getLastDefaults();
   });
 
-  ipcMain.handle(
-    'session:set-label',
-    (_event, sessionId: string, label: string) => {
-      sessionManager.setLabel(sessionId, label);
-    },
-  );
+  typedHandle('session:set-label', (sessionId, label) => {
+    sessionManager.setLabel(sessionId, label);
+  });
 
-  ipcMain.handle(
-    'session:set-auto-label',
-    (_event, sessionId: string, label: string) => {
-      sessionManager.setAutoLabel(sessionId, label);
-    },
-  );
+  typedHandle('session:set-auto-label', (sessionId, label) => {
+    sessionManager.setAutoLabel(sessionId, label);
+  });
 
-  ipcMain.handle(
-    'session:set-terminal-config',
-    (_event, sessionId: string, config: Record<string, unknown>) => {
-      sessionManager.setTerminalConfig(sessionId, config);
-    },
-  );
+  typedHandle('session:set-terminal-config', (sessionId, config) => {
+    sessionManager.setTerminalConfig(sessionId, config);
+  });
 
-  ipcMain.handle('session:clear-attention', (_event, sessionId: string) => {
+  typedHandle('session:clear-attention', (sessionId) => {
     sessionManager.clearAttention(sessionId);
   });
 
-  ipcMain.handle('session:clear-all-attention', () => {
+  typedHandle('session:clear-all-attention', () => {
     sessionManager.clearAllAttention();
   });
 
-  ipcMain.handle('session:resume', (_event, { sessionId, accountId }: { sessionId: string; accountId?: string }) => {
+  typedHandle('session:resume', ({ sessionId, accountId }) => {
     return sessionManager.resume(sessionId, accountId);
   });
 
-  ipcMain.handle('session:list-external', async (_event, limit?: number) => {
+  typedHandle('session:list-external', async (limit) => {
     const cap = limit ?? 50;
-    // Scan all unique cwds from Claude sessions (targeted query, avoids full deserialization)
     const cwds = new Set(sessionManager.getDistinctClaudeCwds());
     if (cwds.size === 0) cwds.add(process.cwd());
 
-    // Fetch per-cwd sequentially (each call yields the event loop via async I/O)
     const all: ExternalSessionInfo[] = [];
     for (const cwd of cwds) {
       const results = await sessionManager.listExternalSessions(cwd, cap);
@@ -229,30 +238,27 @@ function registerSessionIpc(): void {
     return all.slice(0, cap);
   });
 
-  ipcMain.handle(
-    'session:import-external',
-    (_event, claudeSessionId: string, cwd: string, label?: string) => {
-      return sessionManager.importExternal(claudeSessionId, cwd, label);
-    },
-  );
+  typedHandle('session:import-external', (claudeSessionId, cwd, label) => {
+    return sessionManager.importExternal(claudeSessionId, cwd, label);
+  });
 }
 
 function registerLayoutIpc(): void {
-  ipcMain.handle('layout:save', (_event, mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string) => {
+  typedHandle('layout:save', (mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab) => {
     sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
   });
 
-  ipcMain.handle('layout:load', () => {
-    return sessionManager.loadLayout() ?? null;
+  typedHandle('layout:load', () => {
+    return (sessionManager.loadLayout() ?? null) as LayoutStateSnapshot | null;
   });
 }
 
 function registerAppIpc(): void {
-  ipcMain.handle('app:get-version', () => {
+  typedHandle('app:get-version', () => {
     return app.getVersion();
   });
 
-  ipcMain.handle('app:select-directory', async () => {
+  typedHandle('app:select-directory', async () => {
     if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory'],
@@ -261,204 +267,207 @@ function registerAppIpc(): void {
     return result.filePaths[0];
   });
 
-  ipcMain.on('app:set-dock-badge', (_event, text: string) => {
+  typedOn('app:set-dock-badge', (text) => {
     app.dock?.setBadge(text);
   });
 
-  ipcMain.handle('app:check-for-update', () => updateChecker.checkManual());
-  ipcMain.handle('app:open-update-page', () => updateChecker.openUpdatePage());
+  typedHandle('app:check-for-update', () => updateChecker.checkManual());
+  typedHandle('app:open-update-page', () => updateChecker.openUpdatePage());
 }
 
 function registerTaskIpc(): void {
-  ipcMain.handle('task:create', (_event, input: CreateTaskInput) => {
+  typedHandle('task:create', (input) => {
     return taskQueue.create(input);
   });
 
-  ipcMain.handle('task:list', (_event, filter?: TaskFilter) => {
+  typedHandle('task:list', (filter) => {
     return taskQueue.list(filter);
   });
 
-  ipcMain.handle('task:update', (_event, taskId: number, input: UpdateTaskInput) => {
+  typedHandle('task:update', (taskId, input) => {
     return taskQueue.update(taskId, input);
   });
 
-  ipcMain.handle('task:cancel', (_event, taskId: number) => {
+  typedHandle('task:cancel', (taskId) => {
     taskQueue.cancel(taskId);
   });
 }
 
 function registerTokenIpc(): void {
-  ipcMain.handle('tokens:get-session-usage', (_event, claudeSessionId: string): SessionTokenUsage => {
+  typedHandle('tokens:get-session-usage', (claudeSessionId) => {
     return tokenTracker.getSessionUsage(claudeSessionId);
   });
 
-  ipcMain.handle('tokens:get-daily-usage', (_event, date?: string): DailyTokenUsage => {
+  typedHandle('tokens:get-daily-usage', (date) => {
     return tokenTracker.getDailyUsage(date);
   });
 
-  ipcMain.handle('tokens:get-model-breakdown', (_event, days?: number): ModelTokenBreakdown[] => {
+  typedHandle('tokens:get-model-breakdown', (days) => {
     return tokenTracker.getModelBreakdown(days);
   });
 
-  ipcMain.handle('tokens:get-weekly-trend', (): TokenWeeklyTrend => {
+  typedHandle('tokens:get-weekly-trend', () => {
     return tokenTracker.getWeeklyTrend();
   });
 
-  ipcMain.handle('tokens:get-heatmap', (_event, days?: number): TokenHeatmapEntry[] => {
+  typedHandle('tokens:get-heatmap', (days) => {
     return tokenTracker.getHeatmap(days);
   });
 
-  ipcMain.handle('tokens:refresh', async () => {
+  typedHandle('tokens:refresh', async () => {
     await tokenTracker.scanAll();
   });
 }
 
 function registerCommitIpc(): void {
-  ipcMain.handle('commits:get-daily-stats', (_event, date?: string) => {
+  typedHandle('commits:get-daily-stats', (date) => {
     return commitTracker.getDailyStats(date);
   });
 
-  ipcMain.handle('commits:get-heatmap', (_event, days?: number) => {
+  typedHandle('commits:get-heatmap', (days) => {
     return commitTracker.getHeatmap(days);
   });
 
-  ipcMain.handle('commits:get-streaks', () => {
+  typedHandle('commits:get-streaks', () => {
     return commitTracker.getStreaks();
   });
 
-  ipcMain.handle('commits:get-cadence', (_event, date?: string) => {
+  typedHandle('commits:get-cadence', (date) => {
     return commitTracker.getCadence(date);
   });
 
-  ipcMain.handle('commits:get-weekly-trend', () => {
+  typedHandle('commits:get-weekly-trend', () => {
     return commitTracker.getWeeklyTrend();
   });
 
-  ipcMain.handle('commits:refresh', async () => {
+  typedHandle('commits:refresh', async () => {
     await commitTracker.scanAll();
   });
 }
 
 function registerGitChangesIpc(): void {
-  ipcMain.handle('git:status', (_event, cwd: string) => {
+  typedHandle('git:status', (cwd) => {
     return gitChangesService.getStatus(cwd);
   });
 
-  ipcMain.handle('git:diff-content', (_event, cwd: string, filePath: string) => {
+  typedHandle('git:diff-content', (cwd, filePath) => {
     return gitChangesService.getDiffContent(cwd, filePath);
   });
 
-  ipcMain.handle('git:all-statuses', () => {
+  typedHandle('git:all-statuses', () => {
     return gitChangesService.getAllStatuses();
   });
 
-  ipcMain.handle('git:graph-log', (_event, repoPath: string, limit?: number, offset?: number) => {
+  typedHandle('git:graph-log', (repoPath, limit, offset) => {
     return gitChangesService.getGraphLog(repoPath, limit, offset);
   });
 
-  ipcMain.handle('git:tracked-repos', () => {
+  typedHandle('git:tracked-repos', () => {
     return gitChangesService.getTrackedRepos();
   });
 
-  ipcMain.handle('git:commit-files', (_event, repoPath: string, commitHash: string) => {
+  typedHandle('git:commit-files', (repoPath, commitHash) => {
     return gitChangesService.getCommitFiles(repoPath, commitHash);
   });
 
-  ipcMain.handle('git:commit-file-diff', (_event, repoPath: string, commitHash: string, filePath: string) => {
+  typedHandle('git:commit-file-diff', (repoPath, commitHash, filePath) => {
     return gitChangesService.getCommitFileDiff(repoPath, commitHash, filePath);
   });
 
-  ipcMain.handle('git:stage-file', (_event, repoRoot: string, filePath: string) => {
+  typedHandle('git:stage-file', (repoRoot, filePath) => {
     return gitChangesService.stageFile(repoRoot, filePath);
   });
 
-  ipcMain.handle('git:unstage-file', (_event, repoRoot: string, filePath: string) => {
+  typedHandle('git:unstage-file', (repoRoot, filePath) => {
     return gitChangesService.unstageFile(repoRoot, filePath);
   });
 
-  ipcMain.handle('git:discard-file', (_event, repoRoot: string, filePath: string, isUntracked: boolean) => {
+  typedHandle('git:discard-file', (repoRoot, filePath, isUntracked) => {
     return gitChangesService.discardFile(repoRoot, filePath, isUntracked);
   });
 
-  ipcMain.handle('git:stage-all', (_event, repoRoot: string) => {
+  typedHandle('git:stage-all', (repoRoot) => {
     return gitChangesService.stageAll(repoRoot);
   });
 
-  ipcMain.handle('git:unstage-all', (_event, repoRoot: string) => {
+  typedHandle('git:unstage-all', (repoRoot) => {
     return gitChangesService.unstageAll(repoRoot);
   });
 
-  ipcMain.handle('git:discard-all', (_event, repoRoot: string) => {
+  typedHandle('git:discard-all', (repoRoot) => {
     return gitChangesService.discardAll(repoRoot);
   });
 }
 
 function registerPreferencesIpc(): void {
-  ipcMain.handle('preferences:get', (_event, key: string) => {
+  typedHandle('preferences:get', (key) => {
     return getPreference(key);
   });
 
-  ipcMain.handle('preferences:set', (_event, key: string, value: string) => {
+  typedHandle('preferences:set', (key, value) => {
     setPreference(key, value);
   });
 
-  ipcMain.handle('preferences:get-sleep-status', () => {
+  typedHandle('preferences:get-sleep-status', () => {
     return {
       enabled: sleepBlocker.isEnabled(),
       blocking: sleepBlocker.isBlocking(),
     };
   });
 
-  ipcMain.handle('preferences:set-prevent-sleep', (_event, enabled: boolean) => {
+  typedHandle('preferences:set-prevent-sleep', (enabled) => {
     sleepBlocker.setEnabled(enabled);
   });
 }
 
 function registerHookIpc(): void {
-  ipcMain.handle('hooks:get-runtime', () => {
+  typedHandle('hooks:get-runtime', () => {
     return hookRuntimeInfo;
   });
 
-  ipcMain.handle('hooks:get-recent', (_event, sessionId: string, limit?: number) => {
+  typedHandle('hooks:get-recent', (sessionId, limit) => {
     return sessionManager.getRecentEvents(sessionId, limit ?? 50);
   });
 
-  ipcMain.handle('hooks:get-recent-all', (_event, limit?: number) => {
+  typedHandle('hooks:get-recent-all', (limit) => {
     return sessionManager.getRecentAllEvents(limit ?? 200);
   });
 
-  ipcMain.handle('hooks:clear-all', () => {
+  typedHandle('hooks:clear-all', () => {
     sessionManager.clearAllEvents();
   });
 }
 
 function registerAccountIpc(): void {
-  ipcMain.handle('account:list', (): AccountProfile[] => {
+  typedHandle('account:list', () => {
     return accountManager.list();
   });
 
-  ipcMain.handle('account:create', (_event, name?: string): AccountProfile => {
+  typedHandle('account:create', (name) => {
     return accountManager.create(name);
   });
 
-  ipcMain.handle('account:rename', (_event, accountId: string, name: string): void => {
+  typedHandle('account:rename', (accountId, name) => {
     accountManager.rename(accountId, name);
   });
 
-  ipcMain.handle('account:delete', (_event, accountId: string): void => {
+  typedHandle('account:delete', (accountId) => {
     accountManager.delete(accountId);
   });
 
-  ipcMain.handle('account:get-auth-status', async (_event, accountId: string) => {
-    const status = await accountManager.getAuthStatus(accountId);
-    if (status.email) {
-      accountManager.setEmail(accountId, status.email);
+  typedHandle('account:get-auth-status', async (accountId) => {
+    const result = await accountManager.getAuthStatus(accountId);
+    if (result.email) {
+      accountManager.setEmail(accountId, result.email);
     }
-    return status;
+    return result;
   });
 
-  // Open a terminal session pre-configured with the account's HOME for `claude auth login`
-  ipcMain.handle('account:open-auth-terminal', (_event, accountId: string): string => {
+  typedHandle('account:check-cli-installed', async () => {
+    return accountManager.checkCliInstalled();
+  });
+
+  typedHandle('account:open-auth-terminal', (accountId) => {
     const account = accountManager.get(accountId);
     if (!account) throw new Error(`Account not found: ${accountId}`);
     if (account.isDefault) throw new Error('Default account uses standard auth');
@@ -471,49 +480,49 @@ function registerAccountIpc(): void {
     return session.sessionId;
   });
 
-  ipcMain.handle('account:get-subscription-usage', async (_event, accountId: string) => {
+  typedHandle('account:get-subscription-usage', async (accountId) => {
     const account = accountManager.get(accountId);
     if (!account) return null;
     return fetchSubscriptionUsage(account);
   });
 
-  ipcMain.handle('account:invalidate-subscription-cache', (_event, accountId: string) => {
+  typedHandle('account:invalidate-subscription-cache', (accountId) => {
     invalidateSubscriptionCache(accountId);
   });
 }
 
 function registerFileIpc(): void {
-  ipcMain.handle('files:list', (_event, cwd: string) => {
+  typedHandle('files:list', (cwd) => {
     return fileLister.listFiles(cwd);
   });
 
-  ipcMain.handle('files:read', (_event, cwd: string, relativePath: string) => {
+  typedHandle('files:read', (cwd, relativePath) => {
     return fileLister.readFile(cwd, relativePath);
   });
 
-  ipcMain.handle('files:write', (_event, cwd: string, relativePath: string, content: string) => {
+  typedHandle('files:write', (cwd, relativePath, content) => {
     return fileLister.writeFile(cwd, relativePath, content);
   });
 }
 
 function registerSearchIpc(): void {
-  ipcMain.handle('search:start', (_event, request: FileSearchRequest) => {
+  typedHandle('search:start', (request) => {
     return fileSearch.search(request);
   });
 
-  ipcMain.handle('search:cancel', (_event, searchId: string) => {
+  typedHandle('search:cancel', (searchId) => {
     fileSearch.cancel(searchId);
   });
 }
 
 function registerSlashCommandIpc(): void {
-  ipcMain.handle('slash-commands:scan', (_event, cwd: string) => {
+  typedHandle('slash-commands:scan', (cwd) => {
     return scanSlashCommands(cwd);
   });
 }
 
 function registerSnippetIpc(): void {
-  ipcMain.handle('snippets:scan', (_event, cwd: string) => {
+  typedHandle('snippets:scan', (cwd) => {
     return scanSnippets(cwd);
   });
 }
@@ -569,8 +578,6 @@ app.whenReady().then(async () => {
 
   setupCSP();
 
-  // Custom menu with accelerators for app commands.
-  // Omit 'close' role so Cmd+W falls through to the renderer for tile close.
   const sendCommand = (command: AppCommand): void => {
     const wc = getWebContents();
     if (wc && !wc.isDestroyed()) {
@@ -578,197 +585,11 @@ app.whenReady().then(async () => {
     }
   };
 
-  Menu.setApplicationMenu(
-    Menu.buildFromTemplate([
-      {
-        label: app.name,
-        submenu: [
-          { role: 'about' },
-          { type: 'separator' },
-          {
-            label: 'Settings',
-            accelerator: 'CmdOrCtrl+,',
-            click: () => sendCommand({ command: 'show-settings' }),
-          },
-          { type: 'separator' },
-          { role: 'services' },
-          { type: 'separator' },
-          { role: 'hide' },
-          { role: 'hideOthers' },
-          { role: 'unhide' },
-          { type: 'separator' },
-          {
-            label: 'Quit and Kill All Sessions',
-            accelerator: 'CmdOrCtrl+Shift+Q',
-            click: async () => {
-              await brokerClient.shutdownBroker();
-              app.quit();
-            },
-          },
-          { role: 'quit' },
-        ],
-      },
-      {
-        label: 'File',
-        submenu: [
-          {
-            label: 'New Session',
-            accelerator: 'CmdOrCtrl+N',
-            click: () => sendCommand({ command: 'new-session' }),
-          },
-          {
-            label: 'New Terminal',
-            accelerator: 'CmdOrCtrl+T',
-            click: () => sendCommand({ command: 'new-terminal' }),
-          },
-          {
-            label: 'New Task',
-            accelerator: 'CmdOrCtrl+Shift+T',
-            click: () => sendCommand({ command: 'show-create-task' }),
-          },
-          {
-            label: 'Run Shell Command',
-            accelerator: 'CmdOrCtrl+Shift+E',
-            click: () => sendCommand({ command: 'run-shell-command' }),
-          },
-          {
-            label: 'Search in Files',
-            accelerator: 'CmdOrCtrl+Shift+F',
-            click: () => sendCommand({ command: 'search-in-files' }),
-          },
-        ],
-      },
-      {
-        label: 'Edit',
-        submenu: [
-          { role: 'undo' },
-          { role: 'redo' },
-          { type: 'separator' },
-          { role: 'cut' },
-          { role: 'copy' },
-          { role: 'paste' },
-          { role: 'selectAll' },
-        ],
-      },
-      {
-        label: 'Sessions',
-        submenu: [
-          ...Array.from({ length: 9 }, (_, i) => ({
-            label: `Focus Session ${i + 1}`,
-            accelerator: `CmdOrCtrl+${i + 1}`,
-            click: () => sendCommand({ command: 'focus-session-index', index: i }),
-          })),
-          { type: 'separator' as const },
-          {
-            label: 'Focus Next Session',
-            accelerator: 'CmdOrCtrl+]',
-            click: () => sendCommand({ command: 'focus-next-session' }),
-          },
-          {
-            label: 'Focus Previous Session',
-            accelerator: 'CmdOrCtrl+[',
-            click: () => sendCommand({ command: 'focus-prev-session' }),
-          },
-          { type: 'separator' as const },
-          {
-            label: 'Clear All Attention',
-            accelerator: 'CmdOrCtrl+Shift+M',
-            click: () => sendCommand({ command: 'clear-all-attention' }),
-          },
-        ],
-      },
-      {
-        label: 'View',
-        submenu: [
-          {
-            label: 'Toggle Sidebar',
-            accelerator: 'CmdOrCtrl+\\',
-            click: () => sendCommand({ command: 'toggle-sidebar' }),
-          },
-          {
-            label: 'Show Activity',
-            accelerator: 'CmdOrCtrl+Shift+A',
-            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'activity' }),
-          },
-          {
-            label: 'Show Commits',
-            accelerator: 'CmdOrCtrl+Shift+B',
-            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'commits' }),
-          },
-          {
-            label: 'Show Changes',
-            accelerator: 'CmdOrCtrl+Shift+C',
-            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'changes' }),
-          },
-          {
-            label: 'Show Token Usage',
-            accelerator: 'CmdOrCtrl+Shift+U',
-            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'tokens' }),
-          },
-          {
-            label: 'Quick Open',
-            accelerator: 'CmdOrCtrl+P',
-            click: () => sendCommand({ command: 'quick-open' }),
-          },
-          {
-            label: 'Command Palette',
-            accelerator: 'CmdOrCtrl+Shift+P',
-            click: () => sendCommand({ command: 'show-command-palette' }),
-          },
-          { type: 'separator' },
-          {
-            label: 'Layout Mode',
-            submenu: [
-              {
-                label: 'Tiles',
-                type: 'radio',
-                checked: true,
-                click: () => sendCommand({ command: 'set-view-mode', mode: 'tiles' }),
-              },
-              {
-                label: 'Kanban Board',
-                type: 'radio',
-                click: () => sendCommand({ command: 'set-view-mode', mode: 'kanban' }),
-              },
-            ],
-          },
-          {
-            label: 'Toggle Layout Mode',
-            accelerator: 'CmdOrCtrl+Shift+L',
-            click: () => sendCommand({ command: 'toggle-view-mode' }),
-          },
-          { type: 'separator' },
-          {
-            label: 'Close All Tiles',
-            accelerator: 'CmdOrCtrl+Shift+X',
-            click: () => sendCommand({ command: 'close-all-tiles' }),
-          },
-        ],
-      },
-      {
-        label: 'Window',
-        submenu: [
-          { role: 'minimize' },
-          { role: 'zoom' },
-        ],
-      },
-      {
-        label: 'Help',
-        submenu: [
-          {
-            label: 'Keyboard Shortcuts',
-            accelerator: 'CmdOrCtrl+/',
-            click: () => sendCommand({ command: 'show-keyboard-shortcuts' }),
-          },
-          { type: 'separator' },
-          {
-            label: 'Check for Updates...',
-            click: () => updateChecker.checkManual(),
-          },
-        ],
-      },
-    ]),
-  );
+  buildApplicationMenu({
+    sendCommand,
+    shutdownBroker: () => brokerClient.shutdownBroker(),
+    checkForUpdates: () => updateChecker.checkManual(),
+  });
 
   // Initialize database
   getDb();

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import type { MCodeAPI } from '../shared/types';
+import type { MCodeAPI } from '@shared/types';
 import './styles/global.css';
 
 if (import.meta.env.DEV) {

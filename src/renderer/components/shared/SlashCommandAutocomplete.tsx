@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { SlashCommandEntry } from '../../../shared/types';
+import type { SlashCommandEntry } from '@shared/types';
 
 interface SlashCommandAutocompleteProps {
   prompt: string;

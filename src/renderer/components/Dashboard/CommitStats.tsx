@@ -4,7 +4,7 @@ import { useCommitStore } from '../../stores/commit-store';
 import Tooltip from '../shared/Tooltip';
 import HeatmapGrid from '../shared/HeatmapGrid';
 import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
-import type { CommitHeatmapEntry } from '../../../shared/types';
+import type { CommitHeatmapEntry } from '@shared/types';
 
 const RETENTION_DAYS = 90;
 

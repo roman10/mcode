@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GitStatusResult } from '../../shared/types';
+import type { GitStatusResult } from '@shared/types';
 
 interface ChangesState {
   statuses: GitStatusResult[];

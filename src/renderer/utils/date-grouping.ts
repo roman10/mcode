@@ -1,4 +1,4 @@
-import type { SessionInfo } from '../../shared/types';
+import type { SessionInfo } from '@shared/types';
 
 export interface DateGroup {
   key: string;

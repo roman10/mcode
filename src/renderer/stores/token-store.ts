@@ -3,7 +3,7 @@ import type {
   DailyTokenUsage,
   TokenHeatmapEntry,
   TokenWeeklyTrend,
-} from '../../shared/types';
+} from '@shared/types';
 
 interface TokenState {
   dailyUsage: DailyTokenUsage | null;

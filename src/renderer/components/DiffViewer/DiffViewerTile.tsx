@@ -9,7 +9,7 @@ import type { Extension } from '@codemirror/state';
 import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
 import { mcodeEditorExtension, hideCursorExtension, diffTheme } from '../../styles/editor-theme';
-import type { GitDiffContent } from '../../../shared/types';
+import type { GitDiffContent } from '@shared/types';
 
 interface DiffViewerTileProps {
   absolutePath: string;

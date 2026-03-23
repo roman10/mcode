@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { FileSearchMatch, SearchEvent } from '../../shared/types';
+import type { FileSearchMatch, SearchEvent } from '@shared/types';
 import { useSessionStore } from './session-store';
 
 export interface RepoResults {

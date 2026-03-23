@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Dialog from '../shared/Dialog';
-import type { AccountProfile, SessionCreateInput } from '../../../shared/types';
-import { EFFORT_LEVELS, PERMISSION_MODES, type EffortLevel, type PermissionMode } from '../../../shared/constants';
+import type { AccountProfile, SessionCreateInput } from '@shared/types';
+import { EFFORT_LEVELS, PERMISSION_MODES, type EffortLevel, type PermissionMode } from '@shared/constants';
 
 const isMac = navigator.userAgent.includes('Mac');
 

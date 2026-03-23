@@ -10,7 +10,7 @@ import { useLayoutStore } from '../../stores/layout-store';
 import { useEditorStore } from '../../stores/editor-store';
 import Tooltip from '../shared/Tooltip';
 import { mcodeEditorExtension, hideCursorExtension, vimPanelTheme } from '../../styles/editor-theme';
-import type { FileReadResult } from '../../../shared/types';
+import type { FileReadResult } from '@shared/types';
 
 // --- Global ex command routing via WeakMap ---
 

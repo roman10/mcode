@@ -3,7 +3,7 @@ import { Search, CaseSensitive, Regex, ChevronRight, ChevronDown, X } from 'luci
 import { useSearchStore, type RepoResults } from '../../stores/search-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { getFileIcon } from '../../utils/file-icons';
-import type { FileSearchMatch } from '../../../shared/types';
+import type { FileSearchMatch } from '@shared/types';
 
 // --- Highlighted match text ---
 

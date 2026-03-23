@@ -3,7 +3,7 @@ import { useSessionStore } from '../../stores/session-store';
 import { formatShortTime } from '../../hooks/useRelativeTime';
 import Dialog from './Dialog';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
-import type { CreateTaskInput } from '../../../shared/types';
+import type { CreateTaskInput } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
 

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { groupSessionsByDate } from '../../utils/date-grouping';
 import Dialog from '../shared/Dialog';
-import type { SessionInfo } from '../../../shared/types';
+import type { SessionInfo } from '@shared/types';
 
 interface DeleteSessionsDialogProps {
   open: boolean;

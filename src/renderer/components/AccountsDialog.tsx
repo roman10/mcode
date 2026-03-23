@@ -4,7 +4,7 @@ import { useAccountsStore } from '../stores/accounts-store';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
 import Dialog from './shared/Dialog';
-import type { AccountProfile } from '../../shared/types';
+import type { AccountProfile, CliAuthStatus } from '@shared/types';
 
 function suggestNameFromEmail(email: string): string {
   const [localPart, domain] = email.split('@');
@@ -18,16 +18,25 @@ function suggestNameFromEmail(email: string): string {
 
 interface AccountRowProps {
   account: AccountProfile;
+  authStatus?: CliAuthStatus | null;
   onVerify(): void;
   verifying: boolean;
   onDelete?(): void;
 }
 
-function AccountRow({ account, onVerify, verifying, onDelete }: AccountRowProps): React.JSX.Element {
+function AccountRow({ account, authStatus, onVerify, verifying, onDelete }: AccountRowProps): React.JSX.Element {
   const isVerified = Boolean(account.email);
+  const isCliMissing = authStatus === 'cli-not-found';
+
+  const dotColor = isCliMissing ? 'bg-red-400' : isVerified ? 'bg-green-400' : 'bg-amber-400';
+  const statusText = isCliMissing
+    ? 'CLI not found'
+    : account.email ?? 'Not authenticated';
+  const statusColor = isCliMissing ? 'text-red-300' : 'text-text-muted';
+
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 bg-bg-primary border border-border-default rounded-md">
-      <div className={`w-2 h-2 rounded-full shrink-0 ${isVerified ? 'bg-green-400' : 'bg-amber-400'}`} />
+      <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-primary">{account.name}</span>
@@ -37,8 +46,8 @@ function AccountRow({ account, onVerify, verifying, onDelete }: AccountRowProps)
             </span>
           )}
         </div>
-        <span className="text-xs text-text-muted">
-          {account.email ?? 'Not authenticated'}
+        <span className={`text-xs ${statusColor}`}>
+          {statusText}
         </span>
       </div>
       <button
@@ -78,6 +87,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authStatuses, setAuthStatuses] = useState<Record<string, CliAuthStatus>>({});
 
   // Rename prompt state (shown after auth auto-detected)
   const [renameAccountId, setRenameAccountId] = useState<string | null>(null);
@@ -120,13 +130,13 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     if (!pendingAccountId) return;
     const intervalId = setInterval(async () => {
       try {
-        const status = await window.mcode.accounts.getAuthStatus(pendingAccountId);
-        if (status.loggedIn) {
+        const result = await window.mcode.accounts.getAuthStatus(pendingAccountId);
+        if (result.status === 'ok') {
           await refreshRef.current();
           setPendingAccountId(null);
-          if (status.email) {
+          if (result.email) {
             setRenameAccountId(pendingAccountId);
-            setRenameName(suggestNameFromEmail(status.email));
+            setRenameName(suggestNameFromEmail(result.email));
           }
         }
       } catch {
@@ -164,9 +174,12 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     setVerifyingId(accountId);
     setError(null);
     try {
-      const status = await window.mcode.accounts.getAuthStatus(accountId);
+      const result = await window.mcode.accounts.getAuthStatus(accountId);
+      setAuthStatuses((prev) => ({ ...prev, [accountId]: result.status }));
       await refresh();
-      if (pendingAccountId === accountId && status.loggedIn) setPendingAccountId(null);
+      // Also refresh sidebar CLI status
+      useAccountsStore.getState().refreshCliStatus().catch(() => {});
+      if (pendingAccountId === accountId && result.status === 'ok') setPendingAccountId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -205,11 +218,30 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       <div className="mb-4">
         <p className="text-xs text-text-muted uppercase tracking-wide mb-2">Default Account</p>
         {defaultAccount && (
-          <AccountRow
-            account={defaultAccount}
-            onVerify={() => handleVerify(defaultAccount.accountId)}
-            verifying={verifyingId === defaultAccount.accountId}
-          />
+          <>
+            <AccountRow
+              account={defaultAccount}
+              authStatus={authStatuses[defaultAccount.accountId]}
+              onVerify={() => handleVerify(defaultAccount.accountId)}
+              verifying={verifyingId === defaultAccount.accountId}
+            />
+            {authStatuses[defaultAccount.accountId] === 'cli-not-found' && (
+              <div className="mt-2 px-3 py-2 bg-red-900/20 border border-red-700/30 rounded-md text-xs text-red-300">
+                The <code className="bg-red-900/30 px-1 rounded">claude</code> command was not found in your PATH. Install Claude Code CLI to get started.
+                <button
+                  className="ml-2 underline hover:text-red-200 transition-colors"
+                  onClick={() => window.open('https://docs.anthropic.com/en/docs/claude-code/overview', '_blank')}
+                >
+                  Install Instructions
+                </button>
+              </div>
+            )}
+            {authStatuses[defaultAccount.accountId] === 'not-authenticated' && !defaultAccount.email && (
+              <div className="mt-2 px-3 py-2 bg-amber-900/20 border border-amber-700/30 rounded-md text-xs text-amber-300">
+                Run <code className="bg-amber-900/30 px-1 rounded">claude auth login</code> in a terminal to authenticate.
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -222,6 +254,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
               <AccountRow
                 key={account.accountId}
                 account={account}
+                authStatus={authStatuses[account.accountId]}
                 onVerify={() => handleVerify(account.accountId)}
                 verifying={verifyingId === account.accountId}
                 onDelete={

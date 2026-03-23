@@ -13,6 +13,15 @@ export interface AccountProfile {
   lastUsedAt: string | null;
 }
 
+// --- CLI / Auth Status ---
+
+export type CliAuthStatus = 'ok' | 'cli-not-found' | 'not-authenticated';
+
+export interface AuthStatusResult {
+  status: CliAuthStatus;
+  email?: string;
+}
+
 // --- Subscription Usage ---
 
 export interface RateLimitWindow {
@@ -477,7 +486,8 @@ export interface MCodeAPI {
     create(name?: string): Promise<AccountProfile>;
     rename(accountId: string, name: string): Promise<void>;
     delete(accountId: string): Promise<void>;
-    getAuthStatus(accountId: string): Promise<{ loggedIn: boolean; email?: string }>;
+    getAuthStatus(accountId: string): Promise<AuthStatusResult>;
+    checkCliInstalled(): Promise<CliAuthStatus>;
     openAuthTerminal(accountId: string): Promise<string>; // returns sessionId of auth terminal
     getSubscriptionUsage(accountId: string): Promise<SubscriptionUsage | null>;
     invalidateSubscriptionCache(accountId: string): Promise<void>;

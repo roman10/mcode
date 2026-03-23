@@ -6,7 +6,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
 import Tooltip from '../shared/Tooltip';
 import CreateTaskDialog from '../shared/CreateTaskDialog';
-import type { SessionStatus, CreateTaskInput } from '../../../shared/types';
+import type { SessionStatus, CreateTaskInput } from '@shared/types';
 
 interface TerminalToolbarProps {
   sessionId: string;

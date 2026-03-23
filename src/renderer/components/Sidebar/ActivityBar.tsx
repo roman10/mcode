@@ -1,7 +1,7 @@
 import { LayoutList, Search, GitCommitHorizontal, FileDiff, Coins, Activity, Users, Settings } from 'lucide-react';
 import Tooltip from '../shared/Tooltip';
 import { formatKeys } from '../../utils/format-shortcut';
-import type { SidebarTab } from '../../../shared/types';
+import type { SidebarTab } from '@shared/types';
 
 function ActivityBarButton({ icon, tab, active, panelCollapsed, onSelect, tooltip, badge }: {
   icon: React.ReactNode;
