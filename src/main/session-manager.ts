@@ -12,6 +12,12 @@ import { logger } from './logger';
 import { stripAnsi } from '../shared/strip-ansi';
 import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
 import {
+  computeTransition,
+  resolveAttention,
+  USER_CHOICE_TOOLS,
+} from './session-state-machine';
+import type { HookEventName } from './session-state-machine';
+import {
   DEFAULT_COLS,
   DEFAULT_ROWS,
   HOOK_EVENT_RETENTION_DAYS,
@@ -604,16 +610,6 @@ export class SessionManager {
     // Don't process events for ended sessions
     if (row.status === 'ended') return true;
 
-    // Self-heal: if receiving events while still 'starting', SessionStart was missed
-    if (row.status === 'starting' && event.hookEventName !== 'SessionStart') {
-      db.prepare('UPDATE sessions SET status = ? WHERE session_id = ?')
-        .run('active', sessionId);
-      row = { ...row, status: 'active' };
-      logger.info('session', 'Self-healed starting→active on event', {
-        sessionId, event: event.hookEventName,
-      });
-    }
-
     // Persist claude_session_id if present
     if (event.claudeSessionId) {
       db.prepare(
@@ -635,102 +631,33 @@ export class SessionManager {
       }
     }
 
-    // Apply state transitions
+    // Compute state transition (pure)
     const currentStatus = row.status as SessionStatus;
     const currentAttention = row.attention_level as SessionAttentionLevel;
-    let newStatus: SessionStatus = currentStatus;
-    let newAttention: SessionAttentionLevel = currentAttention;
-    let attentionReason: string | null = null;
-    let lastTool: string | null = null;
-    let clearLastTool = false;
 
-    switch (event.hookEventName) {
-      case 'SessionStart':
-        if (currentStatus === 'starting') {
-          newStatus = 'active';
-        }
-        // Clear action attention when Claude starts a session (e.g. after resume)
-        if (currentAttention === 'action') {
-          newAttention = 'none';
-          attentionReason = null;
-        }
-        break;
+    const result = computeTransition(event.hookEventName as HookEventName, {
+      currentStatus,
+      lastTool: row.last_tool,
+      toolName: event.toolName,
+    });
+    if (!result) return true;
 
-      case 'PreToolUse':
-        if (currentStatus === 'waiting' || currentStatus === 'idle') {
-          newStatus = 'active';
-          // Clear action attention when Claude resumes work (permission answered, new prompt)
-          if (currentAttention === 'action') {
-            newAttention = 'none';
-            attentionReason = null;
-          }
-        }
-        lastTool = event.toolName;
-        break;
-
-      case 'PostToolUse':
-        if (currentStatus === 'waiting' || currentStatus === 'idle') {
-          newStatus = 'active';
-          if (currentAttention === 'action') {
-            newAttention = 'none';
-            attentionReason = null;
-          }
-        }
-        lastTool = event.toolName;
-        break;
-
-      case 'Stop':
-        if (row.last_tool && SessionManager.USER_CHOICE_TOOLS.has(row.last_tool)) {
-          // Last tool produces a user-choice menu — wait for user response
-          newStatus = 'waiting';
-          newAttention = 'action';
-          attentionReason = 'Waiting for your response';
-          // Clear last_tool so a subsequent text-only Stop doesn't
-          // re-enter waiting from a stale user-choice tool name.
-          clearLastTool = true;
-        } else {
-          newStatus = 'idle';
-          // Set action only if session was active and not already action
-          if (currentStatus === 'active' && currentAttention !== 'action') {
-            // Don't raise action if there are pending tasks that will auto-dispatch
-            const hasPending = db
-              .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
-              .get(sessionId);
-            if (!hasPending) {
-              newAttention = 'action';
-              attentionReason = 'Claude finished — awaiting next input';
-            }
-          }
-        }
-        break;
-
-      case 'PermissionRequest':
-        newStatus = 'waiting';
-        newAttention = 'action';
-        attentionReason = event.toolName
-          ? `Permission needed: ${event.toolName}`
-          : 'Permission needed';
-        break;
-
-      case 'Notification':
-        // No status change; info attention unless already action
-        if (currentAttention !== 'action') {
-          newAttention = 'info';
-          attentionReason = 'Notification from Claude';
-        }
-        break;
-
-      case 'PostToolUseFailure':
-        // No attention change — Claude handles failures autonomously
-        break;
-
-      case 'SessionEnd':
-        newStatus = 'ended';
-        // Resumable sessions (have a claudeSessionId) get action so the user notices
-        newAttention = row.claude_session_id ? 'action' : 'none';
-        attentionReason = row.claude_session_id ? 'Session ended — can resume' : null;
-        break;
+    if (result.selfHealed) {
+      logger.info('session', 'Self-healed starting→active on event', {
+        sessionId, event: event.hookEventName,
+      });
     }
+
+    // Resolve attention (may need DB query for pending tasks)
+    const hasPendingTasks = result.attention.type === 'set-action-if-active-no-pending'
+      ? !!db.prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1").get(sessionId)
+      : false;
+    const { level: newAttention, reason: attentionReason } = resolveAttention(
+      result.attention,
+      currentAttention,
+      { hasPendingTasks, claudeSessionId: row.claude_session_id },
+    );
+    const newStatus = result.status;
 
     // Persist event with computed status
     this.persistEvent(sessionId, event, newStatus);
@@ -754,15 +681,14 @@ export class SessionManager {
       updates.push('attention_reason = ?');
       params.push(attentionReason);
     } else if (attentionReason !== null) {
-      // Reason changed even though level didn't (e.g., Stop→PermissionRequest both 'action')
       updates.push('attention_reason = ?');
       params.push(attentionReason);
     }
 
-    if (lastTool) {
+    if (result.lastTool.type === 'set') {
       updates.push('last_tool = ?');
-      params.push(lastTool);
-    } else if (clearLastTool) {
+      params.push(result.lastTool.toolName);
+    } else if (result.lastTool.type === 'clear') {
       updates.push('last_tool = NULL');
     }
 
@@ -1099,14 +1025,6 @@ export class SessionManager {
     if (session) this.notifyListeners(session, previousStatus);
   }
 
-  // --- Tools that produce user-choice menus ---
-
-  /** Tools whose Stop event should transition to 'waiting' instead of 'idle'. */
-  private static readonly USER_CHOICE_TOOLS = new Set([
-    'ExitPlanMode',
-    'AskUserQuestion',
-  ]);
-
   // --- PTY-based state detection ---
 
   private static readonly PERMISSION_PATTERNS = [
@@ -1151,7 +1069,7 @@ export class SessionManager {
         (row.status === 'active' || row.status === 'idle') &&
         row.attention_level !== 'action' &&
         isAtUserChoice(rawTail) &&
-        (isQuiescent || (row.last_tool != null && SessionManager.USER_CHOICE_TOOLS.has(row.last_tool)))
+        (isQuiescent || (row.last_tool != null && USER_CHOICE_TOOLS.has(row.last_tool)))
       ) {
         // User-choice menu detected (plan mode, AskUserQuestion, etc.)
         // When last_tool confirms a user-choice tool, skip quiescence to avoid
