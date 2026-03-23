@@ -343,6 +343,38 @@ export async function collapseKanban(client: McpTestClient): Promise<void> {
   await client.callTool('kanban_collapse');
 }
 
+export async function waitForKanbanColumn(
+  client: McpTestClient,
+  sessionId: string,
+  column: string,
+  timeoutMs = 10000,
+): Promise<void> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    const state = await getKanbanState(client);
+    if (state.columns[column]?.some((s) => s.sessionId === sessionId)) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`Timeout waiting for session ${sessionId} in column "${column}"`);
+}
+
+export async function waitForKanbanCollapse(
+  client: McpTestClient,
+  timeoutMs = 10000,
+): Promise<void> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    const state = await getKanbanState(client);
+    if (state.expandedSessionId === null) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error('Timeout waiting for kanban expansion to collapse');
+}
+
 // --- File helpers ---
 
 export async function writeTestFile(

@@ -16,6 +16,8 @@ import {
   waitForTileCount,
   waitForViewMode,
   waitForAttention,
+  waitForKanbanColumn,
+  waitForKanbanCollapse,
   type SessionInfo,
 } from '../helpers';
 
@@ -76,7 +78,7 @@ describe('kanban layout', () => {
     await waitForTileCount(client, tilesBefore + 1);
 
     await killAndWaitEnded(client, session.sessionId);
-    await waitForTileCount(client, tilesBefore);
+    await waitForKanbanColumn(client, session.sessionId, 'completed');
 
     const state = await getKanbanState(client);
     const completedIds = state.columns['completed']?.map((s) => s.sessionId) ?? [];
@@ -134,7 +136,7 @@ describe('kanban layout', () => {
 
     // Kill the session — KanbanLayout's useEffect should auto-collapse
     await killAndWaitEnded(client, session.sessionId);
-    await waitForTileCount(client, tilesBefore);
+    await waitForKanbanCollapse(client);
 
     const after = await getKanbanState(client);
     expect(after.expandedSessionId).toBeNull();
