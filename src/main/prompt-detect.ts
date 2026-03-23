@@ -28,15 +28,19 @@ export function isAtClaudePrompt(rawBufferTail: string): boolean {
  *     2. Yes, manually approve edits
  *     3. Type here to tell Claude what to change
  *
- * We detect the pattern: ❯ followed by "N." (a digit and period) within
- * the last portion of the buffer.
+ * We detect the pattern by anchoring on the last ❯ in the buffer (same
+ * strategy as isAtClaudePrompt) and checking if it's followed by "N.".
  */
 export function isAtUserChoice(rawBufferTail: string): boolean {
   const clean = stripAnsi(rawBufferTail);
-  // Look for ❯ followed by a numbered option (e.g. "❯ 1.")
-  const menuPattern = /❯\s+\d+\./;
-  const lastChunk = clean.slice(-500);
-  return menuPattern.test(lastChunk);
+  // Anchor on the last ❯ — same strategy as isAtClaudePrompt.
+  // Status bar writes appear after the ❯ in the linear buffer but never
+  // add new ❯ characters, so lastIndexOf reliably finds the menu cursor
+  // (or the idle prompt if the user dismissed the menu with Esc).
+  const lastPrompt = clean.lastIndexOf('❯');
+  if (lastPrompt === -1) return false;
+  const afterPrompt = clean.slice(lastPrompt, lastPrompt + 50);
+  return /❯\s+\d+\./.test(afterPrompt);
 }
 
 /**

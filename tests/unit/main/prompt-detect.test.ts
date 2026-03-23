@@ -72,11 +72,26 @@ describe('isAtUserChoice', () => {
     expect(isAtUserChoice('')).toBe(false);
   });
 
-  it('only checks the last 500 characters', () => {
-    // Menu far from end should still be detected if within 500 chars
+  it('anchors on the last ❯ regardless of buffer size', () => {
+    // Menu preceded by lots of content — last ❯ is the menu cursor
     const menu = '❯ 1. Option one\n  2. Option two\n';
-    const padding = 'x'.repeat(400);
+    const padding = 'x'.repeat(2000);
     expect(isAtUserChoice(padding + menu)).toBe(true);
+  });
+
+  it('stays true when status bar accumulates after menu', () => {
+    // Status bar writes appear after the menu in the linear buffer
+    // but don't add new ❯ characters, so last ❯ is still the menu cursor
+    const menu = '❯ 1. Option one\n  2. Option two\n';
+    const statusBar = 'x'.repeat(700);
+    expect(isAtUserChoice(menu + statusBar)).toBe(true);
+  });
+
+  it('returns false after Esc dismisses the menu', () => {
+    // After Esc, Claude renders a new idle prompt — last ❯ is now the idle prompt
+    const oldMenu = '❯ 1. Option one\n  2. Option two\n';
+    const postEsc = 'Plan mode cancelled.\n❯ ';
+    expect(isAtUserChoice(oldMenu + postEsc)).toBe(false);
   });
 });
 
