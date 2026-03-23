@@ -274,6 +274,88 @@ describe('hook integration', () => {
     expect(afterPoll.status).toBe('waiting');
   });
 
+  it('Stop after ExitPlanMode transitions to waiting', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+
+    // Simulate ExitPlanMode flow: PreToolUse → PostToolUse → Stop
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', {
+      toolName: 'ExitPlanMode',
+    });
+    await injectHookEvent(client, session.sessionId, 'PostToolUse', {
+      toolName: 'ExitPlanMode',
+    });
+
+    // Stop should transition to waiting (not idle) because last tool is ExitPlanMode
+    const afterStop = await injectHookEvent(client, session.sessionId, 'Stop');
+    expect(afterStop.status).toBe('waiting');
+    expect(afterStop.attentionLevel).toBe('action');
+    expect(afterStop.attentionReason).toBe('Waiting for your response');
+  });
+
+  it('Stop after AskUserQuestion transitions to waiting', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', {
+      toolName: 'AskUserQuestion',
+    });
+    await injectHookEvent(client, session.sessionId, 'PostToolUse', {
+      toolName: 'AskUserQuestion',
+    });
+
+    const afterStop = await injectHookEvent(client, session.sessionId, 'Stop');
+    expect(afterStop.status).toBe('waiting');
+    expect(afterStop.attentionLevel).toBe('action');
+    expect(afterStop.attentionReason).toBe('Waiting for your response');
+  });
+
+  it('PreToolUse after user-choice waiting transitions back to active', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+
+    // Enter waiting via ExitPlanMode → Stop
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', {
+      toolName: 'ExitPlanMode',
+    });
+    await injectHookEvent(client, session.sessionId, 'PostToolUse', {
+      toolName: 'ExitPlanMode',
+    });
+    await injectHookEvent(client, session.sessionId, 'Stop');
+
+    // User answers → Claude starts working again
+    const resumed = await injectHookEvent(client, session.sessionId, 'PreToolUse', {
+      toolName: 'Write',
+    });
+    expect(resumed.status).toBe('active');
+    expect(resumed.attentionLevel).toBe('none');
+  });
+
+  it('Stop after normal tool still transitions to idle', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await injectHookEvent(client, session.sessionId, 'SessionStart');
+
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', {
+      toolName: 'Read',
+    });
+    await injectHookEvent(client, session.sessionId, 'PostToolUse', {
+      toolName: 'Read',
+    });
+
+    const afterStop = await injectHookEvent(client, session.sessionId, 'Stop');
+    expect(afterStop.status).toBe('idle');
+    expect(afterStop.attentionLevel).toBe('action');
+    expect(afterStop.attentionReason).toBe('Claude finished — awaiting next input');
+  });
+
   it('hook_list_recent_all returns events with sessionStatus across sessions', async () => {
     // Earlier tests in this suite injected events into multiple sessions.
     // hook_list_recent_all should return events from across all of them.

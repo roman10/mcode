@@ -594,8 +594,8 @@ export class SessionManager {
 
     // Verify session exists
     let row = db
-      .prepare('SELECT status, attention_level, cwd, worktree, claude_session_id FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; claude_session_id: string | null } | undefined;
+      .prepare('SELECT status, attention_level, cwd, worktree, claude_session_id, last_tool FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; claude_session_id: string | null; last_tool: string | null } | undefined;
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
       return false;
@@ -642,6 +642,7 @@ export class SessionManager {
     let newAttention: SessionAttentionLevel = currentAttention;
     let attentionReason: string | null = null;
     let lastTool: string | null = null;
+    let clearLastTool = false;
 
     switch (event.hookEventName) {
       case 'SessionStart':
@@ -679,16 +680,26 @@ export class SessionManager {
         break;
 
       case 'Stop':
-        newStatus = 'idle';
-        // Set action only if session was active and not already action
-        if (currentStatus === 'active' && currentAttention !== 'action') {
-          // Don't raise action if there are pending tasks that will auto-dispatch
-          const hasPending = db
-            .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
-            .get(sessionId);
-          if (!hasPending) {
-            newAttention = 'action';
-            attentionReason = 'Claude finished — awaiting next input';
+        if (row.last_tool && SessionManager.USER_CHOICE_TOOLS.has(row.last_tool)) {
+          // Last tool produces a user-choice menu — wait for user response
+          newStatus = 'waiting';
+          newAttention = 'action';
+          attentionReason = 'Waiting for your response';
+          // Clear last_tool so a subsequent text-only Stop doesn't
+          // re-enter waiting from a stale user-choice tool name.
+          clearLastTool = true;
+        } else {
+          newStatus = 'idle';
+          // Set action only if session was active and not already action
+          if (currentStatus === 'active' && currentAttention !== 'action') {
+            // Don't raise action if there are pending tasks that will auto-dispatch
+            const hasPending = db
+              .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
+              .get(sessionId);
+            if (!hasPending) {
+              newAttention = 'action';
+              attentionReason = 'Claude finished — awaiting next input';
+            }
           }
         }
         break;
@@ -751,6 +762,8 @@ export class SessionManager {
     if (lastTool) {
       updates.push('last_tool = ?');
       params.push(lastTool);
+    } else if (clearLastTool) {
+      updates.push('last_tool = NULL');
     }
 
     updates.push('last_event_at = ?');
@@ -1084,6 +1097,14 @@ export class SessionManager {
     if (session) this.notifyListeners(session, previousStatus);
   }
 
+  // --- Tools that produce user-choice menus ---
+
+  /** Tools whose Stop event should transition to 'waiting' instead of 'idle'. */
+  private static readonly USER_CHOICE_TOOLS = new Set([
+    'ExitPlanMode',
+    'AskUserQuestion',
+  ]);
+
   // --- PTY-based state detection ---
 
   private static readonly PERMISSION_PATTERNS = [
@@ -1099,10 +1120,10 @@ export class SessionManager {
     const db = getDb();
     const rows = db
       .prepare(
-        `SELECT session_id, status, attention_level FROM sessions
+        `SELECT session_id, status, attention_level, last_tool FROM sessions
          WHERE status IN ('active', 'idle', 'waiting') AND session_type = 'claude'`,
       )
-      .all() as { session_id: string; status: string; attention_level: string }[];
+      .all() as { session_id: string; status: string; attention_level: string; last_tool: string | null }[];
 
     const now = Date.now();
 
@@ -1125,19 +1146,23 @@ export class SessionManager {
         // Permission prompt detected: quiescent + pattern visible
         this.updateStatusWithAttention(row.session_id, 'waiting', 'action', 'Permission prompt detected');
       } else if (
-        row.status === 'active' &&
+        (row.status === 'active' || row.status === 'idle') &&
         row.attention_level !== 'action' &&
-        isQuiescent &&
-        isAtUserChoice(rawTail)
+        isAtUserChoice(rawTail) &&
+        (isQuiescent || (row.last_tool != null && SessionManager.USER_CHOICE_TOOLS.has(row.last_tool)))
       ) {
         // User-choice menu detected (plan mode, AskUserQuestion, etc.)
+        // When last_tool confirms a user-choice tool, skip quiescence to avoid
+        // status bar updates blocking detection indefinitely.
         this.updateStatusWithAttention(row.session_id, 'waiting', 'action', 'Waiting for your response');
       } else if (
         (row.status === 'active' || row.status === 'waiting') &&
         isQuiescent &&
-        isAtClaudePrompt(rawTail)
+        isAtClaudePrompt(rawTail) &&
+        !isAtUserChoice(rawTail)
       ) {
         // Idle prompt detected: Claude is waiting at ❯ for new input
+        // Guard against user-choice menus whose ❯ cursor also satisfies isAtClaudePrompt.
         const hasPending = db
           .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
           .get(row.session_id);
