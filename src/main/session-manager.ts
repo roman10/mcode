@@ -937,6 +937,9 @@ export class SessionManager {
     // Ensure status transitions to 'ended' even if PTY handle was already gone
     // (e.g., detached sessions). Idempotent — no-op if onExit already fired.
     this.updateStatus(sessionId, 'ended');
+    // Force-clear attention: the SessionEnd hook may have set action attention
+    // for resumable sessions before updateStatus ran (race condition).
+    this.clearAttention(sessionId);
     logger.info('session', 'Killed session', { sessionId });
   }
 
