@@ -9,8 +9,8 @@ import type { SnippetEntry, SnippetVariable } from '../shared/types';
 function extractVariablesFromBody(body: string): SnippetVariable[] {
   const seen = new Set<string>();
   const vars: SnippetVariable[] = [];
-  for (const match of body.matchAll(/\{\{(\w+)\}\}/g)) {
-    const name = match[1];
+  for (const match of body.matchAll(/\{\{([^}]+)\}\}/g)) {
+    const name = match[1].trim();
     if (!seen.has(name)) {
       seen.add(name);
       vars.push({ name });
@@ -146,14 +146,14 @@ function snippetsDir(scope: 'user' | 'project', cwd: string): string {
 }
 
 const SNIPPET_TEMPLATE = `---
-name: New Snippet
-description:
-variables:
-  - name: example
-    description: An example variable
-    default: hello
+name: New Snippet          # Display name in the snippet picker
+description:               # Short summary shown next to the name
+# variables:               # Optional — define input fields for dynamic parts
+#   - name: varname        # Must match a {{varname}} placeholder in the body
+#     description: Label   # Label shown on the input field
+#     default: value       # Pre-filled value (user can override)
 ---
-{{example}}
+Your snippet text here. Use {{varname}} for dynamic parts.
 `;
 
 export async function createSnippet(scope: 'user' | 'project', cwd: string): Promise<string> {

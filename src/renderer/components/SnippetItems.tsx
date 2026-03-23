@@ -15,7 +15,10 @@ interface SnippetItemsProps {
 }
 
 function renderTemplate(body: string, values: Record<string, string>): string {
-  return body.replace(/\{\{(\w+)\}\}/g, (_, name) => values[name] ?? '');
+  return body.replace(/\{\{([^}]+)\}\}/g, (_, raw) => {
+    const name = raw.trim();
+    return values[name] ?? '';
+  });
 }
 
 function insertSnippetText(text: string): boolean {
