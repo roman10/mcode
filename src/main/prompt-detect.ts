@@ -12,9 +12,11 @@ export function isAtClaudePrompt(rawBufferTail: string): boolean {
   const lastPrompt = clean.lastIndexOf('❯');
   if (lastPrompt === -1) return false;
   const after = clean.slice(lastPrompt + 1);
-  // Status bar is short (< 300 chars) and at most 2 newlines.
-  // Reject if there is substantial multi-line content (Claude still outputting).
-  return after.length < 300 && (after.match(/\n/g) || []).length <= 2;
+  // Status bar uses ANSI cursor repositioning; after stripping, each
+  // update adds ~80-100 chars to the linear buffer.  Allow up to 800
+  // chars / 5 newlines to tolerate accumulation while still rejecting
+  // real Claude output (which is multi-line and much longer).
+  return after.length < 800 && (after.match(/\n/g) || []).length <= 5;
 }
 
 /**

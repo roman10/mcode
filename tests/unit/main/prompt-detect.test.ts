@@ -17,15 +17,27 @@ describe('isAtClaudePrompt', () => {
     expect(isAtClaudePrompt('')).toBe(false);
   });
 
+  it('accepts moderate status bar accumulation after prompt', () => {
+    // Status bar updates accumulate ~80-100 stripped chars each;
+    // 500 chars is within the 800-char threshold
+    const tail = '❯ ' + 'x'.repeat(500);
+    expect(isAtClaudePrompt(tail)).toBe(true);
+  });
+
   it('rejects when substantial content follows the prompt', () => {
-    // More than 300 chars after ❯ means Claude is still outputting
-    const tail = '❯ ' + 'x'.repeat(400);
+    // More than 800 chars after ❯ means Claude is still outputting
+    const tail = '❯ ' + 'x'.repeat(900);
     expect(isAtClaudePrompt(tail)).toBe(false);
   });
 
+  it('accepts a few newlines in status bar tail', () => {
+    const tail = '❯ \nstatus1\nstatus2\nstatus3\n';
+    expect(isAtClaudePrompt(tail)).toBe(true);
+  });
+
   it('rejects when too many newlines follow the prompt', () => {
-    // More than 2 newlines = multi-line output, not status bar
-    const tail = '❯ \nline1\nline2\nline3\n';
+    // More than 5 newlines = multi-line output, not status bar
+    const tail = '❯ \nline1\nline2\nline3\nline4\nline5\nline6\n';
     expect(isAtClaudePrompt(tail)).toBe(false);
   });
 

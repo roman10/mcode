@@ -38,6 +38,7 @@ interface DispatchState {
   hasStarted: boolean;
   completedViaIdle: boolean;
   dispatchedAtMs: number;
+  idleTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const PROMPT_QUIESCENCE_MS = 2000;
@@ -365,6 +366,7 @@ export class TaskQueue {
       hasStarted: false,
       completedViaIdle: false,
       dispatchedAtMs: Date.now(),
+      idleTimer: null,
     });
 
     // Queue-driven PTY input starts a new Claude turn from an idle session.
@@ -422,6 +424,7 @@ export class TaskQueue {
       hasStarted: false,
       completedViaIdle: false,
       dispatchedAtMs: Date.now(),
+      idleTimer: null,
     });
 
     logger.info('task', 'Dispatched plan mode task', {
@@ -466,6 +469,7 @@ export class TaskQueue {
         hasStarted: false,
         completedViaIdle: false,
         dispatchedAtMs: Date.now(),
+        idleTimer: null,
       });
 
       logger.info('task', 'Dispatched task with new session', {
@@ -498,16 +502,37 @@ export class TaskQueue {
       state.hasStarted = true;
     }
 
-    // Complete when session goes idle and the ❯ prompt is visible.
-    // The prompt check guards against premature Stop hooks (e.g. mid-skill),
-    // where the session briefly goes idle but the prompt isn't showing.
-    if (session.status === 'idle' && state.hasStarted) {
-      const buffer = this.ptyManager.getReplayData(session.sessionId);
-      if (buffer && isAtClaudePrompt(buffer.slice(-2000))) {
-        state.completedViaIdle = true;
-        this.completeTask(taskId);
-        return;
-      }
+    // Cancel pending idle timer when session resumes work
+    if (session.status === 'active' && state.idleTimer) {
+      clearTimeout(state.idleTimer);
+      state.idleTimer = null;
+    }
+
+    // Debounce: complete task only if session stays idle for 500ms.
+    // The session manager's hook-driven idle status is authoritative.
+    // The debounce guards against brief mid-skill idle transitions
+    // (where the session goes idle→active→idle between turns).
+    if (session.status === 'idle' && state.hasStarted && !state.idleTimer) {
+      const sessionId = session.sessionId;
+      state.idleTimer = setTimeout(() => {
+        const s = this.dispatchStates.get(taskId);
+        if (!s || s.completedViaIdle) return;
+        const t = this.getById(taskId);
+        if (!t || t.status !== 'dispatched') return;
+        const cur = this.sessionManager.get(sessionId);
+        // Clear timer ref before completeTask (which deletes the state)
+        s.idleTimer = null;
+        if (cur?.status === 'idle') {
+          s.completedViaIdle = true;
+          this.completeTask(taskId);
+        }
+      }, 500);
+    }
+
+    // Cancel pending idle timer when session enters waiting (not idle anymore)
+    if (session.status === 'waiting' && state.idleTimer) {
+      clearTimeout(state.idleTimer);
+      state.idleTimer = null;
     }
 
     // Plan mode tasks also complete when a new user-choice menu appears
@@ -535,10 +560,10 @@ export class TaskQueue {
     }
   }
 
-  /** Fallback completion detection via PTY polling.
-   *  The primary path is handleSessionUpdate (event-driven via hooks).
-   *  This fallback handles cases where hooks don't fire or the prompt
-   *  wasn't visible at the moment the session went idle. */
+  /** Fallback completion detection via polling.
+   *  The primary path is handleSessionUpdate (event-driven via hooks)
+   *  with a debounced idle timer.  This fallback handles cases where
+   *  hooks don't fire or the debounced timer didn't complete the task. */
   private checkDispatchedForPrompt(): void {
     const now = Date.now();
 
@@ -549,20 +574,34 @@ export class TaskQueue {
       const task = this.getById(taskId);
       if (!task || task.status !== 'dispatched' || !task.sessionId) continue;
 
-      // If session manager already confirmed idle/waiting, skip quiescence —
-      // status bar updates can reset lastDataAt indefinitely.
+      // If session manager already confirmed idle/waiting, complete
+      // immediately — the 2s polling interval means the session has been
+      // idle long enough to rule out mid-skill transitions.
       const session = this.sessionManager.get(task.sessionId);
       const sessionConfirmed = state.hasStarted &&
         (session?.status === 'idle' || session?.status === 'waiting');
 
-      if (!sessionConfirmed) {
-        // Require PTY quiescence when session manager hasn't confirmed idle yet
-        const lastDataAt = this.ptyManager.getLastDataAt(task.sessionId);
-        if (lastDataAt === 0) continue;
-        if (now - lastDataAt < PROMPT_QUIESCENCE_MS) continue;
+      if (sessionConfirmed) {
+        // Plan mode tasks in 'waiting' still need the user-choice menu check —
+        // a bare 'waiting' status could be a permission prompt, not completion.
+        if (session?.status === 'waiting' && task.planModeAction) {
+          const buffer = this.ptyManager.getReplayData(task.sessionId);
+          if (!buffer || !isAtUserChoice(buffer.slice(-500))) continue;
+        }
+        logger.info('task', 'Session confirmed idle via fallback polling, completing task', {
+          taskId,
+          sessionId: task.sessionId,
+        });
+        state.completedViaIdle = true;
+        this.completeTask(taskId);
+        continue;
       }
 
-      // Check if terminal shows Claude's idle prompt
+      // Hooks not working — fall back to PTY prompt detection
+      const lastDataAt = this.ptyManager.getLastDataAt(task.sessionId);
+      if (lastDataAt === 0) continue;
+      if (now - lastDataAt < PROMPT_QUIESCENCE_MS) continue;
+
       const buffer = this.ptyManager.getReplayData(task.sessionId);
       if (!buffer) continue;
 
@@ -592,6 +631,9 @@ export class TaskQueue {
   }
 
   private completeTask(taskId: number): void {
+    const state = this.dispatchStates.get(taskId);
+    if (state?.idleTimer) clearTimeout(state.idleTimer);
+
     const db = getDb();
     db.prepare(
       `UPDATE task_queue SET status = 'completed', completed_at = ? WHERE id = ? AND status = 'dispatched'`,
@@ -608,6 +650,9 @@ export class TaskQueue {
   }
 
   private failTask(taskId: number, error: string, permanent = false): void {
+    const state = this.dispatchStates.get(taskId);
+    if (state?.idleTimer) clearTimeout(state.idleTimer);
+
     const db = getDb();
     const task = this.getById(taskId);
     if (!task) return;
