@@ -4,6 +4,7 @@ import {
   createTestSession,
   waitForActive,
   cleanupSessions,
+  resetTestState,
 } from '../helpers';
 
 describe('sidebar interaction', () => {
@@ -12,6 +13,7 @@ describe('sidebar interaction', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

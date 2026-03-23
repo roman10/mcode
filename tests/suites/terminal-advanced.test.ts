@@ -4,6 +4,7 @@ import {
   createTestSession,
   waitForActive,
   cleanupSessions,
+  resetTestState,
 } from '../helpers';
 
 describe('terminal advanced operations', () => {
@@ -13,6 +14,7 @@ describe('terminal advanced operations', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
 
     const session = await createTestSession(client);
     sessionId = session.sessionId;

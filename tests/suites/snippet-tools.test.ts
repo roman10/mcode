@@ -3,6 +3,7 @@ import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { McpTestClient } from '../mcp-client';
+import { resetTestState } from '../helpers';
 import type { SnippetEntry } from '../../src/shared/types';
 
 describe('snippet tools', () => {
@@ -12,6 +13,7 @@ describe('snippet tools', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
 
     // Create temp snippet files
     await mkdir(snippetsDir, { recursive: true });

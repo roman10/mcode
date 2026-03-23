@@ -8,6 +8,7 @@ import {
   getTileCount,
   waitForTileCount,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('stress: 10 concurrent sessions', () => {
@@ -18,6 +19,7 @@ describe('stress: 10 concurrent sessions', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

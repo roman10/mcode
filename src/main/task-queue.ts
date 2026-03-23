@@ -230,6 +230,16 @@ export class TaskQueue {
     this.broadcastChange({ type: 'remove', taskId });
   }
 
+  cancelAllPending(): number {
+    const db = getDb();
+    const result = db.prepare("DELETE FROM task_queue WHERE status = 'pending'").run();
+    if (result.changes > 0) {
+      logger.info('task', 'Cancelled all pending tasks', { count: result.changes });
+      this.broadcastChange({ type: 'refresh' });
+    }
+    return result.changes;
+  }
+
   update(taskId: number, input: UpdateTaskInput): Task {
     const task = this.getById(taskId);
     if (!task) {

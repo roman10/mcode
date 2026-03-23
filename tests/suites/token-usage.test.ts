@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
+import { resetTestState } from '../helpers';
 
 interface TokenTotals {
   inputTokens: number;
@@ -54,6 +55,7 @@ describe('token usage', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
     // Trigger scan to ensure data is populated
     await client.callToolText('tokens_refresh');
   });

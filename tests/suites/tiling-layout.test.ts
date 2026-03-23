@@ -8,6 +8,7 @@ import {
   getTileCount,
   waitForTileCount,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('tiling layout', () => {
@@ -16,6 +17,7 @@ describe('tiling layout', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
+import { resetTestState } from '../helpers';
 
 interface DailyStats {
   date: string;
@@ -41,6 +42,7 @@ describe('commit tracking', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
 
     // Trigger a scan to ensure tracker has data
     await client.callToolText('commits_refresh');

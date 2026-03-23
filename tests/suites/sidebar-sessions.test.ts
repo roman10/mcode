@@ -6,6 +6,7 @@ import {
   killAndWaitEnded,
   cleanupSessions,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('sidebar sessions', () => {
@@ -14,6 +15,7 @@ describe('sidebar sessions', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

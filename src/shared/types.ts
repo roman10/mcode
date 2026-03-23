@@ -256,7 +256,8 @@ export interface TaskFilter {
 
 export type TaskChangeEvent =
   | { type: 'upsert'; task: Task }
-  | { type: 'remove'; taskId: number };
+  | { type: 'remove'; taskId: number }
+  | { type: 'refresh' };
 
 // --- PTY ---
 

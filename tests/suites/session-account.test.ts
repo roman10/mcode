@@ -4,6 +4,7 @@ import {
   createTestSession,
   cleanupSessions,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 interface AccountProfile {
@@ -20,6 +21,7 @@ describe('session account assignment', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
     const accounts = await client.callToolJson<AccountProfile[]>('account_list');
     const found = accounts.find((a) => a.isDefault);
     if (!found) throw new Error('No default account found');

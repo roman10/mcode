@@ -44,6 +44,12 @@ export interface HookEvent {
   payload: Record<string, unknown>;
 }
 
+// --- Test isolation ---
+
+export async function resetTestState(client: McpTestClient): Promise<void> {
+  await client.callTool('app_reset_test_state');
+}
+
 // --- Session lifecycle helpers ---
 
 export async function createTestSession(

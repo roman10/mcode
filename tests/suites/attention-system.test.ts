@@ -12,6 +12,7 @@ import {
   getSidebarSessions,
   selectSession,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('attention system', () => {
@@ -20,6 +21,7 @@ describe('attention system', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

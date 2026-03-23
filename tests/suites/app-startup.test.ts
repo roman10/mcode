@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { McpTestClient } from '../mcp-client';
+import { resetTestState } from '../helpers';
 
 interface ConsoleEntry {
   level: 'log' | 'warn' | 'error' | 'info';
@@ -12,6 +13,7 @@ describe('app startup', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

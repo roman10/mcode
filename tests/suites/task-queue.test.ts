@@ -14,6 +14,7 @@ import {
   cancelTask,
   waitForTaskStatus,
   updateTask,
+  resetTestState,
 } from '../helpers';
 
 function futureIso(delayMs = 60000): string {
@@ -26,6 +27,7 @@ describe('task queue', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

@@ -10,6 +10,7 @@ import {
   waitForTaskStatus,
   type SessionInfo,
   type TaskInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('task concurrent dispatch', () => {
@@ -20,6 +21,7 @@ describe('task concurrent dispatch', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
 
     // Create two live Claude sessions for task dispatch
     [session1, session2] = await Promise.all([

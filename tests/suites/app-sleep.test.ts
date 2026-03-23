@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
+import { resetTestState } from '../helpers';
 
 interface SleepBlockerStatus {
   enabled: boolean;
@@ -12,6 +13,7 @@ describe('app sleep prevention', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
     const status = await client.callToolJson<SleepBlockerStatus>(
       'app_get_sleep_blocker_status',
     );

@@ -8,6 +8,7 @@ import {
   getHookRuntime,
   getRecentEvents,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('hook integration', () => {
@@ -16,6 +17,7 @@ describe('hook integration', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

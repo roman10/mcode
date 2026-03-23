@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { join } from 'node:path';
 import { McpTestClient } from '../mcp-client';
+import { resetTestState } from '../helpers';
 
 describe('git tools', () => {
   const client = new McpTestClient();
@@ -8,6 +9,7 @@ describe('git tools', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

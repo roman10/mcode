@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { McpTestClient } from '../mcp-client';
+import { resetTestState } from '../helpers';
 
 describe('file tools', () => {
   const client = new McpTestClient();
@@ -10,6 +11,7 @@ describe('file tools', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

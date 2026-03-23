@@ -16,6 +16,7 @@ import { registerFileTools } from './tools/file-tools';
 import { registerTokenTools } from './tools/token-tools';
 import { registerSearchTools } from './tools/search-tools';
 import { registerSnippetTools } from './tools/snippet-tools';
+import { registerTestTools } from './tools/test-tools';
 import type { McpServerContext } from './types';
 
 const DEFAULT_PORT = 7532;
@@ -39,6 +40,7 @@ function createServer(ctx: McpServerContext): McpServer {
   registerTokenTools(server, ctx);
   registerSearchTools(server, ctx);
   registerSnippetTools(server);
+  registerTestTools(server, ctx);
 
   return server;
 }

@@ -7,6 +7,7 @@ import {
   getTileCount,
   waitForTileCount,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('layout UI controls', () => {
@@ -16,6 +17,7 @@ describe('layout UI controls', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
 
     // Create 2 sessions with tiles
     const [s1, s2] = await Promise.all([

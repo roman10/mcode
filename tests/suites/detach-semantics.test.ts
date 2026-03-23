@@ -7,6 +7,7 @@ import {
   getTileCount,
   waitForTileCount,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('detach semantics (close tile != kill session)', () => {
@@ -15,6 +16,7 @@ describe('detach semantics (close tile != kill session)', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

@@ -5,6 +5,7 @@ import {
   killAndWaitEnded,
   cleanupSessions,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('ephemeral sessions', () => {
@@ -13,6 +14,7 @@ describe('ephemeral sessions', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
   });
 
   afterAll(async () => {

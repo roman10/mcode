@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
-import { getSidebarActiveTab, switchSidebarTab } from '../helpers';
+import { getSidebarActiveTab, switchSidebarTab, resetTestState } from '../helpers';
 
 describe('sidebar tabs', () => {
   const client = new McpTestClient();
@@ -8,6 +8,7 @@ describe('sidebar tabs', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
     originalTab = await getSidebarActiveTab(client);
   });
 

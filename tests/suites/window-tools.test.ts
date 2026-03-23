@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
+import { resetTestState } from '../helpers';
 
 describe('window tools', () => {
   const client = new McpTestClient();
@@ -7,6 +8,7 @@ describe('window tools', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
     // Save original bounds to restore later
     originalBounds = await client.callToolJson('window_get_bounds');
   });

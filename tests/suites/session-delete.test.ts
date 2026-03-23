@@ -6,6 +6,7 @@ import {
   killAndWaitEnded,
   cleanupSessions,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('session delete', () => {
@@ -17,6 +18,7 @@ describe('session delete', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
 
     // Create 3 sessions, kill 2 to make them "ended"
     const [s1, s2, s3] = await Promise.all([

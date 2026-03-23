@@ -19,6 +19,7 @@ import {
   waitForKanbanColumn,
   waitForKanbanCollapse,
   type SessionInfo,
+  resetTestState,
 } from '../helpers';
 
 describe('kanban layout', () => {
@@ -28,6 +29,7 @@ describe('kanban layout', () => {
 
   beforeAll(async () => {
     await client.connect();
+    await resetTestState(client);
     // Save the original view mode so we can restore it after tests
     originalViewMode = await getViewMode(client);
   });

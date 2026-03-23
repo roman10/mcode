@@ -44,6 +44,7 @@ function App(): React.JSX.Element {
   const setTasks = useTaskStore((s) => s.setTasks);
   const upsertTask = useTaskStore((s) => s.upsertTask);
   const removeTask = useTaskStore((s) => s.removeTask);
+  const refreshTasks = useTaskStore((s) => s.refreshTasks);
 
   // Track previous high-attention count for dock badge
   const prevHighCountRef = useRef(0);
@@ -170,12 +171,14 @@ function App(): React.JSX.Element {
     const unsub = window.mcode.tasks.onChanged((event) => {
       if (event.type === 'upsert') {
         upsertTask(event.task);
-      } else {
+      } else if (event.type === 'remove') {
         removeTask(event.taskId);
+      } else {
+        refreshTasks();
       }
     });
     return unsub;
-  }, [upsertTask, removeTask]);
+  }, [upsertTask, removeTask, refreshTasks]);
 
   // Route pty:data events to ephemeral command store
   useEffect(() => {
