@@ -68,6 +68,11 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             accelerator: 'CmdOrCtrl+Shift+F',
             click: () => sendCommand({ command: 'search-in-files' }),
           },
+          {
+            label: 'Snippets',
+            accelerator: 'CmdOrCtrl+Shift+S',
+            click: () => sendCommand({ command: 'open-snippets' }),
+          },
         ],
       },
       {

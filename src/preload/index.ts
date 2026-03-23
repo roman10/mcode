@@ -314,6 +314,12 @@ contextBridge.exposeInMainWorld('mcode', {
   snippets: {
     scan: (cwd: string): Promise<SnippetEntry[]> =>
       typedInvoke('snippets:scan', cwd),
+    create: (scope: 'user' | 'project', cwd: string): Promise<string> =>
+      typedInvoke('snippets:create', scope, cwd),
+    delete: (filePath: string): Promise<void> =>
+      typedInvoke('snippets:delete', filePath),
+    openFolder: (scope: 'user' | 'project', cwd: string): Promise<void> =>
+      typedInvoke('snippets:open-folder', scope, cwd),
   },
 
   tokens: {

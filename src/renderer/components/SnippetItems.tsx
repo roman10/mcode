@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Command } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
 import { useSessionStore } from '../stores/session-store';
+import { useLayoutStore } from '../stores/layout-store';
+import { resolveEphemeralCwd } from '../utils/session-actions';
 import type { SnippetEntry } from '@shared/types';
 
 const uf = new uFuzzy({ intraMode: 1 });
@@ -123,6 +125,45 @@ function VariableForm({
   );
 }
 
+// --- Delete confirmation ---
+
+function DeleteConfirm({
+  snippet,
+  onConfirm,
+  onCancel,
+}: {
+  snippet: SnippetEntry;
+  onConfirm: () => void;
+  onCancel: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="px-4 py-3 text-sm">
+      <div className="mb-1 font-medium text-text-primary">Delete snippet?</div>
+      <div className="mb-3 text-xs text-text-secondary">
+        This will permanently delete <span className="font-medium text-text-primary">{snippet.name}</span> ({snippet.source}).
+      </div>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary
+                     rounded border border-border-default hover:bg-bg-secondary cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="px-3 py-1.5 text-xs bg-red-600 text-white rounded
+                     hover:opacity-90 cursor-pointer"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // --- Main SnippetItems ---
 
 export default function SnippetItems({
@@ -135,6 +176,7 @@ export default function SnippetItems({
   const [snippets, setSnippets] = useState<SnippetEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSnippet, setSelectedSnippet] = useState<SnippetEntry | null>(null);
+  const [deletingSnippet, setDeletingSnippet] = useState<SnippetEntry | null>(null);
   const [noSession, setNoSession] = useState(false);
 
   // Derive primary cwd (same pattern as FileSearchItems)
@@ -148,7 +190,7 @@ export default function SnippetItems({
   }, [sessions, selectedSessionId]);
 
   // Fetch snippets on mount
-  useEffect(() => {
+  const fetchSnippets = useCallback(() => {
     if (!primaryCwd) {
       setSnippets([]);
       setLoading(false);
@@ -164,6 +206,10 @@ export default function SnippetItems({
     });
   }, [primaryCwd]);
 
+  useEffect(() => {
+    fetchSnippets();
+  }, [fetchSnippets]);
+
   // If query changes while in form mode, go back to search
   const prevQueryRef = useRef(query);
   useEffect(() => {
@@ -175,13 +221,16 @@ export default function SnippetItems({
 
   // Manage escape override
   useEffect(() => {
-    if (selectedSnippet) {
-      escapeOverrideRef.current = () => setSelectedSnippet(null);
+    if (selectedSnippet || deletingSnippet) {
+      escapeOverrideRef.current = () => {
+        setSelectedSnippet(null);
+        setDeletingSnippet(null);
+      };
     } else {
       escapeOverrideRef.current = null;
     }
     return () => { escapeOverrideRef.current = null; };
-  }, [selectedSnippet, escapeOverrideRef]);
+  }, [selectedSnippet, deletingSnippet, escapeOverrideRef]);
 
   // Build search haystack
   const haystack = useMemo(
@@ -218,6 +267,42 @@ export default function SnippetItems({
     [onClose],
   );
 
+  const handleEdit = useCallback(
+    (snippet: SnippetEntry, e: React.MouseEvent) => {
+      e.stopPropagation();
+      useLayoutStore.getState().addFileViewer(snippet.filePath);
+      onClose();
+    },
+    [onClose],
+  );
+
+  const handleDeleteConfirm = useCallback(() => {
+    if (!deletingSnippet) return;
+    window.mcode.snippets.delete(deletingSnippet.filePath).then(() => {
+      setDeletingSnippet(null);
+      fetchSnippets();
+    }).catch(console.error);
+  }, [deletingSnippet, fetchSnippets]);
+
+  const handleNewSnippet = useCallback(() => {
+    const cwd = resolveEphemeralCwd();
+    window.mcode.snippets.create('user', cwd).then((filePath) => {
+      useLayoutStore.getState().addFileViewer(filePath);
+      onClose();
+    }).catch(console.error);
+  }, [onClose]);
+
+  // --- Delete confirmation mode ---
+  if (deletingSnippet) {
+    return (
+      <DeleteConfirm
+        snippet={deletingSnippet}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeletingSnippet(null)}
+      />
+    );
+  }
+
   // --- Variable form mode ---
   if (selectedSnippet) {
     return (
@@ -238,10 +323,20 @@ export default function SnippetItems({
     );
   }
 
-  if (snippets.length === 0) {
+  if (snippets.length === 0 && !query.trim()) {
     return (
-      <div className="px-4 py-6 text-center text-sm text-text-muted">
-        No snippets found. Create <span className="font-mono text-text-secondary">~/.mcode/snippets/*.md</span> files to get started.
+      <div className="px-4 py-3 text-sm">
+        <div className="text-center text-text-muted mb-3">
+          No snippets found. Create <span className="font-mono text-text-secondary">~/.mcode/snippets/*.md</span> files to get started.
+        </div>
+        <button
+          type="button"
+          onClick={handleNewSnippet}
+          className="w-full text-left px-3 py-1.5 text-sm cursor-pointer rounded
+                     text-accent hover:bg-accent/10"
+        >
+          + New Snippet
+        </button>
       </div>
     );
   }
@@ -261,12 +356,22 @@ export default function SnippetItems({
           No active session — select a session first.
         </div>
       )}
+      {!query.trim() && (
+        <Command.Item
+          value="__new-snippet__"
+          onSelect={handleNewSnippet}
+          className="flex items-center gap-2.5 px-3 py-1.5 text-sm cursor-pointer
+                     text-accent data-[selected=true]:bg-accent/20"
+        >
+          + New Snippet
+        </Command.Item>
+      )}
       {filtered.map((snippet) => (
         <Command.Item
           key={`${snippet.source}:${snippet.name}`}
           value={`${snippet.source}:${snippet.name}`}
           onSelect={() => handleSelect(snippet)}
-          className="flex items-center gap-2.5 px-3 py-1.5 text-sm cursor-pointer
+          className="group flex items-center gap-2.5 px-3 py-1.5 text-sm cursor-pointer
                      text-text-primary data-[selected=true]:bg-accent/20"
         >
           <span className="truncate min-w-0 flex-1">{snippet.name}</span>
@@ -276,6 +381,34 @@ export default function SnippetItems({
           <span className="shrink-0 text-xs text-text-muted px-1 rounded bg-bg-secondary">
             {snippet.source === 'project' ? 'Project' : 'User'}
           </span>
+          <button
+            type="button"
+            title="Edit snippet"
+            onClick={(e) => handleEdit(snippet, e)}
+            className="shrink-0 opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary
+                       p-0.5 rounded hover:bg-bg-secondary transition-opacity cursor-pointer"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              <path d="m15 5 4 4" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            title="Delete snippet"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeletingSnippet(snippet);
+            }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-400
+                       p-0.5 rounded hover:bg-bg-secondary transition-opacity cursor-pointer"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
+          </button>
         </Command.Item>
       ))}
     </>

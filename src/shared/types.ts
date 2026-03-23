@@ -131,7 +131,8 @@ export type AppCommand =
   | { command: 'set-view-mode'; mode: ViewMode }
   | { command: 'toggle-view-mode' }
   | { command: 'run-shell-command' }
-  | { command: 'search-in-files' };
+  | { command: 'search-in-files' }
+  | { command: 'open-snippets' };
 
 // --- Slash Commands ---
 
@@ -155,6 +156,7 @@ export interface SnippetEntry {
   source: 'user' | 'project';
   variables: SnippetVariable[];
   body: string;
+  filePath: string;
 }
 
 // --- File Search ---

@@ -6,6 +6,7 @@ import { formatKeys } from '../utils/format-shortcut';
 import { executeAppCommand } from '../utils/app-commands';
 import { useLayoutStore } from '../stores/layout-store';
 import { useSessionStore } from '../stores/session-store';
+import { resolveEphemeralCwd } from '../utils/session-actions';
 
 export interface CommandEntry {
   id: string;
@@ -102,6 +103,39 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       shortcut: shortcuts.get('Keyboard Shortcuts'),
       enabled: true,
       execute: () => executeAppCommand({ command: 'show-keyboard-shortcuts' }),
+    },
+    {
+      id: 'snippets-insert',
+      label: 'Snippets: Insert',
+      category: 'General',
+      shortcut: shortcuts.get('Snippets'),
+      keywords: ['snippet', 'template', 'prompt'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'open-snippets' }),
+    },
+    {
+      id: 'snippets-new',
+      label: 'Snippets: New',
+      category: 'General',
+      keywords: ['snippet', 'template', 'prompt', 'create'],
+      enabled: true,
+      execute: () => {
+        const cwd = resolveEphemeralCwd();
+        window.mcode.snippets.create('user', cwd).then((filePath) => {
+          useLayoutStore.getState().addFileViewer(filePath);
+        }).catch(console.error);
+      },
+    },
+    {
+      id: 'snippets-open-folder',
+      label: 'Snippets: Open Folder',
+      category: 'General',
+      keywords: ['snippet', 'template', 'prompt', 'folder', 'finder'],
+      enabled: true,
+      execute: () => {
+        const cwd = resolveEphemeralCwd();
+        window.mcode.snippets.openFolder('user', cwd).catch(console.error);
+      },
     },
 
     // --- Layout ---

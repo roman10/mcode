@@ -1,6 +1,7 @@
-import { readdir, readFile } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { readdir, readFile, writeFile, unlink, mkdir, access } from 'node:fs/promises';
+import { join, basename, normalize } from 'node:path';
 import { homedir } from 'node:os';
+import { shell } from 'electron';
 import { parse as parseYaml } from 'yaml';
 import type { SnippetEntry, SnippetVariable } from '../shared/types';
 
@@ -23,6 +24,7 @@ function parseSnippetFile(
   filename: string,
   content: string,
   source: 'user' | 'project',
+  filePath: string,
 ): SnippetEntry | null {
   const fallbackName = basename(filename, '.md');
   let frontmatter: Record<string, unknown> = {};
@@ -87,7 +89,7 @@ function parseSnippetFile(
     variables = extractVariablesFromBody(body);
   }
 
-  return { name, description, source, variables, body };
+  return { name, description, source, variables, body, filePath };
 }
 
 async function scanDirectory(
@@ -105,8 +107,9 @@ async function scanDirectory(
   for (const entry of entries) {
     if (!entry.endsWith('.md')) continue;
     try {
-      const content = await readFile(join(dir, entry), 'utf-8');
-      const snippet = parseSnippetFile(entry, content, source);
+      const fullPath = join(dir, entry);
+      const content = await readFile(fullPath, 'utf-8');
+      const snippet = parseSnippetFile(entry, content, source, fullPath);
       if (snippet) results.push(snippet);
     } catch {
       // Skip unreadable files
@@ -134,4 +137,65 @@ export async function scanSnippets(cwd: string): Promise<SnippetEntry[]> {
   return Array.from(map.values()).sort(
     (a, b) => sourceOrder[a.source] - sourceOrder[b.source] || a.name.localeCompare(b.name),
   );
+}
+
+function snippetsDir(scope: 'user' | 'project', cwd: string): string {
+  return scope === 'user'
+    ? join(homedir(), '.mcode', 'snippets')
+    : join(cwd, '.mcode', 'snippets');
+}
+
+const SNIPPET_TEMPLATE = `---
+name: New Snippet
+description:
+variables:
+  - name: example
+    description: An example variable
+    default: hello
+---
+{{example}}
+`;
+
+export async function createSnippet(scope: 'user' | 'project', cwd: string): Promise<string> {
+  const dir = snippetsDir(scope, cwd);
+  await mkdir(dir, { recursive: true });
+
+  // Find a unique filename
+  let filename = 'new-snippet.md';
+  let counter = 2;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      await access(join(dir, filename));
+      filename = `new-snippet-${counter}.md`;
+      counter++;
+    } catch {
+      break; // File doesn't exist — use this name
+    }
+  }
+
+  const fullPath = join(dir, filename);
+  await writeFile(fullPath, SNIPPET_TEMPLATE, 'utf-8');
+  return fullPath;
+}
+
+export async function deleteSnippet(filePath: string): Promise<void> {
+  // Validate the path is inside a snippets directory and is a .md file
+  const normalized = normalize(filePath);
+  if (!normalized.endsWith('.md')) {
+    throw new Error('Can only delete .md snippet files');
+  }
+  const userDir = normalize(join(homedir(), '.mcode', 'snippets'));
+  const isInSnippetsDir = normalized.startsWith(userDir + '/') ||
+    normalized.includes('/.mcode/snippets/');
+  if (!isInSnippetsDir) {
+    throw new Error('Cannot delete file outside of a snippets directory');
+  }
+  await unlink(normalized);
+}
+
+export async function openSnippetsFolder(scope: 'user' | 'project', cwd: string): Promise<void> {
+  const dir = snippetsDir(scope, cwd);
+  await mkdir(dir, { recursive: true });
+  await shell.openPath(dir);
 }

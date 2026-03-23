@@ -14,7 +14,7 @@ import { FileLister } from './file-lister';
 import { FileSearch } from './file-search';
 import { UpdateChecker } from './update-checker';
 import { scanSlashCommands } from './slash-command-scanner';
-import { scanSnippets } from './snippet-scanner';
+import { scanSnippets, createSnippet, deleteSnippet, openSnippetsFolder } from './snippet-scanner';
 import { getPreference, setPreference } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
@@ -524,6 +524,15 @@ function registerSlashCommandIpc(): void {
 function registerSnippetIpc(): void {
   typedHandle('snippets:scan', (cwd) => {
     return scanSnippets(cwd);
+  });
+  typedHandle('snippets:create', (scope, cwd) => {
+    return createSnippet(scope, cwd);
+  });
+  typedHandle('snippets:delete', (filePath) => {
+    return deleteSnippet(filePath);
+  });
+  typedHandle('snippets:open-folder', (scope, cwd) => {
+    return openSnippetsFolder(scope, cwd);
   });
 }
 

@@ -155,5 +155,17 @@ export function executeAppCommand(command: AppCommand): void {
       }
       break;
     }
+
+    case 'open-snippets': {
+      const ls = useLayoutStore.getState();
+      ls.setShowSettings(false);
+      ls.setShowKeyboardShortcuts(false);
+      if (ls.showCommandPalette) {
+        ls.setShowCommandPalette(false);
+      } else {
+        ls.openQuickOpen('snippets');
+      }
+      break;
+    }
   }
 }
