@@ -1,16 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
-import { resetTestState } from '../helpers';
+import { resetTestState, createTestSession, waitForActive, cleanupSessions } from '../helpers';
 
 describe('file search', () => {
   const client = new McpTestClient();
+  let sessionId: string;
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+    const session = await createTestSession(client);
+    await waitForActive(client, session.sessionId);
+    sessionId = session.sessionId;
   });
 
   afterAll(async () => {
+    await cleanupSessions(client, [sessionId]);
     await client.disconnect();
   });
 

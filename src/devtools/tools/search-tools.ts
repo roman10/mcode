@@ -24,7 +24,7 @@ export function registerSearchTools(
     const cwds = [...new Set(sessions.map((s) => s.cwd))];
 
     if (cwds.length === 0) {
-      return { content: [{ type: 'text', text: 'No sessions open — no directories to search.' }] };
+      return { content: [{ type: 'text', text: 'No sessions open — no directories to search.' }], isError: true };
     }
 
     const allMatches: Array<{ repoPath: string; repoName: string; match: FileSearchMatch }> = [];
