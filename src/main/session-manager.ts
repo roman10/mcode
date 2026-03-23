@@ -933,13 +933,12 @@ export class SessionManager {
   }
 
   async kill(sessionId: string): Promise<void> {
-    await this.ptyManager.kill(sessionId);
-    // Ensure status transitions to 'ended' even if PTY handle was already gone
-    // (e.g., detached sessions). Idempotent — no-op if onExit already fired.
+    // Mark ended BEFORE killing PTY so any SessionEnd hook event
+    // arriving during the await sees status='ended' and is skipped
+    // by the guard in handleHookEvent (no attention set, no race).
     this.updateStatus(sessionId, 'ended');
-    // Force-clear attention: the SessionEnd hook may have set action attention
-    // for resumable sessions before updateStatus ran (race condition).
     this.clearAttention(sessionId);
+    await this.ptyManager.kill(sessionId);
     logger.info('session', 'Killed session', { sessionId });
   }
 
