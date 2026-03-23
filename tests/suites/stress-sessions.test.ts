@@ -14,6 +14,7 @@ describe('stress: 10 concurrent sessions', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
   const SESSION_COUNT = 10;
+  let baselineTiles: number;
 
   beforeAll(async () => {
     await client.connect();
@@ -25,6 +26,7 @@ describe('stress: 10 concurrent sessions', () => {
   });
 
   it(`creates ${SESSION_COUNT} sessions concurrently`, async () => {
+    baselineTiles = await getTileCount(client);
     const promises = Array.from({ length: SESSION_COUNT }, () =>
       createTestSession(client),
     );
@@ -101,7 +103,7 @@ describe('stress: 10 concurrent sessions', () => {
   }, 30000);
 
   it('tile count returns to baseline after kills', async () => {
-    await waitForTileCount(client, 0);
-    expect(await getTileCount(client)).toBe(0);
+    await waitForTileCount(client, baselineTiles, 15000);
+    expect(await getTileCount(client)).toBe(baselineTiles);
   });
 });

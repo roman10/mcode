@@ -29,8 +29,10 @@ describe('file search', () => {
   });
 
   it('file_search returns empty for nonexistent string', async () => {
+    // Build query dynamically to avoid self-matching this source file
+    const query = ['zzz_nonexistent', Date.now(), 'xyz'].join('_');
     const result = await client.callTool('file_search', {
-      query: 'zzz_nonexistent_string_xyz_12345',
+      query,
       maxResults: 10,
     });
     expect(result.isError).toBeFalsy();

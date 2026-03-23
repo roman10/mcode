@@ -4,8 +4,6 @@ import {
   createTestSession,
   waitForActive,
   cleanupSessions,
-  getTileCount,
-  waitForTileCount,
 } from '../helpers';
 
 describe('terminal advanced operations', () => {
@@ -20,17 +18,9 @@ describe('terminal advanced operations', () => {
     sessionId = session.sessionId;
     sessionIds.push(sessionId);
     await waitForActive(client, sessionId);
-
-    // Add tile so terminal buffer is rendered via xterm.js
-    const before = await getTileCount(client);
-    await client.callTool('layout_add_tile', { sessionId });
-    await waitForTileCount(client, before + 1);
   });
 
   afterAll(async () => {
-    try {
-      await client.callTool('layout_remove_tile', { sessionId });
-    } catch { /* best-effort */ }
     await cleanupSessions(client, sessionIds);
     await client.disconnect();
   });

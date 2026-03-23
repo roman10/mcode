@@ -54,6 +54,7 @@ export async function createTestSession(
     cwd: process.cwd(),
     command: 'bash',
     label: `test-${Date.now()}`,
+    sessionType: 'terminal',
     ...overrides,
   });
 }

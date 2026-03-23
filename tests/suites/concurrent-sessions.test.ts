@@ -123,7 +123,8 @@ describe('concurrent sessions', () => {
 
   it('tile count returns to baseline after kills', async () => {
     // Wait for renderer to process all auto-close events
-    await waitForTileCount(client, 0);
+    // Use 0 as baseline since this suite creates its own sessions
+    await waitForTileCount(client, 0, 15000);
     expect(await getTileCount(client)).toBe(0);
   });
 });

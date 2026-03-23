@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { execSync } from 'node:child_process';
 import { PERMISSION_MODES } from '../../src/shared/constants';
 
+let claudeAvailable = false;
+try { execSync('which claude', { timeout: 5000 }); claudeAvailable = true; } catch { /* not installed */ }
+
 describe('permission modes', () => {
-  it('PERMISSION_MODES matches Claude CLI allowed choices', () => {
+  it.skipIf(!claudeAvailable)('PERMISSION_MODES matches Claude CLI allowed choices', () => {
     // Run claude with an invalid mode to get the "Allowed choices" error
     let stderr: string;
     try {

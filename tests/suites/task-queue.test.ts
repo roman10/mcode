@@ -276,10 +276,11 @@ describe('task queue', () => {
   });
 
   it('rejects task targeting fallback-mode Claude session', async () => {
-    const session = await createTestSession(client);
+    // Override sessionType to 'claude' — bash command + claude type = fallback hookMode
+    const session = await createTestSession(client, { sessionType: 'claude' });
     sessionIds.push(session.sessionId);
-    const active = await waitForActive(client, session.sessionId);
-    expect(active.hookMode).toBe('fallback');
+    const ready = await waitForIdle(client, session.sessionId);
+    expect(ready.hookMode).toBe('fallback');
 
     await expect(
       client.callToolJson('task_create', {
@@ -328,14 +329,22 @@ describe('task queue', () => {
   });
 
   it('task_update rejects non-pending tasks', async () => {
+    // Use a dispatched task to exercise the "only pending" code path
+    // (cancel does a hard DELETE, so cancelled tasks can't be tested here)
+    const session = await createLiveClaudeTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForIdle(client, session.sessionId);
+
     const task = await createTask(client, {
-      prompt: 'will cancel',
-      scheduledAt: futureIso(),
+      prompt: 'will dispatch',
+      targetSessionId: session.sessionId,
     });
-    await cancelTask(client, task.id);
+    await waitForTaskStatus(client, task.id, 'dispatched', 10000);
 
     await expect(
       updateTask(client, task.id, { prompt: 'too late' }),
     ).rejects.toThrow(/only pending/i);
+
+    await killAndWaitEnded(client, session.sessionId);
   });
 });

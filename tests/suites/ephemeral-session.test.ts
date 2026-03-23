@@ -16,6 +16,9 @@ describe('ephemeral sessions', () => {
   });
 
   afterAll(async () => {
+    for (const id of sessionIds) {
+      try { await client.callTool('layout_remove_tile', { sessionId: id }); } catch { /* best-effort */ }
+    }
     await cleanupSessions(client, sessionIds);
     await client.disconnect();
   });
@@ -26,6 +29,7 @@ describe('ephemeral sessions', () => {
       command: 'bash',
       label: `ephemeral-${Date.now()}`,
       ephemeral: true,
+      sessionType: 'terminal',
     });
     sessionIds.push(session.sessionId);
 
@@ -46,6 +50,7 @@ describe('ephemeral sessions', () => {
   it('ephemeral session appears in session_list', async () => {
     const allSessions = await client.callToolJson<SessionInfo[]>(
       'session_list',
+      { include_ephemeral: true },
     );
     const found = allSessions.find((s) => s.sessionId === sessionIds[0]);
     expect(found).toBeDefined();
@@ -53,6 +58,9 @@ describe('ephemeral sessions', () => {
   });
 
   it('ephemeral session has working terminal I/O', async () => {
+    // Ephemeral sessions don't auto-add tiles — add one explicitly for terminal I/O
+    await client.callTool('layout_add_tile', { sessionId: sessionIds[0] });
+
     const marker = `ephemeral-io-${Date.now()}`;
     await client.callTool('terminal_send_keys', {
       sessionId: sessionIds[0],

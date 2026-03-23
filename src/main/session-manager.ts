@@ -742,6 +742,10 @@ export class SessionManager {
       params.push(newAttention);
       updates.push('attention_reason = ?');
       params.push(attentionReason);
+    } else if (attentionReason !== null) {
+      // Reason changed even though level didn't (e.g., Stop→PermissionRequest both 'action')
+      updates.push('attention_reason = ?');
+      params.push(attentionReason);
     }
 
     if (lastTool) {

@@ -27,16 +27,14 @@ describe('detach semantics (close tile != kill session)', () => {
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
 
-    // Add tile
+    // Tile was auto-added on creation — get current count
     const before = await getTileCount(client);
-    await client.callTool('layout_add_tile', { sessionId: session.sessionId });
-    await waitForTileCount(client, before + 1);
 
-    // Remove tile
+    // Remove the auto-added tile (detach)
     await client.callTool('layout_remove_tile', {
       sessionId: session.sessionId,
     });
-    await waitForTileCount(client, before);
+    await waitForTileCount(client, before - 1);
 
     // Session should still be active
     const status = await client.callToolJson<SessionInfo>(

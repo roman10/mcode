@@ -20,20 +20,21 @@ describe('git tools', () => {
 
     const parsed = JSON.parse(result.content[0].text!);
     expect(parsed).toHaveProperty('repoRoot');
-    expect(Array.isArray(parsed.files)).toBe(true);
-    // Each entry (if any) should have path and status
-    for (const entry of parsed.files) {
+    expect(Array.isArray(parsed.staged)).toBe(true);
+    expect(Array.isArray(parsed.unstaged)).toBe(true);
+    for (const entry of [...parsed.staged, ...parsed.unstaged]) {
       expect(entry).toHaveProperty('path');
       expect(entry).toHaveProperty('status');
     }
   });
 
-  it('git_get_status returns empty files for non-git path', async () => {
+  it('git_get_status returns empty arrays for non-git path', async () => {
     const result = await client.callTool('git_get_status', { cwd: '/tmp' });
     expect(result.isError).toBeFalsy();
 
     const parsed = JSON.parse(result.content[0].text!);
-    expect(parsed.files).toEqual([]);
+    expect(parsed.staged).toEqual([]);
+    expect(parsed.unstaged).toEqual([]);
   });
 
   it('git_get_all_statuses returns array', async () => {

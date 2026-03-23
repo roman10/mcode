@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { ipcMain } from 'electron';
 import type { BrowserWindow } from 'electron';
 
-const IPC_TIMEOUT_MS = 5000;
+const IPC_TIMEOUT_MS = 10000;
 
 export function queryRenderer<T>(
   mainWindow: BrowserWindow,

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
   createLiveClaudeTestSession,
+  waitForIdle,
   cleanupSessions,
   createTask,
   listTasks,
@@ -26,6 +27,12 @@ describe('task concurrent dispatch', () => {
       createLiveClaudeTestSession(client),
     ]);
     sessionIds.push(session1.sessionId, session2.sessionId);
+
+    // Wait for sessions to be idle and ready for task dispatch
+    await Promise.all([
+      waitForIdle(client, session1.sessionId),
+      waitForIdle(client, session2.sessionId),
+    ]);
   });
 
   afterAll(async () => {
@@ -103,14 +110,12 @@ describe('task concurrent dispatch', () => {
   });
 
   it('tasks targeting non-existent session fail gracefully', async () => {
-    const task = await createTask(client, {
-      prompt: 'orphan task',
-      targetSessionId: '00000000-0000-0000-0000-000000000000',
-    });
-
-    // Should fail since the target session doesn't exist
-    const result = await waitForTaskStatus(client, task.id, 'failed', 15000);
-    expect(result.status).toBe('failed');
-    expect(result.error).toBeTruthy();
+    // task_create validates session existence upfront
+    await expect(
+      createTask(client, {
+        prompt: 'orphan task',
+        targetSessionId: '00000000-0000-0000-0000-000000000000',
+      }),
+    ).rejects.toThrow(/not found/i);
   });
 });
