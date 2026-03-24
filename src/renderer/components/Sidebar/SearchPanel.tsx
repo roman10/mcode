@@ -3,6 +3,7 @@ import { Search, CaseSensitive, Regex, ChevronRight, ChevronDown, X } from 'luci
 import { useSearchStore, type RepoResults } from '../../stores/search-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { getFileIcon } from '../../utils/file-icons';
+import Tooltip from '../shared/Tooltip';
 import type { FileSearchMatch } from '@shared/types';
 
 // --- Highlighted match text ---
@@ -225,24 +226,26 @@ function SearchPanel(): React.JSX.Element {
               }
             }}
           />
-          <button
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
-              isRegex ? 'text-accent bg-accent/15' : 'text-text-muted hover:text-text-secondary hover:bg-bg-secondary'
-            }`}
-            onClick={toggleRegex}
-            title="Use Regular Expression"
-          >
-            <Regex size={14} />
-          </button>
-          <button
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
-              caseSensitive ? 'text-accent bg-accent/15' : 'text-text-muted hover:text-text-secondary hover:bg-bg-secondary'
-            }`}
-            onClick={toggleCaseSensitive}
-            title="Match Case"
-          >
-            <CaseSensitive size={14} />
-          </button>
+          <Tooltip content="Use Regular Expression" side="bottom">
+            <button
+              className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                isRegex ? 'text-accent bg-accent/15' : 'text-text-muted hover:text-text-secondary hover:bg-bg-secondary'
+              }`}
+              onClick={toggleRegex}
+            >
+              <Regex size={14} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Match Case" side="bottom">
+            <button
+              className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                caseSensitive ? 'text-accent bg-accent/15' : 'text-text-muted hover:text-text-secondary hover:bg-bg-secondary'
+              }`}
+              onClick={toggleCaseSensitive}
+            >
+              <CaseSensitive size={14} />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
