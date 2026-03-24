@@ -1,8 +1,23 @@
-import type { AppCommand } from '@shared/types';
-import { useLayoutStore } from '../stores/layout-store';
+import type { AppCommand, SessionInfo } from '@shared/types';
+import { getLeaves } from 'react-mosaic-component';
+import { useLayoutStore, sessionIdFromTileId } from '../stores/layout-store';
 import { useSessionStore } from '../stores/session-store';
 import { getOrderedOpenSessions } from './session-ordering';
 import { createTerminalSession } from './session-actions';
+
+/** Sessions navigable by focus commands — in tile mode, only those with visible tiles. */
+function getNavigableSessions(): SessionInfo[] {
+  const { viewMode, mosaicTree } = useLayoutStore.getState();
+  const ordered = getOrderedOpenSessions(useSessionStore.getState().sessions);
+  if (viewMode === 'tiles') {
+    if (!mosaicTree) return [];
+    const visibleIds = new Set(
+      getLeaves(mosaicTree).map(sessionIdFromTileId).filter(Boolean),
+    );
+    return ordered.filter((s) => visibleIds.has(s.sessionId));
+  }
+  return ordered;
+}
 
 /**
  * Execute an AppCommand dispatched from the Electron menu or command palette.
@@ -29,7 +44,7 @@ export function executeAppCommand(command: AppCommand): void {
     }
 
     case 'focus-session-index': {
-      const ordered = getOrderedOpenSessions(useSessionStore.getState().sessions);
+      const ordered = getNavigableSessions();
       const target = ordered[command.index];
       if (!target) break;
       useLayoutStore.getState().addTile(target.sessionId);
@@ -40,9 +55,8 @@ export function executeAppCommand(command: AppCommand): void {
 
     case 'focus-next-session':
     case 'focus-prev-session': {
-      const sessions = useSessionStore.getState().sessions;
       const selectedId = useSessionStore.getState().selectedSessionId;
-      const ordered = getOrderedOpenSessions(sessions);
+      const ordered = getNavigableSessions();
       if (ordered.length === 0) break;
 
       const currentIdx = selectedId
