@@ -13,7 +13,7 @@
 | Feature completeness | 10/10 | Tiling + kanban views, command palette, quick open, file viewer, task queue, commit/token tracking, settings UI, 100 MCP tools, update checker, PTY persistence, git commit graph, VSCode-style staging, snippet palette |
 | Code quality | 9/10 | Clean architecture, good naming, proper separation, zero TODOs. ESLint + typescript-eslint added, type-safe IPC contract |
 | Documentation (internal) | 8/10 | Excellent design docs, ADRs, architecture walkthroughs |
-| Documentation (external) | 5/10 | LICENSE (Apache 2.0) and CONTRIBUTING.md added. Still missing: SECURITY.md, build guide, proper README |
+| Documentation (external) | 8/10 | LICENSE, CONTRIBUTING.md, full README (features, install, quick start, MCP tools, shortcuts). Still missing: SECURITY.md |
 | Dependencies | 9/10 | Minimal, modern, no security issues. Only concern: react-mosaic beta |
 | Build system | 8/10 | Works. electron-vite + electron-builder. No cross-platform CI |
 | Tests | 9/10 | 49 test files (35 integration + 14 unit suites), all passing |
@@ -21,7 +21,7 @@
 | Security | 7/10 | No secrets, CSP configured, context isolation. Fine for desktop |
 | Release process | 3/10 | Update checker with StatusBar notification exists. No installers or release automation |
 
-**Overall: 8/10 — README is the sole remaining blocker before public launch**
+**Overall: 9/10 — All blockers resolved. Screenshots and SECURITY.md are nice-to-haves.**
 
 ---
 
@@ -30,7 +30,7 @@
 1. ~~**No LICENSE file**~~ — Added Apache 2.0 (`d4702e6`)
 2. ~~**No CI/CD**~~ — 2-tier GitHub Actions added: lint+typecheck+unit on Ubuntu, integration tests on macOS
 3. ~~**No CONTRIBUTING.md**~~ — Added (`db45c95`)
-4. **No README for open-source** — need installation instructions, screenshots, feature overview
+4. ~~**No README for open-source**~~ — Rewritten with features, installation, quick start, MCP tools, shortcuts, tech stack
 
 ## Nice-to-haves (post-launch)
 
@@ -48,25 +48,21 @@
 |---|---|
 | ~~Add LICENSE~~ | ~~1 hour~~ |
 | ~~Write CONTRIBUTING.md~~ | ~~1 day~~ |
-| Rewrite README (screenshots, install, features) | 1-2 days |
+| ~~Rewrite README (screenshots, install, features)~~ | ~~1-2 days~~ |
 | ~~Set up GitHub Actions CI/CD~~ | ~~2-3 days~~ |
 | ~~Polish pass (remove debug code, clean warnings)~~ | ~~Done (zero TODOs, ESLint clean)~~ |
-| **Total remaining** | **~1-2 days** |
+| **Total remaining** | **Screenshots only** |
 
 ---
 
-## Next Priority: README Rewrite
+## Next Priority: Screenshots & v0.1.0 Release
 
-The README is the **sole remaining blocker**. The current README is 16 lines with no installation instructions, screenshots, or feature overview. A proper open-source README needs:
+All documentation blockers are resolved. The README now includes hero section, features, installation, quick start, keyboard shortcuts, MCP tools, and tech stack. Remaining steps before launch:
 
-1. **Hero section** — tagline, one-paragraph description, screenshot or GIF of tiling layout
-2. **Feature overview** — highlight the 11 key differentiators (tiling, kanban, task queue, 100 MCP tools, etc.)
-3. **Installation** — prerequisites (macOS, Node 22+, Claude Code CLI), clone + `npm install` + `npm run dev`
-4. **Quick start** — create first session, use command palette, queue a task
-5. **Screenshots** — tiling view, kanban view, command palette, commit graph, token analytics
-6. **Links** — CONTRIBUTING.md, LICENSE, issue tracker
-
-Once the README is done, the project is ready for v0.1.0 tag and Show HN.
+1. **Add screenshots** to README — tiling view, kanban view, command palette, commit graph, token analytics
+2. **Tag v0.1.0** release
+3. **Prepare Show HN** post
+4. **Share** in Claude Code community channels
 
 ---
 
@@ -110,7 +106,7 @@ Once the README is done, the project is ready for v0.1.0 tag and Show HN.
 
 - [x] Choose and add LICENSE file (Apache 2.0)
 - [x] Write CONTRIBUTING.md (dev setup, PR process, code style)
-- [ ] Rewrite README.md (screenshots, features, installation, quick start)
+- [x] Rewrite README.md (screenshots, features, installation, quick start)
 - [x] Set up GitHub Actions (lint, test, build on macOS)
 - [ ] Tag v0.1.0 release
 - [ ] Prepare Show HN post
