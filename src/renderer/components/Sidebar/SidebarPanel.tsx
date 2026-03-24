@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { SquareX, Trash2, BellOff, TerminalSquare, Plus } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Search, X } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useAccountsStore } from '../../stores/accounts-store';
@@ -41,9 +41,14 @@ function SidebarPanel(): React.JSX.Element {
   const addSession = useSessionStore((s) => s.addSession);
   const selectSession = useSessionStore((s) => s.selectSession);
   const hookRuntime = useSessionStore((s) => s.hookRuntime);
+  const sessionFilterQuery = useLayoutStore((s) => s.sessionFilterQuery);
+  const setSessionFilterQuery = useLayoutStore((s) => s.setSessionFilterQuery);
   const cliStatus = useAccountsStore((s) => s.cliStatus);
   const cliStatusDismissed = useAccountsStore((s) => s.cliStatusDismissed);
   const dismissCliStatus = useAccountsStore((s) => s.dismissCliStatus);
+
+  const [filterVisible, setFilterVisible] = useState(false);
+  const filterInputRef = useRef<HTMLInputElement>(null);
 
   const isMac = window.mcode.app.getPlatform() === 'darwin';
   const modLabel = isMac ? '⌘' : 'Ctrl+';
@@ -63,6 +68,21 @@ function SidebarPanel(): React.JSX.Element {
     });
     return unsub;
   }, [refreshTokens]);
+
+  // Auto-focus filter input when shown
+  useEffect(() => {
+    if (filterVisible) {
+      filterInputRef.current?.focus();
+    }
+  }, [filterVisible]);
+
+  // Clear filter when switching away from sessions tab
+  useEffect(() => {
+    if (activeSidebarTab !== 'sessions') {
+      setFilterVisible(false);
+      setSessionFilterQuery('');
+    }
+  }, [activeSidebarTab, setSessionFilterQuery]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -172,6 +192,25 @@ function SidebarPanel(): React.JSX.Element {
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-default shrink-0">
             <span className="text-xs text-text-secondary uppercase tracking-wide">Sessions</span>
             <div className="flex items-center gap-0.5">
+              <Tooltip content={`Filter sessions (${modLabel}F)`} side="bottom">
+                <button
+                  className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                    filterVisible || sessionFilterQuery
+                      ? 'text-accent bg-accent/10'
+                      : 'text-text-muted hover:text-text-secondary hover:bg-bg-elevated'
+                  }`}
+                  onClick={() => {
+                    if (filterVisible || sessionFilterQuery) {
+                      setFilterVisible(false);
+                      setSessionFilterQuery('');
+                    } else {
+                      setFilterVisible(true);
+                    }
+                  }}
+                >
+                  <Search size={14} strokeWidth={1.5} />
+                </button>
+              </Tooltip>
               {hasTiles && (
                 <Tooltip content="Close all tiles" side="bottom">
                   <button
@@ -227,6 +266,36 @@ function SidebarPanel(): React.JSX.Element {
           {activeSidebarTab === 'search' && <SearchPanel />}
           {activeSidebarTab === 'sessions' && (
             <>
+              {(filterVisible || sessionFilterQuery) && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-border-default shrink-0">
+                  <Search size={13} className="text-text-muted shrink-0" />
+                  <input
+                    ref={filterInputRef}
+                    type="text"
+                    className="flex-1 min-w-0 bg-transparent text-xs text-text-primary placeholder:text-text-muted outline-none"
+                    placeholder="Filter sessions..."
+                    value={sessionFilterQuery}
+                    onChange={(e) => setSessionFilterQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setFilterVisible(false);
+                        setSessionFilterQuery('');
+                      }
+                    }}
+                  />
+                  {sessionFilterQuery && (
+                    <button
+                      className="text-text-muted hover:text-text-secondary transition-colors shrink-0"
+                      onClick={() => {
+                        setSessionFilterQuery('');
+                        filterInputRef.current?.focus();
+                      }}
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
               {hookRuntime.state === 'degraded' && (
                 <div className="px-3 py-1.5 bg-amber-900/30 text-amber-300 text-xs shrink-0">
                   Live status unavailable
@@ -264,7 +333,7 @@ function SidebarPanel(): React.JSX.Element {
                   </button>
                 </div>
               )}
-              <SessionList />
+              <SessionList filterQuery={sessionFilterQuery} />
               <TaskQueuePanel />
             </>
           )}

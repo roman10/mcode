@@ -29,3 +29,15 @@ export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo>)
         new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
     );
 }
+
+/**
+ * Filter sessions by a case-insensitive substring match on label or cwd.
+ * Returns all sessions when query is empty.
+ */
+export function filterSessions(sessions: SessionInfo[], query: string): SessionInfo[] {
+  if (!query) return sessions;
+  const q = query.toLowerCase();
+  return sessions.filter(
+    (s) => s.label.toLowerCase().includes(q) || s.cwd.toLowerCase().includes(q),
+  );
+}

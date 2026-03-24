@@ -219,6 +219,24 @@ export async function selectSession(
   await client.callTool('sidebar_select_session', { sessionId });
 }
 
+// --- Session filter helpers ---
+
+export async function setSessionFilter(
+  client: McpTestClient,
+  query: string,
+): Promise<void> {
+  await client.callTool('sidebar_set_session_filter', { query });
+}
+
+export async function getSessionFilter(
+  client: McpTestClient,
+): Promise<string> {
+  const result = await client.callToolJson<{ query: string }>(
+    'sidebar_get_session_filter',
+  );
+  return result.query;
+}
+
 // --- Task queue helpers ---
 
 export interface TaskInfo {

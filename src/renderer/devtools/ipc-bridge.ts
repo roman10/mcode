@@ -184,6 +184,18 @@ export function initDevtoolsBridge(): void {
         result = { viewMode: mode };
         break;
       }
+      case 'sidebar-set-session-filter': {
+        const { query } = params as { query: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().setSessionFilterQuery(query);
+        result = { query };
+        break;
+      }
+      case 'sidebar-get-session-filter': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        result = { query: useLayoutStore.getState().sessionFilterQuery };
+        break;
+      }
       case 'kanban-get-columns': {
         const { useSessionStore } = await import('../stores/session-store');
         const { useLayoutStore } = await import('../stores/layout-store');

@@ -4,11 +4,11 @@ import { useLayoutStore, sessionIdFromTileId } from '../../stores/layout-store';
 import { getLeaves } from 'react-mosaic-component';
 import SessionCard from './SessionCard';
 import type { SessionCardHandle } from './SessionCard';
-import { getOrderedVisibleSessions } from '../../utils/session-ordering';
+import { getOrderedVisibleSessions, filterSessions } from '../../utils/session-ordering';
 import { toDateKey, groupSessionsByDate } from '../../utils/date-grouping';
 import type { ExternalSessionInfo } from '@shared/types';
 
-function SessionList(): React.JSX.Element {
+function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.Element {
   const sessions = useSessionStore((s) => s.sessions);
   const externalSessions = useSessionStore((s) => s.externalSessions);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
@@ -30,12 +30,19 @@ function SessionList(): React.JSX.Element {
   const [loadingMore, setLoadingMore] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
 
+  // Canonical ordering: attention → status → startedAt (shared with keyboard shortcuts)
+  const sorted = getOrderedVisibleSessions(sessions);
+  const isFiltering = filterQuery.length > 0;
+  const filtered = filterSessions(sorted, filterQuery);
+  const groups = groupSessionsByDate(filtered);
+
   // Track user overrides for date group collapse state
   // Keys not in this record use defaults: today=expanded, past=collapsed
   const todayKey = toDateKey(new Date());
   const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>({});
 
   const isGroupCollapsed = (key: string): boolean => {
+    if (isFiltering) return false; // expand all groups when filtering
     if (key in groupExpanded) return !groupExpanded[key];
     return key !== todayKey; // default: today expanded, others collapsed
   };
@@ -55,11 +62,6 @@ function SessionList(): React.JSX.Element {
           .filter((id): id is string => id !== null)
       : [],
   );
-
-  // Canonical ordering: attention → status → startedAt (shared with keyboard shortcuts)
-  const sorted = getOrderedVisibleSessions(sessions);
-
-  const groups = groupSessionsByDate(sorted);
 
   const handleDoubleClick = useCallback((sessionId: string): void => {
     addTile(sessionId);
@@ -168,6 +170,16 @@ function SessionList(): React.JSX.Element {
     );
   }
 
+  if (isFiltering && filtered.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center px-4">
+        <span className="text-text-muted text-sm text-center">
+          No matching sessions
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto py-1 px-1 outline-none" tabIndex={-1} onKeyDown={handleKeyDown}>
       {groups.map((group, i) => {
@@ -214,7 +226,7 @@ function SessionList(): React.JSX.Element {
         );
       })}
 
-      {externalSessions.length > 0 && (
+      {!isFiltering && externalSessions.length > 0 && (
         <div className="mt-2 border-t border-border-default pt-2">
           <button
             className="flex items-center gap-1 px-3 py-1 text-xs text-text-muted hover:text-text-secondary w-full"

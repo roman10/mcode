@@ -67,6 +67,7 @@ interface LayoutState {
   kanbanOpenFiles: string[]; // transient, not persisted
   kanbanActiveFile: string | null; // transient, not persisted
   kanbanSplitRatio: number; // transient, 0-1, default 0.5
+  sessionFilterQuery: string; // transient, not persisted
   splitIntent: SplitIntent | null;
   showNewSessionDialog: boolean;
   showKeyboardShortcuts: boolean;
@@ -95,6 +96,7 @@ interface LayoutState {
   setKanbanActiveFile(absolutePath: string): void;
   clearKanbanFiles(): void;
   setKanbanSplitRatio(ratio: number): void;
+  setSessionFilterQuery(query: string): void;
   setSplitIntent(intent: SplitIntent | null): void;
   setShowNewSessionDialog(show: boolean): void;
   setShowKeyboardShortcuts(show: boolean): void;
@@ -220,6 +222,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   kanbanOpenFiles: [],
   kanbanActiveFile: null,
   kanbanSplitRatio: 0.5,
+  sessionFilterQuery: '',
   splitIntent: null,
   showNewSessionDialog: false,
   showKeyboardShortcuts: false,
@@ -368,6 +371,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   clearKanbanFiles: () => set({ kanbanOpenFiles: [], kanbanActiveFile: null }),
 
   setKanbanSplitRatio: (ratio) => set({ kanbanSplitRatio: ratio }),
+
+  setSessionFilterQuery: (query) => set({ sessionFilterQuery: query }),
 
   setSplitIntent: (intent) => set({ splitIntent: intent }),
 

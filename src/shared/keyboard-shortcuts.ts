@@ -42,6 +42,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Rename Session', keys: 'F2', mod: false, category: 'sessions' },
   { label: 'Open Session Tile', keys: 'Enter', mod: false, category: 'sessions' },
   { label: 'Kill / Delete Session', keys: '⌫', mod: false, category: 'sessions' },
+  { label: 'Filter Sessions', keys: 'F', mod: true, category: 'sessions' },
 
   // Terminal
   { label: 'Copy', keys: 'C', mod: true, category: 'terminal' },

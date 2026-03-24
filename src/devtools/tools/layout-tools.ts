@@ -411,6 +411,61 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('sidebar_set_session_filter', {
+    description: 'Set the session filter query in the sidebar. Empty string clears the filter.',
+    inputSchema: {
+      query: z.string().describe('Filter query (case-insensitive substring match on label/cwd). Empty to clear.'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ query }) => {
+    try {
+      const result = await queryRenderer<{ query: string }>(
+        ctx.mainWindow,
+        'sidebar-set-session-filter',
+        { query },
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to set session filter: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('sidebar_get_session_filter', {
+    description: 'Get the current session filter query in the sidebar',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    try {
+      const result = await queryRenderer<{ query: string }>(
+        ctx.mainWindow,
+        'sidebar-get-session-filter',
+        {},
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to get session filter: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_get_sidebar_collapsed', {
     description: 'Get whether the sidebar is currently collapsed',
     annotations: { readOnlyHint: true },
