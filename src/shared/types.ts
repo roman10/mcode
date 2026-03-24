@@ -416,6 +416,9 @@ export interface MCodeAPI {
 
   snippets: {
     scan(cwd: string): Promise<SnippetEntry[]>;
+    create(scope: 'user' | 'project', cwd: string): Promise<string>;
+    delete(filePath: string): Promise<void>;
+    openFolder(scope: 'user' | 'project', cwd: string): Promise<void>;
   };
 
   search: {

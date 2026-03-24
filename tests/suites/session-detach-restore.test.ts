@@ -56,6 +56,11 @@ describe('session detach and restore', () => {
   });
 
   it('detachAllActive preserves all session states', async () => {
+    // Ensure s2 and s3 are in expected states — onFirstData may have
+    // transitioned Claude sessions to idle asynchronously after hook injection
+    await injectHookEvent(client, sessionIds[1], 'PreToolUse', { toolName: 'Bash' });
+    await injectHookEvent(client, sessionIds[2], 'PermissionRequest', { toolName: 'Bash' });
+
     // Simulate app close
     await client.callTool('app_detach_all');
 

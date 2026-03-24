@@ -278,20 +278,18 @@ export class SessionManager {
         args: args.length > 0 ? args : undefined,
         env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
         onFirstData: () => {
-          // PTY data drives starting -> active/idle in all modes.
-          // In live mode, SessionStart hook may arrive first — updateStatus
-          // idempotency guard makes this a safe no-op in that case.
           if (opts?.initialCommand) {
             // Session has pre-loaded work — mark active so the task queue
             // won't dispatch to it before the initial command is processed.
             this.updateStatus(sessionId, 'active');
             this.ptyManager.write(sessionId, opts.initialCommand + '\n');
-          } else if (sessionType === 'claude') {
-            // Claude session with no initial command — it's at the prompt
-            // waiting for user input, so idle is the accurate state.
-            this.updateStatus(sessionId, 'idle');
           } else {
-            this.updateStatus(sessionId, 'active');
+            // Only transition from 'starting' — hook events (SessionStart,
+            // PermissionRequest, etc.) may have already advanced the status.
+            const current = this.get(sessionId);
+            if (current?.status === 'starting') {
+              this.updateStatus(sessionId, sessionType === 'claude' ? 'idle' : 'active');
+            }
           }
         },
         onExit: () => {

@@ -104,7 +104,7 @@ interface LayoutState {
   setShowAccountsDialog(show: boolean): void;
   setShowCommandPalette(show: boolean): void;
   setShowCreateTaskDialog(show: boolean): void;
-  openQuickOpen(mode: 'files' | 'commands' | 'shell'): void;
+  openQuickOpen(mode: 'files' | 'commands' | 'shell' | 'snippets'): void;
   addFileViewer(absolutePath: string, options?: { line?: number }): void;
   consumePendingFileLine(path: string): number | null;
   removeFileTile(absolutePath: string): void;

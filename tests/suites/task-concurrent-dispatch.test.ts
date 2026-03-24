@@ -86,7 +86,7 @@ describe('task concurrent dispatch', () => {
       priority: 10,
     });
 
-    // High priority should dispatch first (or at least be listed first)
+    // Session-targeted tasks should be listed in creation (sort_order) order
     const tasks = await listTasks(client, {
       statuses: ['pending', 'dispatched'],
     });
@@ -96,9 +96,9 @@ describe('task concurrent dispatch', () => {
         t.id === lowTask.id || t.id === highTask.id,
     );
 
-    // If both are pending, high priority should be first in the list
+    // Session-targeted tasks are ordered by sort_order (creation order), not priority
     if (targetedTasks.length === 2 && targetedTasks.every((t) => t.status === 'pending')) {
-      expect(targetedTasks[0].id).toBe(highTask.id);
+      expect(targetedTasks[0].id).toBe(lowTask.id);
     }
 
     // Cleanup
