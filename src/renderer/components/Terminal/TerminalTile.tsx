@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import TerminalToolbar from './TerminalToolbar';
 import TileTaskPanel from './TileTaskPanel';
 import TerminalInstance from './TerminalInstance';
 import SessionEndedPrompt from './SessionEndedPrompt';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
+import { terminalRegistry } from '../../devtools/terminal-registry';
+import { shellEscapePath } from '@shared/shell-utils';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
@@ -62,6 +64,55 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     selectSession(sessionId, 'user');
   };
 
+  // Drag-and-drop: paste file paths into terminal.
+  // Handled at the tile level so drops on the toolbar or task panel also work.
+  // No stopPropagation — let react-dnd (react-mosaic) see the events
+  // so it can clean up its native drag state after each drop.
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    dragCounterRef.current++;
+    if (dragCounterRef.current === 1) setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setIsDragOver(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      const term = terminalRegistry.get(sessionId);
+      if (!term) return;
+      const paths: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const fp = window.mcode.app.getPathForFile(files[i]);
+        if (fp) paths.push(shellEscapePath(fp));
+      }
+      if (paths.length > 0) {
+        term.paste(paths.join(' '));
+        term.focus();
+      }
+    },
+    [sessionId],
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     const mod = isMac ? e.metaKey : e.ctrlKey;
     if (!mod) return;
@@ -108,10 +159,14 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   return (
     <div
       ref={containerRef}
-      className={`flex flex-col h-full w-full bg-bg-primary outline-none border-t-2 transition-colors ${isFocused ? 'border-t-accent' : 'border-t-transparent'}`}
+      className={`relative flex flex-col h-full w-full bg-bg-primary outline-none border-t-2 transition-colors ${isFocused ? 'border-t-accent' : 'border-t-transparent'}`}
       tabIndex={-1}
       onPointerDown={handleFocus}
       onKeyDown={handleKeyDown}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       <TerminalToolbar sessionId={sessionId} onClose={handleClose} isMaximized={isMaximized} onToggleMaximize={handleToggleMaximize} />
       <TileTaskPanel sessionId={sessionId} />
@@ -122,6 +177,9 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
           <TerminalInstance sessionId={sessionId} sessionType={sessionType} scrollbackLines={scrollbackLines} />
         )}
       </div>
+      {isDragOver && (
+        <div className="absolute inset-0 border-2 border-accent/60 rounded bg-accent/5 pointer-events-none z-10" />
+      )}
     </div>
   );
 }

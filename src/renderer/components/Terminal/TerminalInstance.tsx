@@ -14,7 +14,6 @@ import { terminalRegistry } from '../../devtools/terminal-registry';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { shellEscapePath } from '@shared/shell-utils';
 import { normalizeClaudeLabel } from '../../utils/label-utils';
 
 interface TerminalInstanceProps {
@@ -205,30 +204,6 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     };
     container.addEventListener('contextmenu', handleContextMenu);
 
-    // Drag-and-drop: paste file paths into terminal.
-    // No stopPropagation — let react-dnd (react-mosaic) see the events
-    // so it can clean up its native drag state after each drop.
-    const handleDragOver = (e: DragEvent): void => {
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-    };
-    const handleDrop = (e: DragEvent): void => {
-      e.preventDefault();
-      const files = e.dataTransfer?.files;
-      if (!files || files.length === 0) return;
-      const paths: string[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const fp = window.mcode.app.getPathForFile(files[i]);
-        if (fp) paths.push(shellEscapePath(fp));
-      }
-      if (paths.length > 0) {
-        term.paste(paths.join(' '));
-        term.focus();
-      }
-    };
-    container.addEventListener('dragover', handleDragOver);
-    container.addEventListener('drop', handleDrop);
-
     // Resize handling with rAF debounce
     let resizeRaf = 0;
     const resizeObserver = new ResizeObserver(() => {
@@ -248,8 +223,6 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       unsubData();
       unsubExit();
       container.removeEventListener('contextmenu', handleContextMenu);
-      container.removeEventListener('dragover', handleDragOver);
-      container.removeEventListener('drop', handleDrop);
       resizeObserver.disconnect();
       webglAddon?.dispose();
       term.dispose();
