@@ -140,6 +140,15 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
 
     // --- Layout ---
     {
+      id: 'toggle-terminal-panel',
+      label: 'Toggle Terminal Panel',
+      category: 'Layout',
+      shortcut: shortcuts.get('Toggle Terminal Panel'),
+      keywords: ['terminal', 'panel', 'collapse', 'expand', 'bottom'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'toggle-terminal-panel' }),
+    },
+    {
       id: 'toggle-sidebar',
       label: 'Toggle Sidebar',
       category: 'Layout',

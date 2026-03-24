@@ -11,8 +11,14 @@ vi.stubGlobal('window', {
   },
 });
 
+// Mock DOM APIs for toggle-terminal-panel tests
+vi.stubGlobal('requestAnimationFrame', (cb: () => void) => { cb(); return 0; });
+vi.stubGlobal('document', { querySelector: vi.fn().mockReturnValue(null) });
+vi.stubGlobal('HTMLElement', class HTMLElement {});
+
 const { useLayoutStore } = await import('../../../../src/renderer/stores/layout-store');
 const { useSessionStore } = await import('../../../../src/renderer/stores/session-store');
+const { useTerminalPanelStore } = await import('../../../../src/renderer/stores/terminal-panel-store');
 const { executeAppCommand } = await import('../../../../src/renderer/utils/app-commands');
 
 function resetStores() {
@@ -143,5 +149,51 @@ describe('focus commands — tile visibility filtering', () => {
 
     // s2 is ended, so wraps back to s1
     expect(useSessionStore.getState().selectedSessionId).toBe('s1');
+  });
+});
+
+describe('toggle-terminal-panel command', () => {
+  function resetPanel() {
+    useTerminalPanelStore.setState({
+      panelVisible: false,
+      panelHeight: 200,
+      panelPinned: false,
+      tabGroups: {},
+      splitTree: null,
+      activeTabGroupId: null,
+      focusInPanel: false,
+      terminals: {},
+    });
+  }
+
+  beforeEach(resetPanel);
+
+  it('expands hidden panel and sets focusInPanel', () => {
+    executeAppCommand({ command: 'toggle-terminal-panel' });
+
+    const state = useTerminalPanelStore.getState();
+    expect(state.panelVisible).toBe(true);
+    expect(state.focusInPanel).toBe(true);
+  });
+
+  it('clears focusInPanel when focus is already in panel', () => {
+    useTerminalPanelStore.setState({ panelVisible: true, focusInPanel: true });
+
+    executeAppCommand({ command: 'toggle-terminal-panel' });
+
+    const state = useTerminalPanelStore.getState();
+    expect(state.focusInPanel).toBe(false);
+    // Panel stays visible — it only moves focus out
+    expect(state.panelVisible).toBe(true);
+  });
+
+  it('focuses panel without toggling visibility when already visible', () => {
+    useTerminalPanelStore.setState({ panelVisible: true, focusInPanel: false });
+
+    executeAppCommand({ command: 'toggle-terminal-panel' });
+
+    const state = useTerminalPanelStore.getState();
+    expect(state.panelVisible).toBe(true);
+    expect(state.focusInPanel).toBe(true);
   });
 });

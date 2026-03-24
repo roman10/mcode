@@ -84,7 +84,7 @@ export default function StatusBar(): React.JSX.Element | null {
     <div className="h-6 shrink-0 flex items-center gap-1 px-2 bg-bg-secondary border-t border-border-subtle text-xs overflow-x-auto">
       {/* Terminal panel toggle (when collapsed) */}
       {terminalCount > 0 && !panelVisible && (
-        <Tooltip content={`Toggle terminal panel (${formatKeys('`', true)})`} side="top">
+        <Tooltip content={`Toggle terminal panel (${formatKeys('Ctrl+`', false)})`} side="top">
           <button
             type="button"
             className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-primary/50 cursor-pointer shrink-0"

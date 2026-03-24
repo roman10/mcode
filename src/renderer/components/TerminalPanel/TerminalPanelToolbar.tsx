@@ -104,7 +104,7 @@ export default function TerminalPanelToolbar(): React.JSX.Element {
       </Tooltip>
 
       {/* Collapse button */}
-      <Tooltip content="Collapse panel" side="top">
+      <Tooltip content={`Collapse panel (${formatKeys('Ctrl+`', false)})`} side="top">
         <button
           type="button"
           className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"

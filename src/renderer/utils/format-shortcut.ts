@@ -3,6 +3,7 @@ const modLabel = isMac ? '⌘' : 'Ctrl+';
 
 export function formatKeys(keys: string, mod: boolean): string {
   const display = keys
+    .replace('Ctrl+', isMac ? '⌃' : 'Ctrl+')
     .replace('Shift+', isMac ? '⇧' : 'Shift+')
     .replace('Enter', isMac ? '↵' : 'Enter')
     .replace('Escape', 'Esc');

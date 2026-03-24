@@ -33,6 +33,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Run Shell Command', keys: 'Shift+E', mod: true, category: 'general' },
   { label: 'Search in Files', keys: 'Shift+F', mod: true, category: 'general' },
   { label: 'Snippets', keys: 'Shift+S', mod: true, category: 'general' },
+  { label: 'Toggle Terminal Panel', keys: 'Ctrl+`', mod: false, category: 'general' },
   { label: 'Close Tile', keys: 'W', mod: true, category: 'general' },
 
   // Sessions
