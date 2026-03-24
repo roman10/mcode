@@ -26,6 +26,7 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
+const inflight = new Map<string, Promise<SubscriptionUsage | null>>();
 
 function extractAccessToken(raw: string): string | null {
   try {
@@ -79,15 +80,31 @@ async function readAccessToken(account: AccountProfile): Promise<string | null> 
   return null;
 }
 
-export async function fetchSubscriptionUsage(account: AccountProfile): Promise<SubscriptionUsage | null> {
+export async function fetchSubscriptionUsage(
+  account: AccountProfile,
+  forceRefresh?: boolean,
+): Promise<SubscriptionUsage | null> {
   const { accountId } = account;
 
-  // Return cached result if still fresh
-  const cached = cache.get(accountId);
-  if (cached && Date.now() < cached.expiresAt) {
-    return cached.usage;
+  // Return cached result if still fresh (unless forced)
+  if (!forceRefresh) {
+    const cached = cache.get(accountId);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.usage;
+    }
   }
 
+  // Deduplicate concurrent requests — return the in-flight promise if one exists
+  const existing = inflight.get(accountId);
+  if (existing) return existing;
+
+  const promise = doFetch(account);
+  inflight.set(accountId, promise);
+  promise.finally(() => inflight.delete(accountId));
+  return promise;
+}
+
+async function doFetch(account: AccountProfile): Promise<SubscriptionUsage | null> {
   const token = await readAccessToken(account);
   if (!token) return null;
 
@@ -114,14 +131,10 @@ export async function fetchSubscriptionUsage(account: AccountProfile): Promise<S
       fetchedAt: new Date().toISOString(),
     };
 
-    cache.set(accountId, { usage, expiresAt: Date.now() + CACHE_TTL_MS });
+    // Atomically replace cache entry only on success
+    cache.set(account.accountId, { usage, expiresAt: Date.now() + CACHE_TTL_MS });
     return usage;
   } catch {
     return null;
   }
-}
-
-/** Invalidate the cache for a specific account (called on manual refresh). */
-export function invalidateSubscriptionCache(accountId: string): void {
-  cache.delete(accountId);
 }

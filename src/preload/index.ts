@@ -93,11 +93,8 @@ contextBridge.exposeInMainWorld('mcode', {
     openAuthTerminal: (accountId: string): Promise<string> =>
       typedInvoke('account:open-auth-terminal', accountId),
 
-    getSubscriptionUsage: (accountId: string): Promise<SubscriptionUsage | null> =>
-      typedInvoke('account:get-subscription-usage', accountId),
-
-    invalidateSubscriptionCache: (accountId: string): Promise<void> =>
-      typedInvoke('account:invalidate-subscription-cache', accountId),
+    getSubscriptionUsage: (accountId: string, forceRefresh?: boolean): Promise<SubscriptionUsage | null> =>
+      typedInvoke('account:get-subscription-usage', accountId, forceRefresh),
   },
 
   pty: {

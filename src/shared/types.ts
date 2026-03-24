@@ -280,8 +280,7 @@ export interface MCodeAPI {
     getAuthStatus(accountId: string): Promise<AuthStatusResult>;
     checkCliInstalled(): Promise<CliAuthStatus>;
     openAuthTerminal(accountId: string): Promise<string>; // returns sessionId of auth terminal
-    getSubscriptionUsage(accountId: string): Promise<SubscriptionUsage | null>;
-    invalidateSubscriptionCache(accountId: string): Promise<void>;
+    getSubscriptionUsage(accountId: string, forceRefresh?: boolean): Promise<SubscriptionUsage | null>;
   };
 
   pty: {

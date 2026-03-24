@@ -44,12 +44,12 @@ export const useAccountsStore = create<AccountsState>((set, get) => ({
       await get().refresh();
       accounts = get().accounts;
     }
+    const prev = get().subscriptionByAccount;
     const entries = await Promise.all(
       accounts.map(async (a) => {
-        // Invalidate cache so manual refresh always fetches fresh data
-        await window.mcode.accounts.invalidateSubscriptionCache(a.accountId);
-        const usage = await window.mcode.accounts.getSubscriptionUsage(a.accountId);
-        return [a.accountId, usage] as const;
+        const usage = await window.mcode.accounts.getSubscriptionUsage(a.accountId, true);
+        // Keep previous value on failure so we never flash "quota unavailable"
+        return [a.accountId, usage ?? prev[a.accountId] ?? null] as const;
       }),
     );
     set({ subscriptionByAccount: Object.fromEntries(entries) });

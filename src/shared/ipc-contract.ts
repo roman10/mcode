@@ -140,8 +140,7 @@ export interface IpcInvokeContract {
   'account:get-auth-status':            { params: [accountId: string]; result: AuthStatusResult };
   'account:check-cli-installed':        { params: []; result: AuthStatusResult };
   'account:open-auth-terminal':         { params: [accountId: string]; result: string };
-  'account:get-subscription-usage':     { params: [accountId: string]; result: SubscriptionUsage | null };
-  'account:invalidate-subscription-cache': { params: [accountId: string]; result: void };
+  'account:get-subscription-usage':     { params: [accountId: string, forceRefresh?: boolean]; result: SubscriptionUsage | null };
 
   // --- Files ---
   'files:list':                         { params: [cwd: string]; result: FileListResult };

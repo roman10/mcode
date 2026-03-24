@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { getDb } from './db';
 import { logger } from './logger';
 import { typedHandle } from './ipc-helpers';
-import { fetchSubscriptionUsage, invalidateSubscriptionCache } from './claude-subscription-fetcher';
+import { fetchSubscriptionUsage } from './claude-subscription-fetcher';
 import type { AccountProfile, AuthStatusResult } from '../shared/types';
 
 const execFileAsync = promisify(execFile);
@@ -406,13 +406,9 @@ export function registerAccountIpc(
     return session.sessionId;
   });
 
-  typedHandle('account:get-subscription-usage', async (accountId) => {
+  typedHandle('account:get-subscription-usage', async (accountId, forceRefresh) => {
     const account = accountManager.get(accountId);
     if (!account) return null;
-    return fetchSubscriptionUsage(account);
-  });
-
-  typedHandle('account:invalidate-subscription-cache', (accountId) => {
-    invalidateSubscriptionCache(accountId);
+    return fetchSubscriptionUsage(account, forceRefresh);
   });
 }
