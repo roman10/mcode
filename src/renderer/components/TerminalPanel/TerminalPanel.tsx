@@ -16,9 +16,8 @@ export default function TerminalPanel(): React.JSX.Element | null {
 
   /** Max panel height based on actual container size (no hardcoded sibling heights). */
   const getMaxHeight = useCallback(() => {
-    const container = panelRef.current?.parentElement;
-    if (!container) return window.innerHeight - MIN_LAYOUT_HEIGHT;
-    return Math.max(MIN_PANEL_HEIGHT, container.clientHeight - MIN_LAYOUT_HEIGHT);
+    const containerHeight = panelRef.current?.parentElement?.clientHeight ?? 0;
+    return Math.max(MIN_PANEL_HEIGHT, containerHeight - MIN_LAYOUT_HEIGHT);
   }, []);
 
   const handleResizeMouseDown = useCallback(
