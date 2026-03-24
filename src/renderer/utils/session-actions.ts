@@ -63,10 +63,9 @@ export async function runShellCommand(
 
   const session = await window.mcode.sessions.create({
     cwd: effectiveCwd,
-    command: '/bin/sh',
-    args: ['-c', commandString],
     sessionType: 'terminal',
     label: commandString,
+    initialCommand: commandString,
   });
 
   useTerminalPanelStore.getState().addTerminal({

@@ -400,8 +400,7 @@ export function registerAccountIpc(
     if (!account.homeDir) throw new Error('Account has no home directory');
 
     const session = sessionManager.create(
-      { cwd: account.homeDir, label: `Auth: ${account.name}`, sessionType: 'terminal', accountId },
-      { initialCommand: 'claude auth login' },
+      { cwd: account.homeDir, label: `Auth: ${account.name}`, sessionType: 'terminal', accountId, initialCommand: 'claude auth login' },
     );
     return session.sessionId;
   });

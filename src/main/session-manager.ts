@@ -195,7 +195,7 @@ export class SessionManager {
     return `${base} (${max + 1})`;
   }
 
-  create(input: SessionCreateInput, opts?: { initialCommand?: string }): SessionInfo {
+  create(input: SessionCreateInput): SessionInfo {
     const sessionId = randomUUID();
     const cwd = input.cwd;
     const label = input.label
@@ -275,11 +275,11 @@ export class SessionManager {
         args: args.length > 0 ? args : undefined,
         env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
         onFirstData: () => {
-          if (opts?.initialCommand) {
+          if (input.initialCommand) {
             // Session has pre-loaded work — mark active so the task queue
             // won't dispatch to it before the initial command is processed.
             this.updateStatus(sessionId, 'active');
-            this.ptyManager.write(sessionId, opts.initialCommand + '\n');
+            this.ptyManager.write(sessionId, input.initialCommand + '\n');
           } else {
             // Only transition from 'starting' — hook events (SessionStart,
             // PermissionRequest, etc.) may have already advanced the status.
@@ -303,7 +303,7 @@ export class SessionManager {
     setTimeout(() => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
-        const targetStatus = sessionType === 'claude' && !opts?.initialCommand ? 'idle' : 'active';
+        const targetStatus = sessionType === 'claude' && !input.initialCommand ? 'idle' : 'active';
         logger.warn('session', 'Starting timeout, forcing status', { sessionId, targetStatus });
         this.updateStatus(sessionId, targetStatus);
       }

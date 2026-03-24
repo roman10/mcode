@@ -101,6 +101,7 @@ export interface SessionCreateInput {
   args?: string[];
   sessionType?: SessionType;
   accountId?: string;
+  initialCommand?: string;
 }
 
 export interface SessionDefaults {
