@@ -25,10 +25,6 @@ function CreateTaskDialog({
   const [prompt, setPrompt] = useState('');
   const [cwd, setCwd] = useState(defaultCwd ?? '');
   const [targetSessionId, setTargetSessionId] = useState(defaultTargetSessionId ?? '');
-  const [priority, setPriority] = useState(0);
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [maxRetries, setMaxRetries] = useState(3);
-  const [showAdvanced, setShowAdvanced] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -49,9 +45,6 @@ function CreateTaskDialog({
       setPrompt('');
       setCwd(defaultCwd ?? '');
       setTargetSessionId(defaultTargetSessionId ?? '');
-      setPriority(0);
-      setScheduledAt('');
-      setMaxRetries(3);
       setIsCreating(false);
       if (!defaultCwd) {
         window.mcode.sessions.getLastDefaults().then((defaults) => {
@@ -70,16 +63,13 @@ function CreateTaskDialog({
 
   const handleSubmit = (e?: React.FormEvent): void => {
     e?.preventDefault();
-    if (!prompt.trim() || !cwd.trim() || isCreating) return;
+    if (!prompt.trim() || !cwd.trim() || !targetSessionId || isCreating) return;
 
     setIsCreating(true);
     onCreate({
       prompt: prompt.trim(),
       cwd: cwd.trim(),
-      targetSessionId: targetSessionId || undefined,
-      priority: priority !== 0 ? priority : undefined,
-      scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
-      maxRetries: maxRetries !== 3 ? maxRetries : undefined,
+      targetSessionId,
     });
   };
 
@@ -166,7 +156,7 @@ function CreateTaskDialog({
               onChange={(e) => setTargetSessionId(e.target.value)}
               disabled={!!defaultTargetSessionId}
             >
-              <option value="">Auto (new session)</option>
+              <option value="" disabled>Select a session...</option>
               {targetableSessions.map((s) => (
                 <option key={s.sessionId} value={s.sessionId}>
                   {s.label || s.sessionId.slice(0, 8)} — {s.status} · {formatShortTime(s.startedAt)}
@@ -174,60 +164,6 @@ function CreateTaskDialog({
               ))}
             </select>
           </div>
-
-          {/* Advanced toggle */}
-          <button
-            type="button"
-            className="text-xs text-text-muted hover:text-text-secondary transition-colors"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-          >
-            {showAdvanced ? '\u25BC' : '\u25B6'} Advanced options
-          </button>
-
-          {showAdvanced && (
-            <div className="space-y-4">
-              {/* Priority */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">
-                  Priority
-                </label>
-                <input
-                  type="number"
-                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                  value={priority}
-                  onChange={(e) => setPriority(parseInt(e.target.value, 10) || 0)}
-                />
-              </div>
-
-              {/* Scheduled at */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">
-                  Schedule for (optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                />
-              </div>
-
-              {/* Max retries */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">
-                  Max retries
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={10}
-                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                  value={maxRetries}
-                  onChange={(e) => setMaxRetries(parseInt(e.target.value, 10) || 0)}
-                />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Actions */}
@@ -242,7 +178,7 @@ function CreateTaskDialog({
           </button>
           <button
             type="submit"
-            disabled={!prompt.trim() || !cwd.trim() || isCreating}
+            disabled={!prompt.trim() || !cwd.trim() || !targetSessionId || isCreating}
             className="inline-flex items-center px-4 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
           >
             {isCreating ? 'Creating...' : (

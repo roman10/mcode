@@ -254,6 +254,9 @@ contextBridge.exposeInMainWorld('mcode', {
     cancel: (taskId: number): Promise<void> =>
       typedInvoke('task:cancel', taskId),
 
+    reorder: (taskId: number, direction: 'up' | 'down'): Promise<Task> =>
+      typedInvoke('task:reorder', taskId, direction),
+
     onChanged: (cb: (event: TaskChangeEvent) => void): (() => void) =>
       typedListen('task:changed', cb),
   },

@@ -22,6 +22,7 @@ export interface Task {
   maxRetries: number;
   error: string | null;
   planModeAction: PlanModeAction | null;
+  sortOrder: number | null;
 }
 
 export interface CreateTaskInput {

@@ -10,6 +10,7 @@ interface TaskState {
   addTask(input: CreateTaskInput): Promise<number>;
   updateTask(taskId: number, input: UpdateTaskInput): Promise<Task>;
   cancelTask(taskId: number): Promise<void>;
+  reorderTask(taskId: number, direction: 'up' | 'down'): Promise<Task>;
   refreshTasks(filter?: TaskFilter): Promise<void>;
 }
 
@@ -47,6 +48,12 @@ export const useTaskStore = create<TaskState>((set) => ({
 
   cancelTask: async (taskId) => {
     await window.mcode.tasks.cancel(taskId);
+  },
+
+  reorderTask: async (taskId, direction) => {
+    const task = await window.mcode.tasks.reorder(taskId, direction);
+    // Both swapped tasks are broadcast via task:changed events
+    return task;
   },
 
   refreshTasks: async (filter) => {

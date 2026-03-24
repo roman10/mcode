@@ -87,6 +87,7 @@ export interface IpcInvokeContract {
   'task:list':                          { params: [filter?: TaskFilter]; result: Task[] };
   'task:update':                        { params: [taskId: number, input: UpdateTaskInput]; result: Task };
   'task:cancel':                        { params: [taskId: number]; result: void };
+  'task:reorder':                       { params: [taskId: number, direction: 'up' | 'down']; result: Task };
 
   // --- Tokens ---
   'tokens:get-session-usage':           { params: [claudeSessionId: string]; result: SessionTokenUsage };

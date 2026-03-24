@@ -159,13 +159,27 @@ export function registerTaskTools(
     };
   });
 
-  server.registerTool('sidebar_get_tasks', {
-    description: 'Get tasks as they appear in the sidebar task queue panel',
-    annotations: { readOnlyHint: true },
-  }, async () => {
-    const tasks = ctx.taskQueue.list();
-    return {
-      content: [{ type: 'text', text: JSON.stringify(tasks, null, 2) }],
-    };
+  server.registerTool('task_reorder', {
+    description: 'Reorder a pending task within its session queue. Swaps position with the adjacent task in the given direction.',
+    inputSchema: {
+      taskId: z.number().int().describe('The task ID to move'),
+      direction: z.enum(['up', 'down']).describe('Direction to move (up = earlier in queue, down = later)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ taskId, direction }) => {
+    try {
+      const task = ctx.taskQueue.reorder(taskId, direction);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(task, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Failed to reorder task: ${err instanceof Error ? err.message : String(err)}`,
+        }],
+        isError: true,
+      };
+    }
   });
 }

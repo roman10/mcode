@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Pencil, X } from 'lucide-react';
+import { ChevronUp, ChevronDown, Pencil, X } from 'lucide-react';
 import { useTaskStore } from '../../stores/task-store';
 import { useSessionStore } from '../../stores/session-store';
 import type { Task, TaskStatus } from '@shared/types';
@@ -15,11 +15,14 @@ const statusColors: Record<TaskStatus, string> = {
 
 interface TileTaskItemProps {
   task: Task;
+  isFirst: boolean;
+  isLast: boolean;
 }
 
-function TileTaskItem({ task }: TileTaskItemProps): React.JSX.Element {
+function TileTaskItem({ task, isFirst, isLast }: TileTaskItemProps): React.JSX.Element {
   const updateTask = useTaskStore((s) => s.updateTask);
   const cancelTask = useTaskStore((s) => s.cancelTask);
+  const reorderTask = useTaskStore((s) => s.reorderTask);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.prompt);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -100,6 +103,24 @@ function TileTaskItem({ task }: TileTaskItemProps): React.JSX.Element {
             </span>
             {isPending && (
               <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+                {!isFirst && (
+                  <button
+                    className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
+                    onClick={() => reorderTask(task.id, 'up').catch(() => {})}
+                    title="Move up"
+                  >
+                    <ChevronUp size={12} strokeWidth={1.5} />
+                  </button>
+                )}
+                {!isLast && (
+                  <button
+                    className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
+                    onClick={() => reorderTask(task.id, 'down').catch(() => {})}
+                    title="Move down"
+                  >
+                    <ChevronDown size={12} strokeWidth={1.5} />
+                  </button>
+                )}
                 <button
                   className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
                   onClick={() => {
@@ -168,12 +189,19 @@ function TileTaskPanel({
           // dispatched first, then pending
           if (a.status !== b.status)
             return a.status === 'dispatched' ? -1 : 1;
-          // higher priority first
+          // by sort_order when available
+          if (a.sortOrder != null && b.sortOrder != null)
+            return a.sortOrder - b.sortOrder;
+          // fallback: higher priority first, then older first
           if (a.priority !== b.priority) return b.priority - a.priority;
-          // older first
           return a.createdAt.localeCompare(b.createdAt);
         }),
     [tasks, sessionId],
+  );
+
+  const pendingTasks = useMemo(
+    () => sessionTasks.filter((t) => t.status === 'pending'),
+    [sessionTasks],
   );
 
   // Show the plan mode banner when the session is waiting for a user-choice menu
@@ -223,9 +251,17 @@ function TileTaskPanel({
             </div>
             {expanded && (
               <div className="max-h-32 overflow-y-auto">
-                {sessionTasks.map((task) => (
-                  <TileTaskItem key={task.id} task={task} />
-                ))}
+                {sessionTasks.map((task) => {
+                  const pendingIndex = pendingTasks.indexOf(task);
+                  return (
+                    <TileTaskItem
+                      key={task.id}
+                      task={task}
+                      isFirst={pendingIndex <= 0}
+                      isLast={pendingIndex === -1 || pendingIndex === pendingTasks.length - 1}
+                    />
+                  );
+                })}
               </div>
             )}
           </>

@@ -364,6 +364,7 @@ export interface MCodeAPI {
     list(filter?: TaskFilter): Promise<Task[]>;
     update(taskId: number, input: UpdateTaskInput): Promise<Task>;
     cancel(taskId: number): Promise<void>;
+    reorder(taskId: number, direction: 'up' | 'down'): Promise<Task>;
     onChanged(callback: (event: TaskChangeEvent) => void): () => void;
   };
 

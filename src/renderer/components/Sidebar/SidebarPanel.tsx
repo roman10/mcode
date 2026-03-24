@@ -5,7 +5,6 @@ import { useSessionStore } from '../../stores/session-store';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useTokenStore } from '../../stores/token-store';
 import SessionList from './SessionList';
-import TaskQueuePanel from './TaskQueuePanel';
 import NewSessionDialog from './NewSessionDialog';
 import Tooltip from '../shared/Tooltip';
 import DeleteSessionsDialog from './DeleteSessionsDialog';
@@ -334,7 +333,6 @@ function SidebarPanel(): React.JSX.Element {
                 </div>
               )}
               <SessionList filterQuery={sessionFilterQuery} />
-              <TaskQueuePanel />
             </>
           )}
           {activeSidebarTab === 'commits' && <CommitStats />}

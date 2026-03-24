@@ -254,6 +254,7 @@ export interface TaskInfo {
   retryCount: number;
   maxRetries: number;
   error: string | null;
+  sortOrder: number | null;
 }
 
 export async function createTask(
@@ -436,4 +437,12 @@ export async function updateTask(
   updates: { prompt?: string; priority?: number; scheduledAt?: string | null },
 ): Promise<TaskInfo> {
   return client.callToolJson<TaskInfo>('task_update', { taskId, ...updates });
+}
+
+export async function reorderTask(
+  client: McpTestClient,
+  taskId: number,
+  direction: 'up' | 'down',
+): Promise<TaskInfo> {
+  return client.callToolJson<TaskInfo>('task_reorder', { taskId, direction });
 }

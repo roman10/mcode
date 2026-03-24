@@ -33,6 +33,7 @@ interface TaskRecord {
   error: string | null;
   created_at: string;
   plan_mode_action: string | null;
+  sort_order: number | null;
 }
 
 interface DispatchState {
@@ -62,6 +63,7 @@ function toTask(row: TaskRecord): Task {
     maxRetries: row.max_retries,
     error: row.error,
     planModeAction: row.plan_mode_action ? (JSON.parse(row.plan_mode_action) as PlanModeAction) : null,
+    sortOrder: row.sort_order,
   };
 }
 
@@ -162,9 +164,21 @@ export class TaskQueue {
     }
 
     const db = getDb();
+
+    // Compute sort_order for session-targeted tasks
+    let sortOrder: number | null = null;
+    if (input.targetSessionId) {
+      const row = db.prepare(
+        `SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
+         FROM task_queue
+         WHERE target_session_id = ? AND status = 'pending'`,
+      ).get(input.targetSessionId) as { next_order: number };
+      sortOrder = row.next_order;
+    }
+
     const result = db.prepare(
-      `INSERT INTO task_queue (prompt, cwd, target_session_id, priority, scheduled_at, max_retries, plan_mode_action)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO task_queue (prompt, cwd, target_session_id, priority, scheduled_at, max_retries, plan_mode_action, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       input.prompt,
       input.cwd,
@@ -173,6 +187,7 @@ export class TaskQueue {
       input.scheduledAt ?? null,
       input.maxRetries ?? 3,
       input.planModeAction ? JSON.stringify(input.planModeAction) : null,
+      sortOrder,
     );
 
     const taskId = result.lastInsertRowid as number;
@@ -205,7 +220,7 @@ export class TaskQueue {
     if (conditions.length > 0) {
       sql += ` WHERE ${conditions.join(' AND ')}`;
     }
-    sql += ' ORDER BY priority DESC, created_at ASC';
+    sql += ' ORDER BY sort_order ASC NULLS LAST, priority DESC, created_at ASC';
 
     if (filter?.limit) {
       sql += ' LIMIT ?';
@@ -279,6 +294,58 @@ export class TaskQueue {
     return updated;
   }
 
+  reorder(taskId: number, direction: 'up' | 'down'): Task {
+    const task = this.getById(taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+    if (task.status !== 'pending') {
+      throw new Error(`Cannot reorder task in status "${task.status}" — only pending tasks can be reordered`);
+    }
+    if (!task.targetSessionId) {
+      throw new Error('Cannot reorder standalone tasks — only session-targeted tasks support reordering');
+    }
+    if (task.sortOrder == null) {
+      throw new Error('Task has no sort order assigned');
+    }
+
+    const db = getDb();
+
+    // Find adjacent pending task in the same session
+    const adjacentSql = direction === 'up'
+      ? `SELECT * FROM task_queue
+         WHERE target_session_id = ? AND status = 'pending' AND sort_order < ?
+         ORDER BY sort_order DESC LIMIT 1`
+      : `SELECT * FROM task_queue
+         WHERE target_session_id = ? AND status = 'pending' AND sort_order > ?
+         ORDER BY sort_order ASC LIMIT 1`;
+
+    const adjacent = db.prepare(adjacentSql).get(
+      task.targetSessionId,
+      task.sortOrder,
+    ) as TaskRecord | undefined;
+
+    if (!adjacent) {
+      throw new Error(`Task is already at the ${direction === 'up' ? 'top' : 'bottom'}`);
+    }
+
+    // Swap sort_order values in a transaction
+    const swap = db.transaction(() => {
+      db.prepare('UPDATE task_queue SET sort_order = ? WHERE id = ?').run(adjacent.sort_order, task.id);
+      db.prepare('UPDATE task_queue SET sort_order = ? WHERE id = ?').run(task.sortOrder, adjacent.id);
+    });
+    swap();
+
+    logger.info('task', 'Reordered task', { taskId, direction, swappedWith: adjacent.id });
+
+    const updatedTask = this.getById(taskId)!;
+    const updatedAdjacent = this.getById(adjacent.id)!;
+    this.broadcastChange({ type: 'upsert', task: updatedTask });
+    this.broadcastChange({ type: 'upsert', task: updatedAdjacent });
+
+    return updatedTask;
+  }
+
   getById(taskId: number): Task | null {
     const db = getDb();
     const row = db.prepare('SELECT * FROM task_queue WHERE id = ?').get(taskId) as TaskRecord | undefined;
@@ -313,7 +380,7 @@ export class TaskQueue {
       `SELECT * FROM task_queue
        WHERE status = 'pending'
          AND (scheduled_at IS NULL OR scheduled_at <= ?)
-       ORDER BY priority DESC, created_at ASC`,
+       ORDER BY sort_order ASC NULLS LAST, priority DESC, created_at ASC`,
     ).all(now) as TaskRecord[];
 
     for (const row of pendingTasks) {
@@ -740,5 +807,9 @@ export function registerTaskIpc(taskQueue: TaskQueue): void {
 
   typedHandle('task:cancel', (taskId) => {
     taskQueue.cancel(taskId);
+  });
+
+  typedHandle('task:reorder', (taskId, direction) => {
+    return taskQueue.reorder(taskId, direction);
   });
 }

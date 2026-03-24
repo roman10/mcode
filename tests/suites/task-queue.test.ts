@@ -14,6 +14,7 @@ import {
   cancelTask,
   waitForTaskStatus,
   updateTask,
+  reorderTask,
   resetTestState,
 } from '../helpers';
 
@@ -267,16 +268,6 @@ describe('task queue', () => {
     ).rejects.toThrow(/ended/i);
   });
 
-  it('sidebar_get_tasks returns all tasks', async () => {
-    const task = await createTask(client, {
-      prompt: 'sidebar test',
-      scheduledAt: futureIso(),
-    });
-    const sidebarTasks = await client.callToolJson<Array<{ id: number }>>('sidebar_get_tasks');
-    expect(sidebarTasks.some((t) => t.id === task.id)).toBe(true);
-    await cancelTask(client, task.id);
-  });
-
   it('rejects task targeting fallback-mode Claude session', async () => {
     // Override sessionType to 'claude' — bash command + claude type = fallback hookMode
     const session = await createTestSession(client, { sessionType: 'claude' });
@@ -345,6 +336,174 @@ describe('task queue', () => {
 
     await expect(
       updateTask(client, task.id, { prompt: 'too late' }),
+    ).rejects.toThrow(/only pending/i);
+
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it('assigns sort_order on session-targeted task creation', async () => {
+    const session = await createLiveClaudeTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForIdle(client, session.sessionId);
+
+    // Queue 3 tasks with future schedule to prevent dispatch
+    const t1 = await createTask(client, {
+      prompt: 'sort 1',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+    const t2 = await createTask(client, {
+      prompt: 'sort 2',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+    const t3 = await createTask(client, {
+      prompt: 'sort 3',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+
+    expect(t1.sortOrder).toBe(1);
+    expect(t2.sortOrder).toBe(2);
+    expect(t3.sortOrder).toBe(3);
+
+    await cancelTask(client, t1.id);
+    await cancelTask(client, t2.id);
+    await cancelTask(client, t3.id);
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it('standalone tasks have null sort_order', async () => {
+    const task = await createTask(client, {
+      prompt: 'standalone',
+      scheduledAt: futureIso(),
+    });
+
+    expect(task.sortOrder).toBeNull();
+    await cancelTask(client, task.id);
+  });
+
+  it('reorders tasks up within session', async () => {
+    const session = await createLiveClaudeTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForIdle(client, session.sessionId);
+
+    const t1 = await createTask(client, {
+      prompt: 'first',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+    const t2 = await createTask(client, {
+      prompt: 'second',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+    const t3 = await createTask(client, {
+      prompt: 'third',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+
+    // Move t3 up — should swap with t2
+    const moved = await reorderTask(client, t3.id, 'up');
+    expect(moved.sortOrder).toBe(2);
+
+    // Verify list order: t1, t3, t2
+    const tasks = await listTasks(client, {
+      statuses: ['pending'],
+      targetSessionId: session.sessionId,
+    });
+    const ids = tasks.map((t) => t.id);
+    expect(ids).toEqual([t1.id, t3.id, t2.id]);
+
+    await cancelTask(client, t1.id);
+    await cancelTask(client, t2.id);
+    await cancelTask(client, t3.id);
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it('reorders tasks down within session', async () => {
+    const session = await createLiveClaudeTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForIdle(client, session.sessionId);
+
+    const t1 = await createTask(client, {
+      prompt: 'first',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+    const t2 = await createTask(client, {
+      prompt: 'second',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+
+    // Move t1 down — should swap with t2
+    const moved = await reorderTask(client, t1.id, 'down');
+    expect(moved.sortOrder).toBe(2);
+
+    // Verify list order: t2, t1
+    const tasks = await listTasks(client, {
+      statuses: ['pending'],
+      targetSessionId: session.sessionId,
+    });
+    const ids = tasks.map((t) => t.id);
+    expect(ids).toEqual([t2.id, t1.id]);
+
+    await cancelTask(client, t1.id);
+    await cancelTask(client, t2.id);
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it('reorder at boundary throws error', async () => {
+    const session = await createLiveClaudeTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForIdle(client, session.sessionId);
+
+    const t1 = await createTask(client, {
+      prompt: 'only task',
+      targetSessionId: session.sessionId,
+      scheduledAt: futureIso(),
+    });
+
+    // Moving up when already first
+    await expect(
+      reorderTask(client, t1.id, 'up'),
+    ).rejects.toThrow(/already at the top/i);
+
+    // Moving down when already last
+    await expect(
+      reorderTask(client, t1.id, 'down'),
+    ).rejects.toThrow(/already at the bottom/i);
+
+    await cancelTask(client, t1.id);
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it('reorder rejects non-pending and standalone tasks', async () => {
+    // Standalone task (no targetSessionId) — should fail
+    const standalone = await createTask(client, {
+      prompt: 'standalone',
+      scheduledAt: futureIso(),
+    });
+    await expect(
+      reorderTask(client, standalone.id, 'up'),
+    ).rejects.toThrow(/standalone/i);
+    await cancelTask(client, standalone.id);
+
+    // Dispatched task — should fail
+    const session = await createLiveClaudeTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForIdle(client, session.sessionId);
+
+    const dispatched = await createTask(client, {
+      prompt: 'will dispatch',
+      targetSessionId: session.sessionId,
+    });
+    await waitForTaskStatus(client, dispatched.id, 'dispatched', 10000);
+
+    await expect(
+      reorderTask(client, dispatched.id, 'up'),
     ).rejects.toThrow(/only pending/i);
 
     await killAndWaitEnded(client, session.sessionId);
