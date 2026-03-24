@@ -24,7 +24,7 @@ function ctx(overrides: Partial<TransitionContext> = {}): TransitionContext {
 
 /** Simulate a multi-step transition sequence, threading status and attention through. */
 function runSequence(
-  steps: Array<{ event: HookEventName; toolName?: string; claudeSessionId?: string }>,
+  steps: Array<{ event: HookEventName; toolName?: string }>,
   initial: { status: SessionStatus; attention: SessionAttentionLevel; lastTool?: string | null },
 ) {
   let status = initial.status;
@@ -45,7 +45,6 @@ function runSequence(
 
     const resolved = resolveAttention(result.attention, attention, {
       hasPendingTasks: false,
-      claudeSessionId: step.claudeSessionId ?? null,
     });
 
     status = result.status;
@@ -212,10 +211,10 @@ describe('computeTransition', () => {
   });
 
   describe('SessionEnd', () => {
-    it('any → ended, attention = set-action-if-resumable', () => {
+    it('any → ended, attention = clear', () => {
       const r = computeTransition('SessionEnd', ctx({ currentStatus: 'active' }));
       expect(r!.status).toBe('ended');
-      expect(r!.attention).toEqual({ type: 'set-action-if-resumable', reason: 'Session ended — can resume' });
+      expect(r!.attention).toEqual({ type: 'clear' });
     });
   });
 });
@@ -268,7 +267,7 @@ describe('self-healing (starting + non-SessionStart)', () => {
 // --- resolveAttention ---
 
 describe('resolveAttention', () => {
-  const noPending = { hasPendingTasks: false, claudeSessionId: null };
+  const noPending = { hasPendingTasks: false };
 
   describe('clear-if-action', () => {
     const rule: AttentionRule = { type: 'clear-if-action' };
@@ -329,7 +328,7 @@ describe('resolveAttention', () => {
     });
 
     it('has pending → current preserved', () => {
-      const r = resolveAttention(rule, 'none', { hasPendingTasks: true, claudeSessionId: null });
+      const r = resolveAttention(rule, 'none', { hasPendingTasks: true });
       expect(r.level).toBe('none');
       expect(r.reason).toBeNull();
     });
@@ -357,19 +356,15 @@ describe('resolveAttention', () => {
     });
   });
 
-  describe('set-action-if-resumable', () => {
-    const rule: AttentionRule = { type: 'set-action-if-resumable', reason: 'Session ended — can resume' };
+  describe('clear', () => {
+    const rule: AttentionRule = { type: 'clear' };
 
-    it('has claudeSessionId → action with reason', () => {
-      const r = resolveAttention(rule, 'none', { hasPendingTasks: false, claudeSessionId: 'abc' });
-      expect(r.level).toBe('action');
-      expect(r.reason).toBe('Session ended — can resume');
-    });
-
-    it('no claudeSessionId → none', () => {
-      const r = resolveAttention(rule, 'action', noPending);
-      expect(r.level).toBe('none');
-      expect(r.reason).toBeNull();
+    it('always returns none regardless of current attention', () => {
+      for (const current of ['none', 'info', 'action'] as SessionAttentionLevel[]) {
+        const r = resolveAttention(rule, current, noPending);
+        expect(r.level).toBe('none');
+        expect(r.reason).toBeNull();
+      }
     });
   });
 

@@ -173,9 +173,7 @@ describe('attention system', () => {
     expect(ended.attentionReason).toBeNull();
   });
 
-  it('killing a session clears attention even if SessionEnd hook already set it', async () => {
-    // Simulates the race: SessionEnd hook fires before kill() clears attention.
-    // SessionEnd sets action attention for resumable sessions (those with claudeSessionId).
+  it('SessionEnd always clears attention, even for resumable sessions', async () => {
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
@@ -183,23 +181,16 @@ describe('attention system', () => {
       claudeSessionId: 'test-claude-session-id',
     });
 
-    // Inject SessionEnd — this sets status='ended' + attention='action'
+    // Set action attention before ending
+    await injectHookEvent(client, session.sessionId, 'PermissionRequest');
+
+    // SessionEnd should clear attention regardless of claudeSessionId
     const afterEnd = await injectHookEvent(client, session.sessionId, 'SessionEnd', {
       claudeSessionId: 'test-claude-session-id',
     });
     expect(afterEnd.status).toBe('ended');
-    expect(afterEnd.attentionLevel).toBe('action');
-    expect(afterEnd.attentionReason).toBe('Session ended — can resume');
-
-    // Now kill — updateStatus('ended') is a no-op, but clearAttention must still run
-    await killAndWaitEnded(client, session.sessionId);
-
-    const ended = await client.callToolJson<SessionInfo>('session_get_status', {
-      sessionId: session.sessionId,
-    });
-    expect(ended.status).toBe('ended');
-    expect(ended.attentionLevel).toBe('none');
-    expect(ended.attentionReason).toBeNull();
+    expect(afterEnd.attentionLevel).toBe('none');
+    expect(afterEnd.attentionReason).toBeNull();
   });
 
   it('sidebar sorts sessions: action first, then info, then none', async () => {

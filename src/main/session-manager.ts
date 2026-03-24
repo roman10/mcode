@@ -600,8 +600,8 @@ export class SessionManager {
 
     // Verify session exists
     let row = db
-      .prepare('SELECT status, attention_level, cwd, worktree, claude_session_id, last_tool FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; claude_session_id: string | null; last_tool: string | null } | undefined;
+      .prepare('SELECT status, attention_level, cwd, worktree, last_tool FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; last_tool: string | null } | undefined;
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
       return false;
@@ -655,7 +655,7 @@ export class SessionManager {
     const { level: newAttention, reason: attentionReason } = resolveAttention(
       result.attention,
       currentAttention,
-      { hasPendingTasks, claudeSessionId: row.claude_session_id },
+      { hasPendingTasks },
     );
     const newStatus = result.status;
 
@@ -859,9 +859,8 @@ export class SessionManager {
   }
 
   async kill(sessionId: string): Promise<void> {
-    // Mark ended BEFORE killing PTY so any SessionEnd hook event
-    // arriving during the await sees status='ended' and is skipped
-    // by the guard in handleHookEvent (no attention set, no race).
+    // Mark ended BEFORE killing PTY so the handleHookEvent guard
+    // (status='ended' → skip) prevents any late hook events from processing.
     this.updateStatus(sessionId, 'ended');
     this.clearAttention(sessionId);
     await this.ptyManager.kill(sessionId);

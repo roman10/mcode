@@ -13,11 +13,11 @@ export type HookEventName =
   | 'SessionEnd';
 
 export type AttentionRule =
+  | { type: 'clear' }
   | { type: 'clear-if-action' }
   | { type: 'set-action'; reason: string }
   | { type: 'set-action-if-active-no-pending'; reason: string }
   | { type: 'set-info-if-not-action'; reason: string }
-  | { type: 'set-action-if-resumable'; reason: string }
   | { type: 'preserve' };
 
 export type LastToolAction =
@@ -120,7 +120,7 @@ export function computeTransition(
     case 'SessionEnd':
       return {
         status: 'ended',
-        attention: { type: 'set-action-if-resumable', reason: 'Session ended — can resume' },
+        attention: { type: 'clear' },
         lastTool: { type: 'preserve' },
         selfHealed,
       };
@@ -161,7 +161,7 @@ function computeStopTransition(
 export function resolveAttention(
   rule: AttentionRule,
   currentAttention: SessionAttentionLevel,
-  ctx: { hasPendingTasks: boolean; claudeSessionId: string | null },
+  ctx: { hasPendingTasks: boolean },
 ): AttentionResolution {
   switch (rule.type) {
     case 'clear-if-action':
@@ -184,10 +184,8 @@ export function resolveAttention(
         ? { level: currentAttention, reason: null }
         : { level: 'info', reason: rule.reason };
 
-    case 'set-action-if-resumable':
-      return ctx.claudeSessionId
-        ? { level: 'action', reason: rule.reason }
-        : { level: 'none', reason: null };
+    case 'clear':
+      return { level: 'none', reason: null };
 
     case 'preserve':
       return { level: currentAttention, reason: null };

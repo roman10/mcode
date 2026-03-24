@@ -106,7 +106,7 @@ describe('hook integration', () => {
     expect(ended.attentionLevel).toBe('none');
   });
 
-  it('SessionEnd sets action attention when session is resumable (has claudeSessionId)', async () => {
+  it('SessionEnd clears attention even for resumable sessions (has claudeSessionId)', async () => {
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
@@ -116,10 +116,13 @@ describe('hook integration', () => {
       claudeSessionId: 'claude-resume-test-123',
     });
 
+    // Set action attention before ending
+    await injectHookEvent(client, session.sessionId, 'PermissionRequest');
+
     const ended = await injectHookEvent(client, session.sessionId, 'SessionEnd');
     expect(ended.status).toBe('ended');
-    expect(ended.attentionLevel).toBe('action');
-    expect(ended.attentionReason).toBe('Session ended — can resume');
+    expect(ended.attentionLevel).toBe('none');
+    expect(ended.attentionReason).toBeNull();
   });
 
   it('events are persisted and retrievable with sessionStatus', async () => {
