@@ -61,16 +61,10 @@ describe('concurrent sessions', () => {
     }
   });
 
-  it('all sessions have tiles auto-added', async () => {
-    // Wait for auto-tile IPC events to complete
-    await waitForTileCount(client, SESSION_COUNT);
-
-    const tree = await client.callToolJson<unknown>('layout_get_tree');
-    const treeStr = JSON.stringify(tree);
-
-    for (const id of sessionIds) {
-      expect(treeStr).toContain(id);
-    }
+  it('terminal sessions do not auto-add mosaic tiles', async () => {
+    // Terminal sessions live in the bottom terminal panel rather than mosaic tiles.
+    await waitForTileCount(client, 0);
+    expect(await getTileCount(client)).toBe(0);
   });
 
   it('all sessions appear in sidebar', async () => {

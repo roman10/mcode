@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
-  createTestSession,
+  createLiveClaudeTestSession,
   waitForActive,
   killAndWaitEnded,
   cleanupSessions,
@@ -34,7 +34,7 @@ describe('tiling layout', () => {
   it('session creation auto-adds a tile', async () => {
     const before = await getTileCount(client);
 
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
 
@@ -48,7 +48,7 @@ describe('tiling layout', () => {
   it('second session creation adds another tile', async () => {
     const before = await getTileCount(client);
 
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
 
@@ -104,7 +104,7 @@ describe('tiling layout', () => {
 
   it('auto-closes tile when session is killed', async () => {
     const before = await getTileCount(client);
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
     await waitForTileCount(client, before + 1);

@@ -22,6 +22,11 @@ function futureIso(delayMs = 60000): string {
   return new Date(Date.now() + delayMs).toISOString();
 }
 
+async function createIdleLiveClaudeSession(client: McpTestClient): Promise<{ sessionId: string; hookMode: string }> {
+  const session = await createLiveClaudeTestSession(client);
+  return injectHookEvent(client, session.sessionId, 'Stop') as Promise<{ sessionId: string; hookMode: string }>;
+}
+
 describe('task queue', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
@@ -84,10 +89,9 @@ describe('task queue', () => {
   });
 
   it('rejects cancellation of non-pending tasks', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    const ready = await waitForIdle(client, session.sessionId);
-    expect(ready.hookMode).toBe('live');
+    expect(session.hookMode).toBe('live');
 
     const task = await createTask(client, {
       prompt: 'echo dispatched',
@@ -110,10 +114,9 @@ describe('task queue', () => {
   });
 
   it('dispatches task to existing idle session', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    const ready = await waitForIdle(client, session.sessionId);
-    expect(ready.hookMode).toBe('live');
+    expect(session.hookMode).toBe('live');
 
     const task = await createTask(client, {
       prompt: 'follow up work',
@@ -135,10 +138,9 @@ describe('task queue', () => {
   });
 
   it('dispatches tasks sequentially on same session', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    const ready = await waitForIdle(client, session.sessionId);
-    expect(ready.hookMode).toBe('live');
+    expect(session.hookMode).toBe('live');
 
     // Queue 3 tasks on the same session
     const t1 = await createTask(client, { prompt: 'task 1', targetSessionId: session.sessionId });
@@ -178,10 +180,9 @@ describe('task queue', () => {
   });
 
   it('fails task when target session ends', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    const ready = await waitForIdle(client, session.sessionId);
-    expect(ready.hookMode).toBe('live');
+    expect(session.hookMode).toBe('live');
 
     // Queue tasks
     const t1 = await createTask(client, { prompt: 'task 1', targetSessionId: session.sessionId });
@@ -253,10 +254,9 @@ describe('task queue', () => {
   });
 
   it('rejects task targeting ended session', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    const ready = await waitForIdle(client, session.sessionId);
-    expect(ready.hookMode).toBe('live');
+    expect(session.hookMode).toBe('live');
     await killAndWaitEnded(client, session.sessionId);
 
     await expect(
@@ -324,9 +324,8 @@ describe('task queue', () => {
   it('task_update rejects non-pending tasks', async () => {
     // Use a dispatched task to exercise the "only pending" code path
     // (cancel does a hard DELETE, so cancelled tasks can't be tested here)
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    await waitForIdle(client, session.sessionId);
 
     const task = await createTask(client, {
       prompt: 'will dispatch',
@@ -342,9 +341,8 @@ describe('task queue', () => {
   });
 
   it('assigns sort_order on session-targeted task creation', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    await waitForIdle(client, session.sessionId);
 
     // Queue 3 tasks with future schedule to prevent dispatch
     const t1 = await createTask(client, {
@@ -384,9 +382,8 @@ describe('task queue', () => {
   });
 
   it('reorders tasks up within session', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    await waitForIdle(client, session.sessionId);
 
     const t1 = await createTask(client, {
       prompt: 'first',
@@ -423,9 +420,8 @@ describe('task queue', () => {
   });
 
   it('reorders tasks down within session', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    await waitForIdle(client, session.sessionId);
 
     const t1 = await createTask(client, {
       prompt: 'first',
@@ -456,9 +452,8 @@ describe('task queue', () => {
   });
 
   it('reorder at boundary throws error', async () => {
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    await waitForIdle(client, session.sessionId);
 
     const t1 = await createTask(client, {
       prompt: 'only task',
@@ -492,9 +487,8 @@ describe('task queue', () => {
     await cancelTask(client, standalone.id);
 
     // Dispatched task — should fail
-    const session = await createLiveClaudeTestSession(client);
+    const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);
-    await waitForIdle(client, session.sessionId);
 
     const dispatched = await createTask(client, {
       prompt: 'will dispatch',

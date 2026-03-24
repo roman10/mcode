@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
-  createTestSession,
+  createLiveClaudeTestSession,
   waitForActive,
   cleanupSessions,
   getTileCount,
@@ -21,8 +21,8 @@ describe('layout UI controls', () => {
 
     // Create 2 sessions with tiles
     const [s1, s2] = await Promise.all([
-      createTestSession(client),
-      createTestSession(client),
+      createLiveClaudeTestSession(client),
+      createLiveClaudeTestSession(client),
     ]);
     sessionIds.push(s1.sessionId, s2.sessionId);
     await Promise.all([

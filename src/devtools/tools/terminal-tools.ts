@@ -6,6 +6,38 @@ import { shellEscapePath } from '../../shared/shell-utils';
 
 const WAIT_BUFFER_LINES = 2000;
 
+async function readTerminalContent(
+  ctx: McpServerContext,
+  sessionId: string,
+  lines?: number,
+): Promise<string> {
+  try {
+    const rendered = await queryRenderer<string>(
+      ctx.mainWindow,
+      'terminal-buffer',
+      { sessionId, lines },
+    );
+    if (rendered) return rendered;
+  } catch {
+    // Fall back to PTY replay when the terminal isn't mounted in the renderer.
+  }
+
+  const brokerReplay = ctx.ptyManager as typeof ctx.ptyManager & {
+    fetchReplayFromBroker?: (id: string) => Promise<string>;
+  };
+
+  const replay = brokerReplay.fetchReplayFromBroker
+    ? await brokerReplay.fetchReplayFromBroker(sessionId)
+    : ctx.ptyManager.getReplayData(sessionId);
+  if (!replay) return '';
+
+  const normalized = replay.replace(/\r/g, '');
+  if (!lines) return normalized;
+
+  const chunks = normalized.split('\n');
+  return chunks.slice(-lines).join('\n');
+}
+
 export function registerTerminalTools(
   server: McpServer,
   ctx: McpServerContext,
@@ -33,11 +65,7 @@ export function registerTerminalTools(
     }
 
     try {
-      const content = await queryRenderer<string>(
-        ctx.mainWindow,
-        'terminal-buffer',
-        { sessionId, lines },
-      );
+      const content = await readTerminalContent(ctx, sessionId, lines);
       return {
         content: [{ type: 'text', text: content }],
       };
@@ -235,10 +263,7 @@ export function registerTerminalTools(
 
     while (Date.now() - startTime < timeout) {
       try {
-        const content = await queryRenderer<string>(ctx.mainWindow, 'terminal-buffer', {
-          sessionId,
-          lines: WAIT_BUFFER_LINES,
-        });
+        const content = await readTerminalContent(ctx, sessionId, WAIT_BUFFER_LINES);
         if (regex.test(content)) {
           return {
             content: [{ type: 'text', text: content }],
@@ -252,10 +277,7 @@ export function registerTerminalTools(
 
     // Final attempt
     try {
-      const content = await queryRenderer<string>(ctx.mainWindow, 'terminal-buffer', {
-        sessionId,
-        lines: WAIT_BUFFER_LINES,
-      });
+      const content = await readTerminalContent(ctx, sessionId, WAIT_BUFFER_LINES);
       if (regex.test(content)) {
         return {
           content: [{ type: 'text', text: content }],

@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
-  createTestSession,
   createLiveClaudeTestSession,
-  waitForActive,
   killAndWaitEnded,
   cleanupSessions,
   injectHookEvent,
@@ -62,10 +60,10 @@ describe('kanban layout', () => {
     await setViewMode(client, 'kanban');
 
     const tilesBefore = await getTileCount(client);
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
     await waitForTileCount(client, tilesBefore + 1);
+    await waitForKanbanColumn(client, session.sessionId, 'working');
 
     const state = await getKanbanState(client);
     const workingIds = state.columns['working']?.map((s) => s.sessionId) ?? [];
@@ -74,9 +72,8 @@ describe('kanban layout', () => {
 
   it('moves ended sessions to the completed column', async () => {
     const tilesBefore = await getTileCount(client);
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
     await waitForTileCount(client, tilesBefore + 1);
 
     await killAndWaitEnded(client, session.sessionId);
@@ -106,9 +103,8 @@ describe('kanban layout', () => {
     await setViewMode(client, 'kanban');
 
     const tilesBefore = await getTileCount(client);
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
     await waitForTileCount(client, tilesBefore + 1);
 
     await expandKanbanSession(client, session.sessionId);
@@ -126,9 +122,8 @@ describe('kanban layout', () => {
     await setViewMode(client, 'kanban');
 
     const tilesBefore = await getTileCount(client);
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
     await waitForTileCount(client, tilesBefore + 1);
 
     await expandKanbanSession(client, session.sessionId);
@@ -148,9 +143,8 @@ describe('kanban layout', () => {
     await setViewMode(client, 'kanban');
 
     const tilesBefore = await getTileCount(client);
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
     await waitForTileCount(client, tilesBefore + 1);
 
     await expandKanbanSession(client, session.sessionId);
@@ -170,9 +164,8 @@ describe('kanban layout', () => {
 
     const tilesBefore = await getTileCount(client);
 
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
     await waitForTileCount(client, tilesBefore + 1);
 
     // Even in kanban mode, the mosaic tree should be updated
@@ -183,7 +176,7 @@ describe('kanban layout', () => {
     await setViewMode(client, 'tiles');
     await waitForViewMode(client, 'tiles');
 
-    const tilesInTileMode = await getTileCount(client);
-    expect(tilesInTileMode).toBeGreaterThanOrEqual(tilesAfter);
+    const tree = await client.callToolText('layout_get_tree');
+    expect(tree).toContain(`session:${session.sessionId}`);
   });
 });

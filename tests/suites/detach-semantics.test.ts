@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
-  createTestSession,
+  createLiveClaudeTestSession,
   waitForActive,
   cleanupSessions,
   getTileCount,
@@ -25,7 +25,7 @@ describe('detach semantics (close tile != kill session)', () => {
   });
 
   it('removing tile does not kill the session', async () => {
-    const session = await createTestSession(client);
+    const session = await createLiveClaudeTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
 
