@@ -1165,7 +1165,7 @@ export class SessionManager {
   detachAllActive(): void {
     const db = getDb();
     db.prepare(
-      `UPDATE sessions SET status = 'detached' WHERE status NOT IN ('ended', 'detached')`,
+      `UPDATE sessions SET pre_detach_status = status, status = 'detached' WHERE status NOT IN ('ended', 'detached')`,
     ).run();
     logger.info('session', 'Marked all active sessions as detached');
   }
@@ -1179,15 +1179,18 @@ export class SessionManager {
     const aliveSet = new Set(aliveSessionIds);
 
     const detached = db
-      .prepare(`SELECT session_id FROM sessions WHERE status = 'detached'`)
-      .all() as Array<{ session_id: string }>;
+      .prepare(`SELECT session_id, pre_detach_status FROM sessions WHERE status = 'detached'`)
+      .all() as Array<{ session_id: string; pre_detach_status: string | null }>;
 
-    for (const { session_id } of detached) {
+    for (const { session_id, pre_detach_status } of detached) {
       if (aliveSet.has(session_id)) {
-        this.updateStatus(session_id, 'active');
-        logger.info('session', 'Reconnected to running session', { sessionId: session_id });
+        const restoreStatus = (pre_detach_status || 'active') as SessionStatus;
+        this.updateStatus(session_id, restoreStatus);
+        db.prepare('UPDATE sessions SET pre_detach_status = NULL WHERE session_id = ?').run(session_id);
+        logger.info('session', 'Reconnected to running session', { sessionId: session_id, restoredStatus: restoreStatus });
       } else {
         this.updateStatus(session_id, 'ended');
+        db.prepare('UPDATE sessions SET pre_detach_status = NULL WHERE session_id = ?').run(session_id);
         logger.info('session', 'Detached session no longer running', { sessionId: session_id });
       }
     }

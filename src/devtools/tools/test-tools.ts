@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
 import { queryRenderer } from '../ipc';
@@ -77,6 +78,40 @@ export function registerTestTools(
       content: [{
         type: 'text',
         text: summary.length > 0 ? summary.join('; ') : 'Nothing to reset',
+      }],
+    };
+  });
+
+  server.registerTool('app_detach_all', {
+    description:
+      'Mark all running sessions as detached, simulating app window close. Preserves pre-detach status for later restoration.',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    ctx.sessionManager.detachAllActive();
+    const sessions = ctx.sessionManager.list({ includeEphemeral: true });
+    const detached = sessions.filter((s) => s.status === 'detached');
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({ detachedCount: detached.length, sessions: detached }, null, 2),
+      }],
+    };
+  });
+
+  server.registerTool('app_reconcile_detached', {
+    description:
+      'Reconcile detached sessions against a list of alive session IDs, simulating app window reopen. Restores pre-detach status for alive sessions, marks the rest as ended.',
+    inputSchema: {
+      aliveSessionIds: z.array(z.string()).describe('Session IDs that are still alive (running in PTY broker)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ aliveSessionIds }) => {
+    ctx.sessionManager.reconcileDetachedSessions(aliveSessionIds);
+    const sessions = ctx.sessionManager.list({ includeEphemeral: true });
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify(sessions, null, 2),
       }],
     };
   });

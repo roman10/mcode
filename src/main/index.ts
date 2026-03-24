@@ -660,6 +660,9 @@ app.whenReady().then(async () => {
   sessionManager.reconcileDetachedSessions(aliveSessions.map((s) => s.id));
   // Populate local ring buffers so permission/task detection works immediately
   await Promise.all(aliveSessions.map((s) => brokerClient.populateFromBroker(s.id)));
+  // Immediately detect sessions that transitioned while the app was closed
+  // (e.g., active sessions that finished and are now at the ❯ prompt)
+  sessionManager.pollSessionStates();
 
   taskQueue = new TaskQueue(
     sessionManager,
