@@ -2,12 +2,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
   createLiveClaudeTestSession,
-  waitForIdle,
   cleanupSessions,
   createTask,
   listTasks,
   cancelTask,
   waitForTaskStatus,
+  injectHookEvent,
   type SessionInfo,
   type TaskInfo,
   resetTestState,
@@ -30,10 +30,10 @@ describe('task concurrent dispatch', () => {
     ]);
     sessionIds.push(session1.sessionId, session2.sessionId);
 
-    // Wait for sessions to be idle and ready for task dispatch
+    // Force both sessions into a deterministic idle-ready state for dispatch.
     await Promise.all([
-      waitForIdle(client, session1.sessionId),
-      waitForIdle(client, session2.sessionId),
+      injectHookEvent(client, session1.sessionId, 'Stop'),
+      injectHookEvent(client, session2.sessionId, 'Stop'),
     ]);
   });
 

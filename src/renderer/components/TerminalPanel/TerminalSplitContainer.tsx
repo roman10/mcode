@@ -69,6 +69,14 @@ export default function TerminalSplitContainer({ node }: SplitContainerProps): R
     [activateTabGroup],
   );
 
+  const handleDrag = useCallback(
+    (delta: number) => {
+      if (node.type === 'leaf') return;
+      setSplitRatio(node, node.ratio + delta);
+    },
+    [node, setSplitRatio],
+  );
+
   if (node.type === 'leaf') {
     return (
       <div
@@ -82,13 +90,6 @@ export default function TerminalSplitContainer({ node }: SplitContainerProps): R
 
   const { direction, children, ratio } = node;
   const isHorizontal = direction === 'horizontal';
-
-  const handleDrag = useCallback(
-    (delta: number) => {
-      setSplitRatio(node, ratio + delta);
-    },
-    [node, ratio, setSplitRatio],
-  );
 
   const firstStyle = isHorizontal
     ? { width: `${ratio * 100}%` }

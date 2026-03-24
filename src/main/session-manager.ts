@@ -548,7 +548,7 @@ export class SessionManager {
 
     // Auto-delete ended Claude sessions with no Claude session ID (no interaction occurred).
     if (status === 'ended' && session
-        && session.sessionType === 'claude' && !session.claudeSessionId) {
+      && session.sessionType === 'claude' && !session.claudeSessionId) {
       setTimeout(() => {
         try {
           this.delete(sessionId);

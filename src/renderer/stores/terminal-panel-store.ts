@@ -9,11 +9,11 @@ export type SplitDirection = 'horizontal' | 'vertical';
 export type PanelNode =
   | { type: 'leaf'; tabGroupId: string }
   | {
-      type: 'split';
-      direction: SplitDirection;
-      children: [PanelNode, PanelNode];
-      ratio: number; // 0-1, position of divider
-    };
+    type: 'split';
+    direction: SplitDirection;
+    children: [PanelNode, PanelNode];
+    ratio: number; // 0-1, position of divider
+  };
 
 export interface TabGroup {
   id: string;
@@ -202,7 +202,7 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
   addTerminal: (entry, tabGroupId) =>
     set((state) => {
       const terminals = { ...state.terminals, [entry.sessionId]: entry };
-      let tabGroups = { ...state.tabGroups };
+      const tabGroups = { ...state.tabGroups };
       let splitTree = state.splitTree;
       let activeTabGroupId = state.activeTabGroupId;
 
@@ -226,11 +226,11 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
         const newLeaf: PanelNode = { type: 'leaf', tabGroupId: group.id };
         splitTree = splitTree
           ? {
-              type: 'split',
-              direction: 'horizontal',
-              children: [splitTree, newLeaf],
-              ratio: 0.5,
-            }
+            type: 'split',
+            direction: 'horizontal',
+            children: [splitTree, newLeaf],
+            ratio: 0.5,
+          }
           : newLeaf;
       }
 

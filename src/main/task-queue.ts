@@ -171,7 +171,7 @@ export class TaskQueue {
       const row = db.prepare(
         `SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
          FROM task_queue
-         WHERE target_session_id = ? AND status = 'pending'`,
+         WHERE target_session_id = ? AND status IN ('pending', 'dispatched')`,
       ).get(input.targetSessionId) as { next_order: number };
       sortOrder = row.next_order;
     }
