@@ -24,7 +24,7 @@ describe('session detach and restore', () => {
 
   afterAll(async () => {
     // Reconcile any still-detached sessions so cleanup can kill them
-    const sessions = await client.callToolJson<SessionInfo[]>('session_list', { include_ephemeral: true });
+    const sessions = await client.callToolJson<SessionInfo[]>('session_list');
     const detachedIds = sessions.filter((s) => s.status === 'detached').map((s) => s.sessionId);
     if (detachedIds.length > 0) {
       await client.callToolJson('app_reconcile_detached', { aliveSessionIds: detachedIds });

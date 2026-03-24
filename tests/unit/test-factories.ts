@@ -20,7 +20,6 @@ export function makeSession(overrides: Partial<SessionInfo> = {}): SessionInfo {
     hookMode: 'live',
     sessionType: 'claude',
     terminalConfig: {},
-    ephemeral: false,
     accountId: null,
     ...overrides,
   };

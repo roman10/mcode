@@ -60,7 +60,6 @@ tests/
 │   ├── token-usage        # Token usage stats, heatmap, trends
 │   ├── git-tools          # Git status, diff content, diff viewer
 │   ├── snippet-tools      # Snippet scanning, frontmatter parsing, variable extraction
-│   ├── ephemeral-session  # Ephemeral session creation, sidebar exclusion, terminal I/O
 │   ├── session-account    # Session account assignment (null vs explicit accountId)
 │   ├── session-detach-restore # Detach/reconcile cycle preserving session state & attention
 │   ├── sidebar-session-filter # Sidebar search filter set/get/clear
@@ -613,21 +612,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 4 | auto-extracts variables from body when no frontmatter variables | `snippet_list` | "deploy" has 2 auto-extracted variables (`service`, `environment`) |
 | 5 | returns empty array for directory with no snippets | `snippet_list` | No error for directory without `.mcode/snippets/`; returns valid array |
 
-### 29. Ephemeral Sessions
-
-**File**: `tests/suites/ephemeral-session.test.ts`
-**What it verifies**: Ephemeral session creation, sidebar exclusion, terminal I/O, and kill lifecycle.
-
-| # | Test | MCP tools | What it checks |
-|---|------|-----------|----------------|
-| 1 | creates an ephemeral session | `session_create` | ephemeral is true |
-| 2 | ephemeral session is excluded from sidebar_get_sessions | `sidebar_get_sessions` | Not in sidebar list |
-| 3 | ephemeral session appears in session_list | `session_list` | Present with `include_ephemeral: true` |
-| 4 | ephemeral session has working terminal I/O | `layout_add_tile`, `terminal_send_keys`, `terminal_wait_for_content` | Echo appears in buffer |
-| 5 | can kill an ephemeral session | `session_kill`, `session_wait_for_status`, `session_get_status` | Status becomes ended |
-| 6 | killed ephemeral session still excluded from sidebar | `sidebar_get_sessions` | Still not in sidebar |
-
-### 30. Session Account Assignment
+### 29. Session Account Assignment
 
 **File**: `tests/suites/session-account.test.ts`
 **What it verifies**: Session creation with and without accountId — verifies persistence to DB.
@@ -711,7 +696,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 
 | Feature Area | Suites | Tests | Key behaviors verified |
 |-------------|--------|-------|----------------------|
-| Session lifecycle | 1, 2, 17, 18, 29, 30 | 44 | Create, status transitions, list, label, PTY info, kill, delete, bulk delete, batch delete, idempotent kill, concurrent create/kill, ephemeral sessions, account assignment, error on missing |
+| Session lifecycle | 1, 2, 17, 18, 29 | 38 | Create, status transitions, list, label, PTY info, kill, delete, bulk delete, batch delete, idempotent kill, concurrent create/kill, account assignment, error on missing |
 | Tiling layout | 3, 5, 9, 18, 31 | 31 | Auto-tile on create, add/remove, remove-all, tree structure, detach != kill, re-attach, auto-close on kill, concurrent tiles, 10-session stress |
 | Kanban layout | 4 | 8 | View mode switching, column grouping (working/completed/needs-attention), session expansion, auto-collapse, tile tree in kanban mode |
 | Sidebar | 6, 7, 8, 35 | 17 | Session display, status tracking, DB consistency, selection, width control, tab switching, session filter set/get/clear |

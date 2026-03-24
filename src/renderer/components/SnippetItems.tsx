@@ -3,7 +3,7 @@ import { Command } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
-import { resolveEphemeralCwd } from '../utils/session-actions';
+import { resolveActiveCwd } from '../utils/session-actions';
 import type { SnippetEntry } from '@shared/types';
 
 const uf = new uFuzzy({ intraMode: 1 });
@@ -288,7 +288,7 @@ export default function SnippetItems({
   }, [deletingSnippet, fetchSnippets]);
 
   const handleNewSnippet = useCallback(() => {
-    const cwd = resolveEphemeralCwd();
+    const cwd = resolveActiveCwd();
     window.mcode.snippets.create('user', cwd).then((filePath) => {
       useLayoutStore.getState().addFileViewer(filePath);
       onClose();

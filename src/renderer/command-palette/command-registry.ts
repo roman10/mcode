@@ -6,7 +6,7 @@ import { formatKeys } from '../utils/format-shortcut';
 import { executeAppCommand } from '../utils/app-commands';
 import { useLayoutStore } from '../stores/layout-store';
 import { useSessionStore } from '../stores/session-store';
-import { resolveEphemeralCwd } from '../utils/session-actions';
+import { resolveActiveCwd } from '../utils/session-actions';
 
 export interface CommandEntry {
   id: string;
@@ -75,7 +75,7 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       label: 'Run Shell Command',
       category: 'General',
       shortcut: shortcuts.get('Run Shell Command'),
-      keywords: ['shell', 'terminal', 'execute', 'run', 'command', 'ephemeral'],
+      keywords: ['shell', 'terminal', 'execute', 'run', 'command'],
       enabled: true,
       execute: () => executeAppCommand({ command: 'run-shell-command' }),
     },
@@ -120,7 +120,7 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       keywords: ['snippet', 'template', 'prompt', 'create'],
       enabled: true,
       execute: () => {
-        const cwd = resolveEphemeralCwd();
+        const cwd = resolveActiveCwd();
         window.mcode.snippets.create('user', cwd).then((filePath) => {
           useLayoutStore.getState().addFileViewer(filePath);
         }).catch(console.error);
@@ -133,7 +133,7 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       keywords: ['snippet', 'template', 'prompt', 'folder', 'finder'],
       enabled: true,
       execute: () => {
-        const cwd = resolveEphemeralCwd();
+        const cwd = resolveActiveCwd();
         window.mcode.snippets.openFolder('user', cwd).catch(console.error);
       },
     },
@@ -283,7 +283,7 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
 
   // Dynamic entries: jump to any session by name
   for (const session of Object.values(sessions)) {
-    if (session.ephemeral) continue;
+    if (session.sessionType === 'terminal') continue;
     commands.push({
       id: `focus:${session.sessionId}`,
       label: session.label || 'Untitled',

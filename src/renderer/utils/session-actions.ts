@@ -34,14 +34,13 @@ export async function createTerminalSession(tabGroupId?: string): Promise<void> 
       label: session.label || 'Terminal',
       cwd,
       repo: basename(cwd),
-      isEphemeral: false,
     },
     tabGroupId,
   );
 }
 
-/** Resolve the CWD for ephemeral commands: selected session's cwd or $HOME. */
-export function resolveEphemeralCwd(): string {
+/** Resolve the CWD from the selected session or most recent session, falling back to $HOME. */
+export function resolveActiveCwd(): string {
   const { sessions, selectedSessionId } = useSessionStore.getState();
   const selectedSession = selectedSessionId ? sessions[selectedSessionId] : null;
   if (selectedSession) return selectedSession.cwd;
@@ -54,32 +53,26 @@ export function resolveEphemeralCwd(): string {
 }
 
 /**
- * Run an ephemeral shell command. Creates a background terminal session
- * that auto-closes on success. Rendered as a tab in the terminal panel.
+ * Run a shell command in a new terminal tab in the bottom panel.
  */
-export async function runEphemeralCommand(
+export async function runShellCommand(
   commandString: string,
   cwd?: string,
 ): Promise<void> {
-  const effectiveCwd = cwd ?? resolveEphemeralCwd();
+  const effectiveCwd = cwd ?? resolveActiveCwd();
 
   const session = await window.mcode.sessions.create({
     cwd: effectiveCwd,
     command: '/bin/sh',
     args: ['-c', commandString],
     sessionType: 'terminal',
-    ephemeral: true,
     label: commandString,
   });
 
-  // Add as ephemeral terminal tab in the panel
   useTerminalPanelStore.getState().addTerminal({
     sessionId: session.sessionId,
     label: commandString,
     cwd: effectiveCwd,
     repo: basename(effectiveCwd),
-    isEphemeral: true,
-    ephemeralCommand: commandString,
-    ephemeralStatus: 'running',
   });
 }

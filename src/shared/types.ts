@@ -87,7 +87,6 @@ export interface SessionInfo {
   hookMode: 'live' | 'fallback';
   sessionType: SessionType;
   terminalConfig: TerminalConfig;
-  ephemeral: boolean;
   accountId: string | null;
 }
 
@@ -101,7 +100,6 @@ export interface SessionCreateInput {
   command?: string;
   args?: string[];
   sessionType?: SessionType;
-  ephemeral?: boolean;
   accountId?: string;
 }
 

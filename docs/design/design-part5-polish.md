@@ -29,7 +29,7 @@ Final Phase 8 shortcut set:
 |---|---|---|---|
 | `Cmd+N` | New Claude session dialog | App menu accelerator | Existing renderer shortcut stays functionally identical; final implementation should move this to the menu so xterm cannot swallow it |
 | `Cmd+T` | New terminal session | App menu accelerator | Replaces the stale "new task" assumption |
-| `Cmd+1..9` | Focus session by index | App menu accelerator | Index is based on the current visible sidebar session order, excluding external history and ephemeral sessions |
+| `Cmd+1..9` | Focus session by index | App menu accelerator | Index is based on the current visible sidebar session order, excluding terminal sessions |
 | `Cmd+]` / `Cmd+[` | Focus next/previous session | App menu accelerator | Uses the same ordering source as `Cmd+1..9`; accelerator entries also suppress browser back/forward |
 | `Cmd+\` | Toggle sidebar collapsed state | App menu accelerator | Requires persisted `sidebarCollapsed` state in layout storage |
 | `Cmd+W` | Close current tile | Tile `onKeyDown` | PTY keeps running |

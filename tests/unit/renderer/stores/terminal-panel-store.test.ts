@@ -12,7 +12,6 @@ function makeEntry(
     label: overrides.label ?? 'Terminal',
     cwd: overrides.cwd ?? '/home/user',
     repo: overrides.repo ?? 'user',
-    isEphemeral: overrides.isEphemeral ?? false,
     ...overrides,
   };
 }
@@ -109,52 +108,6 @@ describe('terminal-panel-store', () => {
       useTerminalPanelStore.getState().cycleTab(-1);
       const group = Object.values(useTerminalPanelStore.getState().tabGroups)[0];
       expect(group.activeTerminalId).toBe('a');
-    });
-  });
-
-  describe('ephemeral lifecycle', () => {
-    it('completeEphemeral sets status on success', () => {
-      useTerminalPanelStore.getState().addTerminal(
-        makeEntry({ sessionId: 'e1', isEphemeral: true, ephemeralStatus: 'running' }),
-      );
-      useTerminalPanelStore.getState().completeEphemeral('e1', 0);
-
-      expect(useTerminalPanelStore.getState().terminals['e1'].ephemeralStatus).toBe('success');
-      expect(useTerminalPanelStore.getState().terminals['e1'].ephemeralExitCode).toBe(0);
-    });
-
-    it('completeEphemeral sets status on error', () => {
-      useTerminalPanelStore.getState().addTerminal(
-        makeEntry({ sessionId: 'e1', isEphemeral: true, ephemeralStatus: 'running' }),
-      );
-      useTerminalPanelStore.getState().completeEphemeral('e1', 1);
-
-      expect(useTerminalPanelStore.getState().terminals['e1'].ephemeralStatus).toBe('error');
-    });
-
-    it('keepEphemeral converts to persistent terminal', () => {
-      useTerminalPanelStore.getState().addTerminal(
-        makeEntry({
-          sessionId: 'e1',
-          isEphemeral: true,
-          ephemeralCommand: 'npm test',
-          ephemeralStatus: 'success',
-        }),
-      );
-      useTerminalPanelStore.getState().keepEphemeral('e1');
-
-      const t = useTerminalPanelStore.getState().terminals['e1'];
-      expect(t.isEphemeral).toBe(false);
-      expect(t.ephemeralCommand).toBeUndefined();
-      expect(t.ephemeralStatus).toBeUndefined();
-    });
-
-    it('ignores completeEphemeral for non-ephemeral terminals', () => {
-      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 's1' }));
-      useTerminalPanelStore.getState().completeEphemeral('s1', 0);
-
-      // Should be unchanged
-      expect(useTerminalPanelStore.getState().terminals['s1'].ephemeralStatus).toBeUndefined();
     });
   });
 

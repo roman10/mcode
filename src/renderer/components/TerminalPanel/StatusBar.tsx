@@ -1,55 +1,7 @@
 import { useEffect, useState } from 'react';
-import {
-  useTerminalPanelStore,
-  type TerminalEntry,
-} from '../../stores/terminal-panel-store';
+import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 
 const DISMISS_KEY = 'update-dismissed-version';
-
-/** Compact pill showing an ephemeral command's status in the status bar. */
-function EphemeralPill({ entry }: { entry: TerminalEntry }): React.JSX.Element {
-  const activateTerminal = useTerminalPanelStore((s) => s.activateTerminal);
-  const setPanelVisible = useTerminalPanelStore((s) => s.setPanelVisible);
-
-  const colorClass =
-    entry.ephemeralStatus === 'error'
-      ? 'text-red-400'
-      : entry.ephemeralStatus === 'success'
-        ? 'text-green-400'
-        : 'text-text-secondary';
-
-  return (
-    <button
-      type="button"
-      className={`
-        flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono
-        transition-colors cursor-pointer shrink-0
-        hover:bg-bg-secondary ${colorClass}
-      `}
-      onClick={() => {
-        setPanelVisible(true);
-        activateTerminal(entry.sessionId);
-      }}
-      title={`${entry.ephemeralCommand ?? entry.label} (${entry.repo})`}
-    >
-      {entry.ephemeralStatus === 'running' && (
-        <span className="inline-block w-3 h-3 shrink-0">
-          <svg className="animate-spin w-3 h-3" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" strokeLinecap="round" />
-          </svg>
-        </span>
-      )}
-      {entry.ephemeralStatus === 'success' && <span className="shrink-0">✓</span>}
-      {entry.ephemeralStatus === 'error' && <span className="shrink-0">✗</span>}
-      <span className="truncate max-w-[200px]">
-        {entry.ephemeralCommand ?? entry.label}
-      </span>
-      <span className="shrink-0 text-xs text-text-muted px-1 rounded bg-bg-primary/50">
-        {entry.repo}
-      </span>
-    </button>
-  );
-}
 
 function UpdatePill({
   version,
@@ -121,9 +73,7 @@ export default function StatusBar(): React.JSX.Element | null {
 
   const showUpdate = updateVersion !== null && updateVersion !== dismissedVersion;
 
-  const terminalList = Object.values(terminals);
-  const terminalCount = terminalList.length;
-  const ephemeralEntries = terminalList.filter((t) => t.isEphemeral);
+  const terminalCount = Object.keys(terminals).length;
 
   // Show nothing if no terminals and no update
   if (terminalCount === 0 && !showUpdate) return null;
@@ -142,12 +92,6 @@ export default function StatusBar(): React.JSX.Element | null {
           <span>Terminal{terminalCount > 1 ? `s (${terminalCount})` : ''}</span>
         </button>
       )}
-
-      {/* Ephemeral command pills (shown when panel is collapsed) */}
-      {!panelVisible &&
-        ephemeralEntries.map((entry) => (
-          <EphemeralPill key={entry.sessionId} entry={entry} />
-        ))}
 
       {showUpdate && (
         <UpdatePill

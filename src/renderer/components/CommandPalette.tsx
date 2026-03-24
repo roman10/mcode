@@ -6,7 +6,7 @@ import { useLayoutStore } from '../stores/layout-store';
 import { getCommands } from '../command-palette/command-registry';
 import { basename } from '../utils/path-utils';
 import { getFileIcon } from '../utils/file-icons';
-import { runEphemeralCommand, resolveEphemeralCwd } from '../utils/session-actions';
+import { runShellCommand, resolveActiveCwd } from '../utils/session-actions';
 import SnippetItems from './SnippetItems';
 
 const uf = new uFuzzy({ intraMode: 1 });
@@ -304,7 +304,7 @@ function CommandItems({
 
 // --- Shell command history ---
 
-const SHELL_HISTORY_KEY = 'ephemeral-shell-history';
+const SHELL_HISTORY_KEY = 'shell-history';
 const MAX_HISTORY_ITEMS = 20;
 
 async function loadShellHistory(): Promise<string[]> {
@@ -336,7 +336,7 @@ function ShellModeContent({
   onClose: () => void;
   onSetInput: (value: string) => void;
 }): React.JSX.Element {
-  const cwd = useMemo(() => resolveEphemeralCwd(), []);
+  const cwd = useMemo(() => resolveActiveCwd(), []);
   const cwdBasename = useMemo(() => basename(cwd), [cwd]);
   const [history, setHistory] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -350,7 +350,7 @@ function ShellModeContent({
     const toRun = cmd ?? query.trim();
     if (!toRun) return;
     saveToShellHistory(toRun).catch(console.error);
-    runEphemeralCommand(toRun, cwd).catch(console.error);
+    runShellCommand(toRun, cwd).catch(console.error);
     onClose();
   }, [query, cwd, onClose]);
 

@@ -8,13 +8,11 @@ export function registerSessionTools(
   ctx: McpServerContext,
 ): void {
   server.registerTool('session_list', {
-    description: 'List all sessions with their status and metadata. Ephemeral sessions are excluded by default.',
-    inputSchema: {
-      include_ephemeral: z.boolean().optional().describe('If true, include ephemeral (test/verification) sessions in the list'),
-    },
+    description: 'List all sessions with their status and metadata.',
+    inputSchema: {},
     annotations: { readOnlyHint: true },
-  }, async ({ include_ephemeral }) => {
-    const sessions = ctx.sessionManager.list({ includeEphemeral: include_ephemeral });
+  }, async () => {
+    const sessions = ctx.sessionManager.list();
     return {
       content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }],
     };
@@ -31,12 +29,11 @@ export function registerSessionTools(
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
       args: z.array(z.string()).optional().describe('Arguments for the command (e.g. ["-c", "git push"] for terminal sessions)'),
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
-      ephemeral: z.boolean().optional().describe('If true, session is hidden from sidebar and auto-deleted when ended. Use for test/verification sessions.'),
       worktree: z.string().optional().describe('Run session in an isolated git worktree. Pass a name to create a named worktree, or empty string to auto-generate. Ignored for terminal sessions.'),
       accountId: z.string().optional().describe('Account profile ID to run this session under'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, args, sessionType, ephemeral, worktree, accountId }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, args, sessionType, worktree, accountId }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -47,7 +44,6 @@ export function registerSessionTools(
         command,
         args,
         sessionType,
-        ephemeral,
         worktree,
         accountId,
       });

@@ -26,10 +26,6 @@ export interface TerminalEntry {
   label: string;
   cwd: string;
   repo: string; // basename(cwd)
-  isEphemeral: boolean;
-  ephemeralCommand?: string; // original command string (ephemeral only)
-  ephemeralStatus?: 'running' | 'success' | 'error';
-  ephemeralExitCode?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -37,7 +33,6 @@ export interface TerminalEntry {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_PANEL_HEIGHT = 200;
-const EPHEMERAL_AUTO_CLOSE_MS = 5000;
 
 // ---------------------------------------------------------------------------
 // Store interface
@@ -65,10 +60,6 @@ interface TerminalPanelState {
   removeTerminal(sessionId: string): void;
   activateTerminal(sessionId: string): void;
   updateTerminalLabel(sessionId: string, label: string): void;
-
-  // Ephemeral lifecycle
-  completeEphemeral(sessionId: string, exitCode: number): void;
-  keepEphemeral(sessionId: string): void;
 
   // Tab group management
   activateTabGroup(tabGroupId: string): void;
@@ -300,53 +291,6 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
       if (!entry) return state;
       return {
         terminals: { ...state.terminals, [sessionId]: { ...entry, label } },
-      };
-    }),
-
-  // ---------------------------------------------------------------------------
-  // Ephemeral lifecycle
-  // ---------------------------------------------------------------------------
-
-  completeEphemeral: (sessionId, exitCode) =>
-    set((state) => {
-      const entry = state.terminals[sessionId];
-      if (!entry || !entry.isEphemeral) return state;
-
-      const status = exitCode === 0 ? 'success' : 'error';
-      const terminals = {
-        ...state.terminals,
-        [sessionId]: { ...entry, ephemeralStatus: status, ephemeralExitCode: exitCode },
-      };
-
-      // Schedule auto-close for successful ephemeral commands.
-      // removeTerminal already collapses the panel when no terminals remain.
-      if (status === 'success') {
-        setTimeout(() => {
-          const t = get().terminals[sessionId];
-          if (t?.isEphemeral && t.ephemeralStatus === 'success') {
-            get().removeTerminal(sessionId);
-          }
-        }, EPHEMERAL_AUTO_CLOSE_MS);
-      }
-
-      return { terminals };
-    }),
-
-  keepEphemeral: (sessionId) =>
-    set((state) => {
-      const entry = state.terminals[sessionId];
-      if (!entry) return state;
-      return {
-        terminals: {
-          ...state.terminals,
-          [sessionId]: {
-            ...entry,
-            isEphemeral: false,
-            ephemeralCommand: undefined,
-            ephemeralStatus: undefined,
-            ephemeralExitCode: undefined,
-          },
-        },
       };
     }),
 

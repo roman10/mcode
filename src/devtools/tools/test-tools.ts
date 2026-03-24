@@ -15,7 +15,7 @@ export function registerTestTools(
     const summary: string[] = [];
 
     // 1. Kill all active/starting sessions
-    const sessions = ctx.sessionManager.list({ includeEphemeral: true });
+    const sessions = ctx.sessionManager.list();
     const toKill = sessions.filter((s) => s.status !== 'ended');
     for (const s of toKill) {
       try {
@@ -88,7 +88,7 @@ export function registerTestTools(
     annotations: { readOnlyHint: false },
   }, async () => {
     ctx.sessionManager.detachAllActive();
-    const sessions = ctx.sessionManager.list({ includeEphemeral: true });
+    const sessions = ctx.sessionManager.list();
     const detached = sessions.filter((s) => s.status === 'detached');
     return {
       content: [{
@@ -107,7 +107,7 @@ export function registerTestTools(
     annotations: { readOnlyHint: false },
   }, async ({ aliveSessionIds }) => {
     ctx.sessionManager.reconcileDetachedSessions(aliveSessionIds);
-    const sessions = ctx.sessionManager.list({ includeEphemeral: true });
+    const sessions = ctx.sessionManager.list();
     return {
       content: [{
         type: 'text',

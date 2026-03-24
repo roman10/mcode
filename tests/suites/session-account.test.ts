@@ -34,7 +34,7 @@ describe('session account assignment', () => {
   });
 
   it('creates session without accountId → accountId is null', async () => {
-    const session = await createTestSession(client, { ephemeral: true });
+    const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
 
     expect(session.accountId).toBeNull();
@@ -48,7 +48,6 @@ describe('session account assignment', () => {
   it('creates session with accountId → accountId is stored', async () => {
     const session = await createTestSession(client, {
       accountId: defaultAccount.accountId,
-      ephemeral: true,
     });
     sessionIds.push(session.sessionId);
 

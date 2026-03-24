@@ -3,16 +3,6 @@ import { getOrderedVisibleSessions, getOrderedOpenSessions } from '../../../../s
 import { makeSession } from '../../test-factories';
 
 describe('getOrderedVisibleSessions', () => {
-  it('filters out ephemeral sessions', () => {
-    const sessions = {
-      s1: makeSession({ sessionId: 's1', ephemeral: false }),
-      s2: makeSession({ sessionId: 's2', ephemeral: true }),
-    };
-    const result = getOrderedVisibleSessions(sessions);
-    expect(result).toHaveLength(1);
-    expect(result[0].sessionId).toBe('s1');
-  });
-
   it('filters out terminal sessions (they live in the bottom panel)', () => {
     const sessions = {
       s1: makeSession({ sessionId: 's1', sessionType: 'claude' }),
@@ -58,13 +48,6 @@ describe('getOrderedVisibleSessions', () => {
     expect(getOrderedVisibleSessions({})).toEqual([]);
   });
 
-  it('returns empty array when all sessions are ephemeral', () => {
-    const sessions = {
-      s1: makeSession({ sessionId: 's1', ephemeral: true }),
-    };
-    expect(getOrderedVisibleSessions(sessions)).toEqual([]);
-  });
-
   it('combines all sort criteria correctly', () => {
     const sessions = {
       // action + active (newest) → first
@@ -73,8 +56,8 @@ describe('getOrderedVisibleSessions', () => {
       s2: makeSession({ sessionId: 's2', attentionLevel: 'action', status: 'active', startedAt: '2026-03-20T10:00:00Z' }),
       // none + active → third
       s3: makeSession({ sessionId: 's3', attentionLevel: 'none', status: 'active', startedAt: '2026-03-22T10:00:00Z' }),
-      // ephemeral → filtered
-      s4: makeSession({ sessionId: 's4', ephemeral: true }),
+      // terminal → filtered
+      s4: makeSession({ sessionId: 's4', sessionType: 'terminal' }),
     };
     const result = getOrderedVisibleSessions(sessions);
     expect(result.map((s) => s.sessionId)).toEqual(['s1', 's2', 's3']);
@@ -91,16 +74,6 @@ describe('getOrderedOpenSessions', () => {
     const result = getOrderedOpenSessions(sessions);
     expect(result).toHaveLength(2);
     expect(result.map((s) => s.sessionId)).not.toContain('s2');
-  });
-
-  it('excludes ephemeral sessions (inherited from getOrderedVisibleSessions)', () => {
-    const sessions = {
-      s1: makeSession({ sessionId: 's1', ephemeral: true }),
-      s2: makeSession({ sessionId: 's2', status: 'active' }),
-    };
-    const result = getOrderedOpenSessions(sessions);
-    expect(result).toHaveLength(1);
-    expect(result[0].sessionId).toBe('s2');
   });
 
   it('returns empty array when all sessions are ended', () => {

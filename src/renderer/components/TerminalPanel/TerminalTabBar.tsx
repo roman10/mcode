@@ -38,24 +38,6 @@ function TabItem({
     [closeTerminal],
   );
 
-  // Status indicator for ephemeral commands
-  let statusIcon: React.ReactNode = null;
-  if (entry.isEphemeral) {
-    if (entry.ephemeralStatus === 'running') {
-      statusIcon = (
-        <span className="inline-block w-3 h-3 shrink-0">
-          <svg className="animate-spin w-3 h-3" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" strokeLinecap="round" />
-          </svg>
-        </span>
-      );
-    } else if (entry.ephemeralStatus === 'success') {
-      statusIcon = <span className="text-green-400 shrink-0">✓</span>;
-    } else if (entry.ephemeralStatus === 'error') {
-      statusIcon = <span className="text-red-400 shrink-0">✗</span>;
-    }
-  }
-
   return (
     <button
       type="button"
@@ -63,18 +45,12 @@ function TabItem({
         flex items-center gap-1.5 px-2 py-0.5 text-xs font-mono rounded
         cursor-pointer shrink-0 max-w-[200px] group
         ${isActive ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:bg-bg-secondary'}
-        ${entry.isEphemeral ? 'italic' : ''}
-        ${entry.ephemeralStatus === 'error' ? 'text-red-400' : ''}
       `}
       onClick={() => activateTerminal(entry.sessionId)}
       onMouseDown={handleMiddleClick}
       title={`${entry.label} (${entry.cwd})`}
     >
-      {statusIcon}
-      {/* Terminal icon for non-ephemeral */}
-      {!entry.isEphemeral && (
-        <span className="text-text-muted shrink-0">&gt;_</span>
-      )}
+      <span className="text-text-muted shrink-0">&gt;_</span>
       <span className="truncate">{entry.label}</span>
       {/* Repo badge */}
       <span className="shrink-0 text-xs text-text-muted px-1 rounded bg-bg-primary/50">

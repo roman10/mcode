@@ -76,7 +76,7 @@ function App(): React.JSX.Element {
         const allIds = new Set(allSessions.map((s) => s.sessionId));
         pruneTiles(allIds);
 
-        // Strip ephemeral file viewer tiles from previous session
+        // Strip temporary file viewer tiles from previous session
         stripFileTiles();
 
         // Migrate terminal-type session tiles from mosaic to bottom panel
@@ -93,7 +93,6 @@ function App(): React.JSX.Element {
                 label: sess.label || 'Terminal',
                 cwd: sess.cwd,
                 repo: basename(sess.cwd),
-                isEphemeral: false,
               });
               useLayoutStore.getState().removeTile(sid);
             }
@@ -158,11 +157,9 @@ function App(): React.JSX.Element {
   }, [upsertSession]);
 
   // Listen for sessions created externally (e.g. via MCP devtools)
-  // Skip ephemeral sessions — they are handled by session-actions.ts
   // Terminal sessions go to the bottom panel; Claude sessions go to mosaic tiles
   useEffect(() => {
     const unsub = window.mcode.sessions.onCreated((session) => {
-      if (session.ephemeral) return;
       addSession(session);
       if (session.sessionType === 'terminal') {
         // Route to terminal panel instead of mosaic layout
@@ -171,7 +168,6 @@ function App(): React.JSX.Element {
           label: session.label || 'Terminal',
           cwd: session.cwd,
           repo: basename(session.cwd),
-          isEphemeral: false,
         });
       } else {
         addTile(session.sessionId);
@@ -221,17 +217,11 @@ function App(): React.JSX.Element {
   }, [upsertTask, removeTask, refreshTasks]);
 
   // pty:data events are handled directly by TerminalInstance (no central routing needed).
-  // Ephemeral terminals use full xterm.js — no string-buffer capture.
 
-  // Route pty:exit events to session exit codes + terminal panel ephemeral status
+  // Route pty:exit events to session exit codes
   useEffect(() => {
     const unsub = window.mcode.pty.onExit((sessionId, payload) => {
       useSessionStore.getState().setExitCode(sessionId, payload.code);
-      // Update ephemeral terminal status in the panel store
-      const entry = useTerminalPanelStore.getState().terminals[sessionId];
-      if (entry?.isEphemeral) {
-        useTerminalPanelStore.getState().completeEphemeral(sessionId, payload.code);
-      }
     });
     return unsub;
   }, []);

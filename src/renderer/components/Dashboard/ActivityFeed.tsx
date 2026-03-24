@@ -74,7 +74,7 @@ function ActivityFeed(): React.JSX.Element {
 
   // Build session options for filter
   const sessionOptions = Object.values(sessions)
-    .filter((s) => !s.ephemeral)
+    .filter((s) => s.sessionType !== 'terminal')
     .map((s) => ({ value: s.sessionId, label: s.label }));
 
   const handleClearAll = async (): Promise<void> => {

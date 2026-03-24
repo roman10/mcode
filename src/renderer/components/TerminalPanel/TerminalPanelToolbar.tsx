@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import type { SplitDirection } from '../../stores/terminal-panel-store';
-import { runEphemeralCommand } from '../../utils/session-actions';
 
 export default function TerminalPanelToolbar(): React.JSX.Element {
   const panelPinned = useTerminalPanelStore((s) => s.panelPinned);
@@ -11,7 +10,6 @@ export default function TerminalPanelToolbar(): React.JSX.Element {
   const activeTabGroupId = useTerminalPanelStore((s) => s.activeTabGroupId);
   const tabGroups = useTerminalPanelStore((s) => s.tabGroups);
   const removeTerminal = useTerminalPanelStore((s) => s.removeTerminal);
-  const keepEphemeral = useTerminalPanelStore((s) => s.keepEphemeral);
   const splitTabGroup = useTerminalPanelStore((s) => s.splitTabGroup);
 
   const activeGroup = activeTabGroupId ? tabGroups[activeTabGroupId] : undefined;
@@ -22,16 +20,6 @@ export default function TerminalPanelToolbar(): React.JSX.Element {
     window.mcode.sessions.kill(activeEntry.sessionId).catch(() => {});
     removeTerminal(activeEntry.sessionId);
   }, [activeEntry, removeTerminal]);
-
-  const handleKeep = useCallback(() => {
-    if (!activeEntry) return;
-    keepEphemeral(activeEntry.sessionId);
-  }, [activeEntry, keepEphemeral]);
-
-  const handleRetry = useCallback(() => {
-    if (!activeEntry?.ephemeralCommand) return;
-    runEphemeralCommand(activeEntry.ephemeralCommand, activeEntry.cwd).catch(console.error);
-  }, [activeEntry]);
 
   const handleSplit = useCallback(
     (direction: SplitDirection) => {
@@ -55,29 +43,6 @@ export default function TerminalPanelToolbar(): React.JSX.Element {
       {/* Actions for active terminal */}
       {activeEntry && (
         <div className="flex items-center gap-1 shrink-0">
-          {/* Keep + Retry buttons for ephemeral terminals */}
-          {activeEntry.isEphemeral && activeEntry.ephemeralStatus !== 'running' && (
-            <>
-              <button
-                type="button"
-                className="px-1.5 py-0.5 text-xs text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
-                onClick={handleKeep}
-                title="Keep this terminal (prevent auto-close)"
-              >
-                Keep
-              </button>
-              {activeEntry.ephemeralCommand && (
-                <button
-                  type="button"
-                  className="px-1.5 py-0.5 text-xs text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
-                  onClick={handleRetry}
-                  title="Re-run this command"
-                >
-                  Retry
-                </button>
-              )}
-            </>
-          )}
           {/* Kill button */}
           <button
             type="button"
