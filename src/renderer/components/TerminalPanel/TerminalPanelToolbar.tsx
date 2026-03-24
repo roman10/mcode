@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import type { SplitDirection } from '../../stores/terminal-panel-store';
+import Tooltip from '../shared/Tooltip';
+import { formatKeys } from '../../utils/format-shortcut';
 
 export default function TerminalPanelToolbar(): React.JSX.Element {
   const panelPinned = useTerminalPanelStore((s) => s.panelPinned);
@@ -44,68 +46,73 @@ export default function TerminalPanelToolbar(): React.JSX.Element {
       {activeEntry && (
         <div className="flex items-center gap-1 shrink-0">
           {/* Kill button */}
-          <button
-            type="button"
-            className="px-1.5 py-0.5 text-xs text-text-muted hover:text-red-400 cursor-pointer"
-            onClick={handleKill}
-            title="Kill terminal"
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-              <rect x="1" y="1" width="8" height="8" rx="1" />
-            </svg>
-          </button>
+          <Tooltip content={`Kill terminal (${formatKeys('Shift+W', true)})`} side="top">
+            <button
+              type="button"
+              className="px-1.5 py-0.5 text-xs text-text-muted hover:text-red-400 cursor-pointer"
+              onClick={handleKill}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <rect x="1" y="1" width="8" height="8" rx="1" />
+              </svg>
+            </button>
+          </Tooltip>
         </div>
       )}
 
       {/* Split buttons */}
-      <button
-        type="button"
-        className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
-        onClick={() => handleSplit('horizontal')}
-        title="Split right (⌘D)"
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="1" y="1" width="14" height="14" rx="1" />
-          <line x1="8" y1="1" x2="8" y2="15" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
-        onClick={() => handleSplit('vertical')}
-        title="Split down (⌘⇧D)"
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="1" y="1" width="14" height="14" rx="1" />
-          <line x1="1" y1="8" x2="15" y2="8" />
-        </svg>
-      </button>
+      <Tooltip content={`Split right (${formatKeys('D', true)})`} side="top">
+        <button
+          type="button"
+          className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+          onClick={() => handleSplit('horizontal')}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <rect x="1" y="1" width="14" height="14" rx="1" />
+            <line x1="8" y1="1" x2="8" y2="15" />
+          </svg>
+        </button>
+      </Tooltip>
+      <Tooltip content={`Split down (${formatKeys('Shift+D', true)})`} side="top">
+        <button
+          type="button"
+          className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+          onClick={() => handleSplit('vertical')}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <rect x="1" y="1" width="14" height="14" rx="1" />
+            <line x1="1" y1="8" x2="15" y2="8" />
+          </svg>
+        </button>
+      </Tooltip>
 
       {/* Pin toggle */}
-      <button
-        type="button"
-        className={`shrink-0 px-1 text-xs cursor-pointer ${panelPinned ? 'text-accent' : 'text-text-muted hover:text-text-secondary'}`}
-        onClick={togglePanelPinned}
-        title={panelPinned ? 'Unpin panel (allow auto-collapse)' : 'Pin panel open'}
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          {panelPinned ? (
-            <path d="M8 2v5M5 7h6M6 7v3l2 2 2-2V7" />
-          ) : (
-            <path d="M8 2v5M5 7h6M6 7v3l2 2 2-2V7" opacity="0.5" />
-          )}
-        </svg>
-      </button>
+      <Tooltip content={panelPinned ? 'Unpin panel (allow auto-collapse)' : 'Pin panel open'} side="top">
+        <button
+          type="button"
+          className={`shrink-0 px-1 text-xs cursor-pointer ${panelPinned ? 'text-accent' : 'text-text-muted hover:text-text-secondary'}`}
+          onClick={togglePanelPinned}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            {panelPinned ? (
+              <path d="M8 2v5M5 7h6M6 7v3l2 2 2-2V7" />
+            ) : (
+              <path d="M8 2v5M5 7h6M6 7v3l2 2 2-2V7" opacity="0.5" />
+            )}
+          </svg>
+        </button>
+      </Tooltip>
 
       {/* Collapse button */}
-      <button
-        type="button"
-        className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
-        onClick={() => setPanelVisible(false)}
-        title="Collapse panel"
-      >
-        ▼
-      </button>
+      <Tooltip content="Collapse panel" side="top">
+        <button
+          type="button"
+          className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+          onClick={() => setPanelVisible(false)}
+        >
+          ▼
+        </button>
+      </Tooltip>
     </div>
   );
 }

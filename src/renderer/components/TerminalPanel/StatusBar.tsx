@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
+import Tooltip from '../shared/Tooltip';
+import { formatKeys } from '../../utils/format-shortcut';
 
 const DISMISS_KEY = 'update-dismissed-version';
 
@@ -15,7 +17,6 @@ function UpdatePill({
       type="button"
       className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono transition-colors cursor-pointer shrink-0 text-accent hover:bg-accent/20 ml-auto"
       onClick={() => window.mcode.app.openUpdatePage()}
-      title={`Open download page for v${version}`}
     >
       <span>v{version} available</span>
       <svg
@@ -33,24 +34,25 @@ function UpdatePill({
         <path d="M7 1.5h3.5V5" />
         <path d="M5 7L10.5 1.5" />
       </svg>
-      <span
-        role="button"
-        tabIndex={0}
-        className="shrink-0 ml-0.5 text-text-muted hover:text-text-primary"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDismiss();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+      <Tooltip content="Dismiss" side="top">
+        <span
+          role="button"
+          tabIndex={0}
+          className="shrink-0 ml-0.5 text-text-muted hover:text-text-primary"
+          onClick={(e) => {
             e.stopPropagation();
             onDismiss();
-          }
-        }}
-        title="Dismiss"
-      >
-        ×
-      </span>
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation();
+              onDismiss();
+            }
+          }}
+        >
+          ×
+        </span>
+      </Tooltip>
     </button>
   );
 }
@@ -82,15 +84,16 @@ export default function StatusBar(): React.JSX.Element | null {
     <div className="h-6 shrink-0 flex items-center gap-1 px-2 bg-bg-secondary border-t border-border-subtle text-xs overflow-x-auto">
       {/* Terminal panel toggle (when collapsed) */}
       {terminalCount > 0 && !panelVisible && (
-        <button
-          type="button"
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-primary/50 cursor-pointer shrink-0"
-          onClick={() => setPanelVisible(true)}
-          title="Show terminal panel"
-        >
-          <span className="font-mono">&gt;_</span>
-          <span>Terminal{terminalCount > 1 ? `s (${terminalCount})` : ''}</span>
-        </button>
+        <Tooltip content={`Toggle terminal panel (${formatKeys('`', true)})`} side="top">
+          <button
+            type="button"
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-primary/50 cursor-pointer shrink-0"
+            onClick={() => setPanelVisible(true)}
+          >
+            <span className="font-mono">&gt;_</span>
+            <span>Terminal{terminalCount > 1 ? `s (${terminalCount})` : ''}</span>
+          </button>
+        </Tooltip>
       )}
 
       {showUpdate && (

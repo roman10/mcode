@@ -56,6 +56,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Zoom In', keys: '=', mod: true, category: 'terminal' },
   { label: 'Zoom Out', keys: '-', mod: true, category: 'terminal' },
   { label: 'Reset Zoom', keys: '0', mod: true, category: 'terminal' },
+  { label: 'Rename Terminal', keys: 'F2', mod: false, category: 'terminal' },
 
   // Search (when search bar is open)
   { label: 'Next Result', keys: 'Enter', mod: false, category: 'search' },
