@@ -20,11 +20,12 @@ import type { HookEventName } from './session-state-machine';
 import {
   DEFAULT_COLS,
   DEFAULT_ROWS,
-  HOOK_EVENT_RETENTION_DAYS,
   HOOK_TOOL_INPUT_MAX_BYTES,
   type EffortLevel,
   type PermissionMode,
 } from '../shared/constants';
+import { SessionEventStore } from './session-event-store';
+import { LayoutRepository } from './layout-repository';
 import type {
   SessionInfo,
   SessionType,
@@ -34,9 +35,11 @@ import type {
   ExternalSessionInfo,
   HookEvent,
   HookRuntimeInfo,
+  LayoutStateSnapshot,
   SessionDefaults,
   TerminalConfig,
 } from '../shared/types';
+import { typedHandle } from './ipc-helpers';
 
 interface SessionRecord {
   session_id: string;
@@ -63,31 +66,6 @@ interface SessionRecord {
 function isClaudeCommand(command: string): boolean {
   const normalized = basename(command).toLowerCase();
   return normalized === 'claude' || normalized === 'claude.exe' || normalized === 'claude.cmd';
-}
-
-function serializeToolInput(
-  toolInput: Record<string, unknown> | null,
-): string | null {
-  if (!toolInput) return null;
-
-  const json = JSON.stringify(toolInput);
-  if (json.length <= HOOK_TOOL_INPUT_MAX_BYTES) {
-    return json;
-  }
-
-  return JSON.stringify({
-    _truncated: true,
-    _originalLength: json.length,
-  });
-}
-
-function tryParseJson<T>(value: string | null): T | null {
-  if (!value) return null;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return null;
-  }
 }
 
 function toSessionInfo(row: SessionRecord): SessionInfo {
@@ -169,6 +147,8 @@ export class SessionManager {
   private hookRuntimeGetter: () => HookRuntimeInfo;
   private accountManager: AccountManager;
   private sessionListeners = new Set<SessionUpdateListener>();
+  private eventStore: SessionEventStore;
+  private layoutRepo: LayoutRepository;
 
   constructor(
     ptyManager: IPtyManager,
@@ -180,6 +160,8 @@ export class SessionManager {
     this.getWebContents = getWebContents;
     this.hookRuntimeGetter = hookRuntimeGetter;
     this.accountManager = accountManager;
+    this.eventStore = new SessionEventStore(HOOK_TOOL_INPUT_MAX_BYTES);
+    this.layoutRepo = new LayoutRepository();
   }
 
   /** Subscribe to session updates in the main process (used by TaskQueue). */
@@ -660,7 +642,7 @@ export class SessionManager {
     const newStatus = result.status;
 
     // Persist event with computed status
-    this.persistEvent(sessionId, event, newStatus);
+    this.eventStore.persistEvent(sessionId, event, newStatus);
 
     // Build update
     const updates: string[] = [];
@@ -711,25 +693,6 @@ export class SessionManager {
     }
 
     return true;
-  }
-
-  private persistEvent(sessionId: string, event: HookEvent, sessionStatus: SessionStatus): void {
-    const db = getDb();
-    const toolInput = serializeToolInput(event.toolInput);
-
-    db.prepare(
-      `INSERT INTO events (session_id, claude_session_id, hook_event_name, tool_name, tool_input, payload, created_at, session_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      sessionId,
-      event.claudeSessionId,
-      event.hookEventName,
-      event.toolName,
-      toolInput,
-      JSON.stringify(event.payload),
-      event.createdAt,
-      sessionStatus,
-    );
   }
 
   broadcastSessionUpdate(sessionId: string): void {
@@ -1109,45 +1072,12 @@ export class SessionManager {
 
   /** Get recent events for a session. */
   getRecentEvents(sessionId: string, limit = 50): HookEvent[] {
-    const db = getDb();
-    const rows = db
-      .prepare(
-        `SELECT * FROM events WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
-      )
-      .all(sessionId, limit) as Array<{
-        session_id: string;
-        claude_session_id: string | null;
-        hook_event_name: string;
-        tool_name: string | null;
-        tool_input: string | null;
-        payload: string;
-        created_at: string;
-        session_status: string | null;
-      }>;
-
-    return rows.map((r) => ({
-      sessionId: r.session_id,
-      claudeSessionId: r.claude_session_id,
-      hookEventName: r.hook_event_name,
-      toolName: r.tool_name,
-      toolInput: tryParseJson<Record<string, unknown>>(r.tool_input),
-      createdAt: r.created_at,
-      payload: tryParseJson<Record<string, unknown>>(r.payload) ?? {},
-      sessionStatus: (r.session_status as SessionStatus) ?? undefined,
-    }));
+    return this.eventStore.getRecentEvents(sessionId, limit);
   }
 
   /** Prune events older than retention period. */
   pruneOldEvents(): void {
-    const db = getDb();
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - HOOK_EVENT_RETENTION_DAYS);
-    const result = db
-      .prepare('DELETE FROM events WHERE created_at < ?')
-      .run(cutoff.toISOString());
-    if (result.changes > 0) {
-      logger.info('session', 'Pruned old events', { count: result.changes });
-    }
+    this.eventStore.pruneOldEvents();
   }
 
   /** Mark all non-ended sessions as ended. Called on app quit. */
@@ -1195,76 +1125,109 @@ export class SessionManager {
     }
   }
 
-  // --- Layout persistence ---
+  // --- Layout persistence (delegated) ---
 
   saveLayout(mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string): void {
-    const db = getDb();
-    if (mosaicTree === null || mosaicTree === undefined) {
-      db.prepare('DELETE FROM layout_state WHERE id = 1').run();
-      return;
-    }
-    const json = JSON.stringify(mosaicTree);
-    const width = sidebarWidth ?? 280;
-    const collapsed = sidebarCollapsed ? 1 : 0;
-    const tab = activeSidebarTab ?? 'sessions';
-    db.prepare(
-      `INSERT INTO layout_state (id, mosaic_tree, sidebar_width, sidebar_collapsed, active_sidebar_tab, updated_at)
-       VALUES (1, ?, ?, ?, ?, datetime('now'))
-       ON CONFLICT(id) DO UPDATE SET mosaic_tree = ?, sidebar_width = ?, sidebar_collapsed = ?, active_sidebar_tab = ?, updated_at = datetime('now')`,
-    ).run(json, width, collapsed, tab, json, width, collapsed, tab);
+    this.layoutRepo.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
   }
 
   loadLayout(): { mosaicTree: unknown; sidebarWidth: number; sidebarCollapsed: boolean; activeSidebarTab: string } | null {
-    const db = getDb();
-    const row = db
-      .prepare('SELECT mosaic_tree, sidebar_width, sidebar_collapsed, active_sidebar_tab FROM layout_state WHERE id = 1')
-      .get() as { mosaic_tree: string; sidebar_width: number; sidebar_collapsed: number; active_sidebar_tab: string | null } | undefined;
-    if (!row) return null;
-    try {
-      return {
-        mosaicTree: JSON.parse(row.mosaic_tree),
-        sidebarWidth: row.sidebar_width,
-        sidebarCollapsed: Boolean(row.sidebar_collapsed),
-        activeSidebarTab: row.active_sidebar_tab ?? 'sessions',
-      };
-    } catch {
-      return null;
-    }
+    return this.layoutRepo.load();
   }
 
   /** Get recent events across all sessions. */
   getRecentAllEvents(limit = 200): HookEvent[] {
-    const db = getDb();
-    const rows = db
-      .prepare(
-        `SELECT * FROM events ORDER BY created_at DESC LIMIT ?`,
-      )
-      .all(limit) as Array<{
-        session_id: string;
-        claude_session_id: string | null;
-        hook_event_name: string;
-        tool_name: string | null;
-        tool_input: string | null;
-        payload: string;
-        created_at: string;
-        session_status: string | null;
-      }>;
-
-    return rows.map((r) => ({
-      sessionId: r.session_id,
-      claudeSessionId: r.claude_session_id,
-      hookEventName: r.hook_event_name,
-      toolName: r.tool_name,
-      toolInput: tryParseJson<Record<string, unknown>>(r.tool_input),
-      createdAt: r.created_at,
-      payload: tryParseJson<Record<string, unknown>>(r.payload) ?? {},
-      sessionStatus: (r.session_status as SessionStatus) ?? undefined,
-    }));
+    return this.eventStore.getRecentAllEvents(limit);
   }
 
   /** Delete all hook events from the database. */
   clearAllEvents(): void {
-    const db = getDb();
-    db.prepare('DELETE FROM events').run();
+    this.eventStore.clearAllEvents();
   }
+}
+
+export function registerSessionIpc(sessionManager: SessionManager): void {
+  typedHandle('session:create', (input) => {
+    return sessionManager.create(input);
+  });
+
+  typedHandle('session:list', () => {
+    return sessionManager.list();
+  });
+
+  typedHandle('session:get', (sessionId) => {
+    return sessionManager.get(sessionId);
+  });
+
+  typedHandle('session:kill', (sessionId) => {
+    return sessionManager.kill(sessionId);
+  });
+
+  typedHandle('session:delete', (sessionId) => {
+    sessionManager.delete(sessionId);
+  });
+
+  typedHandle('session:delete-all-ended', () => {
+    return sessionManager.deleteAllEnded();
+  });
+
+  typedHandle('session:delete-batch', (sessionIds) => {
+    return sessionManager.deleteBatch(sessionIds);
+  });
+
+  typedHandle('session:get-last-defaults', () => {
+    return sessionManager.getLastDefaults();
+  });
+
+  typedHandle('session:set-label', (sessionId, label) => {
+    sessionManager.setLabel(sessionId, label);
+  });
+
+  typedHandle('session:set-auto-label', (sessionId, label) => {
+    sessionManager.setAutoLabel(sessionId, label);
+  });
+
+  typedHandle('session:set-terminal-config', (sessionId, config) => {
+    sessionManager.setTerminalConfig(sessionId, config);
+  });
+
+  typedHandle('session:clear-attention', (sessionId) => {
+    sessionManager.clearAttention(sessionId);
+  });
+
+  typedHandle('session:clear-all-attention', () => {
+    sessionManager.clearAllAttention();
+  });
+
+  typedHandle('session:resume', ({ sessionId, accountId }) => {
+    return sessionManager.resume(sessionId, accountId);
+  });
+
+  typedHandle('session:list-external', async (limit) => {
+    const cap = limit ?? 50;
+    const cwds = new Set(sessionManager.getDistinctClaudeCwds());
+    if (cwds.size === 0) cwds.add(process.cwd());
+
+    const all: ExternalSessionInfo[] = [];
+    for (const cwd of cwds) {
+      const results = await sessionManager.listExternalSessions(cwd, cap);
+      all.push(...results);
+    }
+    all.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return all.slice(0, cap);
+  });
+
+  typedHandle('session:import-external', (claudeSessionId, cwd, label) => {
+    return sessionManager.importExternal(claudeSessionId, cwd, label);
+  });
+}
+
+export function registerLayoutIpc(sessionManager: SessionManager): void {
+  typedHandle('layout:save', (mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab) => {
+    sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
+  });
+
+  typedHandle('layout:load', () => {
+    return (sessionManager.loadLayout() ?? null) as LayoutStateSnapshot | null;
+  });
 }

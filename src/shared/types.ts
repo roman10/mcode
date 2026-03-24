@@ -1,5 +1,25 @@
 import type { MosaicNode } from 'react-mosaic-component';
 import type { EffortLevel, PermissionMode } from './constants';
+import type {
+  CommitHeatmapEntry, CommitStreakInfo, CommitCadenceInfo,
+  CommitWeeklyTrend, DailyCommitStats,
+} from './types-commits';
+import type {
+  SessionTokenUsage, DailyTokenUsage, ModelTokenBreakdown,
+  TokenWeeklyTrend, TokenHeatmapEntry,
+} from './types-tokens';
+import type {
+  GitStatusResult, GitDiffContent, CommitGraphResult, CommitFileEntry,
+} from './types-git';
+import type {
+  Task, CreateTaskInput, UpdateTaskInput, TaskFilter, TaskChangeEvent,
+} from './types-tasks';
+
+// Re-export domain type modules so consumers can keep importing from '@shared/types'
+export * from './types-commits';
+export * from './types-tokens';
+export * from './types-git';
+export * from './types-tasks';
 
 // --- Account Profiles ---
 
@@ -217,59 +237,6 @@ export interface HookEvent {
   sessionStatus?: SessionStatus;
 }
 
-// --- Task Queue ---
-
-export type TaskStatus = 'pending' | 'dispatched' | 'completed' | 'failed';
-
-export interface PlanModeAction {
-  exitPlanMode: boolean; // UI hint: true = proceed, false = revise
-}
-
-export interface Task {
-  id: number;
-  prompt: string;
-  cwd: string;
-  targetSessionId: string | null;
-  sessionId: string | null;
-  status: TaskStatus;
-  priority: number;
-  scheduledAt: string | null;
-  createdAt: string;
-  dispatchedAt: string | null;
-  completedAt: string | null;
-  retryCount: number;
-  maxRetries: number;
-  error: string | null;
-  planModeAction: PlanModeAction | null;
-}
-
-export interface CreateTaskInput {
-  prompt: string;
-  cwd: string;
-  targetSessionId?: string;
-  priority?: number;
-  scheduledAt?: string;
-  maxRetries?: number;
-  planModeAction?: PlanModeAction;
-}
-
-export interface UpdateTaskInput {
-  prompt?: string;
-  priority?: number;
-  scheduledAt?: string | null;
-}
-
-export interface TaskFilter {
-  statuses?: TaskStatus[];
-  targetSessionId?: string;
-  limit?: number;
-}
-
-export type TaskChangeEvent =
-  | { type: 'upsert'; task: Task }
-  | { type: 'remove'; taskId: number }
-  | { type: 'refresh' };
-
 // --- PTY ---
 
 export interface PtySpawnOptions {
@@ -287,184 +254,6 @@ export interface PtySpawnOptions {
 export interface PtyExitPayload {
   code: number;
   signal?: number;
-}
-
-// --- Commit Tracking ---
-
-export interface CommitRecord {
-  id: number;
-  repoPath: string;
-  commitHash: string;
-  commitMessage: string | null;
-  commitType: string | null;
-  authorName: string | null;
-  authorEmail: string | null;
-  isClaudeAssisted: boolean;
-  committedAt: string;
-  date: string;
-  filesChanged: number | null;
-  insertions: number | null;
-  deletions: number | null;
-}
-
-export interface RepoCommitStats {
-  repoPath: string;
-  count: number;
-  insertions: number;
-  deletions: number;
-}
-
-export interface CommitTypeStats {
-  type: string;
-  count: number;
-}
-
-export interface DailyCommitStats {
-  date: string;
-  total: number;
-  totalInsertions: number;
-  totalDeletions: number;
-  claudeAssisted: number;
-  soloCount: number;
-  byRepo: RepoCommitStats[];
-  byType: CommitTypeStats[];
-}
-
-export interface CommitHeatmapEntry {
-  date: string;
-  count: number;
-  insertions: number;
-}
-
-export interface CommitStreakInfo {
-  current: number;
-  longest: number;
-}
-
-export interface CommitCadenceInfo {
-  avgMinutes: number | null;
-  peakHour: string | null;
-  commitsByHour: Record<string, number>;
-}
-
-export interface CommitWeeklyTrend {
-  thisWeek: number;
-  lastWeek: number;
-  pctChange: number | null;
-}
-
-// --- Token Usage ---
-
-export interface TokenTotals {
-  inputTokens: number;
-  outputTokens: number;
-  cacheWrite5mTokens: number;
-  cacheWrite1hTokens: number;
-  cacheReadTokens: number;
-}
-
-export interface ModelUsageSummary {
-  model: string;
-  modelFamily: string;
-  totals: TokenTotals;
-  estimatedCostUsd: number;
-  messageCount: number;
-}
-
-export interface SessionTokenUsage {
-  claudeSessionId: string;
-  models: ModelUsageSummary[];
-  totals: TokenTotals;
-  estimatedCostUsd: number;
-  messageCount: number;
-  firstMessageAt: string | null;
-  lastMessageAt: string | null;
-}
-
-export interface DailyTokenUsage {
-  date: string;
-  totals: TokenTotals;
-  estimatedCostUsd: number;
-  messageCount: number;
-  byModel: ModelUsageSummary[];
-  topSessions: Array<{
-    claudeSessionId: string;
-    label: string | null;
-    estimatedCostUsd: number;
-    outputTokens: number;
-  }>;
-}
-
-export interface ModelTokenBreakdown {
-  model: string;
-  modelFamily: string;
-  totals: TokenTotals;
-  estimatedCostUsd: number;
-  messageCount: number;
-  pctOfTotalCost: number;
-}
-
-export interface TokenWeeklyTrend {
-  thisWeek: { outputTokens: number; estimatedCostUsd: number; messageCount: number };
-  lastWeek: { outputTokens: number; estimatedCostUsd: number; messageCount: number };
-  pctChange: number | null;
-}
-
-export interface TokenHeatmapEntry {
-  date: string;
-  outputTokens: number;
-  estimatedCostUsd: number;
-  messageCount: number;
-}
-
-// --- Git Changes ---
-
-export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked';
-
-export interface GitChangedFile {
-  path: string;           // relative to repo root
-  status: GitFileStatus;
-  oldPath?: string;       // for renamed files
-}
-
-export interface GitStatusResult {
-  repoRoot: string;
-  staged: GitChangedFile[];    // index area (X column in porcelain)
-  unstaged: GitChangedFile[];  // worktree area (Y column in porcelain) + untracked
-}
-
-export type GitDiffContent =
-  | { binary: false; originalContent: string; modifiedContent: string; language: string }
-  | { binary: true };
-
-// --- Git Commit Graph ---
-
-export interface CommitGraphNode {
-  hash: string;
-  shortHash: string;
-  parents: string[];
-  message: string;
-  authorName: string;
-  authorEmail: string;
-  committedAt: string; // ISO 8601
-  refs: string[];      // branch/tag names pointing to this commit
-  isClaudeAssisted: boolean;
-  filesChanged: number | null;
-  insertions: number | null;
-  deletions: number | null;
-}
-
-export interface CommitGraphResult {
-  repoRoot: string;
-  commits: CommitGraphNode[];
-  hasMore: boolean;
-}
-
-export interface CommitFileEntry {
-  path: string;
-  status: 'A' | 'M' | 'D' | 'R';
-  insertions: number;
-  deletions: number;
 }
 
 // --- Devtools ---

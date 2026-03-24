@@ -6,6 +6,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getDb } from './db';
 import { logger } from './logger';
+import { typedHandle } from './ipc-helpers';
+import { fetchSubscriptionUsage, invalidateSubscriptionCache } from './claude-subscription-fetcher';
 import type { AccountProfile, AuthStatusResult } from '../shared/types';
 
 const execFileAsync = promisify(execFile);
@@ -357,4 +359,60 @@ export class AccountManager {
       }
     }
   }
+}
+
+export function registerAccountIpc(
+  accountManager: AccountManager,
+  sessionManager: Pick<import('./session-manager').SessionManager, 'create'>,
+): void {
+  typedHandle('account:list', () => {
+    return accountManager.list();
+  });
+
+  typedHandle('account:create', (name) => {
+    return accountManager.create(name);
+  });
+
+  typedHandle('account:rename', (accountId, name) => {
+    accountManager.rename(accountId, name);
+  });
+
+  typedHandle('account:delete', (accountId) => {
+    accountManager.delete(accountId);
+  });
+
+  typedHandle('account:get-auth-status', async (accountId) => {
+    const result = await accountManager.getAuthStatus(accountId);
+    if (result.email) {
+      accountManager.setEmail(accountId, result.email);
+    }
+    return result;
+  });
+
+  typedHandle('account:check-cli-installed', async () => {
+    return accountManager.checkCliInstalled();
+  });
+
+  typedHandle('account:open-auth-terminal', (accountId) => {
+    const account = accountManager.get(accountId);
+    if (!account) throw new Error(`Account not found: ${accountId}`);
+    if (account.isDefault) throw new Error('Default account uses standard auth');
+    if (!account.homeDir) throw new Error('Account has no home directory');
+
+    const session = sessionManager.create(
+      { cwd: account.homeDir, label: `Auth: ${account.name}`, sessionType: 'terminal', accountId },
+      { initialCommand: 'claude auth login' },
+    );
+    return session.sessionId;
+  });
+
+  typedHandle('account:get-subscription-usage', async (accountId) => {
+    const account = accountManager.get(accountId);
+    if (!account) return null;
+    return fetchSubscriptionUsage(account);
+  });
+
+  typedHandle('account:invalidate-subscription-cache', (accountId) => {
+    invalidateSubscriptionCache(accountId);
+  });
 }

@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { shell } from 'electron';
 import { parse as parseYaml } from 'yaml';
 import type { SnippetEntry, SnippetVariable } from '../shared/types';
+import { typedHandle } from './ipc-helpers';
 
 /** Extract unique {{var}} placeholders from a template body. */
 function extractVariablesFromBody(body: string): SnippetVariable[] {
@@ -198,4 +199,19 @@ export async function openSnippetsFolder(scope: 'user' | 'project', cwd: string)
   const dir = snippetsDir(scope, cwd);
   await mkdir(dir, { recursive: true });
   await shell.openPath(dir);
+}
+
+export function registerSnippetIpc(): void {
+  typedHandle('snippets:scan', (cwd) => {
+    return scanSnippets(cwd);
+  });
+  typedHandle('snippets:create', (scope, cwd) => {
+    return createSnippet(scope, cwd);
+  });
+  typedHandle('snippets:delete', (filePath) => {
+    return deleteSnippet(filePath);
+  });
+  typedHandle('snippets:open-folder', (scope, cwd) => {
+    return openSnippetsFolder(scope, cwd);
+  });
 }

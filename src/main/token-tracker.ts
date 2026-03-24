@@ -17,6 +17,7 @@ import type {
   TokenTotals,
   ModelUsageSummary,
 } from '../shared/types';
+import { typedHandle } from './ipc-helpers';
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
 const SCAN_BATCH_SIZE = 20;
@@ -671,4 +672,30 @@ function estimateWeekCost(db: ReturnType<typeof getDb>, whereClause: string): nu
 
 function localDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function registerTokenIpc(tokenTracker: TokenTracker): void {
+  typedHandle('tokens:get-session-usage', (claudeSessionId) => {
+    return tokenTracker.getSessionUsage(claudeSessionId);
+  });
+
+  typedHandle('tokens:get-daily-usage', (date) => {
+    return tokenTracker.getDailyUsage(date);
+  });
+
+  typedHandle('tokens:get-model-breakdown', (days) => {
+    return tokenTracker.getModelBreakdown(days);
+  });
+
+  typedHandle('tokens:get-weekly-trend', () => {
+    return tokenTracker.getWeeklyTrend();
+  });
+
+  typedHandle('tokens:get-heatmap', (days) => {
+    return tokenTracker.getHeatmap(days);
+  });
+
+  typedHandle('tokens:refresh', async () => {
+    await tokenTracker.scanAll();
+  });
 }

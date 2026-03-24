@@ -1,20 +1,20 @@
-import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
+import { app, BrowserWindow, session, dialog, shell } from 'electron';
 import { join } from 'node:path';
 import { is, optimizer } from '@electron-toolkit/utils';
-import { BrokerClient } from './broker-client';
+import { BrokerClient, registerPtyIpc } from './broker-client';
 import { ensureBroker, BROKER_SOCKET_PATH } from './broker-launcher';
-import { SessionManager } from './session-manager';
-import { AccountManager } from './account-manager';
-import { TaskQueue } from './task-queue';
-import { CommitTracker } from './commit-tracker';
-import { GitChangesService } from './git-changes';
-import { TokenTracker } from './token-tracker';
+import { SessionManager, registerSessionIpc, registerLayoutIpc } from './session-manager';
+import { AccountManager, registerAccountIpc } from './account-manager';
+import { TaskQueue, registerTaskIpc } from './task-queue';
+import { CommitTracker, registerCommitIpc } from './commit-tracker';
+import { GitChangesService, registerGitChangesIpc } from './git-changes';
+import { TokenTracker, registerTokenIpc } from './token-tracker';
 import { SleepBlocker } from './sleep-blocker';
-import { FileLister } from './file-lister';
-import { FileSearch } from './file-search';
+import { FileLister, registerFileIpc } from './file-lister';
+import { FileSearch, registerSearchIpc } from './file-search';
 import { UpdateChecker } from './update-checker';
-import { scanSlashCommands } from './slash-command-scanner';
-import { scanSnippets, createSnippet, deleteSnippet, openSnippetsFolder } from './snippet-scanner';
+import { registerSlashCommandIpc } from './slash-command-scanner';
+import { registerSnippetIpc } from './snippet-scanner';
 import { getPreference, setPreference } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
@@ -22,33 +22,9 @@ import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { fixPath } from './fix-path';
 import { buildApplicationMenu } from './menu';
+import { typedHandle, typedOn } from './ipc-helpers';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
-import type {
-  HookRuntimeInfo, ExternalSessionInfo, AppCommand, LayoutStateSnapshot,
-} from '../shared/types';
-import type { IpcInvokeContract, IpcInvokeHandler, IpcSendContract, IpcSendHandler } from '../shared/ipc-contract';
-import { fetchSubscriptionUsage, invalidateSubscriptionCache } from './claude-subscription-fetcher';
-
-// Typed IPC wrappers — channel names and parameter types are checked against the contract
-function typedHandle<K extends keyof IpcInvokeContract>(
-  channel: K,
-  handler: IpcInvokeHandler<K>,
-): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ipcMain.handle(channel, (_event, ...args: any[]) =>
-    handler(...(args as IpcInvokeContract[K]['params'])),
-  );
-}
-
-function typedOn<K extends keyof IpcSendContract>(
-  channel: K,
-  handler: IpcSendHandler<K>,
-): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ipcMain.on(channel, (_event, ...args: any[]) =>
-    handler(...(args as IpcSendContract[K]['params'])),
-  );
-}
+import type { HookRuntimeInfo, AppCommand } from '../shared/types';
 
 // Isolate dev data from production: separate userData/logs directory
 if (!app.isPackaged) {
@@ -149,110 +125,6 @@ function getWebContents(): import('electron').WebContents | null {
   return null;
 }
 
-function registerPtyIpc(): void {
-  typedOn('pty:write', (id, data) => {
-    brokerClient.write(id, data);
-  });
-
-  typedOn('pty:resize', (id, cols, rows) => {
-    brokerClient.resize(id, cols, rows);
-  });
-
-  typedHandle('pty:kill', (id) => {
-    return brokerClient.kill(id);
-  });
-
-  typedHandle('pty:replay', (sessionId) => {
-    return brokerClient.fetchReplayFromBroker(sessionId);
-  });
-}
-
-function registerSessionIpc(): void {
-  typedHandle('session:create', (input) => {
-    return sessionManager.create(input);
-  });
-
-  typedHandle('session:list', () => {
-    return sessionManager.list();
-  });
-
-  typedHandle('session:get', (sessionId) => {
-    return sessionManager.get(sessionId);
-  });
-
-  typedHandle('session:kill', (sessionId) => {
-    return sessionManager.kill(sessionId);
-  });
-
-  typedHandle('session:delete', (sessionId) => {
-    sessionManager.delete(sessionId);
-  });
-
-  typedHandle('session:delete-all-ended', () => {
-    return sessionManager.deleteAllEnded();
-  });
-
-  typedHandle('session:delete-batch', (sessionIds) => {
-    return sessionManager.deleteBatch(sessionIds);
-  });
-
-  typedHandle('session:get-last-defaults', () => {
-    return sessionManager.getLastDefaults();
-  });
-
-  typedHandle('session:set-label', (sessionId, label) => {
-    sessionManager.setLabel(sessionId, label);
-  });
-
-  typedHandle('session:set-auto-label', (sessionId, label) => {
-    sessionManager.setAutoLabel(sessionId, label);
-  });
-
-  typedHandle('session:set-terminal-config', (sessionId, config) => {
-    sessionManager.setTerminalConfig(sessionId, config);
-  });
-
-  typedHandle('session:clear-attention', (sessionId) => {
-    sessionManager.clearAttention(sessionId);
-  });
-
-  typedHandle('session:clear-all-attention', () => {
-    sessionManager.clearAllAttention();
-  });
-
-  typedHandle('session:resume', ({ sessionId, accountId }) => {
-    return sessionManager.resume(sessionId, accountId);
-  });
-
-  typedHandle('session:list-external', async (limit) => {
-    const cap = limit ?? 50;
-    const cwds = new Set(sessionManager.getDistinctClaudeCwds());
-    if (cwds.size === 0) cwds.add(process.cwd());
-
-    const all: ExternalSessionInfo[] = [];
-    for (const cwd of cwds) {
-      const results = await sessionManager.listExternalSessions(cwd, cap);
-      all.push(...results);
-    }
-    all.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-    return all.slice(0, cap);
-  });
-
-  typedHandle('session:import-external', (claudeSessionId, cwd, label) => {
-    return sessionManager.importExternal(claudeSessionId, cwd, label);
-  });
-}
-
-function registerLayoutIpc(): void {
-  typedHandle('layout:save', (mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab) => {
-    sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
-  });
-
-  typedHandle('layout:load', () => {
-    return (sessionManager.loadLayout() ?? null) as LayoutStateSnapshot | null;
-  });
-}
-
 function registerAppIpc(): void {
   typedHandle('app:get-version', () => {
     return app.getVersion();
@@ -273,130 +145,6 @@ function registerAppIpc(): void {
 
   typedHandle('app:check-for-update', () => updateChecker.checkManual());
   typedHandle('app:open-update-page', () => updateChecker.openUpdatePage());
-}
-
-function registerTaskIpc(): void {
-  typedHandle('task:create', (input) => {
-    return taskQueue.create(input);
-  });
-
-  typedHandle('task:list', (filter) => {
-    return taskQueue.list(filter);
-  });
-
-  typedHandle('task:update', (taskId, input) => {
-    return taskQueue.update(taskId, input);
-  });
-
-  typedHandle('task:cancel', (taskId) => {
-    taskQueue.cancel(taskId);
-  });
-}
-
-function registerTokenIpc(): void {
-  typedHandle('tokens:get-session-usage', (claudeSessionId) => {
-    return tokenTracker.getSessionUsage(claudeSessionId);
-  });
-
-  typedHandle('tokens:get-daily-usage', (date) => {
-    return tokenTracker.getDailyUsage(date);
-  });
-
-  typedHandle('tokens:get-model-breakdown', (days) => {
-    return tokenTracker.getModelBreakdown(days);
-  });
-
-  typedHandle('tokens:get-weekly-trend', () => {
-    return tokenTracker.getWeeklyTrend();
-  });
-
-  typedHandle('tokens:get-heatmap', (days) => {
-    return tokenTracker.getHeatmap(days);
-  });
-
-  typedHandle('tokens:refresh', async () => {
-    await tokenTracker.scanAll();
-  });
-}
-
-function registerCommitIpc(): void {
-  typedHandle('commits:get-daily-stats', (date) => {
-    return commitTracker.getDailyStats(date);
-  });
-
-  typedHandle('commits:get-heatmap', (days) => {
-    return commitTracker.getHeatmap(days);
-  });
-
-  typedHandle('commits:get-streaks', () => {
-    return commitTracker.getStreaks();
-  });
-
-  typedHandle('commits:get-cadence', (date) => {
-    return commitTracker.getCadence(date);
-  });
-
-  typedHandle('commits:get-weekly-trend', () => {
-    return commitTracker.getWeeklyTrend();
-  });
-
-  typedHandle('commits:refresh', async () => {
-    await commitTracker.scanAll();
-  });
-}
-
-function registerGitChangesIpc(): void {
-  typedHandle('git:status', (cwd) => {
-    return gitChangesService.getStatus(cwd);
-  });
-
-  typedHandle('git:diff-content', (cwd, filePath) => {
-    return gitChangesService.getDiffContent(cwd, filePath);
-  });
-
-  typedHandle('git:all-statuses', () => {
-    return gitChangesService.getAllStatuses();
-  });
-
-  typedHandle('git:graph-log', (repoPath, limit, offset) => {
-    return gitChangesService.getGraphLog(repoPath, limit, offset);
-  });
-
-  typedHandle('git:tracked-repos', () => {
-    return gitChangesService.getTrackedRepos();
-  });
-
-  typedHandle('git:commit-files', (repoPath, commitHash) => {
-    return gitChangesService.getCommitFiles(repoPath, commitHash);
-  });
-
-  typedHandle('git:commit-file-diff', (repoPath, commitHash, filePath) => {
-    return gitChangesService.getCommitFileDiff(repoPath, commitHash, filePath);
-  });
-
-  typedHandle('git:stage-file', (repoRoot, filePath) => {
-    return gitChangesService.stageFile(repoRoot, filePath);
-  });
-
-  typedHandle('git:unstage-file', (repoRoot, filePath) => {
-    return gitChangesService.unstageFile(repoRoot, filePath);
-  });
-
-  typedHandle('git:discard-file', (repoRoot, filePath, isUntracked) => {
-    return gitChangesService.discardFile(repoRoot, filePath, isUntracked);
-  });
-
-  typedHandle('git:stage-all', (repoRoot) => {
-    return gitChangesService.stageAll(repoRoot);
-  });
-
-  typedHandle('git:unstage-all', (repoRoot) => {
-    return gitChangesService.unstageAll(repoRoot);
-  });
-
-  typedHandle('git:discard-all', (repoRoot) => {
-    return gitChangesService.discardAll(repoRoot);
-  });
 }
 
 function registerPreferencesIpc(): void {
@@ -435,104 +183,6 @@ function registerHookIpc(): void {
 
   typedHandle('hooks:clear-all', () => {
     sessionManager.clearAllEvents();
-  });
-}
-
-function registerAccountIpc(): void {
-  typedHandle('account:list', () => {
-    return accountManager.list();
-  });
-
-  typedHandle('account:create', (name) => {
-    return accountManager.create(name);
-  });
-
-  typedHandle('account:rename', (accountId, name) => {
-    accountManager.rename(accountId, name);
-  });
-
-  typedHandle('account:delete', (accountId) => {
-    accountManager.delete(accountId);
-  });
-
-  typedHandle('account:get-auth-status', async (accountId) => {
-    const result = await accountManager.getAuthStatus(accountId);
-    if (result.email) {
-      accountManager.setEmail(accountId, result.email);
-    }
-    return result;
-  });
-
-  typedHandle('account:check-cli-installed', async () => {
-    return accountManager.checkCliInstalled();
-  });
-
-  typedHandle('account:open-auth-terminal', (accountId) => {
-    const account = accountManager.get(accountId);
-    if (!account) throw new Error(`Account not found: ${accountId}`);
-    if (account.isDefault) throw new Error('Default account uses standard auth');
-    if (!account.homeDir) throw new Error('Account has no home directory');
-
-    const session = sessionManager.create(
-      { cwd: account.homeDir, label: `Auth: ${account.name}`, sessionType: 'terminal', accountId },
-      { initialCommand: 'claude auth login' },
-    );
-    return session.sessionId;
-  });
-
-  typedHandle('account:get-subscription-usage', async (accountId) => {
-    const account = accountManager.get(accountId);
-    if (!account) return null;
-    return fetchSubscriptionUsage(account);
-  });
-
-  typedHandle('account:invalidate-subscription-cache', (accountId) => {
-    invalidateSubscriptionCache(accountId);
-  });
-}
-
-function registerFileIpc(): void {
-  typedHandle('files:list', (cwd) => {
-    return fileLister.listFiles(cwd);
-  });
-
-  typedHandle('files:read', (cwd, relativePath) => {
-    return fileLister.readFile(cwd, relativePath);
-  });
-
-  typedHandle('files:write', (cwd, relativePath, content) => {
-    return fileLister.writeFile(cwd, relativePath, content);
-  });
-}
-
-function registerSearchIpc(): void {
-  typedHandle('search:start', (request) => {
-    return fileSearch.search(request);
-  });
-
-  typedHandle('search:cancel', (searchId) => {
-    fileSearch.cancel(searchId);
-  });
-}
-
-function registerSlashCommandIpc(): void {
-  typedHandle('slash-commands:scan', (cwd) => {
-    return scanSlashCommands(cwd);
-  });
-}
-
-function registerSnippetIpc(): void {
-  typedHandle('snippets:scan', (cwd) => {
-    return scanSnippets(cwd);
-  });
-  typedHandle('snippets:create', (scope, cwd) => {
-    return createSnippet(scope, cwd);
-  });
-  typedHandle('snippets:delete', (filePath) => {
-    return deleteSnippet(filePath);
-  });
-  typedHandle('snippets:open-folder', (scope, cwd) => {
-    return openSnippetsFolder(scope, cwd);
   });
 }
 
@@ -683,20 +333,20 @@ app.whenReady().then(async () => {
   sleepBlocker = new SleepBlocker();
   sleepBlocker.attach(sessionManager);
 
-  registerPtyIpc();
-  registerSessionIpc();
-  registerLayoutIpc();
-  registerFileIpc();
-  registerSearchIpc();
+  registerPtyIpc(brokerClient);
+  registerSessionIpc(sessionManager);
+  registerLayoutIpc(sessionManager);
+  registerFileIpc(fileLister);
+  registerSearchIpc(fileSearch);
   registerSlashCommandIpc();
   registerSnippetIpc();
   registerAppIpc();
   registerHookIpc();
-  registerAccountIpc();
-  registerTaskIpc();
-  registerCommitIpc();
-  registerGitChangesIpc();
-  registerTokenIpc();
+  registerAccountIpc(accountManager, sessionManager);
+  registerTaskIpc(taskQueue);
+  registerCommitIpc(commitTracker);
+  registerGitChangesIpc(gitChangesService);
+  registerTokenIpc(tokenTracker);
   registerPreferencesIpc();
 
   // Create window AFTER IPC handlers are registered to avoid a race condition:

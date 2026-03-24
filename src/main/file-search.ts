@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { FileSearchMatch, FileSearchRequest, SearchEvent } from '../shared/types';
+import { typedHandle } from './ipc-helpers';
 
 const execFileAsync = promisify(execFile);
 const GIT_COMMAND_TIMEOUT_MS = 5_000;
@@ -259,6 +260,18 @@ export class FileSearch {
       return cwd;
     }
   }
+}
+
+// --- Ripgrep JSON types (subset we parse) ---
+
+export function registerSearchIpc(fileSearch: FileSearch): void {
+  typedHandle('search:start', (request) => {
+    return fileSearch.search(request);
+  });
+
+  typedHandle('search:cancel', (searchId) => {
+    fileSearch.cancel(searchId);
+  });
 }
 
 // --- Ripgrep JSON types (subset we parse) ---

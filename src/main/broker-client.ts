@@ -6,6 +6,7 @@ import type { IPtyManager, PtyInfo } from '../shared/pty-manager-interface';
 import type { PtySpawnOptions } from '../shared/types';
 import { RING_BUFFER_MAX_BYTES } from '../shared/constants';
 import { logger } from './logger';
+import { typedHandle, typedOn } from './ipc-helpers';
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -283,4 +284,22 @@ export class BrokerClient extends EventEmitter implements IPtyManager {
   getInfo(id: string): PtyInfo | null {
     return this.ptyInfoMap.get(id) ?? null;
   }
+}
+
+export function registerPtyIpc(brokerClient: BrokerClient): void {
+  typedOn('pty:write', (id, data) => {
+    brokerClient.write(id, data);
+  });
+
+  typedOn('pty:resize', (id, cols, rows) => {
+    brokerClient.resize(id, cols, rows);
+  });
+
+  typedHandle('pty:kill', (id) => {
+    return brokerClient.kill(id);
+  });
+
+  typedHandle('pty:replay', (sessionId) => {
+    return brokerClient.fetchReplayFromBroker(sessionId);
+  });
 }

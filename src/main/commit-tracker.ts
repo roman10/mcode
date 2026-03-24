@@ -5,6 +5,7 @@ import type { SessionManager } from './session-manager';
 import { getDb } from './db';
 import { getPreferenceBool } from './preferences';
 import { logger } from './logger';
+import { typedHandle } from './ipc-helpers';
 import type {
   HookEvent,
   DailyCommitStats,
@@ -720,4 +721,30 @@ function nDaysAgoStart(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return localDateStr(d) + 'T00:00:00';
+}
+
+export function registerCommitIpc(commitTracker: CommitTracker): void {
+  typedHandle('commits:get-daily-stats', (date) => {
+    return commitTracker.getDailyStats(date);
+  });
+
+  typedHandle('commits:get-heatmap', (days) => {
+    return commitTracker.getHeatmap(days);
+  });
+
+  typedHandle('commits:get-streaks', () => {
+    return commitTracker.getStreaks();
+  });
+
+  typedHandle('commits:get-cadence', (date) => {
+    return commitTracker.getCadence(date);
+  });
+
+  typedHandle('commits:get-weekly-trend', () => {
+    return commitTracker.getWeeklyTrend();
+  });
+
+  typedHandle('commits:refresh', async () => {
+    await commitTracker.scanAll();
+  });
 }

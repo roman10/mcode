@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import { homedir } from 'node:os';
 import type { SlashCommandEntry } from '../shared/types';
+import { typedHandle } from './ipc-helpers';
 
 const BUILTIN_COMMANDS: ReadonlyMap<string, string> = new Map([
   ['compact', 'Compact conversation history to reduce context'],
@@ -83,4 +84,10 @@ export async function scanSlashCommands(cwd: string): Promise<SlashCommandEntry[
   return Array.from(map.values()).sort(
     (a, b) => sourceOrder[a.source] - sourceOrder[b.source] || a.name.localeCompare(b.name),
   );
+}
+
+export function registerSlashCommandIpc(): void {
+  typedHandle('slash-commands:scan', (cwd) => {
+    return scanSlashCommands(cwd);
+  });
 }
