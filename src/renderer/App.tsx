@@ -9,17 +9,18 @@ import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import SettingsDialog from './components/SettingsDialog';
 import AccountsDialog from './components/AccountsDialog';
 import CommandPalette from './components/CommandPalette';
-import StatusBar from './components/EphemeralCommands/StatusBar';
-import BottomPanel from './components/EphemeralCommands/BottomPanel';
+import TerminalPanel from './components/TerminalPanel/TerminalPanel';
+import StatusBar from './components/TerminalPanel/StatusBar';
 import { useSessionStore } from './stores/session-store';
-import { useLayoutStore } from './stores/layout-store';
+import { useLayoutStore, sessionIdFromTileId } from './stores/layout-store';
 import { useTaskStore } from './stores/task-store';
 import { useEditorStore } from './stores/editor-store';
 import { useAccountsStore } from './stores/accounts-store';
 import { useChangesStore } from './stores/changes-store';
-import { useEphemeralCommandStore } from './stores/ephemeral-command-store';
+import { useTerminalPanelStore } from './stores/terminal-panel-store';
 import { useSearchStore } from './stores/search-store';
 import { executeAppCommand } from './utils/app-commands';
+import { basename } from './utils/path-utils';
 import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
 import type { CreateTaskInput, SidebarTab } from '@shared/types';
@@ -78,6 +79,28 @@ function App(): React.JSX.Element {
         // Strip ephemeral file viewer tiles from previous session
         stripFileTiles();
 
+        // Migrate terminal-type session tiles from mosaic to bottom panel
+        const { mosaicTree } = useLayoutStore.getState();
+        if (mosaicTree) {
+          const leaves = getLeaves(mosaicTree);
+          for (const leaf of leaves) {
+            const sid = sessionIdFromTileId(leaf);
+            if (!sid) continue;
+            const sess = allSessions.find((s) => s.sessionId === sid);
+            if (sess?.sessionType === 'terminal') {
+              useTerminalPanelStore.getState().addTerminal({
+                sessionId: sid,
+                label: sess.label || 'Terminal',
+                cwd: sess.cwd,
+                repo: basename(sess.cwd),
+                isEphemeral: false,
+              });
+              useLayoutStore.getState().removeTile(sid);
+            }
+          }
+          useLayoutStore.getState().persist();
+        }
+
         // Load editor preferences (vim mode, etc.)
         await useEditorStore.getState().load();
 
@@ -135,13 +158,25 @@ function App(): React.JSX.Element {
   }, [upsertSession]);
 
   // Listen for sessions created externally (e.g. via MCP devtools)
-  // Skip ephemeral sessions — they should not appear in sidebar or create tiles
+  // Skip ephemeral sessions — they are handled by session-actions.ts
+  // Terminal sessions go to the bottom panel; Claude sessions go to mosaic tiles
   useEffect(() => {
     const unsub = window.mcode.sessions.onCreated((session) => {
       if (session.ephemeral) return;
       addSession(session);
-      addTile(session.sessionId);
-      persist();
+      if (session.sessionType === 'terminal') {
+        // Route to terminal panel instead of mosaic layout
+        useTerminalPanelStore.getState().addTerminal({
+          sessionId: session.sessionId,
+          label: session.label || 'Terminal',
+          cwd: session.cwd,
+          repo: basename(session.cwd),
+          isEphemeral: false,
+        });
+      } else {
+        addTile(session.sessionId);
+        persist();
+      }
     });
     return unsub;
   }, [addSession, addTile, persist]);
@@ -151,6 +186,8 @@ function App(): React.JSX.Element {
     const unsub = window.mcode.sessions.onDeleted((sessionId) => {
       removeSession(sessionId);
       removeTile(sessionId);
+      // Also remove from terminal panel if it's a terminal session
+      useTerminalPanelStore.getState().removeTerminal(sessionId);
       persist();
     });
     return unsub;
@@ -162,6 +199,7 @@ function App(): React.JSX.Element {
       for (const id of sessionIds) {
         removeSession(id);
         removeTile(id);
+        useTerminalPanelStore.getState().removeTerminal(id);
       }
       persist();
     });
@@ -182,24 +220,17 @@ function App(): React.JSX.Element {
     return unsub;
   }, [upsertTask, removeTask, refreshTasks]);
 
-  // Route pty:data events to ephemeral command store
-  useEffect(() => {
-    const unsub = window.mcode.pty.onData((sessionId, data) => {
-      const { commands, appendOutput } = useEphemeralCommandStore.getState();
-      if (commands.some((c) => c.sessionId === sessionId && c.status === 'running')) {
-        appendOutput(sessionId, data);
-      }
-    });
-    return unsub;
-  }, []);
+  // pty:data events are handled directly by TerminalInstance (no central routing needed).
+  // Ephemeral terminals use full xterm.js — no string-buffer capture.
 
-  // Route pty:exit events to ephemeral command store + session exit codes
+  // Route pty:exit events to session exit codes + terminal panel ephemeral status
   useEffect(() => {
     const unsub = window.mcode.pty.onExit((sessionId, payload) => {
       useSessionStore.getState().setExitCode(sessionId, payload.code);
-      const { commands, completeCommand } = useEphemeralCommandStore.getState();
-      if (commands.some((c) => c.sessionId === sessionId)) {
-        completeCommand(sessionId, payload.code, payload.signal);
+      // Update ephemeral terminal status in the panel store
+      const entry = useTerminalPanelStore.getState().terminals[sessionId];
+      if (entry?.isEphemeral) {
+        useTerminalPanelStore.getState().completeEphemeral(sessionId, payload.code);
       }
     });
     return unsub;
@@ -370,7 +401,7 @@ function App(): React.JSX.Element {
             <div className="flex-1 min-h-0">
               {viewMode === 'kanban' ? <KanbanLayout /> : <MosaicLayout />}
             </div>
-            <BottomPanel />
+            <TerminalPanel />
             <StatusBar />
           </div>
         </div>

@@ -1,5 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId, useLayoutStore } from '../../stores/layout-store';
+import { useSessionStore } from '../../stores/session-store';
+import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import TerminalTile from '../Terminal/TerminalTile';
 import FileViewerTile from '../FileViewer/FileViewerTile';
 import DiffViewerTile from '../DiffViewer/DiffViewerTile';
@@ -45,7 +47,35 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
 function TileFactory({ tileId }: TileFactoryProps): React.JSX.Element {
   // Session tiles handle their own keyboard shortcuts
   const sessionId = sessionIdFromTileId(tileId);
+
+  // Subscribe reactively so the component re-renders when session data loads
+  const sessionType = useSessionStore((s) =>
+    sessionId ? s.sessions[sessionId]?.sessionType : undefined,
+  );
+
   if (sessionId) {
+    // Terminal sessions live in the bottom panel, not in mosaic tiles
+    if (sessionType === 'terminal') {
+      const handleOpenInPanel = (): void => {
+        useTerminalPanelStore.getState().setPanelVisible(true);
+        useTerminalPanelStore.getState().activateTerminal(sessionId);
+        // Remove this stale tile from the mosaic
+        useLayoutStore.getState().removeTile(sessionId);
+        useLayoutStore.getState().persist();
+      };
+      return (
+        <div className="flex items-center justify-center h-full w-full text-text-muted text-xs gap-2">
+          <span>Terminal moved to bottom panel</span>
+          <button
+            type="button"
+            className="px-2 py-1 bg-accent/20 text-accent rounded hover:bg-accent/30 cursor-pointer"
+            onClick={handleOpenInPanel}
+          >
+            Open
+          </button>
+        </div>
+      );
+    }
     return <TerminalTile sessionId={sessionId} />;
   }
 

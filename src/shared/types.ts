@@ -129,6 +129,7 @@ export interface LayoutStateSnapshot {
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   activeSidebarTab: SidebarTab;
+  terminalPanelState?: unknown;
 }
 
 // --- App Commands (menu accelerators → renderer) ---
@@ -152,7 +153,8 @@ export type AppCommand =
   | { command: 'toggle-view-mode' }
   | { command: 'run-shell-command' }
   | { command: 'search-in-files' }
-  | { command: 'open-snippets' };
+  | { command: 'open-snippets' }
+  | { command: 'toggle-terminal-panel' };
 
 // --- Slash Commands ---
 
@@ -331,6 +333,7 @@ export interface MCodeAPI {
       sidebarWidth?: number,
       sidebarCollapsed?: boolean,
       activeSidebarTab?: SidebarTab,
+      terminalPanelState?: unknown,
     ): Promise<void>;
     load(): Promise<LayoutStateSnapshot | null>;
   };

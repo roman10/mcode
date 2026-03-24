@@ -199,8 +199,8 @@ contextBridge.exposeInMainWorld('mcode', {
   },
 
   layout: {
-    save: (mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string): Promise<void> =>
-      typedInvoke('layout:save', mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab),
+    save: (mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string, terminalPanelState?: unknown): Promise<void> =>
+      typedInvoke('layout:save', mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState),
 
     load: (): Promise<LayoutStateSnapshot | null> =>
       typedInvoke('layout:load'),

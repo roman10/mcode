@@ -73,7 +73,7 @@ export interface IpcInvokeContract {
   'session:import-external':            { params: [claudeSessionId: string, cwd: string, label?: string]; result: SessionInfo };
 
   // --- Layout ---
-  'layout:save':                        { params: [mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string]; result: void };
+  'layout:save':                        { params: [mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string, terminalPanelState?: unknown]; result: void };
   'layout:load':                        { params: []; result: LayoutStateSnapshot | null };
 
   // --- App ---

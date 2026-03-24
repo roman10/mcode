@@ -1125,11 +1125,11 @@ export class SessionManager {
 
   // --- Layout persistence (delegated) ---
 
-  saveLayout(mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string): void {
-    this.layoutRepo.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
+  saveLayout(mosaicTree: unknown, sidebarWidth?: number, sidebarCollapsed?: boolean, activeSidebarTab?: string, terminalPanelState?: unknown): void {
+    this.layoutRepo.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState);
   }
 
-  loadLayout(): { mosaicTree: unknown; sidebarWidth: number; sidebarCollapsed: boolean; activeSidebarTab: string } | null {
+  loadLayout(): { mosaicTree: unknown; sidebarWidth: number; sidebarCollapsed: boolean; activeSidebarTab: string; terminalPanelState: unknown | null } | null {
     return this.layoutRepo.load();
   }
 
@@ -1221,8 +1221,8 @@ export function registerSessionIpc(sessionManager: SessionManager): void {
 }
 
 export function registerLayoutIpc(sessionManager: SessionManager): void {
-  typedHandle('layout:save', (mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab) => {
-    sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
+  typedHandle('layout:save', (mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState) => {
+    sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState);
   });
 
   typedHandle('layout:load', () => {

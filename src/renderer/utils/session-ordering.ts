@@ -17,11 +17,12 @@ const statusOrder: Record<SessionStatus, number> = {
 
 /**
  * Canonical session ordering used by the sidebar and keyboard shortcuts.
- * Filters ephemeral sessions, sorts by attention → status → startedAt (newest first).
+ * Filters ephemeral and terminal sessions (terminals live in the bottom panel).
+ * Sorts by attention → status → startedAt (newest first).
  */
 export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo>): SessionInfo[] {
   return Object.values(sessions)
-    .filter((s) => !s.ephemeral)
+    .filter((s) => !s.ephemeral && s.sessionType !== 'terminal')
     .sort(
       (a, b) =>
         (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||

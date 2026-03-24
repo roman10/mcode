@@ -54,6 +54,11 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             click: () => sendCommand({ command: 'new-terminal' }),
           },
           {
+            label: 'Toggle Terminal Panel',
+            accelerator: 'Ctrl+`',
+            click: () => sendCommand({ command: 'toggle-terminal-panel' }),
+          },
+          {
             label: 'New Task',
             accelerator: 'CmdOrCtrl+Shift+T',
             click: () => sendCommand({ command: 'show-create-task' }),

@@ -2,6 +2,7 @@ import type { AppCommand, SessionInfo } from '@shared/types';
 import { getLeaves } from 'react-mosaic-component';
 import { useLayoutStore, sessionIdFromTileId } from '../stores/layout-store';
 import { useSessionStore } from '../stores/session-store';
+import { useTerminalPanelStore } from '../stores/terminal-panel-store';
 import { getOrderedOpenSessions } from './session-ordering';
 import { createTerminalSession } from './session-actions';
 
@@ -178,6 +179,37 @@ export function executeAppCommand(command: AppCommand): void {
         ls.setShowCommandPalette(false);
       } else {
         ls.openQuickOpen('snippets');
+      }
+      break;
+    }
+
+    case 'toggle-terminal-panel': {
+      const panel = useTerminalPanelStore.getState();
+      if (panel.focusInPanel) {
+        // Focus is in the panel → move focus to the main workspace
+        panel.setFocusInPanel(false);
+        // Move focus to the first focusable element in the mosaic layout area
+        requestAnimationFrame(() => {
+          const tile = document.querySelector('.mosaic-tile .xterm-helper-textarea') as HTMLElement | null;
+          tile?.focus();
+        });
+      } else {
+        // Focus is not in the panel → expand panel (if needed) and focus it
+        if (!panel.panelVisible) {
+          panel.setPanelVisible(true);
+        }
+        panel.setFocusInPanel(true);
+        // Focus the terminal panel's xterm container
+        requestAnimationFrame(() => {
+          const panelEl = document.querySelector('[data-terminal-panel] .xterm-helper-textarea') as HTMLElement | null;
+          if (panelEl) {
+            panelEl.focus();
+          } else {
+            // Fallback: focus the panel container itself
+            const container = document.querySelector('[data-terminal-panel]');
+            if (container instanceof HTMLElement) container.focus();
+          }
+        });
       }
       break;
     }

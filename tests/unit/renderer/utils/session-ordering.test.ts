@@ -13,6 +13,16 @@ describe('getOrderedVisibleSessions', () => {
     expect(result[0].sessionId).toBe('s1');
   });
 
+  it('filters out terminal sessions (they live in the bottom panel)', () => {
+    const sessions = {
+      s1: makeSession({ sessionId: 's1', sessionType: 'claude' }),
+      s2: makeSession({ sessionId: 's2', sessionType: 'terminal' }),
+    };
+    const result = getOrderedVisibleSessions(sessions);
+    expect(result).toHaveLength(1);
+    expect(result[0].sessionId).toBe('s1');
+  });
+
   it('sorts by attention level: action > info > none', () => {
     const sessions = {
       s1: makeSession({ sessionId: 's1', attentionLevel: 'none' }),

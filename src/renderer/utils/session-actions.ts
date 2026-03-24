@@ -1,7 +1,7 @@
 import { basename } from '../utils/path-utils';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
-import { useEphemeralCommandStore } from '../stores/ephemeral-command-store';
+import { useTerminalPanelStore } from '../stores/terminal-panel-store';
 
 /** Auto-expand a newly created session when in kanban view mode. */
 export function autoExpandInKanban(sessionId: string): void {
@@ -13,9 +13,9 @@ export function autoExpandInKanban(sessionId: string): void {
 
 /**
  * Create a new terminal session using the selected session's cwd (or $HOME).
- * Standalone function so it can be called from both Sidebar and App.tsx command handling.
+ * The terminal is added to the bottom terminal panel, not the mosaic layout.
  */
-export async function createTerminalSession(): Promise<void> {
+export async function createTerminalSession(tabGroupId?: string): Promise<void> {
   const { sessions, selectedSessionId } = useSessionStore.getState();
   const selectedSession = selectedSessionId ? sessions[selectedSessionId] : null;
   const cwd = selectedSession?.cwd || window.mcode.app.getHomeDir();
@@ -26,10 +26,18 @@ export async function createTerminalSession(): Promise<void> {
   });
 
   useSessionStore.getState().addSession(session);
-  useLayoutStore.getState().addTile(session.sessionId);
-  useLayoutStore.getState().persist();
-  useSessionStore.getState().selectSession(session.sessionId);
-  autoExpandInKanban(session.sessionId);
+
+  // Add to terminal panel instead of mosaic tiles
+  useTerminalPanelStore.getState().addTerminal(
+    {
+      sessionId: session.sessionId,
+      label: session.label || 'Terminal',
+      cwd,
+      repo: basename(cwd),
+      isEphemeral: false,
+    },
+    tabGroupId,
+  );
 }
 
 /** Resolve the CWD for ephemeral commands: selected session's cwd or $HOME. */
@@ -47,14 +55,13 @@ export function resolveEphemeralCwd(): string {
 
 /**
  * Run an ephemeral shell command. Creates a background terminal session
- * that auto-deletes on completion. Output is captured in the renderer store.
+ * that auto-closes on success. Rendered as a tab in the terminal panel.
  */
 export async function runEphemeralCommand(
   commandString: string,
   cwd?: string,
 ): Promise<void> {
   const effectiveCwd = cwd ?? resolveEphemeralCwd();
-  const id = crypto.randomUUID();
 
   const session = await window.mcode.sessions.create({
     cwd: effectiveCwd,
@@ -65,16 +72,14 @@ export async function runEphemeralCommand(
     label: commandString,
   });
 
-  useEphemeralCommandStore.getState().addCommand({
-    id,
+  // Add as ephemeral terminal tab in the panel
+  useTerminalPanelStore.getState().addTerminal({
     sessionId: session.sessionId,
-    command: commandString,
+    label: commandString,
     cwd: effectiveCwd,
     repo: basename(effectiveCwd),
-    status: 'running',
-    exitCode: null,
-    output: '',
-    startedAt: Date.now(),
-    endedAt: null,
+    isEphemeral: true,
+    ephemeralCommand: commandString,
+    ephemeralStatus: 'running',
   });
 }

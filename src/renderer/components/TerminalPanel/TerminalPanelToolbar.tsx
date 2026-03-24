@@ -1,0 +1,146 @@
+import { useCallback } from 'react';
+import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
+import type { SplitDirection } from '../../stores/terminal-panel-store';
+import { runEphemeralCommand } from '../../utils/session-actions';
+
+export default function TerminalPanelToolbar(): React.JSX.Element {
+  const panelPinned = useTerminalPanelStore((s) => s.panelPinned);
+  const togglePanelPinned = useTerminalPanelStore((s) => s.togglePanelPinned);
+  const setPanelVisible = useTerminalPanelStore((s) => s.setPanelVisible);
+  const terminals = useTerminalPanelStore((s) => s.terminals);
+  const activeTabGroupId = useTerminalPanelStore((s) => s.activeTabGroupId);
+  const tabGroups = useTerminalPanelStore((s) => s.tabGroups);
+  const removeTerminal = useTerminalPanelStore((s) => s.removeTerminal);
+  const keepEphemeral = useTerminalPanelStore((s) => s.keepEphemeral);
+  const splitTabGroup = useTerminalPanelStore((s) => s.splitTabGroup);
+
+  const activeGroup = activeTabGroupId ? tabGroups[activeTabGroupId] : undefined;
+  const activeEntry = activeGroup ? terminals[activeGroup.activeTerminalId] : undefined;
+
+  const handleKill = useCallback(() => {
+    if (!activeEntry) return;
+    window.mcode.sessions.kill(activeEntry.sessionId).catch(() => {});
+    removeTerminal(activeEntry.sessionId);
+  }, [activeEntry, removeTerminal]);
+
+  const handleKeep = useCallback(() => {
+    if (!activeEntry) return;
+    keepEphemeral(activeEntry.sessionId);
+  }, [activeEntry, keepEphemeral]);
+
+  const handleRetry = useCallback(() => {
+    if (!activeEntry?.ephemeralCommand) return;
+    runEphemeralCommand(activeEntry.ephemeralCommand, activeEntry.cwd).catch(console.error);
+  }, [activeEntry]);
+
+  const handleSplit = useCallback(
+    (direction: SplitDirection) => {
+      if (!activeTabGroupId) return;
+      splitTabGroup(activeTabGroupId, direction);
+    },
+    [activeTabGroupId, splitTabGroup],
+  );
+
+  const terminalCount = Object.keys(terminals).length;
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-1 border-b border-border-subtle shrink-0">
+      {/* Panel title */}
+      <span className="text-xs text-text-secondary font-medium shrink-0">
+        Terminal{terminalCount > 1 ? `s (${terminalCount})` : ''}
+      </span>
+
+      <div className="flex-1" />
+
+      {/* Actions for active terminal */}
+      {activeEntry && (
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Keep + Retry buttons for ephemeral terminals */}
+          {activeEntry.isEphemeral && activeEntry.ephemeralStatus !== 'running' && (
+            <>
+              <button
+                type="button"
+                className="px-1.5 py-0.5 text-xs text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
+                onClick={handleKeep}
+                title="Keep this terminal (prevent auto-close)"
+              >
+                Keep
+              </button>
+              {activeEntry.ephemeralCommand && (
+                <button
+                  type="button"
+                  className="px-1.5 py-0.5 text-xs text-text-secondary hover:text-text-primary bg-bg-secondary rounded cursor-pointer"
+                  onClick={handleRetry}
+                  title="Re-run this command"
+                >
+                  Retry
+                </button>
+              )}
+            </>
+          )}
+          {/* Kill button */}
+          <button
+            type="button"
+            className="px-1.5 py-0.5 text-xs text-text-muted hover:text-red-400 cursor-pointer"
+            onClick={handleKill}
+            title="Kill terminal"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <rect x="1" y="1" width="8" height="8" rx="1" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Split buttons */}
+      <button
+        type="button"
+        className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+        onClick={() => handleSplit('horizontal')}
+        title="Split right (⌘D)"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="1" y="1" width="14" height="14" rx="1" />
+          <line x1="8" y1="1" x2="8" y2="15" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+        onClick={() => handleSplit('vertical')}
+        title="Split down (⌘⇧D)"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="1" y="1" width="14" height="14" rx="1" />
+          <line x1="1" y1="8" x2="15" y2="8" />
+        </svg>
+      </button>
+
+      {/* Pin toggle */}
+      <button
+        type="button"
+        className={`shrink-0 px-1 text-xs cursor-pointer ${panelPinned ? 'text-accent' : 'text-text-muted hover:text-text-secondary'}`}
+        onClick={togglePanelPinned}
+        title={panelPinned ? 'Unpin panel (allow auto-collapse)' : 'Pin panel open'}
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          {panelPinned ? (
+            <path d="M8 2v5M5 7h6M6 7v3l2 2 2-2V7" />
+          ) : (
+            <path d="M8 2v5M5 7h6M6 7v3l2 2 2-2V7" opacity="0.5" />
+          )}
+        </svg>
+      </button>
+
+      {/* Collapse button */}
+      <button
+        type="button"
+        className="shrink-0 px-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+        onClick={() => setPanelVisible(false)}
+        title="Collapse panel"
+      >
+        ▼
+      </button>
+    </div>
+  );
+}
