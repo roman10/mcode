@@ -132,6 +132,33 @@ describe('layout-store', () => {
       expect(getLeafIds()).toContain('session:s1');
       expect(getLeafIds()).toContain('session:s3');
     });
+
+    it('restores remaining tiles when removing a maximized tile', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addTile('s2');
+      useLayoutStore.getState().addTile('s3');
+
+      useLayoutStore.getState().maximize('s2');
+      // mosaicTree is now 'session:s2', restoreTree has {s1, s2, s3}
+
+      useLayoutStore.getState().removeTile('s2');
+
+      // Should restore remaining tiles, not show "No sessions"
+      expect(getTree()).not.toBeNull();
+      expect(countTiles()).toBe(2);
+      expect(getLeafIds()).toContain('session:s1');
+      expect(getLeafIds()).toContain('session:s3');
+      expect(useLayoutStore.getState().restoreTree).toBeNull();
+    });
+
+    it('sets tree to null when removing maximized tile that is the only session', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().maximize('s1');
+      useLayoutStore.getState().removeTile('s1');
+
+      expect(getTree()).toBeNull();
+      expect(useLayoutStore.getState().restoreTree).toBeNull();
+    });
   });
 
   describe('removeAllTiles', () => {

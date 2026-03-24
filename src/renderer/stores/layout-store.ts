@@ -10,6 +10,24 @@ import type { SidebarTab, ViewMode } from '@shared/types';
 /** Legacy tile IDs — stripped from persisted layouts on restore. */
 const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];
 
+/** Snapshot the terminal panel store for persistence (avoids circular import). */
+function getTerminalPanelSnapshot(): unknown {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { useTerminalPanelStore } = require('./terminal-panel-store') as {
+    useTerminalPanelStore: { getState: () => Record<string, unknown> };
+  };
+  const state = useTerminalPanelStore.getState();
+  return {
+    panelHeight: state.panelHeight,
+    panelPinned: state.panelPinned,
+    panelVisible: state.panelVisible,
+    tabGroups: state.tabGroups,
+    splitTree: state.splitTree,
+    activeTabGroupId: state.activeTabGroupId,
+    terminals: state.terminals,
+  };
+}
+
 export const FILE_TILE_PREFIX = 'file:';
 export const DIFF_TILE_PREFIX = 'diff:';
 export const COMMIT_DIFF_TILE_PREFIX = 'commit-diff:';
@@ -292,6 +310,23 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const current = state.mosaicTree;
       if (!current) return state;
 
+      // If maximized and removing the maximized tile, restore from restoreTree minus this tile
+      if (state.restoreTree && typeof current === 'string' && current === target) {
+        const restoreLeaves =
+          typeof state.restoreTree === 'string'
+            ? [state.restoreTree]
+            : getLeaves(state.restoreTree);
+        const remaining = restoreLeaves.filter((l) => l !== target);
+        if (remaining.length === 0) return { mosaicTree: null, restoreTree: null };
+        return {
+          mosaicTree:
+            remaining.length === 1
+              ? remaining[0]
+              : createBalancedTreeFromLeaves(remaining) ?? null,
+          restoreTree: null,
+        };
+      }
+
       if (typeof current === 'string') {
         return current === target ? { mosaicTree: null } : state;
       }
@@ -518,7 +553,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     if (persistTimer) clearTimeout(persistTimer);
     persistTimer = setTimeout(() => {
       const { mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab } = get();
-      window.mcode.layout.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
+      const terminalPanelState = getTerminalPanelSnapshot();
+      window.mcode.layout.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState);
     }, LAYOUT_PERSIST_DEBOUNCE_MS);
   },
 
@@ -528,7 +564,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       persistTimer = null;
     }
     const { mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab } = get();
-    void window.mcode.layout.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab);
+    const terminalPanelState = getTerminalPanelSnapshot();
+    void window.mcode.layout.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState);
   },
 
   restore: async () => {
@@ -556,6 +593,24 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         activeSidebarTab: snapshot.activeSidebarTab ?? 'sessions',
         viewMode,
       });
+
+      // Restore terminal panel state
+      if (snapshot.terminalPanelState && typeof snapshot.terminalPanelState === 'object') {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { useTerminalPanelStore } = require('./terminal-panel-store') as {
+          useTerminalPanelStore: { setState: (state: Record<string, unknown>) => void };
+        };
+        const ps = snapshot.terminalPanelState as Record<string, unknown>;
+        useTerminalPanelStore.setState({
+          panelHeight: typeof ps.panelHeight === 'number' ? ps.panelHeight : 200,
+          panelPinned: Boolean(ps.panelPinned),
+          panelVisible: Boolean(ps.panelVisible),
+          tabGroups: ps.tabGroups ?? {},
+          splitTree: ps.splitTree ?? null,
+          activeTabGroupId: ps.activeTabGroupId ?? null,
+          terminals: ps.terminals ?? {},
+        });
+      }
     } else {
       set({ viewMode });
     }
