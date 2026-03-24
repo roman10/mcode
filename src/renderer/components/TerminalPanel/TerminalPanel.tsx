@@ -4,7 +4,7 @@ import TerminalPanelToolbar from './TerminalPanelToolbar';
 import TerminalSplitContainer from './TerminalSplitContainer';
 
 const MIN_PANEL_HEIGHT = 100;
-const MIN_LAYOUT_HEIGHT = 150;
+const MIN_LAYOUT_HEIGHT = 100;
 
 export default function TerminalPanel(): React.JSX.Element | null {
   const panelVisible = useTerminalPanelStore((s) => s.panelVisible);
@@ -25,7 +25,7 @@ export default function TerminalPanel(): React.JSX.Element | null {
     (e: React.MouseEvent) => {
       e.preventDefault();
       const startY = e.clientY;
-      const startHeight = panelHeight;
+      const startHeight = panelRef.current?.clientHeight ?? panelHeight;
 
       const handleMouseMove = (me: MouseEvent): void => {
         const maxHeight = getMaxHeight();

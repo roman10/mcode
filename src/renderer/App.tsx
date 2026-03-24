@@ -405,9 +405,10 @@ function App(): React.JSX.Element {
               {viewMode === 'kanban' ? <KanbanLayout /> : <MosaicLayout />}
             </div>
             <TerminalPanel />
-            <StatusBar />
           </div>
         </div>
+        {/* StatusBar lives outside the editor/panel split so it can never be clipped */}
+        <StatusBar />
       </div>
       <KeyboardShortcutsDialog
         open={showKeyboardShortcuts}
