@@ -21,7 +21,6 @@ describe('terminal-panel-store', () => {
     useTerminalPanelStore.setState({
       panelVisible: false,
       panelHeight: 200,
-      panelPinned: false,
       tabGroups: {},
       splitTree: null,
       activeTabGroupId: null,
@@ -118,12 +117,6 @@ describe('terminal-panel-store', () => {
       expect(useTerminalPanelStore.getState().panelVisible).toBe(true);
       useTerminalPanelStore.getState().togglePanelVisible();
       expect(useTerminalPanelStore.getState().panelVisible).toBe(false);
-    });
-
-    it('togglePanelPinned toggles pinned state', () => {
-      expect(useTerminalPanelStore.getState().panelPinned).toBe(false);
-      useTerminalPanelStore.getState().togglePanelPinned();
-      expect(useTerminalPanelStore.getState().panelPinned).toBe(true);
     });
 
     it('setPanelHeight updates height', () => {

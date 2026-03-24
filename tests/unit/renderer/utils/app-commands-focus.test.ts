@@ -157,7 +157,6 @@ describe('toggle-terminal-panel command', () => {
     useTerminalPanelStore.setState({
       panelVisible: false,
       panelHeight: 200,
-      panelPinned: false,
       tabGroups: {},
       splitTree: null,
       activeTabGroupId: null,

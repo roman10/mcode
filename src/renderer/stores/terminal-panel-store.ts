@@ -42,7 +42,6 @@ interface TerminalPanelState {
   // Panel chrome
   panelVisible: boolean;
   panelHeight: number;
-  panelPinned: boolean;
 
   // Layout
   tabGroups: Record<string, TabGroup>;
@@ -73,7 +72,6 @@ interface TerminalPanelState {
   setPanelVisible(visible: boolean): void;
   togglePanelVisible(): void;
   setPanelHeight(height: number): void;
-  togglePanelPinned(): void;
   setFocusInPanel(focused: boolean): void;
 
   // Queries
@@ -188,7 +186,6 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
   // Initial state
   panelVisible: false,
   panelHeight: DEFAULT_PANEL_HEIGHT,
-  panelPinned: false,
   tabGroups: {},
   splitTree: null,
   activeTabGroupId: null,
@@ -260,8 +257,7 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
       }
 
       const hasTerminals = Object.keys(terminals).length > 0;
-      // Keep panel visible if pinned, even when empty
-      const panelVisible = hasTerminals ? state.panelVisible : state.panelPinned;
+      const panelVisible = hasTerminals ? state.panelVisible : false;
       return {
         terminals,
         tabGroups,
@@ -369,7 +365,6 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
   setPanelVisible: (visible) => set({ panelVisible: visible }),
   togglePanelVisible: () => set((state) => ({ panelVisible: !state.panelVisible })),
   setPanelHeight: (height) => set({ panelHeight: height }),
-  togglePanelPinned: () => set((state) => ({ panelPinned: !state.panelPinned })),
   setFocusInPanel: (focused) => set({ focusInPanel: focused }),
 
   // ---------------------------------------------------------------------------

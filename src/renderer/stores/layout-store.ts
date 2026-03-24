@@ -19,7 +19,6 @@ function getTerminalPanelSnapshot(): unknown {
   const state = useTerminalPanelStore.getState();
   return {
     panelHeight: state.panelHeight,
-    panelPinned: state.panelPinned,
     panelVisible: state.panelVisible,
     tabGroups: state.tabGroups,
     splitTree: state.splitTree,
@@ -603,7 +602,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         const ps = snapshot.terminalPanelState as Record<string, unknown>;
         useTerminalPanelStore.setState({
           panelHeight: typeof ps.panelHeight === 'number' ? ps.panelHeight : 200,
-          panelPinned: Boolean(ps.panelPinned),
           panelVisible: Boolean(ps.panelVisible),
           tabGroups: ps.tabGroups ?? {},
           splitTree: ps.splitTree ?? null,

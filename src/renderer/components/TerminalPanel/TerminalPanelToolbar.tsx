@@ -5,8 +5,6 @@ import Tooltip from '../shared/Tooltip';
 import { formatKeys } from '../../utils/format-shortcut';
 
 export default function TerminalPanelToolbar(): React.JSX.Element {
-  const panelPinned = useTerminalPanelStore((s) => s.panelPinned);
-  const togglePanelPinned = useTerminalPanelStore((s) => s.togglePanelPinned);
   const setPanelVisible = useTerminalPanelStore((s) => s.setPanelVisible);
   const terminals = useTerminalPanelStore((s) => s.terminals);
   const activeTabGroupId = useTerminalPanelStore((s) => s.activeTabGroupId);
@@ -82,23 +80,6 @@ export default function TerminalPanelToolbar(): React.JSX.Element {
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <rect x="1" y="1" width="14" height="14" rx="1" />
             <line x1="1" y1="8" x2="15" y2="8" />
-          </svg>
-        </button>
-      </Tooltip>
-
-      {/* Pin toggle */}
-      <Tooltip content={panelPinned ? 'Unpin panel (allow auto-collapse)' : 'Pin panel open'} side="top">
-        <button
-          type="button"
-          className={`shrink-0 px-1 text-xs cursor-pointer ${panelPinned ? 'text-accent' : 'text-text-muted hover:text-text-secondary'}`}
-          onClick={togglePanelPinned}
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            {panelPinned ? (
-              <path d="M8 2v5M5 7h6M6 7v3l2 2 2-2V7" />
-            ) : (
-              <path d="M8 2v5M5 7h6M6 7v3l2 2 2-2V7" opacity="0.5" />
-            )}
           </svg>
         </button>
       </Tooltip>
