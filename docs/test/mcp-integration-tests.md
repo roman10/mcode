@@ -56,9 +56,16 @@ tests/
 │   ├── task-queue         # Task CRUD, update, dispatch, scheduling
 │   ├── commit-tracking    # Commit stats, heatmap, streaks, cadence
 │   ├── file-tools         # File list, read, write, viewer, quick open
+│   ├── file-search        # File search (query, regex, case-sensitive, maxResults)
 │   ├── token-usage        # Token usage stats, heatmap, trends
 │   ├── git-tools          # Git status, diff content, diff viewer
-│   └── snippet-tools      # Snippet scanning, frontmatter parsing, variable extraction
+│   ├── snippet-tools      # Snippet scanning, frontmatter parsing, variable extraction
+│   ├── ephemeral-session  # Ephemeral session creation, sidebar exclusion, terminal I/O
+│   ├── session-account    # Session account assignment (null vs explicit accountId)
+│   ├── session-detach-restore # Detach/reconcile cycle preserving session state & attention
+│   ├── sidebar-session-filter # Sidebar search filter set/get/clear
+│   ├── stress-sessions    # 10 concurrent sessions stress test
+│   └── task-concurrent-dispatch # Parallel task dispatch to multiple sessions
 
 vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 ```
@@ -67,10 +74,14 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 
 **Helpers** (`tests/helpers.ts`): Composable building blocks that combine MCP tool calls:
 
+*Test isolation:*
+- `resetTestState(client)` — calls `app_reset_test_state` to reset app to clean state
+
 *Session lifecycle:*
 - `createTestSession(client, overrides?)` — creates a session with `command: "bash"`
 - `createLiveClaudeTestSession(client, overrides?)` — creates a Claude session with `hookMode: 'live'` using the test fixture
 - `waitForActive(client, sessionId, timeoutMs?)` — polls `session_wait_for_status` until active
+- `waitForIdle(client, sessionId, timeoutMs?)` — polls `session_wait_for_status` until idle
 - `killAndWaitEnded(client, sessionId)` — kills and waits for ended status
 - `cleanupSessions(client, ids)` — best-effort kill all (used in afterAll)
 
@@ -88,6 +99,8 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 - `selectSession(client, sessionId)` — selects or deselects a session
 - `getSidebarActiveTab(client)` — gets the currently active sidebar tab
 - `switchSidebarTab(client, tab)` — switches sidebar to a specific tab
+- `setSessionFilter(client, query)` — sets sidebar filter via `sidebar_set_session_filter`
+- `getSessionFilter(client)` — gets current filter query via `sidebar_get_session_filter`
 
 *Task queue:*
 - `createTask(client, overrides?)` — creates a task with default prompt and cwd
@@ -95,9 +108,12 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 - `cancelTask(client, taskId)` — cancels a pending task
 - `waitForTaskStatus(client, taskId, status, timeoutMs?)` — polls until task reaches target status
 - `updateTask(client, taskId, updates)` — updates a pending task's prompt, priority, or scheduledAt
+- `reorderTask(client, taskId, direction)` — reorders a pending task up or down via `task_reorder`
 
 *Layout:*
 - `getTileCount(client)` — reads `layout_get_tile_count`
+- `waitForTileCount(client, expected, timeoutMs?)` — polls `layout_wait_for_tile_count` until match
+- `waitForViewMode(client, expected, timeoutMs?)` — polls `layout_wait_for_view_mode` until match
 
 *Kanban:*
 - `getViewMode(client)` — gets current view mode (tiles or kanban)
@@ -105,6 +121,8 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 - `getKanbanState(client)` — gets kanban board state (columns and expandedSessionId)
 - `expandKanbanSession(client, sessionId)` — expands a session in kanban view
 - `collapseKanban(client)` — collapses expanded kanban session
+- `waitForKanbanColumn(client, sessionId, column, timeoutMs?)` — polls until session appears in column
+- `waitForKanbanCollapse(client, timeoutMs?)` — polls until expandedSessionId is null
 
 *File:*
 - `writeTestFile(client, relativePath, content, cwd?)` — writes a file via `file_write`
@@ -115,22 +133,25 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 
 ## MCP Tools Used
 
-84 tools across 13 categories. Each test case lists the tools it exercises.
+100 tools across 16 categories. Each test case lists the tools it exercises.
 
 | Category | Tools |
 |----------|-------|
 | **Session** (10) | `session_create`, `session_list`, `session_get_status`, `session_kill`, `session_delete`, `session_delete_all_ended`, `session_delete_batch`, `session_info`, `session_wait_for_status`, `session_set_label` |
+| **Account** (1) | `account_list` |
 | **Terminal** (7) | `terminal_read_buffer`, `terminal_send_keys`, `terminal_get_dimensions`, `terminal_resize`, `terminal_execute_action`, `terminal_drop_files`, `terminal_wait_for_content` |
-| **Layout** (17) | `layout_get_tree`, `layout_add_tile`, `layout_remove_tile`, `layout_remove_all_tiles`, `layout_get_tile_count`, `layout_get_sidebar_width`, `layout_set_sidebar_width`, `layout_get_sidebar_collapsed`, `layout_set_sidebar_collapsed`, `layout_toggle_keyboard_shortcuts`, `layout_toggle_command_palette`, `sidebar_get_sessions`, `layout_get_view_mode`, `layout_set_view_mode`, `kanban_get_columns`, `kanban_expand_session`, `kanban_collapse` |
-| **Sidebar** (5) | `sidebar_select_session`, `sidebar_get_selected`, `sidebar_get_tasks`, `sidebar_switch_tab`, `sidebar_get_active_tab` |
+| **Layout** (15) | `layout_get_tree`, `layout_add_tile`, `layout_remove_tile`, `layout_remove_all_tiles`, `layout_get_tile_count`, `layout_get_sidebar_width`, `layout_set_sidebar_width`, `layout_get_sidebar_collapsed`, `layout_set_sidebar_collapsed`, `layout_toggle_keyboard_shortcuts`, `layout_toggle_command_palette`, `layout_wait_for_tile_count`, `layout_wait_for_view_mode`, `layout_get_view_mode`, `layout_set_view_mode` |
+| **Sidebar** (7) | `sidebar_get_sessions`, `sidebar_select_session`, `sidebar_get_selected`, `sidebar_switch_tab`, `sidebar_get_active_tab`, `sidebar_set_session_filter`, `sidebar_get_session_filter` |
+| **Kanban** (3) | `kanban_get_columns`, `kanban_expand_session`, `kanban_collapse` |
 | **Window** (3) | `window_screenshot`, `window_get_bounds`, `window_resize` |
-| **App** (5) | `app_get_version`, `app_get_console_logs`, `app_get_hmr_events`, `app_get_sleep_blocker_status`, `app_set_prevent_sleep` |
-| **Hook** (8) | `app_get_hook_runtime`, `app_get_attention_summary`, `hook_inject_event`, `hook_list_recent`, `hook_list_recent_all`, `session_wait_for_attention`, `session_clear_attention`, `session_clear_all_attention` |
-| **Task** (5) | `task_create`, `task_list`, `task_cancel`, `task_update`, `task_wait_for_status` |
+| **App** (8) | `app_get_version`, `app_get_console_logs`, `app_get_hmr_events`, `app_get_sleep_blocker_status`, `app_set_prevent_sleep`, `app_reset_test_state`, `app_detach_all`, `app_reconcile_detached` |
+| **Hook** (9) | `app_get_hook_runtime`, `app_get_attention_summary`, `hook_inject_event`, `hook_list_recent`, `hook_list_recent_all`, `hook_clear_all_events`, `session_wait_for_attention`, `session_clear_attention`, `session_clear_all_attention` |
+| **Task** (6) | `task_create`, `task_list`, `task_cancel`, `task_update`, `task_wait_for_status`, `task_reorder` |
 | **Commits** (8) | `commits_get_daily_stats`, `commits_get_heatmap`, `commits_get_streaks`, `commits_get_cadence`, `commits_get_weekly_trend`, `commits_refresh`, `commits_get_scan_mode`, `commits_set_scan_mode` |
 | **File** (5) | `file_list`, `file_read`, `file_write`, `file_open_viewer`, `quick_open_toggle` |
+| **Search** (1) | `file_search` |
 | **Token** (6) | `tokens_get_session_usage`, `tokens_get_daily_usage`, `tokens_get_model_breakdown`, `tokens_get_weekly_trend`, `tokens_get_heatmap`, `tokens_refresh` |
-| **Git** (4) | `git_get_status`, `git_get_all_statuses`, `git_get_diff_content`, `git_open_diff_viewer` |
+| **Git** (10) | `git_get_status`, `git_get_all_statuses`, `git_get_diff_content`, `git_stage_file`, `git_unstage_file`, `git_discard_file`, `git_stage_all`, `git_unstage_all`, `git_discard_all`, `git_open_diff_viewer` |
 | **Snippet** (1) | `snippet_list` |
 
 ---
@@ -182,6 +203,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 | 4 | removes a tile without killing the session | `layout_remove_tile`, `layout_get_tile_count`, `session_get_status` | Tile count decrements but session remains `active` |
 | 5 | re-adds a removed tile | `layout_add_tile`, `layout_get_tile_count` | Tile count increments back after re-adding |
 | 6 | returns error when adding tile for non-existent session | `layout_add_tile` | isError is true for a fake UUID |
+| 7 | auto-closes tile when session is killed | `session_create`, `session_wait_for_status`, `session_kill`, `layout_wait_for_tile_count`, `layout_get_tile_count` | Tile count returns to baseline after kill |
 
 ### 4. Kanban Layout
 
@@ -441,14 +463,21 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 6 | PermissionRequest transitions to waiting with action attention | `hook_inject_event` | Status `waiting`, attention `action`, reason contains tool name |
 | 7 | PostToolUse returns to active and clears action attention | `hook_inject_event` | Status `active`, attention `none` |
 | 8 | SessionEnd transitions to ended and clears attention (no claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status `ended`, attention `none` |
-| 9 | SessionEnd sets action attention when session is resumable (has claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status `ended`, attention `action`, reason is "Session ended — can resume" |
-| 10 | events are persisted and retrievable | `hook_list_recent` | Events list is non-empty, contains correct sessionId |
+| 9 | SessionEnd clears attention even for resumable sessions (has claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status `ended`, attention `none`, attentionReason null |
+| 10 | events are persisted and retrievable with sessionStatus | `hook_list_recent` | Events list is non-empty, contains correct sessionId and sessionStatus |
 | 11 | POST garbage to hook server returns 400 | direct HTTP fetch | 400 status on malformed JSON (skipped if runtime not ready) |
 | 12 | valid JSON but unknown event name returns 400 | direct HTTP fetch | 400 for `MadeUpEvent` |
 | 13 | valid event but unknown session returns 200 (silently accepted) | direct HTTP fetch | 200 for nonexistent session header |
 | 14 | Stop when already idle does not change attention | `hook_inject_event`, `session_clear_attention`, `session_get_status` | Second Stop on idle session with cleared attention keeps attention `none` |
 | 15 | PTY exit transitions to ended and clears attention | `session_kill`, `session_wait_for_status` | Status `ended`, attention `none` after kill |
-| 16 | hook_list_recent_all returns events across sessions | `hook_list_recent_all` | Non-empty array with events from multiple sessions |
+| 16 | sessionStatus reflects correct state after each event | `hook_inject_event`, `hook_list_recent` | Each event's sessionStatus matches expected state (active/idle/waiting) |
+| 17 | polling does not override hook-driven waiting status | `hook_inject_event`, `terminal_send_keys`, `session_get_status` | Status remains `waiting` after poll cycle |
+| 18 | Stop after ExitPlanMode transitions to waiting | `hook_inject_event` | Status `waiting`, attention `action`, reason "Waiting for your response" |
+| 19 | Stop after AskUserQuestion transitions to waiting | `hook_inject_event` | Status `waiting`, attention `action`, reason "Waiting for your response" |
+| 20 | PreToolUse after user-choice waiting transitions back to active | `hook_inject_event` | Status `active`, attention `none` after resuming |
+| 21 | Stop after normal tool still transitions to idle | `hook_inject_event` | Status `idle`, attention `action`, reason "Claude finished — awaiting next input" |
+| 22 | hook_list_recent_all returns events with sessionStatus across sessions | `hook_list_recent_all` | Non-empty array with sessionStatus field |
+| 23 | hook_clear_all_events removes all events | `hook_clear_all_events`, `hook_list_recent_all` | Events list empty after clearing |
 
 ### 22. Attention System
 
@@ -466,12 +495,14 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 7 | action attention is not overridden by info events | `hook_inject_event` | attention stays `action` after Notification |
 | 8 | PostToolUseFailure does not change attention | `hook_inject_event` | attention `none` (Claude handles tool failures autonomously) |
 | 9 | user selection clears attention for that session only | `sidebar_select_session`, `session_get_status` | selected session cleared, other unchanged |
-| 10 | sidebar sorts sessions: action first, then info, then none | `sidebar_get_sessions` | action index < info index < none index |
+| 10 | killing a session with active attention clears it | `session_kill`, `session_wait_for_status`, `session_get_status`, `hook_inject_event` | Ended session has attention `none` |
+| 11 | SessionEnd always clears attention, even for resumable sessions | `hook_inject_event`, `session_get_status` | SessionEnd with claudeSessionId still clears attention |
+| 12 | sidebar sorts sessions: action first, then info, then none | `sidebar_get_sessions` | action index < info index < none index |
 
 ### 23. Task Queue
 
 **File**: `tests/suites/task-queue.test.ts`
-**What it verifies**: Task CRUD, update, dispatch to sessions, failure handling, scheduled tasks, and validation.
+**What it verifies**: Task CRUD, update, reorder, dispatch to sessions, failure handling, scheduled tasks, and validation.
 
 | # | Test | MCP tools | What it checks |
 |---|------|-----------|----------------|
@@ -486,11 +517,16 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 9 | rejects task creation when hook runtime is not ready | `task_create` | Throws `/not found/i` for nonexistent session |
 | 10 | rejects task targeting terminal session | `task_create`, `session_create` | Throws `/only supports Claude/i` |
 | 11 | rejects task targeting ended session | `task_create`, `session_kill` | Throws `/ended/i` |
-| 12 | sidebar_get_tasks returns all tasks | `sidebar_get_tasks`, `task_create`, `task_cancel` | Created task appears in sidebar list |
-| 13 | rejects task targeting fallback-mode Claude session | `task_create`, `session_create` | Throws `/live hook mode/i` |
-| 14 | task_update changes prompt of pending task | `task_update`, `task_create`, `task_list`, `task_cancel` | Updated prompt persists in task list |
-| 15 | task_update changes priority and scheduledAt | `task_update`, `task_create`, `task_cancel` | Both fields updated correctly |
-| 16 | task_update rejects non-pending tasks | `task_update`, `task_create`, `task_cancel` | Throws `/only pending/i` for cancelled task |
+| 12 | rejects task targeting fallback-mode Claude session | `task_create`, `session_create` | Throws `/live hook mode/i` |
+| 13 | task_update changes prompt of pending task | `task_update`, `task_create`, `task_list`, `task_cancel` | Updated prompt persists in task list |
+| 14 | task_update changes priority and scheduledAt | `task_update`, `task_create`, `task_cancel` | Both fields updated correctly |
+| 15 | task_update rejects non-pending tasks | `task_update`, `task_create`, `task_cancel` | Throws `/only pending/i` for dispatched task |
+| 16 | assigns sort_order on session-targeted task creation | `task_create`, `task_cancel` | 3 tasks get sortOrder 1, 2, 3 |
+| 17 | standalone tasks have null sort_order | `task_create`, `task_cancel` | sortOrder is null for tasks without targetSessionId |
+| 18 | reorders tasks up within session | `task_reorder`, `task_create`, `task_list`, `task_cancel` | Move t3 up → order [t1, t3, t2] |
+| 19 | reorders tasks down within session | `task_reorder`, `task_create`, `task_list`, `task_cancel` | Move t1 down → order [t2, t1] |
+| 20 | reorder at boundary throws error | `task_reorder`, `task_create`, `task_cancel` | Up at top → `/already at the top/i`; down at bottom → `/already at the bottom/i` |
+| 21 | reorder rejects non-pending and standalone tasks | `task_reorder`, `task_create`, `task_cancel` | Standalone → `/standalone/i`; dispatched → `/only pending/i` |
 
 ### 24. Commit Tracking
 
@@ -555,8 +591,8 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 
 | # | Test | MCP tools | What it checks |
 |---|------|-----------|----------------|
-| 1 | git_get_status returns valid shape for repo cwd | `git_get_status` | Returns object with `repoRoot` and `files` array; each file has `path` and `status` |
-| 2 | git_get_status returns empty files for non-git path | `git_get_status` | Non-git cwd returns empty `files` array (graceful, not error) |
+| 1 | git_get_status returns valid shape for repo cwd | `git_get_status` | Returns object with `repoRoot`, `staged` array, and `unstaged` array; each entry has `path` and `status` |
+| 2 | git_get_status returns empty arrays for non-git path | `git_get_status` | Non-git cwd returns empty `staged` and `unstaged` arrays (graceful, not error) |
 | 3 | git_get_all_statuses returns array | `git_get_all_statuses` | Returns array (possibly empty) |
 | 4 | git_get_diff_content returns diff shape for known file | `git_get_diff_content` | Returns object with `originalContent`, `modifiedContent`, and `language`, or "Binary file" text |
 | 5 | git_get_diff_content returns empty content for non-existent file | `git_get_diff_content` | Returns `originalContent` and `modifiedContent` as empty strings (graceful, not error) |
@@ -577,30 +613,123 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 4 | auto-extracts variables from body when no frontmatter variables | `snippet_list` | "deploy" has 2 auto-extracted variables (`service`, `environment`) |
 | 5 | returns empty array for directory with no snippets | `snippet_list` | No error for directory without `.mcode/snippets/`; returns valid array |
 
+### 29. Ephemeral Sessions
+
+**File**: `tests/suites/ephemeral-session.test.ts`
+**What it verifies**: Ephemeral session creation, sidebar exclusion, terminal I/O, and kill lifecycle.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | creates an ephemeral session | `session_create` | ephemeral is true |
+| 2 | ephemeral session is excluded from sidebar_get_sessions | `sidebar_get_sessions` | Not in sidebar list |
+| 3 | ephemeral session appears in session_list | `session_list` | Present with `include_ephemeral: true` |
+| 4 | ephemeral session has working terminal I/O | `layout_add_tile`, `terminal_send_keys`, `terminal_wait_for_content` | Echo appears in buffer |
+| 5 | can kill an ephemeral session | `session_kill`, `session_wait_for_status`, `session_get_status` | Status becomes ended |
+| 6 | killed ephemeral session still excluded from sidebar | `sidebar_get_sessions` | Still not in sidebar |
+
+### 30. Session Account Assignment
+
+**File**: `tests/suites/session-account.test.ts`
+**What it verifies**: Session creation with and without accountId — verifies persistence to DB.
+
+**Setup**: Fetches default account via `account_list` in `beforeAll`.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | creates session without accountId → null | `session_create`, `session_get_status` | accountId is null in both create response and DB |
+| 2 | creates session with accountId → stored | `session_create`, `session_get_status`, `account_list` | accountId matches default account |
+
+### 31. Stress Sessions
+
+**File**: `tests/suites/stress-sessions.test.ts`
+**What it verifies**: The app handles 10 simultaneous sessions — creation, state tracking, independent I/O, and teardown.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | creates 10 sessions concurrently | `session_create` | All 10 created via `Promise.all` |
+| 2 | all sessions transition to active | `session_wait_for_status` | All 10 reach `active` concurrently |
+| 3 | all sessions appear in session_list | `session_list` | All 10 IDs present |
+| 4 | each session has independent terminal I/O | `terminal_send_keys`, `terminal_wait_for_content` | Unique marker in each session's buffer |
+| 5 | kills all sessions and all transition to ended | `session_kill`, `session_wait_for_status`, `session_get_status` | All 10 reach `ended` |
+| 6 | tile count returns to baseline after kills | `layout_wait_for_tile_count`, `layout_get_tile_count` | Returns to pre-test count |
+
+### 32. Task Concurrent Dispatch
+
+**File**: `tests/suites/task-concurrent-dispatch.test.ts`
+**What it verifies**: Parallel task dispatch to multiple sessions, priority ordering, and graceful failure.
+
+**Setup**: Creates 2 live Claude sessions and waits for both to be idle.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | dispatches tasks to different sessions in parallel | `task_create`, `task_wait_for_status` | Both dispatched to different sessions concurrently |
+| 2 | respects priority ordering for same-session tasks | `task_create`, `task_list`, `task_cancel` | Higher priority task listed first |
+| 3 | tasks targeting non-existent session fail gracefully | `task_create` | Throws `/not found/i` |
+
+### 33. File Search
+
+**File**: `tests/suites/file-search.test.ts`
+**What it verifies**: File search tool — query matching, regex mode, case-sensitivity, and maxResults cap.
+
+**Setup**: Creates a session for search context.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | file_search finds known string in codebase | `file_search` | `totalMatches > 0`, result contains expected file |
+| 2 | file_search returns empty for nonexistent string | `file_search` | `totalMatches === 0`, "No matches found." |
+| 3 | file_search supports regex mode | `file_search` | Regex pattern `class\\s+FileSearch` matches |
+| 4 | file_search supports case-sensitive mode | `file_search` | `caseSensitive: true` flag is respected |
+| 5 | file_search respects maxResults cap | `file_search` | Results capped at 3 |
+
+### 34. Session Detach and Restore
+
+**File**: `tests/suites/session-detach-restore.test.ts`
+**What it verifies**: The detach/reconcile cycle — simulates app close and reopen, verifying session states and attention levels are preserved.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | creates sessions in different states for detach testing | `session_create`, `hook_inject_event` | idle, active, and waiting states created |
+| 2 | detachAllActive preserves all session states | `app_detach_all`, `session_get_status` | All sessions become `detached` |
+| 3 | reconcileDetachedSessions restores pre-detach states | `app_reconcile_detached`, `session_get_status` | idle→idle, active→active, waiting→waiting |
+| 4 | reconcileDetachedSessions marks dead sessions as ended | `app_detach_all`, `app_reconcile_detached`, `session_get_status` | Sessions not in aliveSessionIds become ended |
+| 5 | preserves attention levels through detach+restore cycle | `app_detach_all`, `app_reconcile_detached`, `session_get_status`, `hook_inject_event` | action attention preserved through cycle |
+
+### 35. Sidebar Session Filter
+
+**File**: `tests/suites/sidebar-session-filter.test.ts`
+**What it verifies**: Sidebar search filter — set, get, clear, and verify it's UI-only (doesn't affect `sidebar_get_sessions`).
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | set and get filter query | `sidebar_set_session_filter`, `sidebar_get_session_filter` | Query round-trips correctly |
+| 2 | clear filter with empty string | `sidebar_set_session_filter`, `sidebar_get_session_filter` | Empty string clears filter |
+| 3 | filter does not affect sidebar_get_sessions (UI-only) | `sidebar_set_session_filter`, `sidebar_get_session_filter`, `sidebar_get_sessions` | All sessions returned regardless of filter |
+
 ---
 
 ## Coverage Summary
 
 | Feature Area | Suites | Tests | Key behaviors verified |
 |-------------|--------|-------|----------------------|
-| Session lifecycle | 1, 2, 17, 18 | 28 | Create, status transitions, list, label, PTY info, kill, delete, bulk delete, batch delete, idempotent kill, concurrent create/kill, error on missing |
-| Tiling layout | 3, 5, 9, 18 | 19 | Auto-tile on create, add/remove, remove-all, tree structure, detach != kill, re-attach, concurrent tiles |
+| Session lifecycle | 1, 2, 17, 18, 29, 30 | 44 | Create, status transitions, list, label, PTY info, kill, delete, bulk delete, batch delete, idempotent kill, concurrent create/kill, ephemeral sessions, account assignment, error on missing |
+| Tiling layout | 3, 5, 9, 18, 31 | 31 | Auto-tile on create, add/remove, remove-all, tree structure, detach != kill, re-attach, auto-close on kill, concurrent tiles, 10-session stress |
 | Kanban layout | 4 | 8 | View mode switching, column grouping (working/completed/needs-attention), session expansion, auto-collapse, tile tree in kanban mode |
-| Sidebar | 6, 7, 8 | 14 | Session display, status tracking, DB consistency, selection, width control, tab switching |
+| Sidebar | 6, 7, 8, 35 | 17 | Session display, status tracking, DB consistency, selection, width control, tab switching, session filter set/get/clear |
 | Terminal I/O | 10, 11, 12, 17 | 13 | Send/read, buffer limits, dimensions, resize, Ctrl+C, timeout, sequential commands, copy/selectAll/clear, file drop, error on missing |
 | Window | 13 | 3 | Screenshot, bounds, resize |
 | App introspection | 14, 15, 16 | 10 | Version, console logs (filter + limit), HMR events, sleep prevention, renderer bridge |
 | Permission modes | 19 | 1 | PERMISSION_MODES constant matches Claude CLI |
 | Hook config | 20 | 9 | Merge/remove mcode hooks, preserve user hooks, PID header, multi-instance, port-scoped removal, port+PID extraction |
-| Hook integration | 21 | 16 | Event lifecycle (all hook events), status transitions, event persistence, HTTP error responses, PTY exit, cross-session events |
-| Attention system | 22 | 10 | Attention levels (action/info/none), priority ordering, clearing, sidebar sorting |
-| Task queue | 23 | 16 | Task CRUD, update, dispatch, sequential dispatch, failure on session end, scheduling, validation |
+| Hook integration | 21 | 23 | Event lifecycle (all hook events), status transitions, event persistence, sessionStatus tracking, HTTP error responses, PTY exit, ExitPlanMode/AskUserQuestion waiting, poll override protection, cross-session events, event clearing |
+| Attention system | 22 | 12 | Attention levels (action/info/none), priority ordering, clearing, kill clears attention, SessionEnd clears attention, sidebar sorting |
+| Task queue | 23, 32 | 24 | Task CRUD, update, reorder, dispatch, concurrent dispatch, sequential dispatch, failure on session end, scheduling, sort_order, validation |
 | Commit tracking | 24 | 10 | Daily stats, heatmap, streaks, cadence, weekly trend, scan mode |
-| File tools | 25 | 7 | File listing (git-aware), read (text + binary), write round-trip, file viewer, quick open |
+| File tools | 25, 33 | 12 | File listing (git-aware), read (text + binary), write round-trip, file viewer, quick open, file search (query, regex, case-sensitive, maxResults) |
 | Token usage | 26 | 9 | Refresh scan, daily/session/model usage, weekly trend, heatmap |
-| Git tools | 27 | 6 | Git status (single repo + all repos), diff content, diff viewer |
+| Git tools | 27 | 6 | Git status (staged/unstaged, single repo + all repos), diff content, diff viewer |
 | Snippet tools | 28 | 5 | Snippet scanning, frontmatter parsing, variable extraction, empty directory |
-| **Total** | **28** | **186** | |
+| Detach/restore | 34 | 5 | Detach preserves states, reconcile restores states, dead sessions ended, attention preserved |
+| **Total** | **35** | **231** | |
 
 ## Writing New Tests
 
