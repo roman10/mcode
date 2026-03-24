@@ -47,14 +47,14 @@ Research on tools similar to mcode: desktop apps, TUIs, and orchestration layers
 - **GitHub stars**: ~21K
 - **Key features**: Session checkpoints (rewind conversations), visual project browser, CLAUDE.md editor, usage analytics, custom agents
 - **Platforms**: macOS, Linux, Windows
-- **vs mcode**: Opcode focuses on single-session enhancement. mcode focuses on multi-session orchestration with tiling, kanban, task queue, and 90 MCP tools. Different niches.
+- **vs mcode**: Opcode focuses on single-session enhancement. mcode focuses on multi-session orchestration with tiling, kanban, task queue, and 100 MCP tools. Different niches.
 
 ### Nimbalyst (formerly Crystal)
 - **URL**: https://nimbalyst.com/ | https://github.com/stravu/crystal
 - **Open source**: Crystal (predecessor) was OSS; Nimbalyst is commercial
 - **Key features**: Multi-session management with kanban board, markdown editor, diagramming, iOS mobile app
 - **Platforms**: macOS, Windows, Linux
-- **vs mcode**: Most similar in concept. Nimbalyst uses kanban; mcode has both tiling and kanban views. Nimbalyst has mobile app; mcode has multi-account, 90 MCP tools, task queue, and commit/token analytics.
+- **vs mcode**: Most similar in concept. Nimbalyst uses kanban; mcode has both tiling and kanban views. Nimbalyst has mobile app; mcode has multi-account, 100 MCP tools, task queue, and commit/token analytics.
 
 ### Quack
 - **URL**: https://www.quack.build/
@@ -68,7 +68,7 @@ Research on tools similar to mcode: desktop apps, TUIs, and orchestration layers
 - **Tech**: Electron 40 + React 19 + xterm.js + Tailwind CSS v4
 - **Key features**: Tabbed terminal sessions, status indicators, session persistence, worktree support
 - **Platforms**: Windows-focused
-- **vs mcode**: **Nearly identical tech stack.** Uses tabs, mcode uses tiling + kanban. mcode adds multi-account, task queue, 90 MCP tools, commit/token analytics, command palette, and SQLite persistence.
+- **vs mcode**: **Nearly identical tech stack.** Uses tabs, mcode uses tiling + kanban. mcode adds multi-account, task queue, 100 MCP tools, commit/token analytics, command palette, and SQLite persistence.
 
 ### Sculptor (Imbue)
 - **URL**: https://github.com/imbue-ai/sculptor
@@ -150,7 +150,7 @@ Research on tools similar to mcode: desktop apps, TUIs, and orchestration layers
 | **Kanban view** (drag-and-drop session board) | Yes | Nimbalyst, Quack, Vibe Kanban, Dorothy |
 | **Terminal-native** (node-pty + xterm.js WebGL) | Yes | ClaudeTerminal, Agent of Empires |
 | **Multi-account support** | Yes | Only CLI tools (CCS, claude-env) |
-| **90 MCP tools** (full automation surface) | Yes | None at this depth |
+| **100 MCP tools** (full automation surface) | Yes | None at this depth |
 | **Task queue** (scheduled dispatch with priority) | Yes | Dorothy (GitHub-triggered), Agent Deck (Conductors) |
 | **Command palette + quick open** | Yes | Opcode, Kintsugi |
 | **Commit analytics** (streaks, heatmaps, cadence) | Yes | Mission Control (basic) |
@@ -162,11 +162,12 @@ Research on tools similar to mcode: desktop apps, TUIs, and orchestration layers
 | **Git commit graph** (branch topology viz) | Yes | None |
 | **Plan mode automation** (task queue driven) | Yes | None |
 | **VSCode-style staging/discarding** | Yes | Sculptor (IDE sync) |
+| **Snippet palette** (reusable prompt snippets) | Yes | None |
 | **Purpose-built for Claude Code** | Yes | Opcode, Quack, Nimbalyst |
-| **SQLite-backed persistence** (17 migrations) | Yes | Few |
-| **45 keyboard shortcuts** | Yes | Opcode, Kintsugi |
+| **SQLite-backed persistence** (20 migrations) | Yes | Few |
+| **51 keyboard shortcuts** | Yes | Opcode, Kintsugi |
 
-No single competitor matches the combination of tiling + kanban + multi-account + terminal-native + 90 MCP tools + task queue + hook-driven monitoring + commit/token analytics.
+No single competitor matches the combination of tiling + kanban + multi-account + terminal-native + 100 MCP tools + task queue + hook-driven monitoring + commit/token analytics.
 
 ---
 
