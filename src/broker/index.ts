@@ -2,6 +2,7 @@ import * as net from 'node:net';
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
 import { PtyManager } from '../main/pty-manager';
+import { BROKER_AUTO_SHUTDOWN_DELAY_MS } from '../shared/constants';
 
 interface BrokerRequest {
   id?: string;
@@ -55,19 +56,48 @@ export function runBroker(socketPath: string): Promise<void> {
     }
   }
 
-  const ptyManager = new PtyManager(
-    (id, data) => broadcast({ event: 'pty.data', params: { id, data } }),
-    (id, exitCode, signal) => broadcast({ event: 'pty.exit', params: { id, code: exitCode, signal } }),
-  );
-
   return new Promise<void>((resolve) => {
+    let autoShutdownTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function maybeScheduleAutoShutdown(): void {
+      if (autoShutdownTimer) { clearTimeout(autoShutdownTimer); autoShutdownTimer = null; }
+      if (ptyManager.list().length > 0 || clients.size > 0) return;
+
+      console.log(`[pty-broker] Idle (no PTYs, no clients). Auto-shutdown in ${BROKER_AUTO_SHUTDOWN_DELAY_MS / 1000}s...`);
+      autoShutdownTimer = setTimeout(() => {
+        autoShutdownTimer = null;
+        // Re-check: activity may have resumed during the grace period
+        if (ptyManager.list().length > 0 || clients.size > 0) return;
+        console.log('[pty-broker] Auto-shutting down (idle)');
+        server.close();
+        try { fs.rmSync(socketPath, { force: true }); } catch { /* ignore */ }
+        try { fs.rmSync(pidPath, { force: true }); } catch { /* ignore */ }
+        for (const c of clients) c.destroy();
+        resolve();
+      }, BROKER_AUTO_SHUTDOWN_DELAY_MS);
+    }
+
+    function cancelAutoShutdown(): void {
+      if (autoShutdownTimer) { clearTimeout(autoShutdownTimer); autoShutdownTimer = null; }
+    }
+
+    const ptyManager = new PtyManager(
+      (id, data) => broadcast({ event: 'pty.data', params: { id, data } }),
+      (id, exitCode, signal) => {
+        broadcast({ event: 'pty.exit', params: { id, code: exitCode, signal } });
+        maybeScheduleAutoShutdown();
+      },
+    );
+
     const server = net.createServer((socket) => {
       clients.add(socket);
+      cancelAutoShutdown();
 
       // Register error handler BEFORE any writes to avoid unhandled EPIPE
       // (e.g., when a health-check probe connects and immediately disconnects)
       socket.on('error', () => {
         clients.delete(socket);
+        maybeScheduleAutoShutdown();
       });
 
       if (!socket.destroyed) {
@@ -97,6 +127,7 @@ export function runBroker(socketPath: string): Promise<void> {
       socket.on('close', () => {
         clients.delete(socket);
         rl.close();
+        maybeScheduleAutoShutdown();
       });
     });
 
@@ -174,6 +205,7 @@ export function runBroker(socketPath: string): Promise<void> {
           }
 
           case 'broker.shutdown': {
+            cancelAutoShutdown();
             respond(null);
             await ptyManager.killAll();
             server.close();

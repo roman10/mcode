@@ -4,6 +4,7 @@ export const TERMINAL_FONT_SIZE = 13;
 export const TERMINAL_FONT_FAMILY = "'JetBrains Mono', 'Fira Code', monospace";
 export const PTY_KILL_TIMEOUT_MS = 3000;
 export const RING_BUFFER_MAX_BYTES = 100 * 1024; // ~100KB per session
+export const BROKER_AUTO_SHUTDOWN_DELAY_MS = 30_000; // 30s idle before broker exits
 export const DEFAULT_SCROLLBACK_LINES = 5000;
 export const SCROLLBACK_PRESETS = [1000, 5000, 10_000, 50_000, 0] as const; // 0 = unlimited
 export const DEFAULT_SIDEBAR_WIDTH = 280;
