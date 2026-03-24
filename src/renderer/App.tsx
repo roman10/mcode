@@ -139,7 +139,20 @@ function App(): React.JSX.Element {
       const previousAttention = prevAttentionBySessionRef.current[session.sessionId];
       prevAttentionBySessionRef.current[session.sessionId] = session.attentionLevel;
 
+      // Check if session just transitioned to ended (before upsert updates the store)
+      const prevStatus = useSessionStore.getState().sessions[session.sessionId]?.status;
+      const justEnded = session.status === 'ended' && prevStatus !== 'ended';
+
       upsertSession(session);
+
+      // Auto-remove tile when session transitions to ended.
+      // This centralised cleanup is needed because in kanban mode TerminalTile
+      // components are not mounted for non-expanded sessions, so their
+      // auto-close useEffect never fires and zombie tiles accumulate.
+      if (justEnded) {
+        removeTile(session.sessionId);
+        persist();
+      }
 
       // System notification only when action attention is newly raised.
       if (
@@ -154,7 +167,7 @@ function App(): React.JSX.Element {
       }
     });
     return unsub;
-  }, [upsertSession]);
+  }, [upsertSession, removeTile, persist]);
 
   // Listen for sessions created externally (e.g. via MCP devtools)
   // Terminal sessions go to the bottom panel; Claude sessions go to mosaic tiles

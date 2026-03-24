@@ -39,10 +39,6 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     }
   };
 
-  // Stable ref for handleClose so the auto-close effect doesn't re-fire on re-renders
-  const handleCloseRef = useRef(handleClose);
-  handleCloseRef.current = handleClose;
-
   const handleToggleMaximize = (): void => {
     const store = useLayoutStore.getState();
     if (store.viewMode === 'kanban') {
@@ -147,14 +143,17 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
 
   // Auto-close the tile when the session *transitions* to ended (not on mount).
   // If a tile is opened for an already-ended session, keep it open with SessionEndedPrompt.
+  // Always remove the tile from the mosaic tree regardless of view mode — the kanban
+  // expansion is separately auto-collapsed by KanbanLayout's own useEffect.
   const prevStatusRef = useRef(status);
   useEffect(() => {
     const wasEnded = prevStatusRef.current === 'ended';
     prevStatusRef.current = status;
     if (status === 'ended' && !wasEnded) {
-      handleCloseRef.current();
+      removeTile(sessionId);
+      persist();
     }
-  }, [status]);
+  }, [status, sessionId, removeTile, persist]);
 
   return (
     <div
