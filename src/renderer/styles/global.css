@@ -1,6 +1,15 @@
 @import "tailwindcss";
 @import "@xterm/xterm/css/xterm.css";
 
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
 @theme {
   --color-bg-primary: #0d1117;
   --color-bg-secondary: #161b22;
