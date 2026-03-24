@@ -34,22 +34,23 @@ npm run build:mac
 
 When you launch mcode, you see two main areas:
 
-1. **Sidebar** (left) — tabs for sessions, commits, tokens, and activity
+1. **Sidebar** (left) — icons for sessions, search, changes, commits, tokens, and activity
 2. **Main area** (right) — a tiling layout (or kanban board) where terminal tiles are displayed
 
 ### Sidebar
 
-The sidebar has a **tab bar** at the top with five tabs:
+The sidebar has a vertical **activity bar** on its left edge with six icons:
 
-- **Sessions** — session list grouped by date, plus the task queue
-- **Commits** — commit statistics for the day (see [Sidebar Panels](sidebar-panels.md#commit-tracking))
+- **Sessions** — session list grouped by date
+- **Search** — search in files across project directories (`Cmd+Shift+F`)
 - **Changes** — git changes (staged/unstaged) and commit graph (see [Git Changes](git-changes.md) and [Sidebar Panels](sidebar-panels.md#changes))
+- **Commits** — commit statistics for the day (see [Sidebar Panels](sidebar-panels.md#commit-tracking))
 - **Tokens** — token usage and estimated cost (see [Sidebar Panels](sidebar-panels.md#token-usage))
 - **Activity** — live event feed from all sessions (see [Sidebar Panels](sidebar-panels.md#activity-feed))
 
-Switch tabs by clicking the icons or with `Cmd+Shift+B` (Commits), `Cmd+Shift+C` (Changes), `Cmd+Shift+U` (Tokens), `Cmd+Shift+A` (Activity).
+Switch panels by clicking the icons or with `Cmd+Shift+F` (Search), `Cmd+Shift+C` (Changes), `Cmd+Shift+B` (Commits), `Cmd+Shift+U` (Tokens), `Cmd+Shift+A` (Activity).
 
-On the **Sessions tab**, action buttons appear to the right of the tab bar: Close all tiles, Delete ended sessions, Mark all read, New terminal (`Cmd+T`), and New session (`Cmd+N`).
+On the **Sessions tab**, action buttons appear in the sidebar header: Close all tiles, Delete ended sessions, Mark all read, New terminal (`Cmd+T`), and New session (`Cmd+N`).
 
 The session list shows all sessions grouped by date (Today, Yesterday, then by date):
 
@@ -60,7 +61,7 @@ The session list shows all sessions grouped by date (Today, Yesterday, then by d
 - **Neutral dot** — Detached (PTY connection lost, e.g., after an unclean shutdown; the process may still be running)
 - **Gray dot** — Ended (session has terminated)
 
-Sessions with raised attention show a colored left border (red, amber, or blue) to draw your eye. See [Attention & Tasks](attention-and-tasks.md) for details.
+Sessions with raised attention show a colored left border (red for action, amber for info) to draw your eye. See [Attention & Tasks](attention-and-tasks.md) for details.
 
 You can resize the sidebar by dragging its right edge (200px–500px range).
 

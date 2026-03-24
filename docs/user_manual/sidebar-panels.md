@@ -1,10 +1,16 @@
 # Sidebar Panels
 
-The sidebar header has five tabs: **Sessions**, **Commits**, **Changes**, **Tokens**, and **Activity**. Click the tab icons to switch, or use the keyboard shortcuts below.
+The sidebar has a vertical activity bar with six panels: **Sessions**, **Search**, **Changes**, **Commits**, **Tokens**, and **Activity**. Click the icons in the activity bar to switch, or use the keyboard shortcuts below.
+
+## Search in Files
+
+**Open it:** Click the Search icon in the activity bar, or press `Cmd+Shift+F`.
+
+Search for text across all project directories with active sessions. Results are grouped by file with line numbers and context.
 
 ## Activity Feed
 
-**Open it:** Click the Activity tab in the sidebar header, or press `Cmd+Shift+A`.
+**Open it:** Click the Activity icon in the activity bar, or press `Cmd+Shift+A`.
 
 A live stream of hook events from all sessions — tool calls, session lifecycle, permission requests, and more.
 
@@ -32,7 +38,7 @@ Click **Clear** to reset filters.
 
 ## Changes
 
-**Open it:** Click the Changes tab in the sidebar header, or press `Cmd+Shift+C`.
+**Open it:** Click the Changes icon in the activity bar, or press `Cmd+Shift+C`.
 
 Shows git changes and commit history for repos with active sessions. The tab badge counts unstaged + staged files across all tracked repos.
 
@@ -51,7 +57,7 @@ A visual commit graph for each tracked repo, showing branch topology:
 
 ## Commit Tracking
 
-**Open it:** Click the Commits tab in the sidebar header, or press `Cmd+Shift+B`.
+**Open it:** Click the Commits icon in the activity bar, or press `Cmd+Shift+B`.
 
 Shows your commit activity for the day across all repos that have active sessions.
 
@@ -72,7 +78,7 @@ By default only commits on the main branch are tracked. To include all branches,
 
 ## Token Usage
 
-**Open it:** Click the Tokens tab in the sidebar header, or press `Cmd+Shift+U`.
+**Open it:** Click the Tokens icon in the activity bar, or press `Cmd+Shift+U`.
 
 Shows token consumption and estimated cost across all sessions.
 

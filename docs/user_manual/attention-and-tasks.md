@@ -8,16 +8,15 @@ When a session needs your input — for example, a permission request or a compl
 
 | Level | Sidebar indicator | Meaning |
 |---|---|---|
-| High | Red left border, pulsing ring | Immediate action needed (e.g., permission request) |
-| Medium | Amber left border | Session completed a turn or sent a notification |
-| Low | Blue left border | Informational |
+| Action | Red left border, pulsing ring | Immediate action needed (e.g., permission request) |
+| Info | Amber left border | Session completed a turn or sent a notification |
 | None | No border | Nothing to act on |
 
 ### Other visual cues
 
-- **Tile toolbar** — a red inset glow appears on the toolbar when a session has high attention
-- **Dock badge** — the app icon shows a badge count of high-attention sessions
-- **System notification** — a macOS notification is sent for high attention when the app is not focused
+- **Tile toolbar** — a red inset glow appears on the toolbar when a session has action-level attention
+- **Dock badge** — the app icon shows a badge count of action-level attention sessions
+- **System notification** — a macOS notification is sent for action-level attention when the app is not focused
 
 ### Clearing attention
 
@@ -26,15 +25,15 @@ When a session needs your input — for example, a permission request or a compl
 
 ## Task Queue
 
-The task queue lets you schedule prompts to be dispatched to sessions automatically. It appears as a collapsible panel at the bottom of the sidebar.
+The task queue lets you schedule prompts to be dispatched to sessions. Tasks are created via the New Task dialog (`Cmd+Shift+T`) and appear in the task panel at the top of each session's terminal tile.
 
 ### Creating a task
 
-Click the **+** button in the task queue header to open the create dialog, or press `Cmd+Shift+T`. Specify:
+Press `Cmd+Shift+T` to open the New Task dialog. Fill in:
 
 - **Prompt** — the instruction to send
-- **Target session** (optional) — pick an existing session, or leave blank to create a new one
-- **Priority** and **scheduling** options
+- **Working directory** — the project folder for the task
+- **Target session** — pick an existing active or idle session (required)
 
 ### Task statuses
 
@@ -45,8 +44,6 @@ Click the **+** button in the task queue header to open the create dialog, or pr
 | Done | Blue | Completed successfully |
 | Failed | Red | Failed (hover the dot for the error) |
 
-Pending tasks can be cancelled by hovering and clicking **x**.
-
 ### Task panel in tiles
 
 When a session has pending or in-progress tasks, a collapsible **Tasks** bar appears at the top of its terminal tile (just below the toolbar). It shows how many tasks are queued, and expands to list them with their status:
@@ -55,9 +52,8 @@ When a session has pending or in-progress tasks, a collapsible **Tasks** bar app
 - **Green dot** — Running (currently being dispatched)
 
 For queued tasks you can hover to reveal:
+- **Up/down arrows** — reorder the task within the queue
 - **Pencil icon** — edit the task prompt inline; `Cmd+Enter` to save, `Escape` to cancel
 - **× icon** — cancel the task
 
 Click the Tasks bar header to collapse or expand the panel.
-
-The task queue requires the hook runtime to be active. If live status is unavailable, a warning message appears.
