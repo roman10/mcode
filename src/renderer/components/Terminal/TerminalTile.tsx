@@ -21,6 +21,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const sessionType = useSessionStore((s) => s.sessions[sessionId]?.sessionType);
   const scrollbackLines = useSessionStore((s) => s.sessions[sessionId]?.terminalConfig?.scrollbackLines);
 
+  const isFocused = useSessionStore((s) => s.selectedSessionId === sessionId);
   const viewMode = useLayoutStore((s) => s.viewMode);
   const isMaximized = useLayoutStore((s) =>
     s.viewMode === 'kanban' ? s.kanbanExpandedSessionId !== null : s.restoreTree !== null,
@@ -107,7 +108,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col h-full w-full bg-bg-primary outline-none"
+      className={`flex flex-col h-full w-full bg-bg-primary outline-none border-t-2 transition-colors ${isFocused ? 'border-t-accent' : 'border-t-transparent'}`}
       tabIndex={-1}
       onPointerDown={handleFocus}
       onKeyDown={handleKeyDown}
