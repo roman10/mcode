@@ -1,7 +1,7 @@
 import type { AppCommand } from '@shared/types';
 import { useLayoutStore } from '../stores/layout-store';
 import { useSessionStore } from '../stores/session-store';
-import { getOrderedVisibleSessions } from './session-ordering';
+import { getOrderedOpenSessions } from './session-ordering';
 import { createTerminalSession } from './session-actions';
 
 /**
@@ -29,7 +29,7 @@ export function executeAppCommand(command: AppCommand): void {
     }
 
     case 'focus-session-index': {
-      const ordered = getOrderedVisibleSessions(useSessionStore.getState().sessions);
+      const ordered = getOrderedOpenSessions(useSessionStore.getState().sessions);
       const target = ordered[command.index];
       if (!target) break;
       useLayoutStore.getState().addTile(target.sessionId);
@@ -42,7 +42,7 @@ export function executeAppCommand(command: AppCommand): void {
     case 'focus-prev-session': {
       const sessions = useSessionStore.getState().sessions;
       const selectedId = useSessionStore.getState().selectedSessionId;
-      const ordered = getOrderedVisibleSessions(sessions);
+      const ordered = getOrderedOpenSessions(sessions);
       if (ordered.length === 0) break;
 
       const currentIdx = selectedId

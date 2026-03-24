@@ -31,6 +31,15 @@ export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo>)
 }
 
 /**
+ * Open (non-ended) sessions in canonical order.
+ * Used by keyboard navigation (Cmd+]/[, Cmd+1..9) so focus cycling
+ * skips sessions that have already terminated.
+ */
+export function getOrderedOpenSessions(sessions: Record<string, SessionInfo>): SessionInfo[] {
+  return getOrderedVisibleSessions(sessions).filter((s) => s.status !== 'ended');
+}
+
+/**
  * Filter sessions by a case-insensitive substring match on label or cwd.
  * Returns all sessions when query is empty.
  */
