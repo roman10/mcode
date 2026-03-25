@@ -24,7 +24,7 @@ describe('sidebar tabs', () => {
   });
 
   it('switch_tab switches to each tab', async () => {
-    const tabs = ['stats', 'changes', 'activity', 'sessions'] as const;
+    const tabs = ['search', 'stats', 'changes', 'activity', 'sessions'] as const;
     for (const tab of tabs) {
       await switchSidebarTab(client, tab);
       const active = await getSidebarActiveTab(client);
