@@ -5,6 +5,8 @@ import {
   waitForActive,
   cleanupSessions,
   resetTestState,
+  getSidebarSelected,
+  sleep,
 } from '../helpers';
 
 describe('sidebar interaction', () => {
@@ -34,9 +36,7 @@ describe('sidebar interaction', () => {
       sessionId: session.sessionId,
     });
 
-    const selected = await client.callToolJson<{
-      selectedSessionId: string | null;
-    }>('sidebar_get_selected');
+    const selected = await getSidebarSelected(client);
 
     expect(selected.selectedSessionId).toBe(session.sessionId);
   });
@@ -44,9 +44,7 @@ describe('sidebar interaction', () => {
   it('deselects with null', async () => {
     await client.callTool('sidebar_select_session', { sessionId: null });
 
-    const selected = await client.callToolJson<{
-      selectedSessionId: string | null;
-    }>('sidebar_get_selected');
+    const selected = await getSidebarSelected(client);
 
     expect(selected.selectedSessionId).toBeNull();
   });
@@ -60,18 +58,14 @@ describe('sidebar interaction', () => {
     await client.callTool('sidebar_select_session', {
       sessionId: sessionIds[0],
     });
-    let selected = await client.callToolJson<{
-      selectedSessionId: string | null;
-    }>('sidebar_get_selected');
+    let selected = await getSidebarSelected(client);
     expect(selected.selectedSessionId).toBe(sessionIds[0]);
 
     // Switch to second
     await client.callTool('sidebar_select_session', {
       sessionId: sessionIds[1],
     });
-    selected = await client.callToolJson<{
-      selectedSessionId: string | null;
-    }>('sidebar_get_selected');
+    selected = await getSidebarSelected(client);
     expect(selected.selectedSessionId).toBe(sessionIds[1]);
   });
 
@@ -93,7 +87,7 @@ describe('sidebar interaction', () => {
     await client.callTool('layout_set_sidebar_width', { width: target });
 
     // Give persist debounce time to settle
-    await new Promise((r) => setTimeout(r, 300));
+    await sleep(300);
 
     const updated = parseInt(
       await client.callToolText('layout_get_sidebar_width'),

@@ -16,6 +16,7 @@ import {
   updateTask,
   reorderTask,
   resetTestState,
+  sleep,
 } from '../helpers';
 
 function futureIso(delayMs = 60000): string {
@@ -214,7 +215,7 @@ describe('task queue', () => {
     expect(task.scheduledAt).toBe(future);
 
     // After a few seconds it should still be pending (not dispatched)
-    await new Promise((r) => setTimeout(r, 3000));
+    await sleep(3000);
     const tasks = await listTasks(client, { statuses: ['pending'] });
     expect(tasks.find((t) => t.id === task.id)?.status).toBe('pending');
 

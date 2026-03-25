@@ -45,6 +45,26 @@ export interface HookEvent {
   payload: Record<string, unknown>;
 }
 
+// --- Timing utilities ---
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function pollUntil(
+  predicate: () => Promise<boolean>,
+  timeoutMs: number,
+  timeoutMessage: string,
+  intervalMs = 250,
+): Promise<void> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    if (await predicate()) return;
+    await sleep(intervalMs);
+  }
+  throw new Error(timeoutMessage);
+}
+
 // --- Test isolation ---
 
 export async function resetTestState(client: McpTestClient): Promise<void> {
@@ -136,7 +156,7 @@ export async function cleanupSessions(
     }
   }
   // Give processes time to exit
-  await new Promise((r) => setTimeout(r, 500));
+  await sleep(500);
 }
 
 // --- Hook helpers ---
@@ -222,6 +242,12 @@ export async function selectSession(
   sessionId: string | null,
 ): Promise<void> {
   await client.callTool('sidebar_select_session', { sessionId });
+}
+
+export async function getSidebarSelected(
+  client: McpTestClient,
+): Promise<{ selectedSessionId: string | null }> {
+  return client.callToolJson<{ selectedSessionId: string | null }>('sidebar_get_selected');
 }
 
 // --- Session filter helpers ---
@@ -379,30 +405,28 @@ export async function waitForKanbanColumn(
   column: string,
   timeoutMs = 10000,
 ): Promise<void> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    const state = await getKanbanState(client);
-    if (state.columns[column]?.some((s) => s.sessionId === sessionId)) {
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error(`Timeout waiting for session ${sessionId} in column "${column}"`);
+  await pollUntil(
+    async () => {
+      const state = await getKanbanState(client);
+      return state.columns[column]?.some((s) => s.sessionId === sessionId) ?? false;
+    },
+    timeoutMs,
+    `Timeout waiting for session ${sessionId} in column "${column}"`,
+  );
 }
 
 export async function waitForKanbanCollapse(
   client: McpTestClient,
   timeoutMs = 10000,
 ): Promise<void> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    const state = await getKanbanState(client);
-    if (state.expandedSessionId === null) {
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error('Timeout waiting for kanban expansion to collapse');
+  await pollUntil(
+    async () => {
+      const state = await getKanbanState(client);
+      return state.expandedSessionId === null;
+    },
+    timeoutMs,
+    'Timeout waiting for kanban expansion to collapse',
+  );
 }
 
 // --- File helpers ---

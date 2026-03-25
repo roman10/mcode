@@ -65,7 +65,9 @@ tests/
 │   ├── sidebar-session-filter # Sidebar search filter set/get/clear
 │   ├── stress-sessions    # 10 concurrent sessions stress test
 │   ├── task-concurrent-dispatch # Parallel task dispatch to multiple sessions
-│   └── layout-no-page-scroll  # Page scroll prevention
+│   ├── layout-no-page-scroll  # Page scroll prevention
+│   ├── auto-mode              # enableAutoMode flag persistence (claude vs terminal sessions)
+│   └── terminal-panel-resize  # Terminal panel height → xterm resize propagation
 
 vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 ```
@@ -139,7 +141,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 |----------|-------|
 | **Session** (10) | `session_create`, `session_list`, `session_get_status`, `session_kill`, `session_delete`, `session_delete_all_ended`, `session_delete_batch`, `session_info`, `session_wait_for_status`, `session_set_label` |
 | **Account** (1) | `account_list` |
-| **Terminal** (7) | `terminal_read_buffer`, `terminal_send_keys`, `terminal_get_dimensions`, `terminal_resize`, `terminal_execute_action`, `terminal_drop_files`, `terminal_wait_for_content` |
+| **Terminal** (9) | `terminal_read_buffer`, `terminal_send_keys`, `terminal_get_dimensions`, `terminal_resize`, `terminal_execute_action`, `terminal_drop_files`, `terminal_wait_for_content`, `terminal_panel_set_height`, `terminal_panel_get_dimensions` |
 | **Layout** (15) | `layout_get_tree`, `layout_add_tile`, `layout_remove_tile`, `layout_remove_all_tiles`, `layout_get_tile_count`, `layout_get_sidebar_width`, `layout_set_sidebar_width`, `layout_get_sidebar_collapsed`, `layout_set_sidebar_collapsed`, `layout_toggle_keyboard_shortcuts`, `layout_toggle_command_palette`, `layout_wait_for_tile_count`, `layout_wait_for_view_mode`, `layout_get_view_mode`, `layout_set_view_mode` |
 | **Sidebar** (7) | `sidebar_get_sessions`, `sidebar_select_session`, `sidebar_get_selected`, `sidebar_switch_tab`, `sidebar_get_active_tab`, `sidebar_set_session_filter`, `sidebar_get_session_filter` |
 | **Kanban** (3) | `kanban_get_columns`, `kanban_expand_session`, `kanban_collapse` |
@@ -701,6 +703,26 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 |---|------|-----------|----------------|
 | 1 | document scrollHeight does not exceed clientHeight | `window_execute_js` | `document.documentElement.scrollHeight ≤ clientHeight` |
 
+### 37. Auto Mode Flag
+
+**File**: `tests/suites/auto-mode.test.ts`
+**What it verifies**: The `enableAutoMode` flag is persisted for Claude sessions and ignored for terminal sessions.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | session created with enableAutoMode=true stores and returns it | `session_create`, `session_get_status` | `enableAutoMode` is `true` in both create response and status re-read |
+| 2 | session created without enableAutoMode has it undefined | `session_create`, `session_get_status` | `enableAutoMode` absent from response |
+| 3 | terminal session with enableAutoMode=true ignores it | `session_create` | `enableAutoMode` always undefined for `sessionType: 'terminal'` |
+
+### 38. Terminal Panel Resize
+
+**File**: `tests/suites/terminal-panel-resize.test.ts`
+**What it verifies**: The xterm.js container resizes proportionally when the terminal panel height changes.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | xterm container resizes when panel height changes | `terminal_panel_set_height`, `terminal_panel_get_dimensions` | `xtermHeight` grows with panel; growth delta ≤20px of panel growth (row-rounding tolerance) |
+
 ---
 
 ## Coverage Summary
@@ -715,6 +737,8 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | Window | 13, 36 | 4 | Screenshot, bounds, resize, page scroll prevention |
 | App introspection | 14, 15, 16 | 10 | Version, console logs (filter + limit), HMR events, sleep prevention, renderer bridge |
 | Permission modes | 19 | 1 | PERMISSION_MODES constant matches Claude CLI |
+| Auto mode flag | 37 | 3 | enableAutoMode persistence for Claude sessions, ignored for terminal sessions |
+| Terminal panel resize | 38 | 1 | xterm resize propagation on panel height change |
 | Hook config | 20 | 9 | Merge/remove mcode hooks, preserve user hooks, PID header, multi-instance, port-scoped removal, port+PID extraction |
 | Hook integration | 21 | 23 | Event lifecycle (all hook events), status transitions, event persistence, sessionStatus tracking, HTTP error responses, PTY exit, ExitPlanMode/AskUserQuestion waiting, poll override protection, cross-session events, event clearing |
 | Attention system | 22 | 12 | Attention levels (action/info/none), priority ordering, clearing, kill clears attention, SessionEnd clears attention, sidebar sorting |
@@ -725,7 +749,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | Git tools | 27 | 6 | Git status (staged/unstaged, single repo + all repos), diff content, diff viewer |
 | Snippet tools | 28 | 5 | Snippet scanning, frontmatter parsing, variable extraction, empty directory |
 | Detach/restore | 34 | 5 | Detach preserves states, reconcile restores states, dead sessions ended, attention preserved |
-| **Total** | **36** | **233** | |
+| **Total** | **38** | **237** | |
 
 ## Writing New Tests
 

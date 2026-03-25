@@ -5,6 +5,7 @@ import {
   waitForActive,
   cleanupSessions,
   resetTestState,
+  sleep,
 } from '../helpers';
 
 describe('terminal panel resize', () => {
@@ -30,7 +31,7 @@ describe('terminal panel resize', () => {
   it('xterm container resizes when panel height changes', async () => {
     // Set panel to a small height and wait for layout + fit
     await client.callTool('terminal_panel_set_height', { height: 200 });
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500);
 
     const dim1 = await client.callToolJson<{
       panelHeight: number;
@@ -43,7 +44,7 @@ describe('terminal panel resize', () => {
 
     // Set panel to a larger height
     await client.callTool('terminal_panel_set_height', { height: 400 });
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500);
 
     const dim2 = await client.callToolJson<{
       panelHeight: number;

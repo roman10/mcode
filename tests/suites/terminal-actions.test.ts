@@ -6,6 +6,7 @@ import {
   waitForActive,
   cleanupSessions,
   resetTestState,
+  sleep,
 } from '../helpers';
 
 describe('terminal actions', () => {
@@ -47,7 +48,7 @@ describe('terminal actions', () => {
       sessionId,
       action: 'clear',
     });
-    await new Promise((r) => setTimeout(r, 250));
+    await sleep(250);
 
     // Buffer should no longer contain the marker
     const buffer = await client.callToolText('terminal_read_buffer', {
@@ -74,7 +75,7 @@ describe('terminal actions', () => {
       sessionId,
       action: 'selectAll',
     });
-    await new Promise((r) => setTimeout(r, 250));
+    await sleep(250);
 
     const copyResult = await client.callToolText('terminal_execute_action', {
       sessionId,
@@ -90,7 +91,7 @@ describe('terminal actions', () => {
       sessionId,
       filePaths: [filePath],
     });
-    await new Promise((r) => setTimeout(r, 250));
+    await sleep(250);
 
     const buffer = await client.callToolText('terminal_read_buffer', {
       sessionId,

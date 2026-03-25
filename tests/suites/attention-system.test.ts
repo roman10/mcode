@@ -13,6 +13,7 @@ import {
   selectSession,
   type SessionInfo,
   resetTestState,
+  sleep,
 } from '../helpers';
 
 describe('attention system', () => {
@@ -142,7 +143,7 @@ describe('attention system', () => {
     await selectSession(client, s1.sessionId);
 
     // Wait briefly for the async clearAttention call from the store
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500);
 
     // s1 attention should be cleared, s2 should still have info
     const s1Info = await client.callToolJson<SessionInfo>('session_get_status', { sessionId: s1.sessionId });

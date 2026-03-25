@@ -9,6 +9,7 @@ import {
   getRecentEvents,
   type SessionInfo,
   resetTestState,
+  sleep,
 } from '../helpers';
 
 describe('hook integration', () => {
@@ -256,7 +257,7 @@ describe('hook integration', () => {
       sessionId: session.sessionId,
       keys: 'echo poll-test\n',
     });
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500);
 
     // Set waiting via PermissionRequest hook
     const updated = await injectHookEvent(
@@ -268,7 +269,7 @@ describe('hook integration', () => {
     expect(updated.status).toBe('waiting');
 
     // Wait for at least one poll cycle (poll runs every 2s)
-    await new Promise((r) => setTimeout(r, 3000));
+    await sleep(3000);
 
     // Status should still be waiting — poll should not have reset it
     const afterPoll = await client.callToolJson<SessionInfo>('session_get_status', {

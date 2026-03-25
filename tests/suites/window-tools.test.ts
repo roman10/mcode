@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
-import { resetTestState } from '../helpers';
+import { resetTestState, sleep } from '../helpers';
 
 describe('window tools', () => {
   const client = new McpTestClient();
@@ -26,7 +26,7 @@ describe('window tools', () => {
 
   it('takes a screenshot', async () => {
     // Ensure window is visible and give it time to render
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500);
 
     const result = await client.callTool('window_screenshot');
 
@@ -69,7 +69,7 @@ describe('window tools', () => {
     });
 
     // Give the window manager time to apply the resize
-    await new Promise((r) => setTimeout(r, 200));
+    await sleep(200);
 
     const bounds = await client.callToolJson<{
       x: number;

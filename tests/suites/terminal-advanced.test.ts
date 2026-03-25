@@ -5,6 +5,7 @@ import {
   waitForActive,
   cleanupSessions,
   resetTestState,
+  sleep,
 } from '../helpers';
 
 describe('terminal advanced operations', () => {
@@ -56,7 +57,7 @@ describe('terminal advanced operations', () => {
     });
 
     // Give it a moment to start
-    await new Promise((r) => setTimeout(r, 300));
+    await sleep(300);
 
     // Send Ctrl+C
     await client.callTool('terminal_send_keys', {
