@@ -179,4 +179,20 @@ describe('kanban layout', () => {
     const tree = await client.callToolText('layout_get_tree');
     expect(tree).toContain(`session:${session.sessionId}`);
   });
+
+  it('removes tile from mosaic when session is killed in kanban mode', async () => {
+    await setViewMode(client, 'kanban');
+
+    const tilesBefore = await getTileCount(client);
+    const session = await createLiveClaudeTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForTileCount(client, tilesBefore + 1);
+
+    await killAndWaitEnded(client, session.sessionId);
+    await waitForKanbanColumn(client, session.sessionId, 'completed');
+
+    // Zombie tile fix (74bdabc): tile must be removed from mosaic even in kanban mode
+    await waitForTileCount(client, tilesBefore);
+    expect(await getTileCount(client)).toBe(tilesBefore);
+  });
 });

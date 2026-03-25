@@ -64,7 +64,8 @@ tests/
 │   ├── session-detach-restore # Detach/reconcile cycle preserving session state & attention
 │   ├── sidebar-session-filter # Sidebar search filter set/get/clear
 │   ├── stress-sessions    # 10 concurrent sessions stress test
-│   └── task-concurrent-dispatch # Parallel task dispatch to multiple sessions
+│   ├── task-concurrent-dispatch # Parallel task dispatch to multiple sessions
+│   └── layout-no-page-scroll  # Page scroll prevention
 
 vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 ```
@@ -132,7 +133,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 
 ## MCP Tools Used
 
-100 tools across 16 categories. Each test case lists the tools it exercises.
+101 tools across 16 categories. Each test case lists the tools it exercises.
 
 | Category | Tools |
 |----------|-------|
@@ -142,7 +143,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 | **Layout** (15) | `layout_get_tree`, `layout_add_tile`, `layout_remove_tile`, `layout_remove_all_tiles`, `layout_get_tile_count`, `layout_get_sidebar_width`, `layout_set_sidebar_width`, `layout_get_sidebar_collapsed`, `layout_set_sidebar_collapsed`, `layout_toggle_keyboard_shortcuts`, `layout_toggle_command_palette`, `layout_wait_for_tile_count`, `layout_wait_for_view_mode`, `layout_get_view_mode`, `layout_set_view_mode` |
 | **Sidebar** (7) | `sidebar_get_sessions`, `sidebar_select_session`, `sidebar_get_selected`, `sidebar_switch_tab`, `sidebar_get_active_tab`, `sidebar_set_session_filter`, `sidebar_get_session_filter` |
 | **Kanban** (3) | `kanban_get_columns`, `kanban_expand_session`, `kanban_collapse` |
-| **Window** (3) | `window_screenshot`, `window_get_bounds`, `window_resize` |
+| **Window** (4) | `window_screenshot`, `window_get_bounds`, `window_resize`, `window_execute_js` |
 | **App** (8) | `app_get_version`, `app_get_console_logs`, `app_get_hmr_events`, `app_get_sleep_blocker_status`, `app_set_prevent_sleep`, `app_reset_test_state`, `app_detach_all`, `app_reconcile_detached` |
 | **Hook** (9) | `app_get_hook_runtime`, `app_get_attention_summary`, `hook_inject_event`, `hook_list_recent`, `hook_list_recent_all`, `hook_clear_all_events`, `session_wait_for_attention`, `session_clear_attention`, `session_clear_all_attention` |
 | **Task** (6) | `task_create`, `task_list`, `task_cancel`, `task_update`, `task_wait_for_status`, `task_reorder` |
@@ -690,6 +691,15 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 2 | clear filter with empty string | `sidebar_set_session_filter`, `sidebar_get_session_filter` | Empty string clears filter |
 | 3 | filter does not affect sidebar_get_sessions (UI-only) | `sidebar_set_session_filter`, `sidebar_get_session_filter`, `sidebar_get_sessions` | All sessions returned regardless of filter |
 
+### 36. Page Scroll Prevention
+
+**File**: `tests/suites/layout-no-page-scroll.test.ts`
+**What it verifies**: The app root element never overflows the viewport — regression test for the scroll-with-empty-space bug (165b6be).
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | document scrollHeight does not exceed clientHeight | `window_execute_js` | `document.documentElement.scrollHeight ≤ clientHeight` |
+
 ---
 
 ## Coverage Summary
@@ -698,10 +708,10 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 |-------------|--------|-------|----------------------|
 | Session lifecycle | 1, 2, 17, 18, 29 | 38 | Create, status transitions, list, label, PTY info, kill, delete, bulk delete, batch delete, idempotent kill, concurrent create/kill, account assignment, error on missing |
 | Tiling layout | 3, 5, 9, 18, 31 | 31 | Auto-tile on create, add/remove, remove-all, tree structure, detach != kill, re-attach, auto-close on kill, concurrent tiles, 10-session stress |
-| Kanban layout | 4 | 8 | View mode switching, column grouping (working/completed/needs-attention), session expansion, auto-collapse, tile tree in kanban mode |
+| Kanban layout | 4 | 9 | View mode switching, column grouping (working/completed/needs-attention), session expansion, auto-collapse, tile tree in kanban mode, zombie tile removal on kill |
 | Sidebar | 6, 7, 8, 35 | 17 | Session display, status tracking, DB consistency, selection, width control, tab switching, session filter set/get/clear |
 | Terminal I/O | 10, 11, 12, 17 | 13 | Send/read, buffer limits, dimensions, resize, Ctrl+C, timeout, sequential commands, copy/selectAll/clear, file drop, error on missing |
-| Window | 13 | 3 | Screenshot, bounds, resize |
+| Window | 13, 36 | 4 | Screenshot, bounds, resize, page scroll prevention |
 | App introspection | 14, 15, 16 | 10 | Version, console logs (filter + limit), HMR events, sleep prevention, renderer bridge |
 | Permission modes | 19 | 1 | PERMISSION_MODES constant matches Claude CLI |
 | Hook config | 20 | 9 | Merge/remove mcode hooks, preserve user hooks, PID header, multi-instance, port-scoped removal, port+PID extraction |
@@ -714,7 +724,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | Git tools | 27 | 6 | Git status (staged/unstaged, single repo + all repos), diff content, diff viewer |
 | Snippet tools | 28 | 5 | Snippet scanning, frontmatter parsing, variable extraction, empty directory |
 | Detach/restore | 34 | 5 | Detach preserves states, reconcile restores states, dead sessions ended, attention preserved |
-| **Total** | **35** | **231** | |
+| **Total** | **36** | **233** | |
 
 ## Writing New Tests
 
