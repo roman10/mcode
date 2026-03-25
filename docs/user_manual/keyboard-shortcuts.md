@@ -14,6 +14,7 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+\` | Toggle sidebar |
 | `Cmd+/` | Show keyboard shortcuts |
 | `Cmd+,` | Open settings |
+| `Cmd+Shift+O` | Show Sessions |
 | `Cmd+Shift+A` | Show Activity |
 | `Cmd+Shift+B` | Show Stats |
 | `Cmd+Shift+C` | Show Changes |
@@ -54,6 +55,9 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+=` | Zoom in |
 | `Cmd+-` | Zoom out |
 | `Cmd+0` | Reset zoom |
+| `F2` | Rename terminal tab |
+| `Cmd+]` | Next terminal tab |
+| `Cmd+[` | Previous terminal tab |
 
 ## Search (when search bar is open)
 

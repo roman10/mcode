@@ -19,3 +19,9 @@ Open settings with `Cmd+,` or click the gear icon in the sidebar footer.
 | Setting | Default | Description |
 |---|---|---|
 | Vim keybindings | Off | Enable vim keybindings in the file viewer. Use `:w` to save and `:q` to close. |
+
+## Sidebar
+
+| Setting | Default | Description |
+|---|---|---|
+| Show Activity tab | Off | Reveals the Activity panel in the sidebar. When off, use `Cmd+Shift+A` to open it directly. |

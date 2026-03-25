@@ -12,6 +12,8 @@ Search for text across all project directories with active sessions. Results are
 
 **Open it:** Click the Activity icon in the activity bar, or press `Cmd+Shift+A`.
 
+The Activity tab is hidden by default for a cleaner sidebar. Reveal it permanently via **Settings > Sidebar > Show Activity tab**, or press `Cmd+Shift+A` to open it directly without enabling it in the sidebar.
+
 A live stream of hook events from all sessions — tool calls, session lifecycle, permission requests, and more.
 
 ### Event types
@@ -59,9 +61,9 @@ A visual commit graph for each tracked repo, showing branch topology:
 
 **Open it:** Click the Stats icon in the activity bar, or press `Cmd+Shift+B`.
 
-Shows commit activity and token usage across all repos and sessions.
+Shows commit output, token costs, and human input metrics across all repos and sessions. The panel has three collapsible sections — click any section header to collapse or expand it. Collapse state persists across restarts.
 
-### Commit activity
+### Output
 
 - **Total commits today** with lines changed (insertions + deletions)
 - **Streak** — consecutive days with at least one commit
@@ -74,7 +76,7 @@ Shows commit activity and token usage across all repos and sessions.
 
 By default only commits on the main branch are tracked. To include all branches, toggle **Scan all branches** in [Settings](settings.md).
 
-### Token usage
+### AI Cost
 
 - **Headline stats** — estimated cost for the selected day, message count, cost per message
 - **Token breakdown** — input tokens, output tokens, total tokens
@@ -83,10 +85,24 @@ By default only commits on the main branch are tracked. To include all branches,
 - **Cache efficiency** — cache hit rate percentage (shown when cache reads exist)
 - **Top sessions** — the sessions with the highest token usage for the selected day
 - **Weekly trend** — this week's cost vs last week, with percentage change
+- **Usage quotas** — subscription quota utilization per account: 5-hour, 7-day, and 7-day Opus limits shown as color-coded progress bars (blue < 80%, amber 80–94%, red ≥ 95%) with time until reset
+
+### Human Input
+
+Tracks your own interaction activity:
+
+- **Message count** — total messages sent, with word and character counts
+- **Think time** — average time elapsed between your messages
+- **Leverage ratio** — ratio of AI messages to human messages
+- **Messages per commit** — how many prompts it takes per commit on average
+- **Peak hour** — the hour of day with the most input activity
+- **Weekly trend** — this week's message count vs last week
+- **7-day heatmap** — input activity intensity per day
 
 ### Navigation
 
 - Use the **left/right arrows** or click heatmap cells to navigate between days
 - Click **Today** to return to the current day
 - Press `Cmd+R` to refresh manually
+- **Shift+click** the refresh button to force a full 90-day history backfill (useful if commit history appears incomplete)
 - Data is retained indefinitely
