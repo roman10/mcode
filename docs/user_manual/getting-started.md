@@ -34,21 +34,20 @@ npm run build:mac
 
 When you launch mcode, you see two main areas:
 
-1. **Sidebar** (left) — icons for sessions, search, changes, commits, tokens, and activity
+1. **Sidebar** (left) — icons for sessions, search, changes, stats, and activity
 2. **Main area** (right) — a tiling layout (or kanban board) where terminal tiles are displayed
 
 ### Sidebar
 
-The sidebar has a vertical **activity bar** on its left edge with six icons:
+The sidebar has a vertical **activity bar** on its left edge with five icons:
 
 - **Sessions** — session list grouped by date
 - **Search** — search in files across project directories (`Cmd+Shift+F`)
 - **Changes** — git changes (staged/unstaged) and commit graph (see [Git Changes](git-changes.md) and [Sidebar Panels](sidebar-panels.md#changes))
-- **Commits** — commit statistics for the day (see [Sidebar Panels](sidebar-panels.md#commit-tracking))
-- **Tokens** — token usage and estimated cost (see [Sidebar Panels](sidebar-panels.md#token-usage))
+- **Stats** — commit output, AI cost, and human input metrics (`Cmd+Shift+B`) (see [Sidebar Panels](sidebar-panels.md#stats))
 - **Activity** — live event feed from all sessions (see [Sidebar Panels](sidebar-panels.md#activity-feed))
 
-Switch panels by clicking the icons or with `Cmd+Shift+F` (Search), `Cmd+Shift+C` (Changes), `Cmd+Shift+B` (Commits), `Cmd+Shift+U` (Tokens), `Cmd+Shift+A` (Activity).
+Switch panels by clicking the icons or with `Cmd+Shift+F` (Search), `Cmd+Shift+C` (Changes), `Cmd+Shift+B` (Stats), `Cmd+Shift+A` (Activity).
 
 On the **Sessions tab**, action buttons appear in the sidebar header: Close all tiles, Delete ended sessions, Mark all read, New terminal (`Cmd+T`), and New session (`Cmd+N`).
 
@@ -86,6 +85,7 @@ Double-click the title in the toolbar to rename the session inline.
    - **Initial prompt** (optional) — what you want Claude to work on
    - **Permission mode** (optional) — controls how Claude handles tool permissions (`default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`)
    - **Effort** (optional) — controls reasoning depth (`low`, `medium`, `high`, `max`)
+   - **Enable auto mode** (checkbox) — allows the session to use Claude's auto permission mode; off by default (Team plan feature)
    - **Account** (shown when multiple accounts are configured) — select which Claude account to use
    - **Run in isolated worktree** (checkbox) — creates a git worktree so the session works on an isolated branch; optional branch name field appears when checked
 3. Click **Create Session**
