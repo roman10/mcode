@@ -6,6 +6,7 @@ import { formatKeys } from '../utils/format-shortcut';
 import { executeAppCommand } from '../utils/app-commands';
 import { useLayoutStore } from '../stores/layout-store';
 import { useSessionStore } from '../stores/session-store';
+import { useTerminalPanelStore } from '../stores/terminal-panel-store';
 import { resolveActiveCwd } from '../utils/session-actions';
 
 export interface CommandEntry {
@@ -139,6 +140,51 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
     },
 
     // --- Layout ---
+    {
+      id: 'split-terminal-horizontal',
+      label: 'Split Terminal Right',
+      category: 'Layout',
+      shortcut: shortcuts.get('Split Horizontal'),
+      keywords: ['terminal', 'split', 'right', 'horizontal', 'panel'],
+      enabled: !!useTerminalPanelStore.getState().activeTabGroupId,
+      execute: () => executeAppCommand({ command: 'split-terminal-horizontal' }),
+    },
+    {
+      id: 'split-terminal-vertical',
+      label: 'Split Terminal Down',
+      category: 'Layout',
+      shortcut: shortcuts.get('Split Vertical'),
+      keywords: ['terminal', 'split', 'down', 'vertical', 'panel'],
+      enabled: !!useTerminalPanelStore.getState().activeTabGroupId,
+      execute: () => executeAppCommand({ command: 'split-terminal-vertical' }),
+    },
+    {
+      id: 'close-terminal',
+      label: 'Close Terminal',
+      category: 'Layout',
+      shortcut: shortcuts.get('Kill & Close'),
+      keywords: ['terminal', 'kill', 'close', 'panel'],
+      enabled: !!useTerminalPanelStore.getState().getActiveTerminal(),
+      execute: () => executeAppCommand({ command: 'close-terminal' }),
+    },
+    {
+      id: 'cycle-terminal-tab-next',
+      label: 'Next Terminal Tab',
+      category: 'Layout',
+      shortcut: shortcuts.get('Next Terminal Tab'),
+      keywords: ['terminal', 'tab', 'next', 'cycle', 'panel'],
+      enabled: (useTerminalPanelStore.getState().getActiveTabGroup()?.terminalIds.length ?? 0) > 1,
+      execute: () => executeAppCommand({ command: 'cycle-terminal-tab', direction: 1 }),
+    },
+    {
+      id: 'cycle-terminal-tab-prev',
+      label: 'Previous Terminal Tab',
+      category: 'Layout',
+      shortcut: shortcuts.get('Previous Terminal Tab'),
+      keywords: ['terminal', 'tab', 'previous', 'prev', 'cycle', 'panel'],
+      enabled: (useTerminalPanelStore.getState().getActiveTabGroup()?.terminalIds.length ?? 0) > 1,
+      execute: () => executeAppCommand({ command: 'cycle-terminal-tab', direction: -1 }),
+    },
     {
       id: 'toggle-terminal-panel',
       label: 'Toggle Terminal Panel',

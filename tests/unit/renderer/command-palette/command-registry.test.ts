@@ -42,4 +42,59 @@ describe('command-registry', () => {
     // On macOS (mocked as darwin), Ctrl+ should render as ⌃
     expect(cmd.shortcut).toBe('⌃`');
   });
+
+  describe('terminal panel commands', () => {
+    it('includes all five new terminal panel commands', () => {
+      const commands = getCommands(emptyCtx);
+      const ids = commands.map((c) => c.id);
+      expect(ids).toContain('split-terminal-horizontal');
+      expect(ids).toContain('split-terminal-vertical');
+      expect(ids).toContain('close-terminal');
+      expect(ids).toContain('cycle-terminal-tab-next');
+      expect(ids).toContain('cycle-terminal-tab-prev');
+    });
+
+    it('has correct labels', () => {
+      const commands = getCommands(emptyCtx);
+      const find = (id: string) => commands.find((c) => c.id === id)!;
+      expect(find('split-terminal-horizontal').label).toBe('Split Terminal Right');
+      expect(find('split-terminal-vertical').label).toBe('Split Terminal Down');
+      expect(find('close-terminal').label).toBe('Close Terminal');
+      expect(find('cycle-terminal-tab-next').label).toBe('Next Terminal Tab');
+      expect(find('cycle-terminal-tab-prev').label).toBe('Previous Terminal Tab');
+    });
+
+    it('all belong to the Layout category', () => {
+      const commands = getCommands(emptyCtx);
+      const terminalCmds = commands.filter((c) =>
+        ['split-terminal-horizontal', 'split-terminal-vertical', 'close-terminal',
+          'cycle-terminal-tab-next', 'cycle-terminal-tab-prev'].includes(c.id),
+      );
+      expect(terminalCmds).toHaveLength(5);
+      for (const cmd of terminalCmds) {
+        expect(cmd.category).toBe('Layout');
+      }
+    });
+
+    it('shows correct macOS shortcut hints', () => {
+      const commands = getCommands(emptyCtx);
+      const find = (id: string) => commands.find((c) => c.id === id)!;
+      expect(find('split-terminal-horizontal').shortcut).toBe('⌘D');
+      expect(find('split-terminal-vertical').shortcut).toBe('⌘⇧D');
+      expect(find('close-terminal').shortcut).toBe('⌘⇧W');
+      expect(find('cycle-terminal-tab-next').shortcut).toBe('⌘]');
+      expect(find('cycle-terminal-tab-prev').shortcut).toBe('⌘[');
+    });
+
+    it('split and cycle commands are disabled when no terminal panel is open', () => {
+      // Store starts empty — no activeTabGroupId, no active terminal
+      const commands = getCommands(emptyCtx);
+      const find = (id: string) => commands.find((c) => c.id === id)!;
+      expect(find('split-terminal-horizontal').enabled).toBe(false);
+      expect(find('split-terminal-vertical').enabled).toBe(false);
+      expect(find('close-terminal').enabled).toBe(false);
+      expect(find('cycle-terminal-tab-next').enabled).toBe(false);
+      expect(find('cycle-terminal-tab-prev').enabled).toBe(false);
+    });
+  });
 });

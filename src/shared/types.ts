@@ -153,7 +153,11 @@ export type AppCommand =
   | { command: 'run-shell-command' }
   | { command: 'search-in-files' }
   | { command: 'open-snippets' }
-  | { command: 'toggle-terminal-panel' };
+  | { command: 'toggle-terminal-panel' }
+  | { command: 'split-terminal-horizontal' }
+  | { command: 'split-terminal-vertical' }
+  | { command: 'close-terminal' }
+  | { command: 'cycle-terminal-tab'; direction: 1 | -1 };
 
 // --- Slash Commands ---
 

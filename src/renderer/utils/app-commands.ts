@@ -86,6 +86,10 @@ export function executeAppCommand(command: AppCommand): void {
 
     case 'switch-sidebar-tab': {
       const store = useLayoutStore.getState();
+      // If switching to the activity tab while it's hidden, make it visible first
+      if (command.tab === 'activity' && !store.showActivityTab) {
+        store.setShowActivityTab(true);
+      }
       if (store.sidebarCollapsed) {
         // Panel collapsed: expand to the requested tab
         store.setActiveSidebarTab(command.tab);
@@ -182,6 +186,32 @@ export function executeAppCommand(command: AppCommand): void {
       }
       break;
     }
+
+    case 'split-terminal-horizontal': {
+      const panel = useTerminalPanelStore.getState();
+      if (panel.activeTabGroupId) panel.splitTabGroup(panel.activeTabGroupId, 'horizontal');
+      break;
+    }
+
+    case 'split-terminal-vertical': {
+      const panel = useTerminalPanelStore.getState();
+      if (panel.activeTabGroupId) panel.splitTabGroup(panel.activeTabGroupId, 'vertical');
+      break;
+    }
+
+    case 'close-terminal': {
+      const panel = useTerminalPanelStore.getState();
+      const entry = panel.getActiveTerminal();
+      if (entry) {
+        window.mcode.sessions.kill(entry.sessionId).catch(console.error);
+        panel.removeTerminal(entry.sessionId);
+      }
+      break;
+    }
+
+    case 'cycle-terminal-tab':
+      useTerminalPanelStore.getState().cycleTab(command.direction);
+      break;
 
     case 'toggle-terminal-panel': {
       const panel = useTerminalPanelStore.getState();

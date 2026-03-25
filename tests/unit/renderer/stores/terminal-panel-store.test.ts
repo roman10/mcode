@@ -1,4 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Stub window.mcode so the async createTerminalSession side-effect in splitTabGroup
+// doesn't produce console noise (the dynamic import still runs, we just swallow it).
+vi.stubGlobal('window', {
+  mcode: {
+    app: { getPlatform: () => 'darwin' },
+    sessions: { create: vi.fn().mockResolvedValue({ sessionId: 'new-sess' }) },
+  },
+});
 
 const { useTerminalPanelStore } = await import(
   '../../../../src/renderer/stores/terminal-panel-store'
@@ -131,6 +140,52 @@ describe('terminal-panel-store', () => {
       useTerminalPanelStore.getState().updateTerminalLabel('sess-1', 'My Terminal');
 
       expect(useTerminalPanelStore.getState().terminals['sess-1'].label).toBe('My Terminal');
+    });
+  });
+
+  describe('splitTabGroup', () => {
+    it('converts the split tree leaf into a split node with the given direction', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      const { activeTabGroupId } = useTerminalPanelStore.getState();
+
+      useTerminalPanelStore.getState().splitTabGroup(activeTabGroupId!, 'horizontal');
+
+      const { splitTree } = useTerminalPanelStore.getState();
+      expect(splitTree?.type).toBe('split');
+      if (splitTree?.type === 'split') {
+        expect(splitTree.direction).toBe('horizontal');
+        expect(splitTree.ratio).toBe(0.5);
+        expect(splitTree.children[0].type).toBe('leaf');
+        expect(splitTree.children[1].type).toBe('leaf');
+      }
+    });
+
+    it('creates a new empty tab group', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      const { activeTabGroupId } = useTerminalPanelStore.getState();
+
+      useTerminalPanelStore.getState().splitTabGroup(activeTabGroupId!, 'vertical');
+
+      const { tabGroups } = useTerminalPanelStore.getState();
+      expect(Object.keys(tabGroups)).toHaveLength(2);
+    });
+
+    it('sets the new group as the active one', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      const originalGroupId = useTerminalPanelStore.getState().activeTabGroupId;
+
+      useTerminalPanelStore.getState().splitTabGroup(originalGroupId!, 'horizontal');
+
+      expect(useTerminalPanelStore.getState().activeTabGroupId).not.toBe(originalGroupId);
+    });
+
+    it('is a no-op for an unknown tabGroupId', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      const before = useTerminalPanelStore.getState().splitTree;
+
+      useTerminalPanelStore.getState().splitTabGroup('nonexistent', 'horizontal');
+
+      expect(useTerminalPanelStore.getState().splitTree).toEqual(before);
     });
   });
 

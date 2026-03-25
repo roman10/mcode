@@ -2,20 +2,3 @@
 [upstream] 3. Claude Code plan mode input wrapping doesn't reflow on SIGWINCH. mcode PTY resize chain verified correct (PTY and xterm cols always match).
 6. kanban mode diff viewer — opening a diff from Changes tab in kanban mode falls back to regular file viewer instead of showing a proper diff view
 
-Command line change follow up:                                                                    
-   
-  1. Keyboard shortcuts not wired in panel context — Cmd+D / Cmd+Shift+D are blocked from 
-  reaching PTY in TerminalInstance.tsx, but nothing in the terminal panel catches them to
-  call splitTabGroup(). The toolbar buttons work, but keyboard shortcuts are dead in the  
-  panel. Tab cycling (Cmd+]/[ or similar) also has no keyboard handler despite cycleTab()
-  existing in the store.
-  2. No tab context menu — Right-clicking a terminal tab does nothing. Missing: Rename,
-  Rename, Close, Close Others. This is a significant UX gap vs VS Code's
-  terminal tabs.
-  3. Terminal rename has no UI — updateTerminalLabel() exists in the store but is         
-  unreachable from any component. No double-click-to-rename on tabs, no F2 shortcut, no   
-  context menu entry.
-  4. Missing app commands — Only new-terminal and toggle-terminal-panel exist in the      
-  AppCommand union. Missing: split-terminal-horizontal, split-terminal-vertical,          
-  close-terminal, cycle-terminal-tab, rename-terminal, toggle-terminal-pinned. This means
-  the command palette can't invoke these operations either. 

@@ -3,6 +3,8 @@ import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import TerminalPanelToolbar from './TerminalPanelToolbar';
 import TerminalSplitContainer from './TerminalSplitContainer';
 
+const isMac = window.mcode.app.getPlatform() === 'darwin';
+
 const MIN_PANEL_HEIGHT = 100;
 const MIN_LAYOUT_HEIGHT = 100;
 
@@ -46,6 +48,46 @@ export default function TerminalPanel(): React.JSX.Element | null {
     [panelHeight, setPanelHeight, getMaxHeight],
   );
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    if (!mod) return;
+
+    const panel = useTerminalPanelStore.getState();
+
+    switch (e.key) {
+      case 'd': {
+        if (!panel.activeTabGroupId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        panel.splitTabGroup(panel.activeTabGroupId, e.shiftKey ? 'vertical' : 'horizontal');
+        break;
+      }
+      case ']':
+        e.preventDefault();
+        e.stopPropagation();
+        panel.cycleTab(1);
+        break;
+      case '[':
+        e.preventDefault();
+        e.stopPropagation();
+        panel.cycleTab(-1);
+        break;
+      case 'w': {
+        // Always consume Cmd+W in panel context — prevents it from bubbling to
+        // the Electron menu and accidentally closing a mosaic tile.
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.shiftKey) break;
+        const entry = panel.getActiveTerminal();
+        if (entry) {
+          window.mcode.sessions.kill(entry.sessionId).catch(() => {});
+          panel.removeTerminal(entry.sessionId);
+        }
+        break;
+      }
+    }
+  }, []);
+
   const hasTerminals = Object.keys(terminals).length > 0;
   const isRendered = panelVisible && hasTerminals;
 
@@ -79,6 +121,7 @@ export default function TerminalPanel(): React.JSX.Element | null {
         className="shrink-0 flex flex-col bg-bg-elevated border-t border-border-subtle"
         style={{ height: panelHeight }}
         tabIndex={-1}
+        onKeyDown={handleKeyDown}
       >
         <TerminalPanelToolbar />
         {splitTree && (
