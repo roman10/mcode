@@ -1,6 +1,7 @@
 import type { AppCommand, SessionInfo } from '@shared/types';
 import { getLeaves } from 'react-mosaic-component';
-import { useLayoutStore, sessionIdFromTileId } from '../stores/layout-store';
+import { useLayoutStore } from '../stores/layout-store';
+import { sessionIdFromTileId } from './tile-id';
 import { useSessionStore } from '../stores/session-store';
 import { useTerminalPanelStore } from '../stores/terminal-panel-store';
 import { getOrderedOpenSessions } from './session-ordering';

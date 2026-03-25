@@ -1,8 +1,9 @@
 import { useRef, useEffect } from 'react';
-import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId, useLayoutStore } from '../../stores/layout-store';
+import { useLayoutStore } from '../../stores/layout-store';
+import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId } from '../../utils/tile-id';
 import { useSessionStore } from '../../stores/session-store';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
-import TerminalTile from '../Terminal/TerminalTile';
+import TerminalTile from '../SessionTile/TerminalTile';
 import FileViewerTile from '../FileViewer/FileViewerTile';
 import DiffViewerTile from '../DiffViewer/DiffViewerTile';
 import CommitDiffViewerTile from '../DiffViewer/CommitDiffViewerTile';

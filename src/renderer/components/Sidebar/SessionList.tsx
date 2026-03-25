@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useSessionStore } from '../../stores/session-store';
-import { useLayoutStore, sessionIdFromTileId } from '../../stores/layout-store';
+import { useLayoutStore } from '../../stores/layout-store';
+import { sessionIdFromTileId } from '../../utils/tile-id';
 import { getLeaves } from 'react-mosaic-component';
 import SessionCard from './SessionCard';
 import type { SessionCardHandle } from './SessionCard';

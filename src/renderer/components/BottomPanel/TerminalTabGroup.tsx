@@ -1,5 +1,5 @@
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
-import TerminalInstance from '../Terminal/TerminalInstance';
+import TerminalInstance from '../SessionTile/TerminalInstance';
 import TerminalTabBar from './TerminalTabBar';
 
 export default function TerminalTabGroup({

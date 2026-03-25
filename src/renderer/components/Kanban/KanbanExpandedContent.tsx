@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useLayoutStore } from '../../stores/layout-store';
-import TerminalTile from '../Terminal/TerminalTile';
+import TerminalTile from '../SessionTile/TerminalTile';
 import KanbanFilePanel from './KanbanFilePanel';
 
 function KanbanExpandedContent({ sessionId }: { sessionId: string | null }): React.JSX.Element {

@@ -6,7 +6,7 @@ import {
   FILE_TILE_PREFIX,
   DIFF_TILE_PREFIX,
   COMMIT_DIFF_TILE_PREFIX,
-} from '../../../../src/renderer/stores/layout-store';
+} from '../../../../src/renderer/utils/tile-id';
 
 describe('filePathFromTileId', () => {
   it('extracts file path from a file tile ID', () => {

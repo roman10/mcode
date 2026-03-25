@@ -10,9 +10,10 @@ vi.stubGlobal('window', {
   },
 });
 
-const { useLayoutStore, sessionIdFromTileId, migrateTab } = await import(
+const { useLayoutStore, migrateTab } = await import(
   '../../../../src/renderer/stores/layout-store'
 );
+const { sessionIdFromTileId } = await import('../../../../src/renderer/utils/tile-id');
 
 function getTree(): MosaicNode<string> | null {
   return useLayoutStore.getState().mosaicTree;
