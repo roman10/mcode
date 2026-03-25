@@ -198,7 +198,7 @@ function insertAdjacentLeaf(
   return node;
 }
 
-/** Remove a specific leaf from the tree, rebalancing as needed. */
+/** Remove a specific leaf from the tree, preserving the structure of unaffected splits. */
 function removeLeaf(
   node: MosaicNode<string>,
   target: string,
@@ -207,33 +207,76 @@ function removeLeaf(
     return node === target ? null : node;
   }
 
-  const leaves = getLeaves(node).filter((l) => l !== target);
-  if (leaves.length === 0) return null;
-  if (leaves.length === 1) return leaves[0];
-  return createBalancedTreeFromLeaves(leaves) ?? null;
+  if (node.type === 'split') {
+    const newChildren: MosaicNode<string>[] = [];
+    const newPercentages: number[] = [];
+    let removedPct = 0;
+
+    for (let i = 0; i < node.children.length; i++) {
+      const result = removeLeaf(node.children[i], target);
+      const pct = node.splitPercentages?.[i] ?? 100 / node.children.length;
+      if (result !== null) {
+        newChildren.push(result);
+        newPercentages.push(pct);
+      } else {
+        removedPct += pct;
+      }
+    }
+
+    if (newChildren.length === 0) return null;
+    if (newChildren.length === 1) return newChildren[0];
+
+    // Redistribute the removed child's percentage equally across remaining siblings
+    const redistPerChild = removedPct / newChildren.length;
+    return {
+      ...node,
+      children: newChildren,
+      splitPercentages: newPercentages.map((p) => p + redistPerChild),
+    };
+  }
+
+  return node; // tabs or other node types: unchanged
 }
 
-/** Remove nodes referencing dead sessions from the mosaic tree. */
+/** Remove nodes referencing dead sessions from the mosaic tree, preserving layout structure. */
 function pruneTree(
   node: MosaicNode<string>,
   liveIds: Set<string>,
 ): MosaicNode<string> | null {
-  // Leaf node
   if (typeof node === 'string') {
     const sid = sessionIdFromTileId(node);
     if (sid && !liveIds.has(sid)) return null;
     return node;
   }
 
-  // Use getLeaves to collect surviving leaves then rebuild
-  const leaves = getLeaves(node).filter((leaf) => {
-    const sid = sessionIdFromTileId(leaf);
-    return !sid || liveIds.has(sid);
-  });
+  if (node.type === 'split') {
+    const newChildren: MosaicNode<string>[] = [];
+    const newPercentages: number[] = [];
+    let removedPct = 0;
 
-  if (leaves.length === 0) return null;
-  if (leaves.length === 1) return leaves[0];
-  return createBalancedTreeFromLeaves(leaves) ?? null;
+    for (let i = 0; i < node.children.length; i++) {
+      const result = pruneTree(node.children[i], liveIds);
+      const pct = node.splitPercentages?.[i] ?? 100 / node.children.length;
+      if (result !== null) {
+        newChildren.push(result);
+        newPercentages.push(pct);
+      } else {
+        removedPct += pct;
+      }
+    }
+
+    if (newChildren.length === 0) return null;
+    if (newChildren.length === 1) return newChildren[0];
+
+    const redistPerChild = removedPct / newChildren.length;
+    return {
+      ...node,
+      children: newChildren,
+      splitPercentages: newPercentages.map((p) => p + redistPerChild),
+    };
+  }
+
+  return node;
 }
 
 export const useLayoutStore = create<LayoutState>((set, get) => ({
@@ -318,34 +361,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
       // If maximized and removing the maximized tile, restore from restoreTree minus this tile
       if (state.restoreTree && typeof current === 'string' && current === target) {
-        const restoreLeaves =
-          typeof state.restoreTree === 'string'
-            ? [state.restoreTree]
-            : getLeaves(state.restoreTree);
-        const remaining = restoreLeaves.filter((l) => l !== target);
-        if (remaining.length === 0) return { mosaicTree: null, restoreTree: null };
-        return {
-          mosaicTree:
-            remaining.length === 1
-              ? remaining[0]
-              : createBalancedTreeFromLeaves(remaining) ?? null,
-          restoreTree: null,
-        };
+        const newRestoreTree = removeLeaf(state.restoreTree, target);
+        return { mosaicTree: newRestoreTree, restoreTree: null };
       }
 
       if (typeof current === 'string') {
         return current === target ? { mosaicTree: null } : state;
       }
 
-      const leaves = getLeaves(current).filter((l) => l !== target);
-      if (leaves.length === 0) return { mosaicTree: null };
-
-      return {
-        mosaicTree:
-          leaves.length === 1
-            ? leaves[0]
-            : createBalancedTreeFromLeaves(leaves) ?? null,
-      };
+      return { mosaicTree: removeLeaf(current, target) };
     }),
 
   removeAllTiles: () => set({ mosaicTree: null }),
@@ -520,14 +544,42 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   stripFileTiles: () =>
     set((state) => {
       if (!state.mosaicTree) return state;
-      const allLeaves = getLeaves(state.mosaicTree);
-      const leaves = allLeaves.filter(
-        (leaf) => !leaf.startsWith(FILE_TILE_PREFIX) && !leaf.startsWith(DIFF_TILE_PREFIX) && !leaf.startsWith(COMMIT_DIFF_TILE_PREFIX),
-      );
-      if (leaves.length === allLeaves.length) return state;
-      if (leaves.length === 0) return { mosaicTree: null };
-      if (leaves.length === 1) return { mosaicTree: leaves[0] };
-      return { mosaicTree: createBalancedTreeFromLeaves(leaves) ?? null };
+
+      function stripNode(node: MosaicNode<string>): MosaicNode<string> | null {
+        if (typeof node === 'string') {
+          return node.startsWith(FILE_TILE_PREFIX) || node.startsWith(DIFF_TILE_PREFIX) || node.startsWith(COMMIT_DIFF_TILE_PREFIX)
+            ? null
+            : node;
+        }
+        if (node.type === 'split') {
+          const newChildren: MosaicNode<string>[] = [];
+          const newPercentages: number[] = [];
+          let removedPct = 0;
+          let anyChanged = false;
+          for (let i = 0; i < node.children.length; i++) {
+            const child = node.children[i];
+            const result = stripNode(child);
+            const pct = node.splitPercentages?.[i] ?? 100 / node.children.length;
+            if (result !== child) anyChanged = true;
+            if (result !== null) {
+              newChildren.push(result);
+              newPercentages.push(pct);
+            } else {
+              removedPct += pct;
+            }
+          }
+          if (!anyChanged) return node; // nothing removed in this subtree — return same reference
+          if (newChildren.length === 0) return null;
+          if (newChildren.length === 1) return newChildren[0];
+          const redistPerChild = removedPct / newChildren.length;
+          return { ...node, children: newChildren, splitPercentages: newPercentages.map((p) => p + redistPerChild) };
+        }
+        return node;
+      }
+
+      const result = stripNode(state.mosaicTree);
+      if (result === state.mosaicTree) return state;
+      return { mosaicTree: result };
     }),
 
   maximize: (sessionId) =>

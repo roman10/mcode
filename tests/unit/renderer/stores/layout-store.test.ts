@@ -133,6 +133,51 @@ describe('layout-store', () => {
       expect(getLeafIds()).toContain('session:s3');
     });
 
+    it('preserves parent split structure when removing from a nested split', () => {
+      // Set up a tree with a known split structure and custom percentages
+      const tree: MosaicNode<string> = {
+        type: 'split',
+        direction: 'row',
+        splitPercentages: [60, 40],
+        children: [
+          'session:s1',
+          {
+            type: 'split',
+            direction: 'column',
+            splitPercentages: [70, 30],
+            children: ['session:s2', 'session:s3'],
+          },
+        ],
+      };
+      useLayoutStore.getState().setMosaicTree(tree);
+      useLayoutStore.getState().removeTile('s3');
+
+      // Root split direction and percentages must be preserved — not reset to 50-50
+      expect(getTree()).toMatchObject({
+        type: 'split',
+        direction: 'row',
+        splitPercentages: [60, 40],
+        children: ['session:s1', 'session:s2'],
+      });
+    });
+
+    it('redistributes removed tile percentage to siblings', () => {
+      const tree: MosaicNode<string> = {
+        type: 'split',
+        direction: 'row',
+        splitPercentages: [33, 33, 34],
+        children: ['session:s1', 'session:s2', 'session:s3'],
+      };
+      useLayoutStore.getState().setMosaicTree(tree);
+      useLayoutStore.getState().removeTile('s2');
+
+      const result = getTree() as Extract<MosaicNode<string>, { type: 'split' }>;
+      expect(result.children).toHaveLength(2);
+      // s2's 33% redistributed equally: s1 and s3 each get +16.5
+      expect(result.splitPercentages?.[0]).toBeCloseTo(49.5);
+      expect(result.splitPercentages?.[1]).toBeCloseTo(50.5);
+    });
+
     it('restores remaining tiles when removing a maximized tile', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
