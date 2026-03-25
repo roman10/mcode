@@ -79,7 +79,7 @@ const TabItem = forwardRef<TabItemHandle, {
   const contextMenuItems: MenuItem[] = [
     { label: 'Rename', action: 'rename', shortcut: 'F2' },
     { label: '', action: 'sep1', separator: true },
-    { label: 'Kill Terminal', action: 'kill' },
+    { label: 'Kill Terminal', action: 'kill', shortcut: formatKeys('Shift+W', true) },
   ];
 
   const handleContextAction = (action: string): void => {
