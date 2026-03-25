@@ -208,6 +208,11 @@ export function parseHumanMessagesFromChunk(
 
     if (obj['type'] !== 'user') continue;
 
+    // Only count messages with permissionMode — this field is present exclusively
+    // on human-typed messages, not on tool results, skill expansions, compact
+    // summaries, slash commands, or other auto-generated user messages.
+    if (!obj['permissionMode']) continue;
+
     const uuid = obj['uuid'] as string | undefined;
     if (!uuid) continue;
 

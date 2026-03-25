@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseUsageFromChunk } from '../../../src/main/jsonl-usage-parser';
+import { parseUsageFromChunk, parseHumanMessagesFromChunk } from '../../../src/main/jsonl-usage-parser';
 
 function jsonl(...lines: unknown[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n');
@@ -184,5 +184,149 @@ describe('parseUsageFromChunk', () => {
       { type: 'user', data: {} },
     );
     expect(parseUsageFromChunk(chunk, false)).toEqual([]);
+  });
+});
+
+describe('parseHumanMessagesFromChunk', () => {
+  it('parses a genuine human message (string content with permissionMode)', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'human-001',
+      timestamp: '2026-03-20T10:00:00Z',
+      permissionMode: 'default',
+      message: { role: 'user', content: 'Please fix the bug' },
+    });
+
+    const entries = parseHumanMessagesFromChunk(chunk, false);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      messageId: 'human-001',
+      textLength: 18,
+      wordCount: 4,
+    });
+  });
+
+  it('parses human message with image+text array content', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'human-img',
+      timestamp: '2026-03-20T10:00:00Z',
+      permissionMode: 'plan',
+      message: {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', data: 'abc' } },
+          { type: 'text', text: 'check this screenshot' },
+        ],
+      },
+    });
+
+    const entries = parseHumanMessagesFromChunk(chunk, false);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].textLength).toBe(21);
+  });
+
+  it('handles multiple human messages', () => {
+    const chunk = jsonl(
+      { type: 'user', uuid: 'h1', timestamp: 'T1', permissionMode: 'default', message: { content: 'hello' } },
+      { type: 'user', uuid: 'h2', timestamp: 'T2', permissionMode: 'default', message: { content: 'world' } },
+    );
+    expect(parseHumanMessagesFromChunk(chunk, false)).toHaveLength(2);
+  });
+
+  it('discards first line when isPartialStart is true', () => {
+    const chunk = jsonl(
+      { type: 'user', uuid: 'first', timestamp: 'T1', permissionMode: 'default', message: { content: 'a' } },
+      { type: 'user', uuid: 'second', timestamp: 'T2', permissionMode: 'default', message: { content: 'b' } },
+    );
+    const entries = parseHumanMessagesFromChunk(chunk, true);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].messageId).toBe('second');
+  });
+
+  // --- Messages that should be filtered ---
+
+  it('filters out tool_result messages (no permissionMode)', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'tool-001',
+      timestamp: 'T1',
+      sourceToolAssistantUUID: 'asst-1',
+      toolUseResult: { filePath: '/foo.ts' },
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: 'x', content: 'result text' }],
+      },
+    });
+    expect(parseHumanMessagesFromChunk(chunk, false)).toHaveLength(0);
+  });
+
+  it('filters out skill expansion (isMeta, no permissionMode)', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'meta-001',
+      timestamp: 'T1',
+      isMeta: true,
+      message: {
+        content: [{ type: 'text', text: 'Review the uncommitted code...' }],
+      },
+    });
+    expect(parseHumanMessagesFromChunk(chunk, false)).toHaveLength(0);
+  });
+
+  it('filters out compact summary (no permissionMode)', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'compact-001',
+      timestamp: 'T1',
+      isCompactSummary: true,
+      message: {
+        content: 'This session is being continued from a previous conversation...',
+      },
+    });
+    expect(parseHumanMessagesFromChunk(chunk, false)).toHaveLength(0);
+  });
+
+  it('filters out slash command wrapper (no permissionMode)', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'cmd-001',
+      timestamp: 'T1',
+      message: { content: '<command-message>cru</command-message>' },
+    });
+    expect(parseHumanMessagesFromChunk(chunk, false)).toHaveLength(0);
+  });
+
+  it('filters out local command output (no permissionMode)', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'local-001',
+      timestamp: 'T1',
+      message: { content: '<local-command-stdout>some output</local-command-stdout>' },
+    });
+    expect(parseHumanMessagesFromChunk(chunk, false)).toHaveLength(0);
+  });
+
+  it('skips empty content', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'empty-001',
+      timestamp: 'T1',
+      permissionMode: 'default',
+      message: { content: '' },
+    });
+    expect(parseHumanMessagesFromChunk(chunk, false)).toHaveLength(0);
+  });
+
+  it('ignores non-user message types', () => {
+    const chunk = jsonl(
+      { type: 'assistant', uuid: 'a1', timestamp: 'T1', message: { content: 'hello' } },
+      { type: 'progress', uuid: 'p1', timestamp: 'T1', data: {} },
+    );
+    expect(parseHumanMessagesFromChunk(chunk, false)).toHaveLength(0);
+  });
+
+  it('returns empty for empty input', () => {
+    expect(parseHumanMessagesFromChunk('', false)).toEqual([]);
+    expect(parseHumanMessagesFromChunk('\n\n', false)).toEqual([]);
   });
 });
