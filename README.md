@@ -7,7 +7,7 @@
 
 mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude Code sessions simultaneously. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring, and 100 MCP tools make it fully automatable.
 
-<!-- TODO: add screenshot of tiling layout with multiple active sessions -->
+![Tiling layout with multiple active sessions](docs/screenshots/tiling-layout.png)
 
 ## Features
 
@@ -16,6 +16,8 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude 
 - **Tiling layout** — split the screen into resizable tiles, each running a fully interactive Claude Code terminal. See all sessions at once.
 - **Kanban board** — switch to a board view with columns by status: Needs Attention, Working, Ready, and Completed.
 - **Multi-account support** — run sessions under different Claude accounts to bypass rate limits or isolate work contexts.
+
+![Kanban board grouped by session status](docs/screenshots/kanban-view.png)
 
 ### Real terminal
 
@@ -35,6 +37,8 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude 
 - **Commit analytics** — daily stats, streaks, heatmaps, cadence, and per-repo breakdown.
 - **Token analytics** — usage and cost by model, cache efficiency, top sessions, 7-day heatmap.
 - **Git integration** — commit graph visualization, VS Code-style staging/unstaging, and inline diff viewer.
+
+![Stats sidebar with commit and token analytics](docs/screenshots/stats-sidebar.png)
 
 ## Installation
 

@@ -10,7 +10,7 @@
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Report security issues privately via [GitHub Security Advisories](https://github.com/roman10/mcode/security/advisories/new) or by emailing the maintainer directly (see GitHub profile).
+Report security issues privately via [GitHub Security Advisories](https://github.com/anthropics/mcode/security/advisories/new) or by emailing the maintainer directly (see GitHub profile).
 
 Please include:
 - Description of the vulnerability
