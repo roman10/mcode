@@ -17,7 +17,6 @@ const MAX_COUNT_PER_FILE = 100;
 /** Resolve the ripgrep binary path, handling asar-unpacked in packaged builds. */
 function resolveRgPath(): string | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const raw: string = require('@vscode/ripgrep').rgPath;
     const resolved = raw.replace('app.asar', 'app.asar.unpacked');
     return existsSync(resolved) ? resolved : null;

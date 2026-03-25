@@ -164,7 +164,6 @@ export async function createSnippet(scope: 'user' | 'project', cwd: string): Pro
   // Find a unique filename
   let filename = 'new-snippet.md';
   let counter = 2;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       await access(join(dir, filename));

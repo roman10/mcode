@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Stub window.mcode so the async createTerminalSession side-effect in splitTabGroup
-// doesn't produce console noise (the dynamic import still runs, we just swallow it).
+// Mock session-actions so the dynamic import in splitTabGroup resolves synchronously
+// to a no-op, preventing EnvironmentTeardownError after tests complete.
+vi.mock('../../../../src/renderer/utils/session-actions', () => ({
+  createTerminalSession: vi.fn().mockResolvedValue(undefined),
+  autoExpandInKanban: vi.fn(),
+  resolveActiveCwd: vi.fn().mockReturnValue('/home/user'),
+  runShellCommand: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.stubGlobal('window', {
   mcode: {
     app: { getPlatform: () => 'darwin' },

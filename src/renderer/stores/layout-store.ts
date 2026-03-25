@@ -19,7 +19,6 @@ export function migrateTab(tab: string): SidebarTab {
 
 /** Snapshot the terminal panel store for persistence (avoids circular import). */
 function getTerminalPanelSnapshot(): unknown {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { useTerminalPanelStore } = require('./terminal-panel-store') as {
     useTerminalPanelStore: { getState: () => Record<string, unknown> };
   };
@@ -670,7 +669,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
       // Restore terminal panel state
       if (snapshot.terminalPanelState && typeof snapshot.terminalPanelState === 'object') {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { useTerminalPanelStore } = require('./terminal-panel-store') as {
           useTerminalPanelStore: { setState: (state: Record<string, unknown>) => void };
         };
