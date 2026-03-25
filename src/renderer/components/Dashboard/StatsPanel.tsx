@@ -1,5 +1,5 @@
-import { useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { useEffect, useCallback, useState } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useStatsStore } from '../../stores/stats-store';
 import { useAccountsStore } from '../../stores/accounts-store';
 import Tooltip from '../shared/Tooltip';
@@ -177,12 +177,30 @@ function formatThinkTime(minutes: number): string {
 
 // ─── Section divider ─────────────────────────────────────────────────────────
 
-function SectionDivider({ label }: { label: string }): React.JSX.Element {
+function SectionDivider({
+  label,
+  collapsed,
+  onToggle,
+  summary,
+}: {
+  label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  summary?: string;
+}): React.JSX.Element {
   return (
-    <div className="flex items-center gap-2 pt-1">
+    <button type="button" className="flex items-center gap-2 pt-1 w-full text-left" onClick={onToggle} aria-expanded={!collapsed}>
+      {collapsed ? (
+        <ChevronRight size={10} className="text-text-muted/60 shrink-0" />
+      ) : (
+        <ChevronDown size={10} className="text-text-muted/60 shrink-0" />
+      )}
       <span className="text-xs text-text-muted/60 uppercase tracking-wider">{label}</span>
+      {collapsed && summary && (
+        <span className="text-xs text-text-muted/50 truncate">{summary}</span>
+      )}
       <div className="flex-1 h-px bg-border-default" />
-    </div>
+    </button>
   );
 }
 
@@ -209,6 +227,36 @@ function StatsPanel(): React.JSX.Element {
   } = useStatsStore();
 
   const { accounts, subscriptionByAccount, refreshSubscriptionUsage } = useAccountsStore();
+
+  // Collapse state for sections
+  const [outputCollapsed, setOutputCollapsed] = useState(false);
+  const [costCollapsed, setCostCollapsed] = useState(false);
+  const [inputCollapsed, setInputCollapsed] = useState(false);
+  const [collapsedRestored, setCollapsedRestored] = useState(false);
+
+  // Restore collapsed state from preferences on mount
+  useEffect(() => {
+    window.mcode.preferences.get('statsCollapsed').then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.output) setOutputCollapsed(true);
+          if (parsed.cost) setCostCollapsed(true);
+          if (parsed.input) setInputCollapsed(true);
+        } catch { /* ignore malformed */ }
+      }
+      setCollapsedRestored(true);
+    }).catch(() => setCollapsedRestored(true));
+  }, []);
+
+  // Persist whenever collapse state changes (skip the initial restore)
+  useEffect(() => {
+    if (!collapsedRestored) return;
+    window.mcode.preferences.set(
+      'statsCollapsed',
+      JSON.stringify({ output: outputCollapsed, cost: costCollapsed, input: inputCollapsed }),
+    ).catch(() => {});
+  }, [outputCollapsed, costCollapsed, inputCollapsed, collapsedRestored]);
 
   // Load data on mount. Live-update subscriptions live in SidebarPanel (always mounted).
   useEffect(() => {
@@ -354,307 +402,334 @@ function StatsPanel(): React.JSX.Element {
 
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
         {/* ── OUTPUT SECTION ── */}
-        <SectionDivider label="Output" />
+        <SectionDivider
+          label="Output"
+          collapsed={outputCollapsed}
+          onToggle={() => setOutputCollapsed((v) => !v)}
+          summary={`${total} commit${total !== 1 ? 's' : ''} · ${formatNumber(totalLines)} lines`}
+        />
 
-        {/* Headline */}
-        <div className="flex items-baseline justify-between">
-          <div>
-            <span className="text-2xl font-semibold text-text-primary">{total}</span>
-            <span className="text-sm text-text-secondary ml-1.5">commit{total !== 1 ? 's' : ''}</span>
-            {totalLines > 0 && (
-              <span className="text-sm text-text-muted ml-1">· {formatNumber(totalLines)} lines</span>
-            )}
-          </div>
-          {streaks && streaks.current > 0 && (
-            <span className="text-xs text-amber-400 font-medium">
-              {streaks.current}d streak
-              {streaks.longest > streaks.current && (
-                <span className="text-text-muted font-normal"> · best {streaks.longest}d</span>
+        {!outputCollapsed && (
+          <>
+            {/* Headline */}
+            <div className="flex items-baseline justify-between">
+              <div>
+                <span className="text-2xl font-semibold text-text-primary">{total}</span>
+                <span className="text-sm text-text-secondary ml-1.5">commit{total !== 1 ? 's' : ''}</span>
+                {totalLines > 0 && (
+                  <span className="text-sm text-text-muted ml-1">· {formatNumber(totalLines)} lines</span>
+                )}
+              </div>
+              {streaks && streaks.current > 0 && (
+                <span className="text-xs text-amber-400 font-medium">
+                  {streaks.current}d streak
+                  {streaks.longest > streaks.current && (
+                    <span className="text-text-muted font-normal"> · best {streaks.longest}d</span>
+                  )}
+                </span>
               )}
-            </span>
-          )}
-        </div>
+            </div>
 
-        {/* Claude vs solo */}
-        {total > 0 && (
-          <div className="text-xs text-text-secondary">
-            {claudePct != null ? (
-              <>
-                <span className="text-green-400 font-medium">{claudePct}%</span>
-                <span> with Claude</span>
-                {soloCount > 0 && (
+            {/* Claude vs solo */}
+            {total > 0 && (
+              <div className="text-xs text-text-secondary">
+                {claudePct != null ? (
                   <>
-                    <span className="text-text-muted"> · </span>
-                    <span>{soloCount} solo</span>
+                    <span className="text-green-400 font-medium">{claudePct}%</span>
+                    <span> with Claude</span>
+                    {soloCount > 0 && (
+                      <>
+                        <span className="text-text-muted"> · </span>
+                        <span>{soloCount} solo</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {claudeCount > 0 && <span>{claudeCount} with Claude</span>}
+                    {claudeCount > 0 && soloCount > 0 && <span className="text-text-muted"> · </span>}
+                    {soloCount > 0 && <span>{soloCount} solo</span>}
                   </>
                 )}
-              </>
-            ) : (
-              <>
-                {claudeCount > 0 && <span>{claudeCount} with Claude</span>}
-                {claudeCount > 0 && soloCount > 0 && <span className="text-text-muted"> · </span>}
-                {soloCount > 0 && <span>{soloCount} solo</span>}
-              </>
+              </div>
             )}
-          </div>
+
+            {/* Commit heatmap */}
+            {commitHeatmap.length > 0 && (
+              <HeatmapGrid
+                entries={commitHeatmap}
+                getLevel={commitLevel}
+                getTooltip={commitTooltip}
+                selectedDate={viewDate}
+                onSelect={handleHeatmapSelect}
+                colorScale="green"
+              />
+            )}
+
+            {/* Commit types */}
+            {dailyStats && dailyStats.byType.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {dailyStats.byType.map((t) => (
+                  <TypePill key={t.type} type={t.type} count={t.count} />
+                ))}
+              </div>
+            )}
+
+            {/* Per-repo breakdown */}
+            {dailyStats && dailyStats.byRepo.length > 0 && (
+              <div className="space-y-1.5">
+                {dailyStats.byRepo.map((repo) => (
+                  <div key={repo.repoPath} className="flex items-center text-xs">
+                    <span className="text-text-secondary truncate flex-1">{basename(repo.repoPath)}</span>
+                    <span className="text-text-muted shrink-0 ml-2">
+                      {repo.count} commit{repo.count !== 1 ? 's' : ''}
+                    </span>
+                    {repo.insertions > 0 && (
+                      <span className="text-green-400 shrink-0 ml-2 text-xs">+{formatNumber(repo.insertions)}</span>
+                    )}
+                    {repo.deletions > 0 && (
+                      <span className="text-red-400 shrink-0 ml-1 text-xs">-{formatNumber(repo.deletions)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Cadence & weekly trend */}
+            {(cadence?.avgMinutes != null || commitWeeklyTrend) && (
+              <div className="text-xs text-text-muted space-y-0.5">
+                {cadence?.avgMinutes != null && (
+                  <div>
+                    Cadence: every {cadence.avgMinutes} min
+                    {cadence.peakHour != null && <span> · Peak: {formatHour(cadence.peakHour)}</span>}
+                  </div>
+                )}
+                {commitWeeklyTrend && (
+                  <div>
+                    This week: {commitWeeklyTrend.thisWeek}
+                    {commitWeeklyTrend.pctChange != null && (
+                      <span className={commitWeeklyTrend.pctChange >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        {' '}
+                        ({commitWeeklyTrend.pctChange >= 0 ? '+' : ''}
+                        {commitWeeklyTrend.pctChange}% vs last week)
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {total === 0 && (
+              <div className="text-sm text-text-muted text-center py-2">No commits {dateLabel}</div>
+            )}
+          </>
         )}
 
-        {/* Commit heatmap */}
-        {commitHeatmap.length > 0 && (
-          <HeatmapGrid
-            entries={commitHeatmap}
-            getLevel={commitLevel}
-            getTooltip={commitTooltip}
-            selectedDate={viewDate}
-            onSelect={handleHeatmapSelect}
-            colorScale="green"
-          />
-        )}
+        {/* ── AI COST SECTION ── */}
+        <SectionDivider
+          label="AI Cost"
+          collapsed={costCollapsed}
+          onToggle={() => setCostCollapsed((v) => !v)}
+          summary={`${formatCost(cost)} · ${messageCount} msg${messageCount !== 1 ? 's' : ''}`}
+        />
 
-        {/* Commit types */}
-        {dailyStats && dailyStats.byType.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {dailyStats.byType.map((t) => (
-              <TypePill key={t.type} type={t.type} count={t.count} />
-            ))}
-          </div>
-        )}
-
-        {/* Per-repo breakdown */}
-        {dailyStats && dailyStats.byRepo.length > 0 && (
-          <div className="space-y-1.5">
-            {dailyStats.byRepo.map((repo) => (
-              <div key={repo.repoPath} className="flex items-center text-xs">
-                <span className="text-text-secondary truncate flex-1">{basename(repo.repoPath)}</span>
-                <span className="text-text-muted shrink-0 ml-2">
-                  {repo.count} commit{repo.count !== 1 ? 's' : ''}
+        {!costCollapsed && (
+          <>
+            {/* Headline */}
+            <div>
+              <span className="text-2xl font-semibold text-text-primary">{formatCost(cost)}</span>
+              <span className="text-sm text-text-muted ml-1.5">estimated {dateLabel}</span>
+              {messageCount > 0 && (
+                <span className="text-sm text-text-muted ml-1">
+                  · {messageCount} message{messageCount !== 1 ? 's' : ''}
                 </span>
-                {repo.insertions > 0 && (
-                  <span className="text-green-400 shrink-0 ml-2 text-xs">+{formatNumber(repo.insertions)}</span>
-                )}
-                {repo.deletions > 0 && (
-                  <span className="text-red-400 shrink-0 ml-1 text-xs">-{formatNumber(repo.deletions)}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+              )}
+              {messageCount > 0 && (
+                <span className="text-sm text-text-muted ml-1">· {formatCost(costPerMsg)}/msg</span>
+              )}
+              {totals && (totalInputTokens > 0 || totals.outputTokens > 0) && (
+                <div className="text-xs text-text-muted mt-0.5">
+                  In: {formatTokens(totalInputTokens)} · Out: {formatTokens(totals.outputTokens)} · Total:{' '}
+                  {formatTokens(totalInputTokens + totals.outputTokens)}
+                </div>
+              )}
+            </div>
 
-        {/* Cadence & weekly trend */}
-        {(cadence?.avgMinutes != null || commitWeeklyTrend) && (
-          <div className="text-xs text-text-muted space-y-0.5">
-            {cadence?.avgMinutes != null && (
-              <div>
-                Cadence: every {cadence.avgMinutes} min
-                {cadence.peakHour != null && <span> · Peak: {formatHour(cadence.peakHour)}</span>}
+            {/* Token heatmap */}
+            {tokenHeatmap.length > 0 && (
+              <HeatmapGrid
+                entries={tokenHeatmap}
+                getLevel={tokenLevel}
+                getTooltip={tokenTooltip}
+                selectedDate={viewDate}
+                onSelect={handleHeatmapSelect}
+                colorScale="emerald"
+              />
+            )}
+
+            {/* Model breakdown */}
+            {byModel.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {byModel.map((b) => (
+                  <ModelPill key={b.model} model={b} totalCost={cost} />
+                ))}
               </div>
             )}
-            {commitWeeklyTrend && (
-              <div>
-                This week: {commitWeeklyTrend.thisWeek}
-                {commitWeeklyTrend.pctChange != null && (
-                  <span className={commitWeeklyTrend.pctChange >= 0 ? 'text-green-400' : 'text-red-400'}>
+
+            {/* Cache efficiency */}
+            {cacheReadTokens > 0 && (
+              <div className="text-xs text-text-muted">Cache: {Math.round(cacheHitRate * 100)}% hit rate</div>
+            )}
+
+            {/* Top sessions */}
+            {topSessions.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-xs text-text-muted font-medium">Top sessions {dateLabel}</div>
+                {topSessions.map((s) => (
+                  <div key={s.claudeSessionId} className="flex items-center text-xs">
+                    <span className="text-text-secondary truncate flex-1">
+                      {s.label ?? s.claudeSessionId.slice(0, 8)}
+                    </span>
+                    <span className="text-text-muted shrink-0 ml-2">{formatCost(s.estimatedCostUsd)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Weekly trend */}
+            {tokenWeeklyTrend && (
+              <div className="text-xs text-text-muted">
+                This week: {formatCost(tokenWeeklyTrend.thisWeek.estimatedCostUsd)}
+                {tokenWeeklyTrend.pctChange != null && (
+                  <span className={tokenWeeklyTrend.pctChange >= 0 ? 'text-red-400' : 'text-green-400'}>
                     {' '}
-                    ({commitWeeklyTrend.pctChange >= 0 ? '+' : ''}
-                    {commitWeeklyTrend.pctChange}% vs last week)
+                    ({tokenWeeklyTrend.pctChange >= 0 ? '+' : ''}
+                    {tokenWeeklyTrend.pctChange}% vs last week)
                   </span>
                 )}
               </div>
             )}
-          </div>
-        )}
 
-        {total === 0 && (
-          <div className="text-sm text-text-muted text-center py-2">No commits {dateLabel}</div>
-        )}
-
-        {/* ── AI COST SECTION ── */}
-        <SectionDivider label="AI Cost" />
-
-        {/* Headline */}
-        <div>
-          <span className="text-2xl font-semibold text-text-primary">{formatCost(cost)}</span>
-          <span className="text-sm text-text-muted ml-1.5">estimated {dateLabel}</span>
-          {messageCount > 0 && (
-            <span className="text-sm text-text-muted ml-1">
-              · {messageCount} message{messageCount !== 1 ? 's' : ''}
-            </span>
-          )}
-          {messageCount > 0 && (
-            <span className="text-sm text-text-muted ml-1">· {formatCost(costPerMsg)}/msg</span>
-          )}
-          {totals && (totalInputTokens > 0 || totals.outputTokens > 0) && (
-            <div className="text-xs text-text-muted mt-0.5">
-              In: {formatTokens(totalInputTokens)} · Out: {formatTokens(totals.outputTokens)} · Total:{' '}
-              {formatTokens(totalInputTokens + totals.outputTokens)}
-            </div>
-          )}
-        </div>
-
-        {/* Token heatmap */}
-        {tokenHeatmap.length > 0 && (
-          <HeatmapGrid
-            entries={tokenHeatmap}
-            getLevel={tokenLevel}
-            getTooltip={tokenTooltip}
-            selectedDate={viewDate}
-            onSelect={handleHeatmapSelect}
-            colorScale="emerald"
-          />
-        )}
-
-        {/* Model breakdown */}
-        {byModel.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {byModel.map((b) => (
-              <ModelPill key={b.model} model={b} totalCost={cost} />
-            ))}
-          </div>
-        )}
-
-        {/* Cache efficiency */}
-        {cacheReadTokens > 0 && (
-          <div className="text-xs text-text-muted">Cache: {Math.round(cacheHitRate * 100)}% hit rate</div>
-        )}
-
-        {/* Top sessions */}
-        {topSessions.length > 0 && (
-          <div className="space-y-1.5">
-            <div className="text-xs text-text-muted font-medium">Top sessions {dateLabel}</div>
-            {topSessions.map((s) => (
-              <div key={s.claudeSessionId} className="flex items-center text-xs">
-                <span className="text-text-secondary truncate flex-1">
-                  {s.label ?? s.claudeSessionId.slice(0, 8)}
-                </span>
-                <span className="text-text-muted shrink-0 ml-2">{formatCost(s.estimatedCostUsd)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Weekly trend */}
-        {tokenWeeklyTrend && (
-          <div className="text-xs text-text-muted">
-            This week: {formatCost(tokenWeeklyTrend.thisWeek.estimatedCostUsd)}
-            {tokenWeeklyTrend.pctChange != null && (
-              <span className={tokenWeeklyTrend.pctChange >= 0 ? 'text-red-400' : 'text-green-400'}>
-                {' '}
-                ({tokenWeeklyTrend.pctChange >= 0 ? '+' : ''}
-                {tokenWeeklyTrend.pctChange}% vs last week)
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Usage Quota */}
-        {(() => {
-          const quotaAccounts = accounts.filter(
-            (a) => subscriptionByAccount[a.accountId] != null || a.email != null,
-          );
-          if (quotaAccounts.length === 0) return null;
-          const multiAccount = quotaAccounts.length > 1;
-          return (
-            <div className="space-y-3">
-              <div>
-                <div className="text-xs text-text-muted font-medium">Usage Quota</div>
-                {!multiAccount &&
-                  (quotaAccounts[0].email ??
-                    (!quotaAccounts[0].isDefault ? quotaAccounts[0].name : null)) && (
-                    <div className="text-xs text-text-muted/70 mt-0.5">
-                      {quotaAccounts[0].email ?? quotaAccounts[0].name}
-                    </div>
-                  )}
-              </div>
-              {quotaAccounts.map((a) => {
-                const usage = subscriptionByAccount[a.accountId];
-                return usage ? (
-                  <UsageQuotaSection
-                    key={a.accountId}
-                    usage={usage}
-                    accountName={multiAccount ? a.name : undefined}
-                  />
-                ) : (
-                  <div key={a.accountId} className="space-y-1.5">
-                    {multiAccount && <div className="text-xs text-text-muted font-medium">{a.name}</div>}
-                    <div className="text-xs text-text-muted/50">quota unavailable</div>
+            {/* Usage Quota */}
+            {(() => {
+              const quotaAccounts = accounts.filter(
+                (a) => subscriptionByAccount[a.accountId] != null || a.email != null,
+              );
+              if (quotaAccounts.length === 0) return null;
+              const multiAccount = quotaAccounts.length > 1;
+              return (
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-xs text-text-muted font-medium">Usage Quota</div>
+                    {!multiAccount &&
+                      (quotaAccounts[0].email ??
+                        (!quotaAccounts[0].isDefault ? quotaAccounts[0].name : null)) && (
+                        <div className="text-xs text-text-muted/70 mt-0.5">
+                          {quotaAccounts[0].email ?? quotaAccounts[0].name}
+                        </div>
+                      )}
                   </div>
-                );
-              })}
-            </div>
-          );
-        })()}
+                  {quotaAccounts.map((a) => {
+                    const usage = subscriptionByAccount[a.accountId];
+                    return usage ? (
+                      <UsageQuotaSection
+                        key={a.accountId}
+                        usage={usage}
+                        accountName={multiAccount ? a.name : undefined}
+                      />
+                    ) : (
+                      <div key={a.accountId} className="space-y-1.5">
+                        {multiAccount && <div className="text-xs text-text-muted font-medium">{a.name}</div>}
+                        <div className="text-xs text-text-muted/50">quota unavailable</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
-        {cost === 0 && messageCount === 0 && (
-          <div className="text-sm text-text-muted text-center py-2">No token usage {dateLabel}</div>
-        )}
-
-        {/* ── INPUT SECTION ── */}
-        <SectionDivider label="Input" />
-
-        {/* Headline */}
-        <div className="flex items-baseline justify-between">
-          <div>
-            <span className="text-2xl font-semibold text-text-primary">{inputMsgCount}</span>
-            <span className="text-sm text-text-secondary ml-1.5">message{inputMsgCount !== 1 ? 's' : ''}</span>
-            {inputSessions > 0 && (
-              <span className="text-sm text-text-muted ml-1">
-                · {inputSessions} session{inputSessions !== 1 ? 's' : ''}
-              </span>
+            {cost === 0 && messageCount === 0 && (
+              <div className="text-sm text-text-muted text-center py-2">No token usage {dateLabel}</div>
             )}
-          </div>
-          {msgsPerCommit != null && (
-            <span className="text-xs text-blue-400 font-medium">{msgsPerCommit} msgs/commit</span>
-          )}
-        </div>
-
-        {/* Character / word count */}
-        {inputMsgCount > 0 && (
-          <div className="text-xs text-text-muted">
-            {formatNumber(inputChars)} characters · {formatNumber(inputWords)} words
-          </div>
+          </>
         )}
 
-        {/* Input heatmap */}
-        {inputHeatmap.length > 0 && (
-          <HeatmapGrid
-            entries={inputHeatmap}
-            getLevel={inputLevel}
-            getTooltip={inputTooltip}
-            selectedDate={viewDate}
-            onSelect={handleHeatmapSelect}
-            colorScale="blue"
-          />
-        )}
+        {/* ── HUMAN INPUT SECTION ── */}
+        <SectionDivider
+          label="Human Input"
+          collapsed={inputCollapsed}
+          onToggle={() => setInputCollapsed((v) => !v)}
+          summary={`${inputMsgCount} msg${inputMsgCount !== 1 ? 's' : ''} · ${inputSessions} session${inputSessions !== 1 ? 's' : ''}`}
+        />
 
-        {/* Cadence & trend */}
-        {(inputCadence?.avgThinkTimeMinutes != null || inputCadence?.leverageRatio != null || inputCadence?.peakHour != null) && (
-          <div className="text-xs text-text-muted space-y-0.5">
-            {inputCadence.avgThinkTimeMinutes != null && (
+        {!inputCollapsed && (
+          <>
+            {/* Headline */}
+            <div className="flex items-baseline justify-between">
               <div>
-                Think time: {formatThinkTime(inputCadence.avgThinkTimeMinutes)} avg
-                {inputCadence.leverageRatio != null && <span> · Leverage: {inputCadence.leverageRatio}x</span>}
+                <span className="text-2xl font-semibold text-text-primary">{inputMsgCount}</span>
+                <span className="text-sm text-text-secondary ml-1.5">message{inputMsgCount !== 1 ? 's' : ''}</span>
+                {inputSessions > 0 && (
+                  <span className="text-sm text-text-muted ml-1">
+                    · {inputSessions} session{inputSessions !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              {msgsPerCommit != null && (
+                <span className="text-xs text-blue-400 font-medium">{msgsPerCommit} msgs/commit</span>
+              )}
+            </div>
+
+            {/* Character / word count */}
+            {inputMsgCount > 0 && (
+              <div className="text-xs text-text-muted">
+                {formatNumber(inputChars)} characters · {formatNumber(inputWords)} words
               </div>
             )}
-            {inputCadence.peakHour != null && <div>Peak: {formatHour(inputCadence.peakHour)}</div>}
-          </div>
-        )}
 
-        {/* Weekly trend */}
-        {inputWeeklyTrend && (
-          <div className="text-xs text-text-muted">
-            This week: {inputWeeklyTrend.thisWeek.messageCount} messages
-            {inputWeeklyTrend.pctChange != null && (
-              <span className={inputWeeklyTrend.pctChange >= 0 ? 'text-blue-400' : 'text-text-muted'}>
-                {' '}
-                ({inputWeeklyTrend.pctChange >= 0 ? '+' : ''}
-                {inputWeeklyTrend.pctChange}% vs last week)
-              </span>
+            {/* Input heatmap */}
+            {inputHeatmap.length > 0 && (
+              <HeatmapGrid
+                entries={inputHeatmap}
+                getLevel={inputLevel}
+                getTooltip={inputTooltip}
+                selectedDate={viewDate}
+                onSelect={handleHeatmapSelect}
+                colorScale="blue"
+              />
             )}
-          </div>
-        )}
 
-        {inputMsgCount === 0 && (
-          <div className="text-sm text-text-muted text-center py-2">No human messages {dateLabel}</div>
+            {/* Cadence & trend */}
+            {(inputCadence?.avgThinkTimeMinutes != null || inputCadence?.leverageRatio != null || inputCadence?.peakHour != null) && (
+              <div className="text-xs text-text-muted space-y-0.5">
+                {inputCadence.avgThinkTimeMinutes != null && (
+                  <div>
+                    Think time: {formatThinkTime(inputCadence.avgThinkTimeMinutes)} avg
+                    {inputCadence.leverageRatio != null && <span> · Leverage: {inputCadence.leverageRatio}x</span>}
+                  </div>
+                )}
+                {inputCadence.peakHour != null && <div>Peak: {formatHour(inputCadence.peakHour)}</div>}
+              </div>
+            )}
+
+            {/* Weekly trend */}
+            {inputWeeklyTrend && (
+              <div className="text-xs text-text-muted">
+                This week: {inputWeeklyTrend.thisWeek.messageCount} messages
+                {inputWeeklyTrend.pctChange != null && (
+                  <span className={inputWeeklyTrend.pctChange >= 0 ? 'text-blue-400' : 'text-text-muted'}>
+                    {' '}
+                    ({inputWeeklyTrend.pctChange >= 0 ? '+' : ''}
+                    {inputWeeklyTrend.pctChange}% vs last week)
+                  </span>
+                )}
+              </div>
+            )}
+
+            {inputMsgCount === 0 && (
+              <div className="text-sm text-text-muted text-center py-2">No human messages {dateLabel}</div>
+            )}
+          </>
         )}
       </div>
     </div>
