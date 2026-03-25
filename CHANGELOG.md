@@ -2,6 +2,12 @@
 
 All notable changes to mcode are documented here.
 
+## [0.1.1] — 2026-03-25
+
+### Bug Fixes
+
+- Preserve user-provided session labels from terminal title overwrites
+
 ## [0.1.0] — 2026-03-25
 
 Initial open-source release.
