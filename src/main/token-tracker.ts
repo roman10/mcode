@@ -223,7 +223,7 @@ export class TokenTracker {
       let newCount = 0;
       const insertAll = db.transaction(() => {
         for (const entry of entries) {
-          const date = entry.timestamp.slice(0, 10); // "2026-03-17"
+          const date = localDateStr(new Date(entry.timestamp));
           const result = insertStmt.run(
             entry.messageId,
             fileName,
@@ -429,7 +429,7 @@ export class TokenTracker {
              COALESCE(SUM(cache_write_1h_tokens), 0) as cache_write_1h_tokens,
              COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
       FROM token_usage
-      WHERE date >= date('now', 'weekday 0', '-6 days')
+      WHERE date >= date('now', 'localtime', 'weekday 0', '-6 days')
     `).get() as WeekRow;
 
     const lastWeekRow = db.prepare(`
@@ -440,13 +440,13 @@ export class TokenTracker {
              COALESCE(SUM(cache_write_1h_tokens), 0) as cache_write_1h_tokens,
              COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
       FROM token_usage
-      WHERE date >= date('now', 'weekday 0', '-13 days')
-        AND date < date('now', 'weekday 0', '-6 days')
+      WHERE date >= date('now', 'localtime', 'weekday 0', '-13 days')
+        AND date < date('now', 'localtime', 'weekday 0', '-6 days')
     `).get() as WeekRow;
 
     // Estimate cost for each week (rough — uses average model pricing)
-    const thisWeekCost = estimateWeekCost(db, "date >= date('now', 'weekday 0', '-6 days')");
-    const lastWeekCost = estimateWeekCost(db, "date >= date('now', 'weekday 0', '-13 days') AND date < date('now', 'weekday 0', '-6 days')");
+    const thisWeekCost = estimateWeekCost(db, "date >= date('now', 'localtime', 'weekday 0', '-6 days')");
+    const lastWeekCost = estimateWeekCost(db, "date >= date('now', 'localtime', 'weekday 0', '-13 days') AND date < date('now', 'localtime', 'weekday 0', '-6 days')");
 
     const pctChange = lastWeekRow.output_tokens > 0
       ? Math.round(((thisWeekRow.output_tokens - lastWeekRow.output_tokens) / lastWeekRow.output_tokens) * 100)
@@ -532,7 +532,7 @@ export class TokenTracker {
   pruneOldUsage(): void {
     const db = getDb();
     const result = db.prepare(
-      `DELETE FROM token_usage WHERE date < date('now', ?)`,
+      `DELETE FROM token_usage WHERE date < date('now', 'localtime', ?)`,
     ).run(`-${USAGE_RETENTION_DAYS} days`);
 
     if (result.changes > 0) {

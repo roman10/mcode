@@ -61,7 +61,7 @@ export class InputTracker {
     let newCount = 0;
     const insertAll = db.transaction(() => {
       for (const entry of entries) {
-        const date = entry.timestamp.slice(0, 10);
+        const date = localDateStr(new Date(entry.timestamp));
         const result = stmt.run(
           entry.messageId,
           claudeSessionId,
@@ -159,15 +159,15 @@ export class InputTracker {
       SELECT COUNT(*) as message_count,
              COALESCE(SUM(text_length), 0) as total_chars
       FROM human_input
-      WHERE date >= date('now', 'weekday 0', '-6 days')
+      WHERE date >= date('now', 'localtime', 'weekday 0', '-6 days')
     `).get() as WeekRow;
 
     const lastWeekRow = db.prepare(`
       SELECT COUNT(*) as message_count,
              COALESCE(SUM(text_length), 0) as total_chars
       FROM human_input
-      WHERE date >= date('now', 'weekday 0', '-13 days')
-        AND date < date('now', 'weekday 0', '-6 days')
+      WHERE date >= date('now', 'localtime', 'weekday 0', '-13 days')
+        AND date < date('now', 'localtime', 'weekday 0', '-6 days')
     `).get() as WeekRow;
 
     const pctChange = lastWeekRow.message_count > 0
@@ -193,7 +193,7 @@ export class InputTracker {
 
     // Peak interaction hour
     const hourRows = db.prepare(`
-      SELECT strftime('%H', message_timestamp) as hour,
+      SELECT strftime('%H', message_timestamp, 'localtime') as hour,
              COUNT(*) as cnt
       FROM human_input
       WHERE date = ?
@@ -252,7 +252,7 @@ export class InputTracker {
   pruneOldData(): void {
     const db = getDb();
     const result = db.prepare(
-      `DELETE FROM human_input WHERE date < date('now', ?)`,
+      `DELETE FROM human_input WHERE date < date('now', 'localtime', ?)`,
     ).run(`-${INPUT_RETENTION_DAYS} days`);
 
     if (result.changes > 0) {
