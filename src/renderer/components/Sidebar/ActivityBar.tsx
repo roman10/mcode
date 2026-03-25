@@ -34,7 +34,7 @@ function ActivityBarButton({ icon, tab, active, panelCollapsed, onSelect, toolti
   );
 }
 
-function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount, changesCount }: {
+function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount, changesCount, showActivityTab }: {
   activeTab: SidebarTab;
   panelCollapsed: boolean;
   onTabSelect: (tab: SidebarTab) => void;
@@ -42,6 +42,7 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
   onAccountsClick: () => void;
   attentionCount: number;
   changesCount?: number;
+  showActivityTab?: boolean;
 }): React.JSX.Element {
   return (
     <div className="flex flex-col h-full w-12 bg-bg-primary border-r border-border-default shrink-0">
@@ -81,14 +82,16 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
           onSelect={onTabSelect}
           tooltip={`Stats (${formatKeys('Shift+B', true)})`}
         />
-        <ActivityBarButton
-          icon={<Activity size={20} strokeWidth={1.5} />}
-          tab="activity"
-          active={activeTab}
-          panelCollapsed={panelCollapsed}
-          onSelect={onTabSelect}
-          tooltip={`Activity (${formatKeys('Shift+A', true)})`}
-        />
+        {showActivityTab && (
+          <ActivityBarButton
+            icon={<Activity size={20} strokeWidth={1.5} />}
+            tab="activity"
+            active={activeTab}
+            panelCollapsed={panelCollapsed}
+            onSelect={onTabSelect}
+            tooltip={`Activity (${formatKeys('Shift+A', true)})`}
+          />
+        )}
       </div>
 
       {/* Bottom icons */}

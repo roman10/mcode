@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useEditorStore } from '../stores/editor-store';
+import { useLayoutStore } from '../stores/layout-store';
 import Dialog from './shared/Dialog';
 
 interface SettingsDialogProps {
@@ -12,6 +13,8 @@ function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.
   const [scanAllBranches, setScanAllBranches] = useState(false);
   const vimEnabled = useEditorStore((s) => s.vimEnabled);
   const setVimEnabled = useEditorStore((s) => s.setVimEnabled);
+  const showActivityTab = useLayoutStore((s) => s.showActivityTab);
+  const setShowActivityTab = useLayoutStore((s) => s.setShowActivityTab);
 
   useEffect(() => {
     if (!open) return;
@@ -141,6 +144,37 @@ function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.
             <span
               className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
                 vimEnabled ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </label>
+      </div>
+
+      {/* Sidebar */}
+      <div className="mt-4">
+        <h3 className="text-text-secondary text-xs font-medium uppercase tracking-wide mb-3">
+          Sidebar
+        </h3>
+
+        <label className="flex items-center justify-between cursor-pointer group">
+          <div className="flex-1 mr-3">
+            <div className="text-sm text-text-primary">Show Activity tab</div>
+            <div className="text-xs text-text-muted mt-0.5">
+              Display the Activity tab in the sidebar for viewing Claude Code hook events.
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showActivityTab}
+            onClick={() => setShowActivityTab(!showActivityTab)}
+            className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+              showActivityTab ? 'bg-accent' : 'bg-bg-primary'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                showActivityTab ? 'translate-x-4' : 'translate-x-0'
               }`}
             />
           </button>

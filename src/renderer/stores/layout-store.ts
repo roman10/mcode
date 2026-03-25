@@ -86,6 +86,7 @@ interface LayoutState {
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   activeSidebarTab: SidebarTab;
+  showActivityTab: boolean;
   viewMode: ViewMode;
   kanbanExpandedSessionId: string | null; // transient, not persisted
   kanbanOpenFiles: string[]; // transient, not persisted
@@ -112,6 +113,7 @@ interface LayoutState {
   setSidebarWidth(width: number): void;
   toggleSidebar(): void;
   setActiveSidebarTab(tab: SidebarTab): void;
+  setShowActivityTab(show: boolean): void;
   setViewMode(mode: ViewMode): void;
   expandKanbanSession(sessionId: string): void;
   clearKanbanExpand(): void;
@@ -284,6 +286,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   sidebarWidth: 280,
   sidebarCollapsed: false,
   activeSidebarTab: 'sessions' as SidebarTab,
+  showActivityTab: false,
   viewMode: 'tiles' as ViewMode,
   kanbanExpandedSessionId: null,
   kanbanOpenFiles: [],
@@ -392,6 +395,16 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setActiveSidebarTab: (tab) => {
     set({ activeSidebarTab: tab });
     get().persist();
+  },
+
+  setShowActivityTab: (show) => {
+    const updates: Partial<LayoutState> = { showActivityTab: show };
+    // If hiding the activity tab while it is active, fall back to sessions.
+    if (!show && get().activeSidebarTab === 'activity') {
+      updates.activeSidebarTab = 'sessions';
+    }
+    set(updates);
+    window.mcode.preferences.set('showActivityTab', String(show)).catch(console.error);
   },
 
   setViewMode: (mode) => {
@@ -627,11 +640,13 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
 
   restore: async () => {
-    const [snapshot, viewModePref] = await Promise.all([
+    const [snapshot, viewModePref, showActivityTabPref] = await Promise.all([
       window.mcode.layout.load(),
       window.mcode.preferences.get('viewMode'),
+      window.mcode.preferences.get('showActivityTab'),
     ]);
     const viewMode: ViewMode = viewModePref === 'kanban' ? 'kanban' : 'tiles';
+    const showActivityTab = showActivityTabPref === 'true';
     if (snapshot) {
       // Strip legacy dashboard/stats tiles from persisted layouts
       let tree = snapshot.mosaicTree;
@@ -649,6 +664,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         sidebarWidth: snapshot.sidebarWidth,
         sidebarCollapsed: snapshot.sidebarCollapsed ?? false,
         activeSidebarTab: migrateTab(snapshot.activeSidebarTab ?? 'sessions'),
+        showActivityTab,
         viewMode,
       });
 
@@ -669,7 +685,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         });
       }
     } else {
-      set({ viewMode });
+      set({ viewMode, showActivityTab });
     }
   },
 

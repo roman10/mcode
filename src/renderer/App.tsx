@@ -326,6 +326,7 @@ function App(): React.JSX.Element {
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const activeSidebarTab = useLayoutStore((s) => s.activeSidebarTab);
   const setActiveSidebarTab = useLayoutStore((s) => s.setActiveSidebarTab);
+  const showActivityTab = useLayoutStore((s) => s.showActivityTab);
   const viewMode = useLayoutStore((s) => s.viewMode);
 
   const attentionCount = useSessionStore((s) =>
@@ -398,6 +399,7 @@ function App(): React.JSX.Element {
             onAccountsClick={() => setShowAccountsDialog(true)}
             attentionCount={attentionCount}
             changesCount={changesCount}
+            showActivityTab={showActivityTab}
           />
           {!sidebarCollapsed && <SidebarPanel />}
           <div className="flex-1 min-w-0 flex flex-col">
