@@ -3,6 +3,8 @@ import { groupSessionsByDate } from '../../utils/date-grouping';
 import Dialog from '../shared/Dialog';
 import type { SessionInfo } from '@shared/types';
 
+const isMac = navigator.userAgent.includes('Mac');
+
 interface DeleteSessionsDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
@@ -77,6 +79,22 @@ function DeleteSessionsDialog({
     setIsDeleting(true);
     onDelete([...selected]);
   };
+
+  const handleDeleteRef = useRef(handleDelete);
+  handleDeleteRef.current = handleDelete;
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && e.key === 'Enter') {
+        e.preventDefault();
+        handleDeleteRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
 
   return (
     <Dialog
@@ -153,12 +171,19 @@ function DeleteSessionsDialog({
         </button>
         <button
           disabled={selected.size === 0 || isDeleting}
-          className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           onClick={handleDelete}
         >
           {isDeleting
             ? 'Deleting...'
-            : `Delete ${selected.size} session${selected.size === 1 ? '' : 's'}`}
+            : (
+              <>
+                {`Delete ${selected.size} session${selected.size === 1 ? '' : 's'}`}
+                <kbd className="ml-2 text-xs opacity-70 font-mono">
+                  {isMac ? '⌘↵' : 'Ctrl+↵'}
+                </kbd>
+              </>
+            )}
         </button>
       </div>
     </Dialog>

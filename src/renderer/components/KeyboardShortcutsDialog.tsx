@@ -61,10 +61,11 @@ function KeyboardShortcutsDialog({ open, onOpenChange }: KeyboardShortcutsDialog
       <div className="flex justify-end mt-4">
         <button
           type="button"
-          className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          className="inline-flex items-center px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
           onClick={() => onOpenChange(false)}
         >
           Done
+          <kbd className="ml-2 text-xs opacity-70 font-mono">Esc</kbd>
         </button>
       </div>
     </Dialog>
