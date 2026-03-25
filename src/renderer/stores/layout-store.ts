@@ -10,6 +10,13 @@ import type { SidebarTab, ViewMode } from '@shared/types';
 /** Legacy tile IDs — stripped from persisted layouts on restore. */
 const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];
 
+/** Migrate persisted sidebar tab values from previous schema to the current schema. Exported for testing. */
+export function migrateTab(tab: string): SidebarTab {
+  if (tab === 'commits' || tab === 'tokens') return 'stats';
+  const valid: SidebarTab[] = ['sessions', 'search', 'changes', 'stats', 'activity'];
+  return valid.includes(tab as SidebarTab) ? (tab as SidebarTab) : 'sessions';
+}
+
 /** Snapshot the terminal panel store for persistence (avoids circular import). */
 function getTerminalPanelSnapshot(): unknown {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -589,7 +596,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         mosaicTree: tree,
         sidebarWidth: snapshot.sidebarWidth,
         sidebarCollapsed: snapshot.sidebarCollapsed ?? false,
-        activeSidebarTab: snapshot.activeSidebarTab ?? 'sessions',
+        activeSidebarTab: migrateTab(snapshot.activeSidebarTab ?? 'sessions'),
         viewMode,
       });
 

@@ -1,4 +1,4 @@
-import { LayoutList, Search, GitCommitHorizontal, FileDiff, Coins, Activity, Users, Settings } from 'lucide-react';
+import { LayoutList, Search, BarChart3, FileDiff, Activity, Users, Settings } from 'lucide-react';
 import Tooltip from '../shared/Tooltip';
 import { formatKeys } from '../../utils/format-shortcut';
 import type { SidebarTab } from '@shared/types';
@@ -74,20 +74,12 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
           badge={changesCount}
         />
         <ActivityBarButton
-          icon={<GitCommitHorizontal size={20} strokeWidth={1.5} />}
-          tab="commits"
+          icon={<BarChart3 size={20} strokeWidth={1.5} />}
+          tab="stats"
           active={activeTab}
           panelCollapsed={panelCollapsed}
           onSelect={onTabSelect}
-          tooltip={`Commits (${formatKeys('Shift+B', true)})`}
-        />
-        <ActivityBarButton
-          icon={<Coins size={20} strokeWidth={1.5} />}
-          tab="tokens"
-          active={activeTab}
-          panelCollapsed={panelCollapsed}
-          onSelect={onTabSelect}
-          tooltip={`Tokens (${formatKeys('Shift+U', true)})`}
+          tooltip={`Stats (${formatKeys('Shift+B', true)})`}
         />
         <ActivityBarButton
           icon={<Activity size={20} strokeWidth={1.5} />}

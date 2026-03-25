@@ -28,6 +28,14 @@ describe('command-registry', () => {
     expect(cmd!.shortcut).toBeDefined();
   });
 
+  it('includes show-stats and not show-commits or show-tokens', () => {
+    const commands = getCommands(emptyCtx);
+    const ids = commands.map((c) => c.id);
+    expect(ids).toContain('show-stats');
+    expect(ids).not.toContain('show-commits');
+    expect(ids).not.toContain('show-tokens');
+  });
+
   it('toggle-terminal-panel has correct shortcut display on macOS', () => {
     const commands = getCommands(emptyCtx);
     const cmd = commands.find((c) => c.id === 'toggle-terminal-panel')!;

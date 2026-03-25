@@ -3,15 +3,14 @@ import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Search, X } from 'lucid
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useAccountsStore } from '../../stores/accounts-store';
-import { useTokenStore } from '../../stores/token-store';
+import { useStatsStore } from '../../stores/stats-store';
 import SessionList from './SessionList';
 import NewSessionDialog from './NewSessionDialog';
 import Tooltip from '../shared/Tooltip';
 import DeleteSessionsDialog from './DeleteSessionsDialog';
-import CommitStats from '../Dashboard/CommitStats';
+import StatsPanel from '../Dashboard/StatsPanel';
 import ChangesPanel from '../Dashboard/ChangesPanel';
 import CommitGraphPanel from '../CommitGraph/CommitGraphPanel';
-import TokenStats from '../Dashboard/TokenStats';
 import ActivityFeed from '../Dashboard/ActivityFeed';
 import SearchPanel from './SearchPanel';
 import { createTerminalSession, autoExpandInKanban } from '../../utils/session-actions';
@@ -35,8 +34,8 @@ function SidebarPanel(): React.JSX.Element {
   const persist = useLayoutStore((s) => s.persist);
   const flushPersist = useLayoutStore((s) => s.flushPersist);
   const activeSidebarTab = useLayoutStore((s) => s.activeSidebarTab);
-  const todayCost = useTokenStore((s) => s.dailyUsage?.estimatedCostUsd ?? null);
-  const refreshTokens = useTokenStore((s) => s.refreshAll);
+  const todayCost = useStatsStore((s) => s.dailyUsage?.estimatedCostUsd ?? null);
+  const refreshStats = useStatsStore((s) => s.refreshAll);
   const addSession = useSessionStore((s) => s.addSession);
   const selectSession = useSessionStore((s) => s.selectSession);
   const hookRuntime = useSessionStore((s) => s.hookRuntime);
@@ -61,12 +60,11 @@ function SidebarPanel(): React.JSX.Element {
   );
 
   useEffect(() => {
-    refreshTokens();
-    const unsub = window.mcode.tokens.onUpdated(() => {
-      refreshTokens();
-    });
-    return unsub;
-  }, [refreshTokens]);
+    refreshStats();
+    const unsub1 = window.mcode.tokens.onUpdated(() => { refreshStats(); });
+    const unsub2 = window.mcode.commits.onUpdated(() => { refreshStats(); });
+    return () => { unsub1(); unsub2(); };
+  }, [refreshStats]);
 
   // Auto-focus filter input when shown
   useEffect(() => {
@@ -335,14 +333,13 @@ function SidebarPanel(): React.JSX.Element {
               <SessionList filterQuery={sessionFilterQuery} />
             </>
           )}
-          {activeSidebarTab === 'commits' && <CommitStats />}
+          {activeSidebarTab === 'stats' && <StatsPanel />}
           {activeSidebarTab === 'changes' && (
             <>
               <ChangesPanel />
               <CommitGraphPanel />
             </>
           )}
-          {activeSidebarTab === 'tokens' && <TokenStats />}
           {activeSidebarTab === 'activity' && <ActivityFeed />}
         </div>
 

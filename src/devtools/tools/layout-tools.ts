@@ -576,10 +576,10 @@ export function registerLayoutTools(
   });
 
   server.registerTool('sidebar_switch_tab', {
-    description: 'Switch the sidebar to a specific tab (sessions, commits, tokens, activity)',
+    description: 'Switch the sidebar to a specific tab (sessions, changes, stats, activity)',
     annotations: { readOnlyHint: false },
     inputSchema: {
-      tab: z.enum(['sessions', 'commits', 'tokens', 'activity']).describe('The sidebar tab to switch to'),
+      tab: z.enum(['sessions', 'changes', 'stats', 'activity']).describe('The sidebar tab to switch to'),
     },
   }, async ({ tab }) => {
     try {

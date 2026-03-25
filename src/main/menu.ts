@@ -133,19 +133,14 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'activity' }),
           },
           {
-            label: 'Show Commits',
+            label: 'Show Stats',
             accelerator: 'CmdOrCtrl+Shift+B',
-            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'commits' }),
+            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'stats' }),
           },
           {
             label: 'Show Changes',
             accelerator: 'CmdOrCtrl+Shift+C',
             click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'changes' }),
-          },
-          {
-            label: 'Show Token Usage',
-            accelerator: 'CmdOrCtrl+Shift+U',
-            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'tokens' }),
           },
           {
             label: 'Quick Open',

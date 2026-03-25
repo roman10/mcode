@@ -120,7 +120,7 @@ export interface ExternalSessionInfo {
   customTitle?: string; // meaningful title from Claude Code, when available
 }
 
-export type SidebarTab = 'sessions' | 'search' | 'changes' | 'commits' | 'tokens' | 'activity';
+export type SidebarTab = 'sessions' | 'search' | 'changes' | 'stats' | 'activity';
 export type ViewMode = 'tiles' | 'kanban';
 
 export interface LayoutStateSnapshot {

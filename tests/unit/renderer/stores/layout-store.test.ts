@@ -10,7 +10,7 @@ vi.stubGlobal('window', {
   },
 });
 
-const { useLayoutStore, sessionIdFromTileId } = await import(
+const { useLayoutStore, sessionIdFromTileId, migrateTab } = await import(
   '../../../../src/renderer/stores/layout-store'
 );
 
@@ -396,5 +396,29 @@ describe('layout-store', () => {
 
       expect(useLayoutStore.getState().consumePendingFileLine('/other.ts')).toBeNull();
     });
+  });
+});
+
+describe('migrateTab', () => {
+  it("maps 'commits' to 'stats'", () => {
+    expect(migrateTab('commits')).toBe('stats');
+  });
+
+  it("maps 'tokens' to 'stats'", () => {
+    expect(migrateTab('tokens')).toBe('stats');
+  });
+
+  it('passes valid tabs through unchanged', () => {
+    expect(migrateTab('sessions')).toBe('sessions');
+    expect(migrateTab('search')).toBe('search');
+    expect(migrateTab('changes')).toBe('changes');
+    expect(migrateTab('stats')).toBe('stats');
+    expect(migrateTab('activity')).toBe('activity');
+  });
+
+  it("falls back to 'sessions' for unknown values", () => {
+    expect(migrateTab('garbage')).toBe('sessions');
+    expect(migrateTab('')).toBe('sessions');
+    expect(migrateTab('dashboard')).toBe('sessions');
   });
 });

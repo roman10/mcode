@@ -10,6 +10,13 @@ describe('keyboard-shortcuts registry', () => {
     expect(entry!.category).toBe('general');
   });
 
+  it("contains 'Show Stats' and does not contain 'Show Commits' or 'Show Token Usage'", () => {
+    const labels = KEYBOARD_SHORTCUTS.map((s) => s.label);
+    expect(labels).toContain('Show Stats');
+    expect(labels).not.toContain('Show Commits');
+    expect(labels).not.toContain('Show Token Usage');
+  });
+
   it('has no duplicate label+keys within the same category', () => {
     const seen = new Set<string>();
     const duplicates: string[] = [];
