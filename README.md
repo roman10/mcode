@@ -3,7 +3,7 @@
 **Terminal-native tiling IDE for parallel Claude Code sessions**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/anthropics/mcode/ci.yml?label=CI)](https://github.com/anthropics/mcode/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/roman10/mcode/ci.yml?label=CI)](https://github.com/roman10/mcode/actions)
 
 mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude Code sessions simultaneously. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring, and 100 MCP tools make it fully automatable.
 
@@ -51,7 +51,7 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude 
 ### Setup
 
 ```bash
-git clone https://github.com/anthropics/mcode.git
+git clone https://github.com/roman10/mcode.git
 cd mcode
 npm install
 npm run dev

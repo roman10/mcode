@@ -13,7 +13,7 @@
 | Feature completeness | 10/10 | Tiling + kanban views, command palette, quick open, file viewer, task queue, commit/token tracking, settings UI, 100 MCP tools, update checker, PTY persistence, git commit graph, VSCode-style staging, snippet palette |
 | Code quality | 9/10 | Clean architecture, good naming, proper separation, zero TODOs. ESLint + typescript-eslint added, type-safe IPC contract |
 | Documentation (internal) | 8/10 | Excellent design docs, ADRs, architecture walkthroughs |
-| Documentation (external) | 8/10 | LICENSE, CONTRIBUTING.md, full README (features, install, quick start, MCP tools, shortcuts). Still missing: SECURITY.md |
+| Documentation (external) | 10/10 | LICENSE, CONTRIBUTING.md, full README (features, install, quick start, MCP tools, shortcuts), SECURITY.md, CHANGELOG |
 | Dependencies | 9/10 | Minimal, modern, no security issues. Only concern: react-mosaic beta |
 | Build system | 8/10 | Works. electron-vite + electron-builder. No cross-platform CI |
 | Tests | 9/10 | 49 test files (35 integration + 14 unit suites), all passing |
@@ -21,7 +21,7 @@
 | Security | 7/10 | No secrets, CSP configured, context isolation. Fine for desktop |
 | Release process | 3/10 | Update checker with StatusBar notification exists. No installers or release automation |
 
-**Overall: 9/10 — All blockers resolved. Screenshots and SECURITY.md are nice-to-haves.**
+**Overall: 10/10 — All blockers resolved. SECURITY.md, CHANGELOG, and screenshots are all present.**
 
 ---
 
@@ -34,8 +34,8 @@
 
 ## Nice-to-haves (post-launch)
 
-- SECURITY.md for vulnerability reporting
-- CHANGELOG generation
+- ~~SECURITY.md for vulnerability reporting~~ — Added
+- ~~CHANGELOG generation~~ — Added (v0.1.0)
 - Release automation (GitHub Releases with DMG artifacts)
 - Cross-platform CI (currently macOS-only)
 - ~~Auto-update mechanism~~ — update checker implemented (StatusBar notification + GitHub releases)
@@ -51,18 +51,17 @@
 | ~~Rewrite README (screenshots, install, features)~~ | ~~1-2 days~~ |
 | ~~Set up GitHub Actions CI/CD~~ | ~~2-3 days~~ |
 | ~~Polish pass (remove debug code, clean warnings)~~ | ~~Done (zero TODOs, ESLint clean)~~ |
-| **Total remaining** | **Screenshots only** |
+| **Total remaining** | **Nothing — ready to tag** |
 
 ---
 
-## Next Priority: Screenshots & v0.1.0 Release
+## Next Priority: v0.1.0 Release
 
-All documentation blockers are resolved. The README now includes hero section, features, installation, quick start, keyboard shortcuts, MCP tools, and tech stack. Remaining steps before launch:
+All documentation blockers are resolved. Screenshots are in `docs/screenshots/`. Remaining steps before launch:
 
-1. **Add screenshots** to README — tiling view, kanban view, command palette, commit graph, token analytics
-2. **Tag v0.1.0** release
-3. **Prepare Show HN** post
-4. **Share** in Claude Code community channels
+1. **Tag v0.1.0** release on GitHub (with release notes from CHANGELOG)
+2. **Prepare Show HN** post
+3. **Share** in Claude Code community channels
 
 ---
 
@@ -108,6 +107,9 @@ All documentation blockers are resolved. The README now includes hero section, f
 - [x] Write CONTRIBUTING.md (dev setup, PR process, code style)
 - [x] Rewrite README.md (screenshots, features, installation, quick start)
 - [x] Set up GitHub Actions (lint, test, build on macOS)
-- [ ] Tag v0.1.0 release
+- [x] Add SECURITY.md
+- [x] Add CHANGELOG.md (v0.1.0)
+- [x] Add screenshots to README
+- [ ] Tag v0.1.0 release on GitHub
 - [ ] Prepare Show HN post
 - [ ] Share in Claude Code community channels
