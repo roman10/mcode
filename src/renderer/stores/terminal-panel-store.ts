@@ -47,7 +47,6 @@ interface TerminalPanelState {
   tabGroups: Record<string, TabGroup>;
   splitTree: PanelNode | null;
   activeTabGroupId: string | null;
-  focusInPanel: boolean;
 
   // Terminals
   terminals: Record<string, TerminalEntry>;
@@ -72,7 +71,6 @@ interface TerminalPanelState {
   setPanelVisible(visible: boolean): void;
   togglePanelVisible(): void;
   setPanelHeight(height: number): void;
-  setFocusInPanel(focused: boolean): void;
 
   // Queries
   getTerminal(sessionId: string): TerminalEntry | undefined;
@@ -189,7 +187,6 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
   tabGroups: {},
   splitTree: null,
   activeTabGroupId: null,
-  focusInPanel: false,
   terminals: {},
 
   // ---------------------------------------------------------------------------
@@ -365,7 +362,6 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
   setPanelVisible: (visible) => set({ panelVisible: visible }),
   togglePanelVisible: () => set((state) => ({ panelVisible: !state.panelVisible })),
   setPanelHeight: (height) => set({ panelHeight: height }),
-  setFocusInPanel: (focused) => set({ focusInPanel: focused }),
 
   // ---------------------------------------------------------------------------
   // Queries (non-mutating — access via get())

@@ -13,7 +13,7 @@ vi.stubGlobal('window', {
 
 // Mock DOM APIs for toggle-terminal-panel tests
 vi.stubGlobal('requestAnimationFrame', (cb: () => void) => { cb(); return 0; });
-vi.stubGlobal('document', { querySelector: vi.fn().mockReturnValue(null) });
+vi.stubGlobal('document', { querySelector: vi.fn().mockReturnValue(null), activeElement: null });
 vi.stubGlobal('HTMLElement', class HTMLElement {});
 
 const { useLayoutStore } = await import('../../../../src/renderer/stores/layout-store');
@@ -153,6 +153,10 @@ describe('focus commands — tile visibility filtering', () => {
 });
 
 describe('toggle-terminal-panel command', () => {
+  let mockPanelEl: { contains: ReturnType<typeof vi.fn> } | null;
+  let mockFocusTarget: { focus: ReturnType<typeof vi.fn> };
+  let mockWorkspaceTile: { focus: ReturnType<typeof vi.fn> };
+
   function resetPanel() {
     useTerminalPanelStore.setState({
       panelVisible: false,
@@ -160,39 +164,81 @@ describe('toggle-terminal-panel command', () => {
       tabGroups: {},
       splitTree: null,
       activeTabGroupId: null,
-      focusInPanel: false,
       terminals: {},
+    });
+    mockPanelEl = null;
+    mockFocusTarget = { focus: vi.fn() };
+    mockWorkspaceTile = { focus: vi.fn() };
+  }
+
+  function setupDom(opts: { panelInDom: boolean; focusedInPanel: boolean }) {
+    mockPanelEl = opts.panelInDom
+      ? { contains: vi.fn().mockReturnValue(opts.focusedInPanel) }
+      : null;
+    (document.querySelector as ReturnType<typeof vi.fn>).mockImplementation((sel: string) => {
+      if (sel === '[data-terminal-panel]') return mockPanelEl;
+      if (sel === '[data-terminal-panel] .xterm-helper-textarea') return mockFocusTarget;
+      if (sel === '.mosaic-tile .xterm-helper-textarea') return mockWorkspaceTile;
+      return null;
     });
   }
 
   beforeEach(resetPanel);
 
-  it('expands hidden panel and sets focusInPanel', () => {
+  it('hidden → show and focus panel', () => {
+    setupDom({ panelInDom: false, focusedInPanel: false });
+
     executeAppCommand({ command: 'toggle-terminal-panel' });
 
-    const state = useTerminalPanelStore.getState();
-    expect(state.panelVisible).toBe(true);
-    expect(state.focusInPanel).toBe(true);
+    expect(useTerminalPanelStore.getState().panelVisible).toBe(true);
+    expect(mockFocusTarget.focus).toHaveBeenCalled();
   });
 
-  it('clears focusInPanel when focus is already in panel', () => {
-    useTerminalPanelStore.setState({ panelVisible: true, focusInPanel: true });
+  it('visible + focused → hide and focus workspace', () => {
+    useTerminalPanelStore.setState({ panelVisible: true });
+    setupDom({ panelInDom: true, focusedInPanel: true });
 
     executeAppCommand({ command: 'toggle-terminal-panel' });
 
-    const state = useTerminalPanelStore.getState();
-    expect(state.focusInPanel).toBe(false);
-    // Panel stays visible — it only moves focus out
-    expect(state.panelVisible).toBe(true);
+    expect(useTerminalPanelStore.getState().panelVisible).toBe(false);
+    expect(mockWorkspaceTile.focus).toHaveBeenCalled();
   });
 
-  it('focuses panel without toggling visibility when already visible', () => {
-    useTerminalPanelStore.setState({ panelVisible: true, focusInPanel: false });
+  it('visible + not focused → focus panel without hiding', () => {
+    useTerminalPanelStore.setState({ panelVisible: true });
+    setupDom({ panelInDom: true, focusedInPanel: false });
 
     executeAppCommand({ command: 'toggle-terminal-panel' });
 
-    const state = useTerminalPanelStore.getState();
-    expect(state.panelVisible).toBe(true);
-    expect(state.focusInPanel).toBe(true);
+    expect(useTerminalPanelStore.getState().panelVisible).toBe(true);
+    expect(mockFocusTarget.focus).toHaveBeenCalled();
+  });
+
+  it('full cycle: hidden → show → hide', () => {
+    // Step 1: hidden → show
+    setupDom({ panelInDom: false, focusedInPanel: false });
+    executeAppCommand({ command: 'toggle-terminal-panel' });
+    expect(useTerminalPanelStore.getState().panelVisible).toBe(true);
+
+    // Step 2: visible + focused → hide
+    setupDom({ panelInDom: true, focusedInPanel: true });
+    executeAppCommand({ command: 'toggle-terminal-panel' });
+    expect(useTerminalPanelStore.getState().panelVisible).toBe(false);
+  });
+
+  it('click-away scenario: visible, focus outside → focus panel, then toggle again → hide', () => {
+    // User opened panel, then clicked a session tile (focus left panel)
+    useTerminalPanelStore.setState({ panelVisible: true });
+    setupDom({ panelInDom: true, focusedInPanel: false });
+
+    // Toggle 1: should focus panel, not hide
+    executeAppCommand({ command: 'toggle-terminal-panel' });
+    expect(useTerminalPanelStore.getState().panelVisible).toBe(true);
+    expect(mockFocusTarget.focus).toHaveBeenCalled();
+
+    // Toggle 2: now focused in panel → should hide
+    setupDom({ panelInDom: true, focusedInPanel: true });
+    executeAppCommand({ command: 'toggle-terminal-panel' });
+    expect(useTerminalPanelStore.getState().panelVisible).toBe(false);
   });
 });

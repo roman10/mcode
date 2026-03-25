@@ -215,31 +215,35 @@ export function executeAppCommand(command: AppCommand): void {
 
     case 'toggle-terminal-panel': {
       const panel = useTerminalPanelStore.getState();
-      if (panel.focusInPanel) {
-        // Focus is in the panel → move focus to the main workspace
-        panel.setFocusInPanel(false);
-        // Move focus to the first focusable element in the mosaic layout area
+      const panelEl = document.querySelector('[data-terminal-panel]');
+      const focusedInPanel = panelEl?.contains(document.activeElement) ?? false;
+
+      const focusPanelTerminal = (): void => {
         requestAnimationFrame(() => {
-          const tile = document.querySelector('.mosaic-tile .xterm-helper-textarea') as HTMLElement | null;
-          tile?.focus();
-        });
-      } else {
-        // Focus is not in the panel → expand panel (if needed) and focus it
-        if (!panel.panelVisible) {
-          panel.setPanelVisible(true);
-        }
-        panel.setFocusInPanel(true);
-        // Focus the terminal panel's xterm container
-        requestAnimationFrame(() => {
-          const panelEl = document.querySelector('[data-terminal-panel] .xterm-helper-textarea') as HTMLElement | null;
-          if (panelEl) {
-            panelEl.focus();
+          const el = document.querySelector('[data-terminal-panel] .xterm-helper-textarea') as HTMLElement | null;
+          if (el) {
+            el.focus();
           } else {
-            // Fallback: focus the panel container itself
             const container = document.querySelector('[data-terminal-panel]');
             if (container instanceof HTMLElement) container.focus();
           }
         });
+      };
+
+      if (panel.panelVisible && focusedInPanel) {
+        // Panel visible + focused → hide panel, return focus to workspace
+        panel.setPanelVisible(false);
+        requestAnimationFrame(() => {
+          const tile = document.querySelector('.mosaic-tile .xterm-helper-textarea') as HTMLElement | null;
+          tile?.focus();
+        });
+      } else if (panel.panelVisible) {
+        // Panel visible + not focused → focus it
+        focusPanelTerminal();
+      } else {
+        // Panel hidden → show and focus
+        panel.setPanelVisible(true);
+        focusPanelTerminal();
       }
       break;
     }

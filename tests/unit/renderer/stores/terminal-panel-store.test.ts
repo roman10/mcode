@@ -33,7 +33,6 @@ describe('terminal-panel-store', () => {
       tabGroups: {},
       splitTree: null,
       activeTabGroupId: null,
-      focusInPanel: false,
       terminals: {},
     });
   });

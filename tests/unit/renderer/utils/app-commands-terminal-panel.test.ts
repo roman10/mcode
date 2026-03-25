@@ -34,7 +34,6 @@ function resetPanel() {
     tabGroups: {},
     splitTree: null,
     activeTabGroupId: null,
-    focusInPanel: false,
     terminals: {},
   });
 }
