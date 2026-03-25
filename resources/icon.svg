@@ -1,61 +1,54 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- macOS squircle clip path (approximation using superellipse-like rounded rect) -->
-    <clipPath id="squircle">
-      <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
-    </clipPath>
-
-    <!-- Tile gradients -->
-    <linearGradient id="blue-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#3B82F6"/>
-      <stop offset="100%" stop-color="#2563EB"/>
+    <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16103A"/>
+      <stop offset="100%" stop-color="#0A0818"/>
     </linearGradient>
-
-    <linearGradient id="teal-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#06B6D4"/>
-      <stop offset="100%" stop-color="#0891B2"/>
-    </linearGradient>
-
-    <linearGradient id="amber-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#F59E0B"/>
-      <stop offset="100%" stop-color="#D97706"/>
+    <linearGradient id="tileGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9B7FFF"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
     </linearGradient>
   </defs>
 
-  <!-- Background squircle -->
-  <g clip-path="url(#squircle)">
-    <rect x="0" y="0" width="1024" height="1024" fill="#0F1419"/>
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="url(#bg1)"/>
 
-    <!--
-      Tile grid layout (asymmetric 2x2):
-      Content area: x=100 to x=924 (824px wide), y=100 to y=924 (824px tall)
-      Gap: 24px
+  <!-- Ghost tiles: inactive grid positions (very low opacity) -->
+  <!-- Row 0 -->
+  <rect x="140" y="60" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <rect x="220" y="60" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <rect x="300" y="60" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <!-- Row 1 -->
+  <rect x="220" y="140" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <!-- Row 2 -->
+  <rect x="140" y="220" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <rect x="300" y="220" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <!-- Row 3 -->
+  <rect x="140" y="300" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <rect x="220" y="300" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <rect x="300" y="300" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <!-- Row 4 -->
+  <rect x="140" y="380" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <rect x="220" y="380" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
+  <rect x="300" y="380" width="72" height="72" rx="10" fill="#7C3AED" opacity="0.07"/>
 
-      Top row height: ~380px (46%)
-      Bottom row height: ~420px (48%) — with 24px gap between rows
-
-      Left col width: ~310px (38%)
-      Right col width: ~490px (56%) — with 24px gap between cols
-
-      Top-left:     x=100, y=100,  w=310, h=380
-      Top-right:    x=434, y=100,  w=490, h=380
-      Bottom-left:  x=100, y=504,  w=490, h=420
-      Bottom-right: x=614, y=504,  w=310, h=420
-    -->
-
-    <!-- Tile 1: Top-left (blue, with cursor) -->
-    <rect x="100" y="100" width="310" height="380" rx="32" ry="32" fill="url(#blue-grad)"/>
-
-    <!-- Terminal cursor in top-left tile -->
-    <rect x="168" y="240" width="16" height="80" rx="4" ry="4" fill="#FFFFFF" opacity="0.9"/>
-
-    <!-- Tile 2: Top-right (teal) -->
-    <rect x="434" y="100" width="490" height="380" rx="32" ry="32" fill="url(#teal-grad)"/>
-
-    <!-- Tile 3: Bottom-left (amber) -->
-    <rect x="100" y="504" width="490" height="420" rx="32" ry="32" fill="url(#amber-grad)"/>
-
-    <!-- Tile 4: Bottom-right (muted/dim) -->
-    <rect x="614" y="504" width="310" height="420" rx="32" ry="32" fill="#1E293B"/>
-  </g>
+  <!-- Active M tiles -->
+  <!-- Row 0: left & right pillars -->
+  <rect x="60"  y="60"  width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <rect x="380" y="60"  width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <!-- Row 1: outer pillars + inner shoulders (inner brighter) -->
+  <rect x="60"  y="140" width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <rect x="140" y="140" width="72" height="72" rx="10" fill="#A78BFA"/>
+  <rect x="300" y="140" width="72" height="72" rx="10" fill="#A78BFA"/>
+  <rect x="380" y="140" width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <!-- Row 2: outer pillars + center peak (brightest) -->
+  <rect x="60"  y="220" width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <rect x="220" y="220" width="72" height="72" rx="10" fill="#C4B5FD"/>
+  <rect x="380" y="220" width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <!-- Row 3: outer pillars only -->
+  <rect x="60"  y="300" width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <rect x="380" y="300" width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <!-- Row 4: outer pillars only -->
+  <rect x="60"  y="380" width="72" height="72" rx="10" fill="url(#tileGrad)"/>
+  <rect x="380" y="380" width="72" height="72" rx="10" fill="url(#tileGrad)"/>
 </svg>
