@@ -14,17 +14,17 @@ describe('sidebar tabs', () => {
 
   afterAll(async () => {
     // Restore original tab
-    await switchSidebarTab(client, originalTab as 'sessions' | 'commits' | 'tokens' | 'activity');
+    await switchSidebarTab(client, originalTab as 'sessions' | 'search' | 'changes' | 'stats' | 'activity');
     await client.disconnect();
   });
 
   it('get_active_tab returns current tab', async () => {
     const tab = await getSidebarActiveTab(client);
-    expect(['sessions', 'commits', 'tokens', 'activity']).toContain(tab);
+    expect(['sessions', 'search', 'changes', 'stats', 'activity']).toContain(tab);
   });
 
   it('switch_tab switches to each tab', async () => {
-    const tabs = ['tokens', 'commits', 'activity', 'sessions'] as const;
+    const tabs = ['stats', 'changes', 'activity', 'sessions'] as const;
     for (const tab of tabs) {
       await switchSidebarTab(client, tab);
       const active = await getSidebarActiveTab(client);
@@ -33,14 +33,14 @@ describe('sidebar tabs', () => {
   });
 
   it('switch_tab returns confirmation text', async () => {
-    const text = await switchSidebarTab(client, 'tokens');
+    const text = await switchSidebarTab(client, 'stats');
     expect(text).toContain('Sidebar switched to');
-    expect(text).toContain('tokens');
+    expect(text).toContain('stats');
   });
 
   it('switch_tab round-trips correctly', async () => {
-    await switchSidebarTab(client, 'tokens');
-    expect(await getSidebarActiveTab(client)).toBe('tokens');
+    await switchSidebarTab(client, 'stats');
+    expect(await getSidebarActiveTab(client)).toBe('stats');
 
     await switchSidebarTab(client, 'sessions');
     expect(await getSidebarActiveTab(client)).toBe('sessions');

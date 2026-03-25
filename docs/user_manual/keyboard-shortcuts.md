@@ -15,15 +15,15 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+/` | Show keyboard shortcuts |
 | `Cmd+,` | Open settings |
 | `Cmd+Shift+A` | Show Activity |
-| `Cmd+Shift+B` | Show Commits |
+| `Cmd+Shift+B` | Show Stats |
 | `Cmd+Shift+C` | Show Changes |
 | `Cmd+Shift+E` | Run Shell Command |
 | `Cmd+Shift+F` | Search in Files |
 | `Cmd+Shift+L` | Toggle layout mode |
 | `Cmd+Shift+M` | Clear all attention |
 | `Cmd+Shift+S` | Snippets |
-| `Cmd+Shift+U` | Show Token Usage |
-| `Cmd+R` | Refresh Token Usage |
+| `Cmd+R` | Refresh Stats |
+| `Ctrl+\`` | Toggle Terminal Panel |
 | `Cmd+W` | Close tile |
 | `Cmd+Shift+X` | Close all tiles |
 

@@ -1,6 +1,6 @@
 # Sidebar Panels
 
-The sidebar has a vertical activity bar with six panels: **Sessions**, **Search**, **Changes**, **Commits**, **Tokens**, and **Activity**. Click the icons in the activity bar to switch, or use the keyboard shortcuts below.
+The sidebar has a vertical activity bar with five panels: **Sessions**, **Search**, **Changes**, **Stats**, and **Activity**. Click the icons in the activity bar to switch, or use the keyboard shortcuts below.
 
 ## Search in Files
 
@@ -55,13 +55,13 @@ A visual commit graph for each tracked repo, showing branch topology:
 - Click **Show more** at the bottom of a section to load older commits
 - Click the **refresh** button in the Commits header to reload
 
-## Commit Tracking
+## Stats
 
-**Open it:** Click the Commits icon in the activity bar, or press `Cmd+Shift+B`.
+**Open it:** Click the Stats icon in the activity bar, or press `Cmd+Shift+B`.
 
-Shows your commit activity for the day across all repos that have active sessions.
+Shows commit activity and token usage across all repos and sessions.
 
-### What it shows
+### Commit activity
 
 - **Total commits today** with lines changed (insertions + deletions)
 - **Streak** — consecutive days with at least one commit
@@ -72,17 +72,9 @@ Shows your commit activity for the day across all repos that have active session
 - **Cadence** — average minutes between commits and peak commit hour
 - **Weekly trend** — this week's count vs last week with percentage change
 
-### Settings
-
 By default only commits on the main branch are tracked. To include all branches, toggle **Scan all branches** in [Settings](settings.md).
 
-## Token Usage
-
-**Open it:** Click the Tokens icon in the activity bar, or press `Cmd+Shift+U`.
-
-Shows token consumption and estimated cost across all sessions.
-
-### What it shows
+### Token usage
 
 - **Headline stats** — estimated cost for the selected day, message count, cost per message
 - **Token breakdown** — input tokens, output tokens, total tokens
@@ -96,5 +88,5 @@ Shows token consumption and estimated cost across all sessions.
 
 - Use the **left/right arrows** or click heatmap cells to navigate between days
 - Click **Today** to return to the current day
-- Press `Cmd+R` to refresh token data manually
+- Press `Cmd+R` to refresh manually
 - Data is retained for 90 days

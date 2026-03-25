@@ -424,7 +424,7 @@ export async function getSidebarActiveTab(client: McpTestClient): Promise<string
 
 export async function switchSidebarTab(
   client: McpTestClient,
-  tab: 'sessions' | 'commits' | 'tokens' | 'activity',
+  tab: 'sessions' | 'search' | 'changes' | 'stats' | 'activity',
 ): Promise<string> {
   return client.callToolText('sidebar_switch_tab', { tab });
 }
