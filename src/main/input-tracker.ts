@@ -1,5 +1,4 @@
 import { getDb } from './db';
-import { logger } from './logger';
 import { typedHandle } from './ipc-helpers';
 import type {
   DailyInputStats,
@@ -8,8 +7,6 @@ import type {
   InputCadenceInfo,
 } from '../shared/types';
 import type { ParsedHumanEntry } from './jsonl-usage-parser';
-
-const INPUT_RETENTION_DAYS = 90;
 
 interface DailyAggRow {
   message_count: number;
@@ -246,18 +243,6 @@ export class InputTracker {
       peakHour,
       leverageRatio,
     };
-  }
-
-  /** Prune records older than retention period. */
-  pruneOldData(): void {
-    const db = getDb();
-    const result = db.prepare(
-      `DELETE FROM human_input WHERE date < date('now', 'localtime', ?)`,
-    ).run(`-${INPUT_RETENTION_DAYS} days`);
-
-    if (result.changes > 0) {
-      logger.info('input', `Pruned ${result.changes} old human input records`);
-    }
   }
 }
 

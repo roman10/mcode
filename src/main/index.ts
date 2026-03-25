@@ -413,14 +413,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  // Start event pruning (also prune old commits)
+  // Periodic cleanup: prune old hook events + stale file watermarks
   sessionManager.pruneOldEvents();
-  commitTracker.pruneOldCommits();
-  tokenTracker.pruneOldUsage();
+  tokenTracker.pruneStaleTrackedFiles();
   pruneInterval = setInterval(() => {
     sessionManager.pruneOldEvents();
-    commitTracker.pruneOldCommits();
-    tokenTracker.pruneOldUsage();
+    tokenTracker.pruneStaleTrackedFiles();
   }, HOOK_PRUNE_INTERVAL_MS);
 
   if (is.dev) {

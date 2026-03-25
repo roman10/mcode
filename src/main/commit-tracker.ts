@@ -556,18 +556,6 @@ export class CommitTracker {
     await this.scanAll();
   }
 
-  /** Prune commits older than retention period. */
-  pruneOldCommits(): void {
-    const db = getDb();
-    const result = db.prepare(
-      `DELETE FROM commits WHERE date < date('now', ?)`,
-    ).run(`-${COMMIT_RETENTION_DAYS} days`);
-
-    if (result.changes > 0) {
-      logger.info('commits', `Pruned ${result.changes} old commits`);
-    }
-  }
-
   // --- Private helpers ---
 
   /** Resolve cwd to git repo root. Cached. */

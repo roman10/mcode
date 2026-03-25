@@ -22,7 +22,6 @@ import { typedHandle } from './ipc-helpers';
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
 const SCAN_BATCH_SIZE = 20;
-const USAGE_RETENTION_DAYS = 90;
 const HOOK_SCAN_DELAY_MS = 500;
 
 interface TrackedFileRecord {
@@ -528,18 +527,9 @@ export class TokenTracker {
     return result;
   }
 
-  /** Prune token usage records older than retention period. */
-  pruneOldUsage(): void {
+  /** Remove watermarks for JSONL files that no longer exist on disk. */
+  pruneStaleTrackedFiles(): void {
     const db = getDb();
-    const result = db.prepare(
-      `DELETE FROM token_usage WHERE date < date('now', 'localtime', ?)`,
-    ).run(`-${USAGE_RETENTION_DAYS} days`);
-
-    if (result.changes > 0) {
-      logger.info('tokens', `Pruned ${result.changes} old token usage records`);
-    }
-
-    // Also prune tracked files that no longer exist
     const tracked = db.prepare('SELECT file_path FROM tracked_jsonl_files').all() as { file_path: string }[];
     for (const { file_path } of tracked) {
       try {
@@ -548,9 +538,6 @@ export class TokenTracker {
         db.prepare('DELETE FROM tracked_jsonl_files WHERE file_path = ?').run(file_path);
       }
     }
-
-    // Prune human input data
-    this.inputTracker.pruneOldData();
   }
 
   // --- Private helpers ---
