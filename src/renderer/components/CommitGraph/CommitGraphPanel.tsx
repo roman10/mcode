@@ -87,6 +87,7 @@ function CommitGraphPanel(): React.JSX.Element {
 
   const repoRoots = Object.keys(graphs);
   const totalCommits = Object.values(graphs).reduce((sum, g) => sum + g.commits.length, 0);
+  const anyHasMore = Object.values(graphs).some((g) => g.hasMore);
 
   // Load tracked repos and fetch graphs on mount / tab activation
   const loadData = useCallback(async () => {
@@ -131,7 +132,7 @@ function CommitGraphPanel(): React.JSX.Element {
           <span className="text-xs text-text-secondary font-medium">Commits</span>
           {totalCommits > 0 && (
             <span className="text-xs bg-bg-elevated text-text-muted px-1 rounded">
-              {totalCommits}
+              {totalCommits}{anyHasMore ? '+' : ''}
             </span>
           )}
         </div>
