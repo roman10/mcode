@@ -1,6 +1,6 @@
 /**
  * Screenshot capture script for README documentation.
- * Requires the dev app to be running (npm run dev).
+ * Works with the production app (MCP enabled in Settings > Advanced) or the dev app.
  *
  * Usage: npx tsx scripts/capture-screenshots.ts
  */
@@ -12,7 +12,6 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 
 const MCP_URL = 'http://127.0.0.1:7532/mcp';
 const OUT_DIR = join(process.cwd(), 'docs', 'screenshots');
-const TEST_CLAUDE = join(process.cwd(), 'tests', 'fixtures', 'claude');
 
 mkdirSync(OUT_DIR, { recursive: true });
 
@@ -80,88 +79,88 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function createSession(
-  c: Client_,
-  label: string,
-  overrides: Record<string, unknown> = {},
-): Promise<{ sessionId: string }> {
-  return c.callJson('session_create', {
-    cwd: process.cwd(),
-    command: TEST_CLAUDE,
-    label,
-    ...overrides,
-  });
-}
-
-async function injectHook(c: Client_, sessionId: string, event: string, opts: Record<string, unknown> = {}): Promise<void> {
-  await c.callJson('hook_inject_event', { sessionId, hookEventName: event, ...opts });
-}
-
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
   const c = new Client_();
+  const createdSessions: string[] = [];
 
   try {
     console.log('Connecting to MCP server…');
     await c.connect();
     console.log('Connected.\n');
 
-    // Clean slate
-    await c.call('app_reset_test_state');
-    await sleep(500);
-
     // Resize to a good screenshot size
     await c.call('window_resize', { width: 1440, height: 900 });
     await sleep(300);
 
-    // -------------------------------------------------------------------------
-    // 1. Tiling layout — 4 sessions with mixed states
-    // -------------------------------------------------------------------------
-    console.log('Setting up tiling layout…');
-    await c.call('layout_set_view_mode', { mode: 'tiles' });
+    // Ensure sidebar is expanded
+    await c.call('layout_set_sidebar_collapsed', { collapsed: false });
+    await sleep(200);
 
-    const labels = [
-      'auth-refactor',
-      'api-endpoints',
-      'write-tests',
-      'fix-ci',
+    // -------------------------------------------------------------------------
+    // 1. Sessions sidebar — capture historical sessions list first
+    // -------------------------------------------------------------------------
+    console.log('Taking sessions sidebar screenshot…');
+    await c.call('layout_set_view_mode', { mode: 'tiles' });
+    await c.call('layout_remove_all_tiles');
+    await c.call('sidebar_set_session_filter', { query: '' });
+    await c.call('sidebar_switch_tab', { tab: 'sessions' });
+    await sleep(600);
+    save('sessions-sidebar.png', await c.screenshot());
+
+    // -------------------------------------------------------------------------
+    // 2. Stats sidebar
+    // -------------------------------------------------------------------------
+    console.log('\nTaking stats sidebar screenshot…');
+    await c.call('sidebar_switch_tab', { tab: 'stats' });
+    await sleep(600);
+    save('stats-sidebar.png', await c.screenshot());
+
+    // -------------------------------------------------------------------------
+    // 3. Changes sidebar
+    // -------------------------------------------------------------------------
+    console.log('\nTaking changes sidebar screenshot…');
+    await c.call('sidebar_switch_tab', { tab: 'changes' });
+    await sleep(600);
+    save('changes-sidebar.png', await c.screenshot());
+
+    // -------------------------------------------------------------------------
+    // Create real Claude sessions for tiling + kanban screenshots
+    // -------------------------------------------------------------------------
+    console.log('\nCreating sessions for tiling/kanban screenshots…');
+    const sessionDefs = [
+      { label: 'auth-refactor', cwd: process.cwd() },
+      { label: 'api-endpoints', cwd: process.cwd() },
+      { label: 'write-tests', cwd: process.cwd() },
+      { label: 'fix-ci', cwd: process.cwd() },
     ];
 
-    const sessionIds: string[] = [];
-    for (const label of labels) {
-      const s = await createSession(c, label);
-      sessionIds.push(s.sessionId);
-      await sleep(200);
+    for (const def of sessionDefs) {
+      const s = await c.callJson<{ sessionId: string }>('session_create', def);
+      createdSessions.push(s.sessionId);
+      // Add tile immediately so the terminal connects to the PTY and captures output
+      await c.call('layout_add_tile', { sessionId: s.sessionId });
+      await sleep(150);
     }
 
-    // Simulate different states via hook injection
-    const [s1, s2, s3, s4] = sessionIds;
+    // Wait for Claude to initialize and show its startup UI
+    console.log('Waiting for sessions to initialize…');
+    await sleep(4000);
 
-    // s1: active (working)
-    await injectHook(c, s1, 'SessionStart');
-    await injectHook(c, s1, 'PreToolUse', { toolName: 'Bash' });
-
-    // s2: needs attention (permission request)
-    await injectHook(c, s2, 'SessionStart');
-    await injectHook(c, s2, 'PermissionRequest', { toolName: 'Bash' });
-
-    // s3: active
-    await injectHook(c, s3, 'SessionStart');
-    await injectHook(c, s3, 'PreToolUse', { toolName: 'Read' });
-
-    // s4: idle (completed)
-    await injectHook(c, s4, 'SessionStart');
-    await injectHook(c, s4, 'Stop');
-
-    await sleep(800);
-    console.log('Taking tiling layout screenshot…');
+    // -------------------------------------------------------------------------
+    // 4. Tiling layout
+    // -------------------------------------------------------------------------
+    console.log('\nTaking tiling layout screenshot…');
+    await c.call('layout_set_view_mode', { mode: 'tiles' });
+    await c.call('sidebar_switch_tab', { tab: 'sessions' });
+    await sleep(600);
     save('tiling-layout.png', await c.screenshot());
 
     // -------------------------------------------------------------------------
-    // 2. Kanban view
+    // 5. Kanban view
     // -------------------------------------------------------------------------
     console.log('\nSwitching to kanban view…');
     await c.call('layout_set_view_mode', { mode: 'kanban' });
@@ -169,45 +168,20 @@ async function main(): Promise<void> {
     save('kanban-view.png', await c.screenshot());
 
     // Expand one session in kanban
-    await c.call('kanban_expand_session', { sessionId: s1 });
+    await c.call('kanban_expand_session', { sessionId: createdSessions[0] });
     await sleep(500);
     save('kanban-expanded.png', await c.screenshot());
-
-    // -------------------------------------------------------------------------
-    // 3. Commit analytics sidebar
-    // -------------------------------------------------------------------------
-    console.log('\nSwitching to stats sidebar…');
-    await c.call('layout_set_view_mode', { mode: 'tiles' });
-    await c.call('sidebar_switch_tab', { tab: 'stats' });
-    await sleep(500);
-    save('stats-sidebar.png', await c.screenshot());
-
-    // -------------------------------------------------------------------------
-    // 4. Changes/git sidebar
-    // -------------------------------------------------------------------------
-    console.log('\nSwitching to changes sidebar…');
-    await c.call('sidebar_switch_tab', { tab: 'changes' });
-    await sleep(500);
-    save('changes-sidebar.png', await c.screenshot());
-
-    // -------------------------------------------------------------------------
-    // 5. Sessions sidebar (default state)
-    // -------------------------------------------------------------------------
-    console.log('\nSwitching back to sessions sidebar…');
-    await c.call('sidebar_switch_tab', { tab: 'sessions' });
-    await sleep(500);
-    save('sessions-sidebar.png', await c.screenshot());
-
-    // -------------------------------------------------------------------------
-    // Clean up
-    // -------------------------------------------------------------------------
-    for (const id of sessionIds) {
-      try { await c.call('session_kill', { sessionId: id }); } catch { /* best-effort */ }
-    }
 
     console.log('\nDone. Screenshots saved to docs/screenshots/');
 
   } finally {
+    // Clean up created sessions and tiles
+    console.log('\nCleaning up…');
+    for (const id of createdSessions) {
+      try { await c.call('session_kill', { sessionId: id }); } catch { /* best-effort */ }
+    }
+    try { await c.call('layout_remove_all_tiles'); } catch { /* best-effort */ }
+
     await c.disconnect();
   }
 }
