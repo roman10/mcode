@@ -252,6 +252,21 @@ export function registerSessionTools(
     };
   });
 
+  server.registerTool('session_set_auto_label', {
+    description: 'Attempt to auto-update the label for a session. No-op if the label was set by the user.',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID'),
+      label: z.string().describe('The new label to apply if not user-set'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, label }) => {
+    ctx.sessionManager.setAutoLabel(sessionId, label);
+    const updated = ctx.sessionManager.get(sessionId);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
+    };
+  });
+
   server.registerTool('account_list', {
     description: 'List all account profiles',
     inputSchema: {},

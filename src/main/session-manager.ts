@@ -203,6 +203,8 @@ export class SessionManager {
     const label = input.label
       || (input.initialPrompt ? truncatePromptToLabel(input.initialPrompt, 50) : null)
       || this.nextDisambiguatedLabel(cwd);
+    // Preserve user-provided labels from being overwritten by terminal title updates.
+    const labelSource = input.label ? 'user' : 'auto';
     const startedAt = new Date().toISOString();
     const sessionType = input.sessionType ?? 'claude';
 
@@ -261,9 +263,9 @@ export class SessionManager {
     const worktree = isTerminal ? null : (input.worktree !== undefined ? (input.worktree || '') : null);
     const accountId = input.accountId ?? null;
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, enable_auto_mode, status, started_at, hook_mode, session_type, worktree, account_id)
-       VALUES (?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), isTerminal ? null : (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null), startedAt, hookMode, sessionType, worktree, accountId);
+      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, effort, enable_auto_mode, status, started_at, hook_mode, session_type, worktree, account_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
+    ).run(sessionId, label, labelSource, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), isTerminal ? null : (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null), startedAt, hookMode, sessionType, worktree, accountId);
 
     // Track account usage
     if (accountId) {
