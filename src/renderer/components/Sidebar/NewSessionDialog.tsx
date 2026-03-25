@@ -21,7 +21,7 @@ function NewSessionDialog({
   const [initialPrompt, setInitialPrompt] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [effort, setEffort] = useState<EffortLevel | ''>('');
-  const [enableAutoMode, setEnableAutoMode] = useState(true);
+  const [enableAutoMode, setEnableAutoMode] = useState(false);
   const [useWorktree, setUseWorktree] = useState(false);
   const [worktreeName, setWorktreeName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -34,7 +34,7 @@ function NewSessionDialog({
     if (open && !prevOpenRef.current) {
       setLabel('');
       setInitialPrompt('');
-      setEnableAutoMode(true);
+      setEnableAutoMode(false);
       setUseWorktree(false);
       setWorktreeName('');
       setIsCreating(false);
@@ -54,7 +54,7 @@ function NewSessionDialog({
           setCwd(defaults.cwd);
           if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
           if (defaults.effort) setEffort(defaults.effort);
-          setEnableAutoMode(defaults.enableAutoMode !== false);
+          setEnableAutoMode(defaults.enableAutoMode === true);
         }
       });
     }
