@@ -85,37 +85,4 @@ export function registerWindowTools(
       content: [{ type: 'text', text: JSON.stringify(bounds) }],
     };
   });
-
-  server.registerTool('window_execute_js', {
-    description: 'Execute JavaScript in the renderer and return the result as JSON',
-    inputSchema: {
-      code: z.string().describe('JavaScript expression to evaluate (must return a value)'),
-    },
-    annotations: { readOnlyHint: false },
-  }, async ({ code }) => {
-    const win = ctx.mainWindow;
-    if (win.isDestroyed()) {
-      return {
-        content: [{ type: 'text', text: 'Window is destroyed' }],
-        isError: true,
-      };
-    }
-
-    try {
-      const result = await win.webContents.executeJavaScript(code);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to execute JS: ${err instanceof Error ? err.message : String(err)}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  });
 }

@@ -26,4 +26,5 @@ export interface McpServerContext {
   fileLister: FileLister;
   fileSearch: FileSearch;
   accountManager: AccountManager;
+  mode: 'dev' | 'production';
 }

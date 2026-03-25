@@ -23,7 +23,7 @@ const DEFAULT_PORT = 7532;
 
 function createServer(ctx: McpServerContext): McpServer {
   const server = new McpServer({
-    name: 'mcode-devtools',
+    name: ctx.mode === 'dev' ? 'mcode-devtools' : 'mcode',
     version: '0.1.0',
   });
 
@@ -40,7 +40,10 @@ function createServer(ctx: McpServerContext): McpServer {
   registerTokenTools(server, ctx);
   registerSearchTools(server, ctx);
   registerSnippetTools(server);
-  registerTestTools(server, ctx);
+
+  if (ctx.mode === 'dev') {
+    registerTestTools(server, ctx);
+  }
 
   return server;
 }

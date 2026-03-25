@@ -11,6 +11,7 @@ interface SettingsDialogProps {
 function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.Element {
   const [preventSleep, setPreventSleep] = useState(true);
   const [scanAllBranches, setScanAllBranches] = useState(false);
+  const [mcpServerEnabled, setMcpServerEnabled] = useState(false);
   const vimEnabled = useEditorStore((s) => s.vimEnabled);
   const setVimEnabled = useEditorStore((s) => s.setVimEnabled);
   const showActivityTab = useLayoutStore((s) => s.showActivityTab);
@@ -26,6 +27,10 @@ function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.
       .get('commitScanAllBranches')
       .then((val) => setScanAllBranches(val === 'true'))
       .catch(() => {});
+    window.mcode.preferences
+      .get('mcpServerEnabled')
+      .then((val) => setMcpServerEnabled(val === 'true'))
+      .catch(() => {});
   }, [open]);
 
   const handleToggle = (): void => {
@@ -34,6 +39,14 @@ function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.
     window.mcode.preferences.setPreventSleep(newValue).catch(() => {
       setPreventSleep(!newValue);
     });
+  };
+
+  const handleMcpServerToggle = (): void => {
+    const newValue = !mcpServerEnabled;
+    setMcpServerEnabled(newValue);
+    window.mcode.preferences
+      .set('mcpServerEnabled', String(newValue))
+      .catch(() => setMcpServerEnabled(!newValue));
   };
 
   const handleScanAllBranchesToggle = (): void => {
@@ -175,6 +188,38 @@ function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.
             <span
               className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
                 showActivityTab ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </label>
+      </div>
+
+      {/* Advanced */}
+      <div className="mt-4">
+        <h3 className="text-text-secondary text-xs font-medium uppercase tracking-wide mb-3">
+          Advanced
+        </h3>
+
+        <label className="flex items-center justify-between cursor-pointer group">
+          <div className="flex-1 mr-3">
+            <div className="text-sm text-text-primary">MCP server</div>
+            <div className="text-xs text-text-muted mt-0.5">
+              Expose an MCP server on localhost:7532 so external tools and agents can control
+              mcode programmatically. Requires restart to take effect.
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={mcpServerEnabled}
+            onClick={handleMcpServerToggle}
+            className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+              mcpServerEnabled ? 'bg-accent' : 'bg-bg-primary'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                mcpServerEnabled ? 'translate-x-4' : 'translate-x-0'
               }`}
             />
           </button>

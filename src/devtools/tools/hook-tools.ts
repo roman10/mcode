@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
-import { KNOWN_HOOK_EVENTS } from '../../shared/constants';
-import type { HookEvent, SessionAttentionLevel } from '../../shared/types';
+import type { SessionAttentionLevel } from '../../shared/types';
 
 export function registerHookTools(
   server: McpServer,
@@ -34,59 +33,6 @@ export function registerHookTools(
     const dockBadge = counts.action > 0 ? String(counts.action) : '';
     return {
       content: [{ type: 'text', text: JSON.stringify({ ...counts, dockBadge }, null, 2) }],
-    };
-  });
-
-  server.registerTool('hook_inject_event', {
-    description:
-      'Inject a synthetic hook event into the same processing path as the HTTP hook server. For testing and agent-driven verification.',
-    inputSchema: {
-      sessionId: z.string().describe('The mcode session ID'),
-      hookEventName: z
-        .enum(KNOWN_HOOK_EVENTS)
-        .describe('The hook event name'),
-      toolName: z.string().optional().describe('Tool name (for tool-related events)'),
-      toolInput: z
-        .record(z.string(), z.unknown())
-        .optional()
-        .describe('Tool input (for tool-related events)'),
-      claudeSessionId: z
-        .string()
-        .optional()
-        .describe('Claude session ID to associate'),
-    },
-    annotations: { readOnlyHint: false },
-  }, async ({ sessionId, hookEventName, toolName, toolInput, claudeSessionId }) => {
-    // Verify session exists
-    const session = ctx.sessionManager.get(sessionId);
-    if (!session) {
-      return {
-        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
-        isError: true,
-      };
-    }
-
-    const event: HookEvent = {
-      sessionId,
-      claudeSessionId: claudeSessionId ?? null,
-      hookEventName,
-      toolName: toolName ?? null,
-      toolInput: toolInput ?? null,
-      createdAt: new Date().toISOString(),
-      payload: {
-        hook_event_name: hookEventName,
-        tool_name: toolName,
-        tool_input: toolInput,
-        session_id: claudeSessionId,
-      },
-    };
-
-    ctx.sessionManager.handleHookEvent(sessionId, event);
-
-    // Return updated session
-    const updated = ctx.sessionManager.get(sessionId);
-    return {
-      content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
     };
   });
 

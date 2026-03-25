@@ -16,7 +16,7 @@ import { FileSearch, registerSearchIpc } from './file-search';
 import { UpdateChecker } from './update-checker';
 import { registerSlashCommandIpc } from './slash-command-scanner';
 import { registerSnippetIpc } from './snippet-scanner';
-import { getPreference, setPreference } from './preferences';
+import { getPreference, setPreference, getPreferenceBool } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
 import { getDb, closeDb } from './db';
@@ -421,7 +421,8 @@ app.whenReady().then(async () => {
     tokenTracker.pruneStaleTrackedFiles();
   }, HOOK_PRUNE_INTERVAL_MS);
 
-  if (is.dev) {
+  const mcpEnabled = is.dev || getPreferenceBool('mcpServerEnabled', false);
+  if (mcpEnabled) {
     import('../devtools/mcp-server').then(({ startMcpServer }) => {
       startMcpServer({
         mainWindow: mainWindow!,
@@ -436,6 +437,7 @@ app.whenReady().then(async () => {
         fileLister,
         fileSearch,
         accountManager,
+        mode: is.dev ? 'dev' : 'production',
       });
     });
   }
