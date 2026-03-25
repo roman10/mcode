@@ -375,7 +375,7 @@ app.whenReady().then(async () => {
         type: 'question',
         message: `${n} Claude session${n === 1 ? ' is' : 's are'} still running`,
         detail,
-        buttons: ['Close Window', 'Cancel'],
+        buttons: ['Close Window  ↵', 'Cancel  ⎋'],
         defaultId: 0,
         cancelId: 1,
       })
