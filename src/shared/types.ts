@@ -9,6 +9,9 @@ import type {
   TokenWeeklyTrend, TokenHeatmapEntry,
 } from './types-tokens';
 import type {
+  DailyInputStats, InputHeatmapEntry, InputWeeklyTrend, InputCadenceInfo,
+} from './types-input';
+import type {
   GitStatusResult, GitDiffContent, CommitGraphResult, CommitFileEntry,
 } from './types-git';
 import type {

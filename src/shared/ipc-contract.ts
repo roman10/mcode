@@ -114,6 +114,7 @@ export interface IpcInvokeContract {
   'commits:get-cadence':                { params: [date?: string]; result: CommitCadenceInfo };
   'commits:get-weekly-trend':           { params: []; result: CommitWeeklyTrend };
   'commits:refresh':                    { params: []; result: void };
+  'commits:force-rescan':               { params: []; result: void };
 
   // --- Git ---
   'git:status':                         { params: [cwd: string]; result: GitStatusResult };
