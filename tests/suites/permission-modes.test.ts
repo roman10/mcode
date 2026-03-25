@@ -52,4 +52,16 @@ describe('permission modes', () => {
       ).toBe(true);
     }
   });
+
+  it.skipIf(!claudeAvailable)('--enable-auto-mode is a recognized CLI flag', () => {
+    // The flag must be recognized by the CLI (may fail for auth/plan reasons, but not as "unknown option")
+    let output = '';
+    try {
+      execSync('claude --enable-auto-mode --help 2>&1', { encoding: 'utf-8', timeout: 10_000 });
+    } catch (err) {
+      output = (err as { stdout?: string }).stdout ?? '';
+      if (!output) output = (err as { stderr?: string }).stderr ?? '';
+    }
+    expect(output).not.toMatch(/unknown option|invalid option/i);
+  });
 });

@@ -21,6 +21,7 @@ function NewSessionDialog({
   const [initialPrompt, setInitialPrompt] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [effort, setEffort] = useState<EffortLevel | ''>('');
+  const [enableAutoMode, setEnableAutoMode] = useState(true);
   const [useWorktree, setUseWorktree] = useState(false);
   const [worktreeName, setWorktreeName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -33,6 +34,7 @@ function NewSessionDialog({
     if (open && !prevOpenRef.current) {
       setLabel('');
       setInitialPrompt('');
+      setEnableAutoMode(true);
       setUseWorktree(false);
       setWorktreeName('');
       setIsCreating(false);
@@ -52,6 +54,7 @@ function NewSessionDialog({
           setCwd(defaults.cwd);
           if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
           if (defaults.effort) setEffort(defaults.effort);
+          setEnableAutoMode(defaults.enableAutoMode !== false);
         }
       });
     }
@@ -76,6 +79,7 @@ function NewSessionDialog({
       initialPrompt: initialPrompt.trim() || undefined,
       permissionMode: permissionMode || undefined,
       effort: effort || undefined,
+      enableAutoMode: enableAutoMode,
       worktree: useWorktree ? (worktreeName.trim() || '') : undefined,
       accountId: isDefaultSelected ? undefined : selectedAccountId,
     });
@@ -207,6 +211,19 @@ function NewSessionDialog({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Enable auto mode */}
+          <div>
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={enableAutoMode}
+                onChange={(e) => setEnableAutoMode(e.target.checked)}
+              />
+              Enable auto mode (unlocks in Shift+Tab cycle)
+            </label>
           </div>
 
           {/* Account (only shown when multiple accounts exist) */}

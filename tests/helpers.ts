@@ -9,6 +9,7 @@ export interface SessionInfo {
   cwd: string;
   status: string;
   permissionMode?: string;
+  enableAutoMode?: boolean;
   startedAt: string;
   endedAt: string | null;
   claudeSessionId: string | null;

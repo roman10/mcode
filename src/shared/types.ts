@@ -79,6 +79,7 @@ export interface SessionInfo {
   status: SessionStatus;
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
+  enableAutoMode?: boolean;
   worktree: string | null;
   startedAt: string; // ISO 8601
   endedAt: string | null;
@@ -100,6 +101,7 @@ export interface SessionCreateInput {
   initialPrompt?: string;
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
+  enableAutoMode?: boolean;
   worktree?: string;
   command?: string;
   args?: string[];
@@ -112,6 +114,7 @@ export interface SessionDefaults {
   cwd: string;
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
+  enableAutoMode?: boolean;
   accountId?: string;
 }
 

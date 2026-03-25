@@ -26,6 +26,7 @@ export function registerSessionTools(
       initialPrompt: z.string().optional().describe('Optional initial prompt for Claude (ignored for terminal sessions)'),
       permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the Claude session (ignored for terminal sessions)'),
       effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for the Claude session (ignored for terminal sessions)'),
+      enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode to unlock auto mode in the Shift+Tab cycle. Team plan required, Sonnet 4.6 / Opus 4.6 only. Ignored for terminal sessions.'),
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
       args: z.array(z.string()).optional().describe('Arguments for the command (e.g. ["-c", "git push"] for terminal sessions)'),
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
@@ -33,7 +34,7 @@ export function registerSessionTools(
       accountId: z.string().optional().describe('Account profile ID to run this session under'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, command, args, sessionType, worktree, accountId }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, enableAutoMode, command, args, sessionType, worktree, accountId }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -41,6 +42,7 @@ export function registerSessionTools(
         initialPrompt,
         permissionMode,
         effort,
+        enableAutoMode,
         command,
         args,
         sessionType,

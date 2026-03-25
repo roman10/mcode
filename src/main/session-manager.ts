@@ -58,6 +58,7 @@ interface SessionRecord {
   session_type: string;
   terminal_config: string;
   effort: string | null;
+  enable_auto_mode: number | null;
   worktree: string | null;
   account_id: string | null;
 }
@@ -75,6 +76,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     status: row.status as SessionStatus,
     permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
     effort: (row.effort as EffortLevel) ?? undefined,
+    enableAutoMode: row.enable_auto_mode === 1 ? true : undefined,
     worktree: row.worktree,
     startedAt: row.started_at,
     endedAt: row.ended_at,
@@ -240,6 +242,9 @@ export class SessionManager {
       if (input.effort) {
         args.push('--effort', input.effort);
       }
+      if (input.enableAutoMode) {
+        args.push('--enable-auto-mode');
+      }
       if (input.initialPrompt) {
         args.push(input.initialPrompt);
       }
@@ -256,9 +261,9 @@ export class SessionManager {
     const worktree = isTerminal ? null : (input.worktree !== undefined ? (input.worktree || '') : null);
     const accountId = input.accountId ?? null;
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, status, started_at, hook_mode, session_type, worktree, account_id)
-       VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), startedAt, hookMode, sessionType, worktree, accountId);
+      `INSERT INTO sessions (session_id, label, cwd, permission_mode, effort, enable_auto_mode, status, started_at, hook_mode, session_type, worktree, account_id)
+       VALUES (?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
+    ).run(sessionId, label, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), isTerminal ? null : (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null), startedAt, hookMode, sessionType, worktree, accountId);
 
     // Track account usage
     if (accountId) {
@@ -352,6 +357,9 @@ export class SessionManager {
     }
     if (row.effort) {
       args.push('--effort', row.effort);
+    }
+    if (row.enable_auto_mode) {
+      args.push('--enable-auto-mode');
     }
 
     // Use account override if provided, otherwise fall back to the session's stored account
@@ -882,16 +890,17 @@ export class SessionManager {
     const db = getDb();
     const row = db
       .prepare(
-        `SELECT cwd, permission_mode, effort, account_id FROM sessions
+        `SELECT cwd, permission_mode, effort, enable_auto_mode, account_id FROM sessions
          WHERE session_type = 'claude'
          ORDER BY started_at DESC LIMIT 1`,
       )
-      .get() as { cwd: string; permission_mode: string | null; effort: string | null; account_id: string | null } | undefined;
+      .get() as { cwd: string; permission_mode: string | null; effort: string | null; enable_auto_mode: number | null; account_id: string | null } | undefined;
     if (!row) return null;
     return {
       cwd: row.cwd,
       permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
       effort: (row.effort as EffortLevel) ?? undefined,
+      enableAutoMode: row.enable_auto_mode === 1 ? true : row.enable_auto_mode === 0 ? false : undefined,
       accountId: row.account_id ?? undefined,
     };
   }
