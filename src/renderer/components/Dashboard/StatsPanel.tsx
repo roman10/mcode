@@ -204,6 +204,12 @@ function StatsPanel(): React.JSX.Element {
     refreshSubscriptionUsage().catch(console.error);
   }, [refreshAll, refreshSubscriptionUsage]);
 
+  const handleForceRefresh = useCallback((): void => {
+    window.mcode.commits.forceRescan()
+      .then(() => refreshAll())
+      .catch(console.error);
+  }, [refreshAll]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
       const mod = isMac ? e.metaKey : e.ctrlKey;
@@ -270,8 +276,8 @@ function StatsPanel(): React.JSX.Element {
             <ChevronRight size={12} strokeWidth={2} />
           </button>
         </Tooltip>
-        <Tooltip content="Refresh (⌘R)" side="bottom">
-          <button className={btnClass} onClick={handleRefresh}>
+        <Tooltip content="Refresh (⌘R, ⇧ for full 90-day backfill)" side="bottom">
+          <button className={btnClass} onClick={(e) => e.shiftKey ? handleForceRefresh() : handleRefresh()}>
             <RefreshCw size={12} strokeWidth={2} />
           </button>
         </Tooltip>

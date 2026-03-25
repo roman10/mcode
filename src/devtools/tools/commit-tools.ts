@@ -77,6 +77,17 @@ export function registerCommitTools(
     };
   });
 
+  server.registerTool('commits_force_rescan', {
+    description: 'Reset all commit watermarks and re-scan all repos from scratch, going back up to 90 days. Use this to recover from a failed initial scan that left historical data missing.',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    await ctx.commitTracker.forceRescan();
+    const stats = ctx.commitTracker.getDailyStats();
+    return {
+      content: [{ type: 'text', text: `Force rescan complete. Today: ${stats.total} commits.\n\n${JSON.stringify(stats, null, 2)}` }],
+    };
+  });
+
   server.registerTool('commits_get_scan_mode', {
     description: 'Get the current branch scan mode. Returns whether all branches are scanned (true) or only the default/main branch (false).',
     annotations: { readOnlyHint: true },

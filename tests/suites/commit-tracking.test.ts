@@ -67,6 +67,11 @@ describe('commit tracking', () => {
     expect(text).toContain('Scan complete');
   });
 
+  it('commits_force_rescan completes and returns stats', async () => {
+    const text = await client.callToolText('commits_force_rescan');
+    expect(text).toContain('Force rescan complete');
+  });
+
   it('get_daily_stats returns valid shape', async () => {
     const stats = await client.callToolJson<DailyStats>(
       'commits_get_daily_stats',

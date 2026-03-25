@@ -147,7 +147,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 | **App** (8) | `app_get_version`, `app_get_console_logs`, `app_get_hmr_events`, `app_get_sleep_blocker_status`, `app_set_prevent_sleep`, `app_reset_test_state`, `app_detach_all`, `app_reconcile_detached` |
 | **Hook** (9) | `app_get_hook_runtime`, `app_get_attention_summary`, `hook_inject_event`, `hook_list_recent`, `hook_list_recent_all`, `hook_clear_all_events`, `session_wait_for_attention`, `session_clear_attention`, `session_clear_all_attention` |
 | **Task** (6) | `task_create`, `task_list`, `task_cancel`, `task_update`, `task_wait_for_status`, `task_reorder` |
-| **Commits** (8) | `commits_get_daily_stats`, `commits_get_heatmap`, `commits_get_streaks`, `commits_get_cadence`, `commits_get_weekly_trend`, `commits_refresh`, `commits_get_scan_mode`, `commits_set_scan_mode` |
+| **Commits** (9) | `commits_get_daily_stats`, `commits_get_heatmap`, `commits_get_streaks`, `commits_get_cadence`, `commits_get_weekly_trend`, `commits_refresh`, `commits_force_rescan`, `commits_get_scan_mode`, `commits_set_scan_mode` |
 | **File** (5) | `file_list`, `file_read`, `file_write`, `file_open_viewer`, `quick_open_toggle` |
 | **Search** (1) | `file_search` |
 | **Token** (6) | `tokens_get_session_usage`, `tokens_get_daily_usage`, `tokens_get_model_breakdown`, `tokens_get_weekly_trend`, `tokens_get_heatmap`, `tokens_refresh` |
@@ -538,15 +538,16 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | # | Test | MCP tools | What it checks |
 |---|------|-----------|----------------|
 | 1 | commits_refresh completes | `commits_refresh` | Response contains "Scan complete" |
-| 2 | get_daily_stats returns valid shape | `commits_get_daily_stats` | Has `total`, `claude`, `solo` (numbers >= 0), `repos` (array) |
-| 3 | get_daily_stats accepts date parameter | `commits_get_daily_stats` | Far past date (2020-01-01) → total 0 |
-| 4 | get_heatmap returns array of entries | `commits_get_heatmap` | Default 7 entries, each has `date` and `count` |
-| 5 | get_heatmap respects days parameter | `commits_get_heatmap` | days: 3 → 3 entries |
-| 6 | get_streaks returns streak info | `commits_get_streaks` | Has `current`, `longest` (numbers >= 0) |
-| 7 | get_cadence returns cadence info | `commits_get_cadence` | Has `averageMinutesBetween`, `peakHour`, `distribution` |
-| 8 | get_weekly_trend returns trend info | `commits_get_weekly_trend` | Has `thisWeek`, `lastWeek`, `percentChange` |
-| 9 | get_scan_mode returns current mode | `commits_get_scan_mode` | Has `scanAllBranches` boolean |
-| 10 | set_scan_mode round-trips correctly | `commits_set_scan_mode`, `commits_get_scan_mode` | Toggle, verify change, restore original |
+| 2 | commits_force_rescan completes and returns stats | `commits_force_rescan` | Response contains "Force rescan complete" |
+| 3 | get_daily_stats returns valid shape | `commits_get_daily_stats` | Has `total`, `claude`, `solo` (numbers >= 0), `repos` (array) |
+| 4 | get_daily_stats accepts date parameter | `commits_get_daily_stats` | Far past date (2020-01-01) → total 0 |
+| 5 | get_heatmap returns array of entries | `commits_get_heatmap` | Default 7 entries, each has `date` and `count` |
+| 6 | get_heatmap respects days parameter | `commits_get_heatmap` | days: 3 → 3 entries |
+| 7 | get_streaks returns streak info | `commits_get_streaks` | Has `current`, `longest` (numbers >= 0) |
+| 8 | get_cadence returns cadence info | `commits_get_cadence` | Has `averageMinutesBetween`, `peakHour`, `distribution` |
+| 9 | get_weekly_trend returns trend info | `commits_get_weekly_trend` | Has `thisWeek`, `lastWeek`, `percentChange` |
+| 10 | get_scan_mode returns current mode | `commits_get_scan_mode` | Has `scanAllBranches` boolean |
+| 11 | set_scan_mode round-trips correctly | `commits_set_scan_mode`, `commits_get_scan_mode` | Toggle, verify change, restore original |
 
 ### 25. File Tools
 

@@ -549,6 +549,13 @@ export class CommitTracker {
     };
   }
 
+  /** Reset watermarks and re-scan all repos from scratch (up to COMMIT_RETENTION_DAYS back). */
+  async forceRescan(): Promise<void> {
+    const db = getDb();
+    db.prepare(`UPDATE tracked_repos SET last_scanned_at = NULL, last_head = NULL`).run();
+    await this.scanAll();
+  }
+
   /** Prune commits older than retention period. */
   pruneOldCommits(): void {
     const db = getDb();
@@ -746,5 +753,9 @@ export function registerCommitIpc(commitTracker: CommitTracker): void {
 
   typedHandle('commits:refresh', async () => {
     await commitTracker.scanAll();
+  });
+
+  typedHandle('commits:force-rescan', async () => {
+    await commitTracker.forceRescan();
   });
 }

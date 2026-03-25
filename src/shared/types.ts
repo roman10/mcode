@@ -376,6 +376,7 @@ export interface MCodeAPI {
     getCadence(date?: string): Promise<CommitCadenceInfo>;
     getWeeklyTrend(): Promise<CommitWeeklyTrend>;
     refresh(): Promise<void>;
+    forceRescan(): Promise<void>;
     onUpdated(callback: () => void): () => void;
   };
 

@@ -291,6 +291,9 @@ contextBridge.exposeInMainWorld('mcode', {
     refresh: (): Promise<void> =>
       typedInvoke('commits:refresh'),
 
+    forceRescan: (): Promise<void> =>
+      typedInvoke('commits:force-rescan'),
+
     onUpdated: (cb: () => void): (() => void) =>
       typedListen('commits:updated', cb),
   },
