@@ -65,6 +65,8 @@ npm run build:mac
 
 This produces a DMG in the `dist/` directory.
 
+> **Pre-built DMGs** will be available as release artifacts starting from v0.2.0. For now, build from source.
+
 ## Quick Start
 
 1. **Create a session** — press <kbd>Cmd+N</kbd>, pick a working directory, and optionally set a label, initial prompt, or permission mode.
