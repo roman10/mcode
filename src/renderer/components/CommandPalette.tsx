@@ -7,6 +7,7 @@ import { getCommands } from '../command-palette/command-registry';
 import { basename } from '../utils/path-utils';
 import { getFileIcon } from '../utils/file-icons';
 import { runShellCommand, resolveActiveCwd } from '../utils/session-actions';
+import { createFocusRestorer } from '../utils/focus-utils';
 import SnippetItems from './SnippetItems';
 
 const uf = new uFuzzy({ intraMode: 1 });
@@ -482,6 +483,10 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
   const searchQuery = mode === 'commands' || mode === 'shell' || mode === 'snippets'
     ? input.slice(1).trimStart()
     : input;
+
+  // Save focus target before autoFocus steals it; restore on unmount
+  const restoreFocusRef = useRef(createFocusRestorer());
+  useEffect(() => () => restoreFocusRef.current(), []);
 
   // Escape override for snippet variable form (back to search instead of closing)
   const escapeOverrideRef = useRef<(() => void) | null>(null);
