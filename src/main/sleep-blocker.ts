@@ -64,7 +64,7 @@ export class SleepBlocker {
   private reconcile(): void {
     if (!this.sessionManager) return;
 
-    const hasActive = this.sessionManager.hasActiveSessions();
+    const hasActive = this.sessionManager.hasActiveAgentSessions();
     const shouldBlock = this.enabled && hasActive;
 
     if (shouldBlock && !this.isBlocking()) {

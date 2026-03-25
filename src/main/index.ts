@@ -367,13 +367,13 @@ app.whenReady().then(async () => {
     const n = counts.agent;
     const detail =
       counts.terminal > 0
-        ? `Agent sessions will continue running in the background. ${counts.terminal} terminal session${counts.terminal === 1 ? '' : 's'} will be closed. You can reopen the app to reconnect.`
-        : 'Sessions will continue running in the background. You can reopen the app to reconnect.';
+        ? `Claude sessions will continue running in the background. ${counts.terminal} terminal session${counts.terminal === 1 ? '' : 's'} will be closed. You can reopen the app to reconnect.`
+        : 'Claude sessions will continue running in the background. You can reopen the app to reconnect.';
 
     dialog
       .showMessageBox(mainWindow!, {
         type: 'question',
-        message: `${n} agent session${n === 1 ? ' is' : 's are'} still running`,
+        message: `${n} Claude session${n === 1 ? ' is' : 's are'} still running`,
         detail,
         buttons: ['Close Window', 'Cancel'],
         defaultId: 0,

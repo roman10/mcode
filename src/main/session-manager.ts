@@ -853,21 +853,14 @@ export class SessionManager {
     ).map((r) => r.cwd);
   }
 
-  /** Check if any session is in an active-like state (avoids full table deserialization). */
-  hasActiveSessions(): boolean {
+  /** Check if any agent (non-terminal) session is in an active-like state. */
+  hasActiveAgentSessions(): boolean {
     const db = getDb();
     return !!db
-      .prepare("SELECT 1 FROM sessions WHERE status IN ('starting', 'active', 'idle', 'waiting') LIMIT 1")
+      .prepare(
+        "SELECT 1 FROM sessions WHERE session_type != 'terminal' AND status IN ('starting', 'active', 'idle', 'waiting') LIMIT 1",
+      )
       .get();
-  }
-
-  /** Count sessions in an active-like state. */
-  activeSessionCount(): number {
-    const db = getDb();
-    const row = db
-      .prepare("SELECT COUNT(*) as count FROM sessions WHERE status IN ('starting', 'active', 'idle', 'waiting')")
-      .get() as { count: number };
-    return row.count;
   }
 
   /** Count active sessions broken down by type (single query). */
@@ -1109,7 +1102,7 @@ export class SessionManager {
     db.prepare(
       `UPDATE sessions SET pre_detach_status = status, status = 'detached' WHERE status NOT IN ('ended', 'detached')`,
     ).run();
-    logger.info('session', 'Marked all active sessions as detached');
+    logger.info('session', 'Marked agent sessions as detached');
   }
 
   /**
