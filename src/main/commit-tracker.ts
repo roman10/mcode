@@ -18,7 +18,7 @@ import type {
 const execFileAsync = promisify(execFile);
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
-const COMMIT_RETENTION_DAYS = 90;
+const COMMIT_BACKFILL_DAYS = 90;
 const GIT_COMMAND_TIMEOUT_MS = 10_000;
 
 // Hook event tool_input keywords that indicate a potential commit
@@ -250,7 +250,7 @@ export class CommitTracker {
     }
 
     // Determine the --after timestamp
-    const afterTimestamp = tracked?.last_scanned_at ?? nDaysAgoStart(COMMIT_RETENTION_DAYS);
+    const afterTimestamp = tracked?.last_scanned_at ?? nDaysAgoStart(COMMIT_BACKFILL_DAYS);
 
     // Detect user's git email for this repo (cache in tracked_repos)
     let authorEmail = tracked?.author_email ?? null;
@@ -549,10 +549,10 @@ export class CommitTracker {
     };
   }
 
-  /** Reset watermarks and re-scan all repos from scratch (up to COMMIT_RETENTION_DAYS back). */
+  /** Reset watermarks and re-scan all repos from scratch (up to COMMIT_BACKFILL_DAYS back). */
   async forceRescan(): Promise<void> {
     const db = getDb();
-    db.prepare(`UPDATE tracked_repos SET last_scanned_at = NULL, last_head = NULL`).run();
+    db.prepare(`DELETE FROM tracked_repos`).run();
     await this.scanAll();
   }
 

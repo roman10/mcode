@@ -80,7 +80,11 @@ export async function createLiveClaudeTestSession(
     throw new Error(`Expected live hook mode, got ${session.hookMode}`);
   }
 
-  return injectHookEvent(client, session.sessionId, 'SessionStart');
+  // Inject SessionStart, then PreToolUse to ensure 'active' status.
+  // onFirstData may race and transition 'starting' → 'idle' before
+  // SessionStart arrives; PreToolUse reliably transitions idle → active.
+  await injectHookEvent(client, session.sessionId, 'SessionStart');
+  return injectHookEvent(client, session.sessionId, 'PreToolUse', { toolName: 'Bash' });
 }
 
 export async function waitForActive(

@@ -89,4 +89,4 @@ By default only commits on the main branch are tracked. To include all branches,
 - Use the **left/right arrows** or click heatmap cells to navigate between days
 - Click **Today** to return to the current day
 - Press `Cmd+R` to refresh manually
-- Data is retained for 90 days
+- Data is retained indefinitely
