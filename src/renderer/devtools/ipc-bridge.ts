@@ -258,6 +258,26 @@ export function initDevtoolsBridge(): void {
         }
         break;
       }
+      case 'terminal-panel-set-height': {
+        const { height } = params as { height: number };
+        const { useTerminalPanelStore } = await import('../stores/terminal-panel-store');
+        useTerminalPanelStore.getState().setPanelHeight(height);
+        result = true;
+        break;
+      }
+      case 'terminal-panel-get-dimensions': {
+        const { useTerminalPanelStore } = await import('../stores/terminal-panel-store');
+        const store = useTerminalPanelStore.getState();
+        const panelEl = document.querySelector('[data-terminal-panel]');
+        const xtermEl = panelEl?.querySelector('.xterm');
+        result = {
+          panelHeight: store.panelHeight,
+          panelVisible: store.panelVisible,
+          panelClientHeight: panelEl?.clientHeight ?? 0,
+          xtermHeight: xtermEl?.getBoundingClientRect().height ?? 0,
+        };
+        break;
+      }
       case 'terminal-action': {
         const { sessionId, action } = params as { sessionId: string; action: string };
         const term = terminalRegistry.get(sessionId);

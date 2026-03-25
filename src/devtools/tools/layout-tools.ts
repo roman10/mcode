@@ -223,6 +223,67 @@ export function registerLayoutTools(
     }
   });
 
+  // --- Terminal Panel ---
+
+  server.registerTool('terminal_panel_set_height', {
+    description: 'Set the terminal panel height in pixels',
+    inputSchema: {
+      height: z
+        .number()
+        .int()
+        .min(100)
+        .max(1200)
+        .describe('Panel height in pixels (100-1200)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ height }) => {
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'terminal-panel-set-height', {
+        height,
+      });
+      return {
+        content: [{ type: 'text', text: String(height) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to set panel height: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('terminal_panel_get_dimensions', {
+    description: 'Get terminal panel dimensions including panel height and xterm container height',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    try {
+      const dims = await queryRenderer<{
+        panelHeight: number;
+        panelVisible: boolean;
+        panelClientHeight: number;
+        xtermHeight: number;
+      }>(ctx.mainWindow, 'terminal-panel-get-dimensions', {});
+      return {
+        content: [{ type: 'text', text: JSON.stringify(dims) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to get panel dimensions: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_wait_for_tile_count', {
     description: 'Wait until the mosaic layout reaches the expected tile count. Polls every 250ms.',
     inputSchema: {
