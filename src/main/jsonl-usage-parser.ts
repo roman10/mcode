@@ -1,6 +1,6 @@
 /**
- * Pure parser for extracting token usage data from Claude Code JSONL chunks.
- * Handles both top-level assistant messages and nested sub-agent progress messages.
+ * Pure parser for extracting token usage and human input data from Claude Code JSONL chunks.
+ * Handles top-level assistant messages, nested sub-agent progress messages, and human prompts.
  */
 
 export interface ParsedUsageEntry {
@@ -150,4 +150,83 @@ function parseProgressMessage(obj: Record<string, unknown>): ParsedUsageEntry | 
     timestamp,
     ...fields,
   };
+}
+
+// ── Human input parsing ─────────────────────────────────────────────────────
+
+export interface ParsedHumanEntry {
+  messageId: string;
+  timestamp: string;
+  textLength: number;
+  wordCount: number;
+}
+
+/**
+ * Extract human text from a user message's content field.
+ * Returns the concatenated text, or null if this is a tool_result (not human input).
+ */
+function extractHumanText(content: unknown): string | null {
+  if (typeof content === 'string') return content;
+
+  if (!Array.isArray(content)) return null;
+
+  let text = '';
+  for (const block of content) {
+    if (typeof block !== 'object' || block == null) continue;
+    const blockObj = block as Record<string, unknown>;
+    // Skip tool_result messages — these are automatic, not human input
+    if (blockObj['type'] === 'tool_result') return null;
+    if (blockObj['type'] === 'text' && typeof blockObj['text'] === 'string') {
+      text += blockObj['text'];
+    }
+  }
+  return text;
+}
+
+/**
+ * Parse human input entries from a JSONL chunk.
+ * Filters out tool_result messages — only real human prompts are returned.
+ */
+export function parseHumanMessagesFromChunk(
+  chunk: string,
+  isPartialStart: boolean,
+): ParsedHumanEntry[] {
+  const entries: ParsedHumanEntry[] = [];
+  const lines = chunk.split('\n');
+  const startIdx = isPartialStart ? 1 : 0;
+
+  for (let i = startIdx; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    let obj: Record<string, unknown>;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    if (obj['type'] !== 'user') continue;
+
+    const uuid = obj['uuid'] as string | undefined;
+    if (!uuid) continue;
+
+    const timestamp = obj['timestamp'] as string | undefined;
+    if (!timestamp) continue;
+
+    const message = obj['message'] as Record<string, unknown> | undefined;
+    if (!message) continue;
+
+    const text = extractHumanText(message['content']);
+    if (text == null || text.length === 0) continue;
+
+    entries.push({
+      messageId: uuid,
+      timestamp,
+      textLength: text.length,
+      wordCount: text.split(/\s+/).filter(Boolean).length,
+    });
+  }
+
+  return entries;
 }

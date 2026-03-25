@@ -5,7 +5,8 @@ import { homedir } from 'node:os';
 import type { WebContents } from 'electron';
 import { getDb } from './db';
 import { logger } from './logger';
-import { parseUsageFromChunk } from './jsonl-usage-parser';
+import { parseUsageFromChunk, parseHumanMessagesFromChunk } from './jsonl-usage-parser';
+import type { InputTracker } from './input-tracker';
 import { estimateCostUsd, normalizeModelFamily } from './token-cost';
 import type {
   HookEvent,
@@ -70,11 +71,13 @@ interface WeekRow {
 
 export class TokenTracker {
   private getWebContents: () => WebContents | null;
+  private inputTracker: InputTracker;
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
   private scanning = false;
 
-  constructor(getWebContents: () => WebContents | null) {
+  constructor(getWebContents: () => WebContents | null, inputTracker: InputTracker) {
     this.getWebContents = getWebContents;
+    this.inputTracker = inputTracker;
   }
 
   start(): void {
@@ -195,8 +198,11 @@ export class TokenTracker {
       await fh.read(buf, 0, bytesToRead, lastOffset);
       const chunk = buf.toString('utf-8');
 
-      const entries = parseUsageFromChunk(chunk, lastOffset > 0);
-      if (entries.length === 0) {
+      const isPartial = lastOffset > 0;
+      const entries = parseUsageFromChunk(chunk, isPartial);
+      const humanEntries = parseHumanMessagesFromChunk(chunk, isPartial);
+
+      if (entries.length === 0 && humanEntries.length === 0) {
         // Update watermark even if no entries (file grew but no usage data)
         this.updateWatermark(filePath, fileSize);
         return 0;
@@ -236,6 +242,9 @@ export class TokenTracker {
         }
       });
       insertAll();
+
+      // Insert human input entries via InputTracker
+      this.inputTracker.insertBatch(humanEntries, fileName, projectDir);
 
       this.updateWatermark(filePath, fileSize, fileName, projectDir);
 
@@ -539,6 +548,9 @@ export class TokenTracker {
         db.prepare('DELETE FROM tracked_jsonl_files WHERE file_path = ?').run(file_path);
       }
     }
+
+    // Prune human input data
+    this.inputTracker.pruneOldData();
   }
 
   // --- Private helpers ---

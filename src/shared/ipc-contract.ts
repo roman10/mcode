@@ -17,6 +17,7 @@ import type {
   CommitWeeklyTrend,
   CreateTaskInput,
   DailyCommitStats,
+  DailyInputStats,
   DailyTokenUsage,
   ExternalSessionInfo,
   FileListResult,
@@ -26,6 +27,9 @@ import type {
   GitStatusResult,
   HookEvent,
   HookRuntimeInfo,
+  InputCadenceInfo,
+  InputHeatmapEntry,
+  InputWeeklyTrend,
   LayoutStateSnapshot,
   ModelTokenBreakdown,
   PtyExitPayload,
@@ -96,6 +100,12 @@ export interface IpcInvokeContract {
   'tokens:get-weekly-trend':            { params: []; result: TokenWeeklyTrend };
   'tokens:get-heatmap':                 { params: [days?: number]; result: TokenHeatmapEntry[] };
   'tokens:refresh':                     { params: []; result: void };
+
+  // --- Input ---
+  'input:get-daily-stats':              { params: [date?: string]; result: DailyInputStats };
+  'input:get-heatmap':                  { params: [days?: number]; result: InputHeatmapEntry[] };
+  'input:get-weekly-trend':             { params: []; result: InputWeeklyTrend };
+  'input:get-cadence':                  { params: [date?: string]; result: InputCadenceInfo };
 
   // --- Commits ---
   'commits:get-daily-stats':            { params: [date?: string]; result: DailyCommitStats };

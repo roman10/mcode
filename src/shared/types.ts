@@ -18,6 +18,7 @@ import type {
 // Re-export domain type modules so consumers can keep importing from '@shared/types'
 export * from './types-commits';
 export * from './types-tokens';
+export * from './types-input';
 export * from './types-git';
 export * from './types-tasks';
 
@@ -398,6 +399,13 @@ export interface MCodeAPI {
     getHeatmap(days?: number): Promise<TokenHeatmapEntry[]>;
     refresh(): Promise<void>;
     onUpdated(callback: () => void): () => void;
+  };
+
+  input: {
+    getDailyStats(date?: string): Promise<DailyInputStats>;
+    getHeatmap(days?: number): Promise<InputHeatmapEntry[]>;
+    getWeeklyTrend(): Promise<InputWeeklyTrend>;
+    getCadence(date?: string): Promise<InputCadenceInfo>;
   };
 
   git: {

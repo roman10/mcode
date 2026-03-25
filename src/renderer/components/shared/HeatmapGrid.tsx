@@ -9,6 +9,7 @@ const WEEKDAY_LABELS = ['M', '', 'W', '', 'F', '', ''];
 const COLOR_SCALES: Record<string, string[]> = {
   green: ['bg-bg-elevated', 'bg-green-900', 'bg-green-700', 'bg-green-500', 'bg-green-400'],
   emerald: ['bg-bg-elevated', 'bg-emerald-900', 'bg-emerald-700', 'bg-emerald-500', 'bg-emerald-400'],
+  blue: ['bg-bg-elevated', 'bg-blue-900', 'bg-blue-700', 'bg-blue-500', 'bg-blue-400'],
 };
 
 interface HeatmapGridProps<T extends { date: string }> {
@@ -17,7 +18,7 @@ interface HeatmapGridProps<T extends { date: string }> {
   getTooltip: (entry: T) => string;
   selectedDate: string;
   onSelect: (date: string) => void;
-  colorScale?: 'green' | 'emerald';
+  colorScale?: 'green' | 'emerald' | 'blue';
 }
 
 /** Convert JS Date.getDay() (0=Sun) to Monday-based index (0=Mon, 6=Sun). */

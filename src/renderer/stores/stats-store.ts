@@ -8,6 +8,10 @@ import type {
   CommitStreakInfo,
   CommitCadenceInfo,
   CommitWeeklyTrend,
+  DailyInputStats,
+  InputHeatmapEntry,
+  InputWeeklyTrend,
+  InputCadenceInfo,
 } from '@shared/types';
 
 interface StatsState {
@@ -21,6 +25,11 @@ interface StatsState {
   streaks: CommitStreakInfo | null;
   cadence: CommitCadenceInfo | null;
   commitWeeklyTrend: CommitWeeklyTrend | null;
+  // Input data
+  dailyInputStats: DailyInputStats | null;
+  inputHeatmap: InputHeatmapEntry[];
+  inputWeeklyTrend: InputWeeklyTrend | null;
+  inputCadence: InputCadenceInfo | null;
   // Shared
   loading: boolean;
   selectedDate: string | null; // null = today
@@ -38,6 +47,10 @@ export const useStatsStore = create<StatsState>((set, get) => ({
   streaks: null,
   cadence: null,
   commitWeeklyTrend: null,
+  dailyInputStats: null,
+  inputHeatmap: [],
+  inputWeeklyTrend: null,
+  inputCadence: null,
   loading: false,
   selectedDate: null,
 
@@ -54,6 +67,10 @@ export const useStatsStore = create<StatsState>((set, get) => ({
         streaks,
         cadence,
         commitWeeklyTrend,
+        dailyInputStats,
+        inputHeatmap,
+        inputWeeklyTrend,
+        inputCadence,
       ] = await Promise.all([
         window.mcode.tokens.getDailyUsage(selectedDate ?? undefined),
         window.mcode.tokens.getHeatmap(90),
@@ -63,6 +80,10 @@ export const useStatsStore = create<StatsState>((set, get) => ({
         window.mcode.commits.getStreaks(),
         window.mcode.commits.getCadence(selectedDate ?? undefined),
         window.mcode.commits.getWeeklyTrend(),
+        window.mcode.input.getDailyStats(selectedDate ?? undefined),
+        window.mcode.input.getHeatmap(90),
+        window.mcode.input.getWeeklyTrend(),
+        window.mcode.input.getCadence(selectedDate ?? undefined),
       ]);
       set({
         dailyUsage,
@@ -73,6 +94,10 @@ export const useStatsStore = create<StatsState>((set, get) => ({
         streaks,
         cadence,
         commitWeeklyTrend,
+        dailyInputStats,
+        inputHeatmap,
+        inputWeeklyTrend,
+        inputCadence,
         loading: false,
       });
     } catch (err) {

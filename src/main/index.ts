@@ -9,6 +9,7 @@ import { TaskQueue, registerTaskIpc } from './task-queue';
 import { CommitTracker, registerCommitIpc } from './commit-tracker';
 import { GitChangesService, registerGitChangesIpc } from './git-changes';
 import { TokenTracker, registerTokenIpc } from './token-tracker';
+import { InputTracker, registerInputIpc } from './input-tracker';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister, registerFileIpc } from './file-lister';
 import { FileSearch, registerSearchIpc } from './file-search';
@@ -45,6 +46,7 @@ let taskQueue: TaskQueue;
 let commitTracker: CommitTracker;
 let gitChangesService: GitChangesService;
 let tokenTracker: TokenTracker;
+let inputTracker: InputTracker;
 let sleepBlocker: SleepBlocker;
 let fileLister: FileLister;
 let fileSearch: FileSearch;
@@ -329,7 +331,8 @@ app.whenReady().then(async () => {
     if (wc && !wc.isDestroyed()) wc.send('search:event', event);
   });
   updateChecker = new UpdateChecker(getWebContents);
-  tokenTracker = new TokenTracker(getWebContents);
+  inputTracker = new InputTracker();
+  tokenTracker = new TokenTracker(getWebContents, inputTracker);
   sleepBlocker = new SleepBlocker();
   sleepBlocker.attach(sessionManager);
 
@@ -347,6 +350,7 @@ app.whenReady().then(async () => {
   registerCommitIpc(commitTracker);
   registerGitChangesIpc(gitChangesService);
   registerTokenIpc(tokenTracker);
+  registerInputIpc(inputTracker);
   registerPreferencesIpc();
 
   // Create window AFTER IPC handlers are registered to avoid a race condition:

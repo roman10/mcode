@@ -30,6 +30,10 @@ import type {
   ModelTokenBreakdown,
   TokenWeeklyTrend,
   TokenHeatmapEntry,
+  DailyInputStats,
+  InputHeatmapEntry,
+  InputWeeklyTrend,
+  InputCadenceInfo,
   AccountProfile,
   AuthStatusResult,
   CliAuthStatus,
@@ -346,6 +350,20 @@ contextBridge.exposeInMainWorld('mcode', {
 
     onUpdated: (cb: () => void): (() => void) =>
       typedListen('tokens:updated', cb),
+  },
+
+  input: {
+    getDailyStats: (date?: string): Promise<DailyInputStats> =>
+      typedInvoke('input:get-daily-stats', date),
+
+    getHeatmap: (days?: number): Promise<InputHeatmapEntry[]> =>
+      typedInvoke('input:get-heatmap', days),
+
+    getWeeklyTrend: (): Promise<InputWeeklyTrend> =>
+      typedInvoke('input:get-weekly-trend'),
+
+    getCadence: (date?: string): Promise<InputCadenceInfo> =>
+      typedInvoke('input:get-cadence', date),
   },
 
   git: {
