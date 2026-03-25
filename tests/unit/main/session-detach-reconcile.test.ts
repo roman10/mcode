@@ -12,6 +12,18 @@ import { createTestDb } from './test-db';
 // SQL mirroring session-manager.ts detachAllActive()
 const DETACH_ALL_SQL = `UPDATE sessions SET pre_detach_status = status, status = 'detached' WHERE status NOT IN ('ended', 'detached')`;
 
+// SQL mirroring session-manager.ts killAllTerminalSessions()
+const KILL_TERMINALS_SQL = `UPDATE sessions SET status = 'ended' WHERE session_type = 'terminal' AND status NOT IN ('ended', 'detached')`;
+
+// SQL mirroring session-manager.ts activeSessionCounts()
+const ACTIVE_SESSION_COUNTS_SQL = `
+  SELECT
+    SUM(CASE WHEN session_type != 'terminal' THEN 1 ELSE 0 END) as agent,
+    SUM(CASE WHEN session_type  = 'terminal' THEN 1 ELSE 0 END) as terminal
+  FROM sessions
+  WHERE status IN ('starting', 'active', 'idle', 'waiting')
+`;
+
 // SQL mirroring session-manager.ts reconcileDetachedSessions() — select detached
 const SELECT_DETACHED_SQL = `SELECT session_id, pre_detach_status FROM sessions WHERE status = 'detached'`;
 
@@ -21,11 +33,11 @@ const RESTORE_STATUS_SQL = `UPDATE sessions SET status = ?, pre_detach_status = 
 // SQL mirroring session-manager.ts updateStatus() — mark ended
 const MARK_ENDED_SQL = `UPDATE sessions SET status = 'ended', ended_at = datetime('now'), attention_level = 'none', attention_reason = NULL WHERE session_id = ?`;
 
-function insertSession(db: Database, id: string, status: string, attentionLevel = 'none', attentionReason: string | null = null): void {
+function insertSession(db: Database, id: string, status: string, attentionLevel = 'none', attentionReason: string | null = null, sessionType = 'claude'): void {
   db.run(
-    `INSERT INTO sessions (session_id, label, cwd, status, started_at, attention_level, attention_reason)
-     VALUES (?, ?, '/tmp', ?, datetime('now'), ?, ?)`,
-    [id, `label-${id}`, status, attentionLevel, attentionReason],
+    `INSERT INTO sessions (session_id, label, cwd, status, started_at, attention_level, attention_reason, session_type)
+     VALUES (?, ?, '/tmp', ?, datetime('now'), ?, ?, ?)`,
+    [id, `label-${id}`, status, attentionLevel, attentionReason, sessionType],
   );
 }
 
@@ -206,6 +218,63 @@ describe('detach/reconcile cycle', () => {
       db.run(RESTORE_STATUS_SQL, [restoreStatus, session_id]);
 
       expect(getSession(db, 'legacy').status).toBe('active');
+    });
+  });
+
+  describe('killAllTerminalSessions', () => {
+    it('marks terminal sessions as ended, leaves agent sessions untouched', () => {
+      insertSession(db, 'terminal-1', 'active', 'none', null, 'terminal');
+      insertSession(db, 'terminal-2', 'idle', 'none', null, 'terminal');
+      insertSession(db, 'claude-1', 'active');
+
+      db.run(KILL_TERMINALS_SQL);
+
+      expect(getSession(db, 'terminal-1').status).toBe('ended');
+      expect(getSession(db, 'terminal-2').status).toBe('ended');
+      expect(getSession(db, 'claude-1').status).toBe('active');
+    });
+
+    it('does not touch already-ended or detached terminal sessions', () => {
+      insertSession(db, 'already-ended', 'ended', 'none', null, 'terminal');
+      insertSession(db, 'already-detached', 'detached', 'none', null, 'terminal');
+
+      db.run(KILL_TERMINALS_SQL);
+
+      expect(getSession(db, 'already-ended').status).toBe('ended');
+      expect(getSession(db, 'already-detached').status).toBe('detached');
+    });
+
+    it('detachAllActive after kill leaves terminal sessions as ended, agent sessions as detached', () => {
+      insertSession(db, 'terminal-1', 'active', 'none', null, 'terminal');
+      insertSession(db, 'claude-1', 'active');
+
+      db.run(KILL_TERMINALS_SQL);
+      db.run(DETACH_ALL_SQL);
+
+      expect(getSession(db, 'terminal-1').status).toBe('ended');
+      expect(getSession(db, 'claude-1').status).toBe('detached');
+    });
+  });
+
+  describe('activeSessionCounts', () => {
+    it('returns correct counts by type', () => {
+      insertSession(db, 'claude-active', 'active');
+      insertSession(db, 'claude-idle', 'idle');
+      insertSession(db, 'terminal-1', 'active', 'none', null, 'terminal');
+      insertSession(db, 'ended-claude', 'ended');
+      insertSession(db, 'ended-terminal', 'ended', 'none', null, 'terminal');
+
+      const [result] = db.exec(ACTIVE_SESSION_COUNTS_SQL);
+      const [agent, terminal] = result.values[0] as [number, number];
+      expect(agent).toBe(2);
+      expect(terminal).toBe(1);
+    });
+
+    it('returns zeros when no active sessions', () => {
+      const [result] = db.exec(ACTIVE_SESSION_COUNTS_SQL);
+      const [agent, terminal] = result.values[0] as [number | null, number | null];
+      expect(agent ?? 0).toBe(0);
+      expect(terminal ?? 0).toBe(0);
     });
   });
 });

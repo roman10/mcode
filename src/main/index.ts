@@ -359,17 +359,22 @@ app.whenReady().then(async () => {
   mainWindow.on('close', (e) => {
     if (isQuitting || forceClose) return;
 
-    const activeCount = sessionManager.activeSessionCount();
-    if (activeCount === 0) return;
+    const counts = sessionManager.activeSessionCounts();
+    if (counts.agent === 0) return; // terminal-only or nothing — close silently
 
     e.preventDefault();
+
+    const n = counts.agent;
+    const detail =
+      counts.terminal > 0
+        ? `Agent sessions will continue running in the background. ${counts.terminal} terminal session${counts.terminal === 1 ? '' : 's'} will be closed. You can reopen the app to reconnect.`
+        : 'Sessions will continue running in the background. You can reopen the app to reconnect.';
 
     dialog
       .showMessageBox(mainWindow!, {
         type: 'question',
-        message: `${activeCount} session${activeCount === 1 ? ' is' : 's are'} still running`,
-        detail:
-          'Sessions will continue running in the background. You can reopen the app to reconnect.',
+        message: `${n} agent session${n === 1 ? ' is' : 's are'} still running`,
+        detail,
         buttons: ['Close Window', 'Cancel'],
         defaultId: 0,
         cancelId: 1,
@@ -481,7 +486,10 @@ app.on('before-quit', (e) => {
     }
     stopHookServer();
 
-    // Mark running sessions as detached (PTY broker keeps them alive)
+    // Kill terminal sessions immediately (no value running headless)
+    sessionManager.killAllTerminalSessions();
+
+    // Mark agent sessions as detached (PTY broker keeps them alive)
     sessionManager.detachAllActive();
 
     // Disconnect from broker (broker stays running, PTYs stay alive)

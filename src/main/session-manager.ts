@@ -804,6 +804,24 @@ export class SessionManager {
     return validIds;
   }
 
+  /** Kill all plain terminal sessions on app close (fire-and-forget to broker). */
+  killAllTerminalSessions(): void {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `SELECT session_id FROM sessions WHERE session_type = 'terminal' AND status NOT IN ('ended', 'detached')`,
+      )
+      .all() as { session_id: string }[];
+    if (rows.length === 0) return;
+    db.prepare(
+      `UPDATE sessions SET status = 'ended' WHERE session_type = 'terminal' AND status NOT IN ('ended', 'detached')`,
+    ).run();
+    for (const row of rows) {
+      this.ptyManager.kill(row.session_id).catch(() => {});
+    }
+    logger.info('session', 'Killed all terminal sessions on close', { count: rows.length });
+  }
+
   async kill(sessionId: string): Promise<void> {
     // Mark ended BEFORE killing PTY so the handleHookEvent guard
     // (status='ended' → skip) prevents any late hook events from processing.
@@ -850,6 +868,21 @@ export class SessionManager {
       .prepare("SELECT COUNT(*) as count FROM sessions WHERE status IN ('starting', 'active', 'idle', 'waiting')")
       .get() as { count: number };
     return row.count;
+  }
+
+  /** Count active sessions broken down by type (single query). */
+  activeSessionCounts(): { agent: number; terminal: number } {
+    const db = getDb();
+    const row = db
+      .prepare(
+        `SELECT
+          SUM(CASE WHEN session_type != 'terminal' THEN 1 ELSE 0 END) as agent,
+          SUM(CASE WHEN session_type  = 'terminal' THEN 1 ELSE 0 END) as terminal
+         FROM sessions
+         WHERE status IN ('starting', 'active', 'idle', 'waiting')`,
+      )
+      .get() as { agent: number | null; terminal: number | null };
+    return { agent: row.agent ?? 0, terminal: row.terminal ?? 0 };
   }
 
   getLastDefaults(): SessionDefaults | null {
