@@ -66,6 +66,11 @@
   display: none;
 }
 
+.mosaic-theme-dark .mosaic-window,
+.mosaic-theme-dark .mosaic-preview {
+  box-shadow: none;
+}
+
 .mosaic-theme-dark .mosaic-window .mosaic-window-body {
   flex: 1;
   min-height: 0;

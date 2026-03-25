@@ -181,7 +181,7 @@ function SidebarPanel(): React.JSX.Element {
   return (
     <>
       <div
-        className="flex flex-col h-full bg-bg-secondary border-r border-border-default shrink-0"
+        className="flex flex-col h-full bg-bg-secondary shrink-0"
         style={{ width: sidebarWidth }}
       >
         {/* Session actions header */}
@@ -358,7 +358,7 @@ function SidebarPanel(): React.JSX.Element {
 
       {/* Resize handle */}
       <div
-        className="w-1 shrink-0 cursor-col-resize hover:bg-border-focus/50 transition-colors"
+        className="w-[1px] shrink-0 cursor-col-resize bg-border-default hover:bg-border-focus transition-colors relative before:absolute before:inset-y-0 before:-left-[3px] before:-right-[3px] before:content-['']"
         onMouseDown={handleMouseDown}
       />
 
