@@ -8,3 +8,4 @@ dist/
 .claude/settings.local.json
 .claude/worktrees/
 .claude/plans/
+docs/marketing/
