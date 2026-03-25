@@ -18,6 +18,7 @@ import {
 } from './session-state-machine';
 import type { HookEventName } from './session-state-machine';
 import {
+  CLAUDE_ICON,
   DEFAULT_COLS,
   DEFAULT_ROWS,
   HOOK_TOOL_INPUT_MAX_BYTES,
@@ -200,11 +201,20 @@ export class SessionManager {
   create(input: SessionCreateInput): SessionInfo {
     const sessionId = randomUUID();
     const cwd = input.cwd;
-    const label = input.label
-      || (input.initialPrompt ? truncatePromptToLabel(input.initialPrompt, 50) : null)
-      || this.nextDisambiguatedLabel(cwd);
+    const userLabel = input.label || null;
+    const label = (() => {
+      if (userLabel) {
+        // For Claude sessions, ensure the ✳ icon prefix is present (mirrors label-utils.ts)
+        if (input.sessionType !== 'terminal' && !/^[\u2800-\u28FF\u2733]/.test(userLabel)) {
+          return `${CLAUDE_ICON} ${userLabel}`;
+        }
+        return userLabel;
+      }
+      return (input.initialPrompt ? truncatePromptToLabel(input.initialPrompt, 50) : null)
+        || this.nextDisambiguatedLabel(cwd);
+    })();
     // Preserve user-provided labels from being overwritten by terminal title updates.
-    const labelSource = input.label ? 'user' : 'auto';
+    const labelSource = userLabel ? 'user' : 'auto';
     const startedAt = new Date().toISOString();
     const sessionType = input.sessionType ?? 'claude';
 

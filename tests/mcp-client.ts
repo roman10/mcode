@@ -6,7 +6,7 @@ export interface ToolResult {
   isError?: boolean;
 }
 
-const DEFAULT_URL = 'http://127.0.0.1:7532/mcp';
+const DEFAULT_URL = process.env['MCODE_TEST_URL'] ?? 'http://127.0.0.1:7532/mcp';
 
 export class McpTestClient {
   private client: Client | null = null;

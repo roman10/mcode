@@ -1,4 +1,4 @@
-const CLAUDE_ICON = '\u2733'; // ✳
+import { CLAUDE_ICON } from '@shared/constants';
 
 /**
  * Normalize a Claude Code terminal title by replacing its spinner/status

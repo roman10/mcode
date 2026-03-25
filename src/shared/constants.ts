@@ -31,6 +31,9 @@ export const EFFORT_LEVELS = [
 ] as const;
 export type EffortLevel = (typeof EFFORT_LEVELS)[number];
 
+// Claude Code icon — canonical ✳ (U+2733), used as session label prefix
+export const CLAUDE_ICON = '\u2733';
+
 // Hook system
 export const HOOK_PORT_DEFAULT = 7777;
 export const HOOK_PORT_MAX = 7799;
