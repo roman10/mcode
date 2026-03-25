@@ -17,6 +17,14 @@ describe('keyboard-shortcuts registry', () => {
     expect(labels).not.toContain('Show Token Usage');
   });
 
+  it('contains Show Sessions entry', () => {
+    const entry = KEYBOARD_SHORTCUTS.find((s) => s.label === 'Show Sessions');
+    expect(entry).toBeDefined();
+    expect(entry!.keys).toBe('Shift+O');
+    expect(entry!.mod).toBe(true);
+    expect(entry!.category).toBe('general');
+  });
+
   it('has no duplicate label+keys within the same category', () => {
     const seen = new Set<string>();
     const duplicates: string[] = [];

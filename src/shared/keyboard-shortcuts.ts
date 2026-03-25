@@ -19,6 +19,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Toggle Sidebar', keys: '\\', mod: true, category: 'general' },
   { label: 'Keyboard Shortcuts', keys: '/', mod: true, category: 'general' },
   { label: 'Settings', keys: ',', mod: true, category: 'general' },
+  { label: 'Show Sessions', keys: 'Shift+O', mod: true, category: 'general' },
   { label: 'Show Activity', keys: 'Shift+A', mod: true, category: 'general' },
   { label: 'Show Stats', keys: 'Shift+B', mod: true, category: 'general' },
   { label: 'Show Changes', keys: 'Shift+C', mod: true, category: 'general' },

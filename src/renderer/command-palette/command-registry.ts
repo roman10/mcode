@@ -206,6 +206,7 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       id: 'show-sessions',
       label: 'Show Sessions',
       category: 'Layout',
+      shortcut: shortcuts.get('Show Sessions'),
       enabled: true,
       execute: () => executeAppCommand({ command: 'switch-sidebar-tab', tab: 'sessions' }),
     },

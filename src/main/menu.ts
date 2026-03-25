@@ -128,6 +128,11 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             click: () => sendCommand({ command: 'toggle-sidebar' }),
           },
           {
+            label: 'Show Sessions',
+            accelerator: 'CmdOrCtrl+Shift+O',
+            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'sessions' }),
+          },
+          {
             label: 'Show Activity',
             accelerator: 'CmdOrCtrl+Shift+A',
             click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'activity' }),

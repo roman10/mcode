@@ -28,6 +28,13 @@ describe('command-registry', () => {
     expect(cmd!.shortcut).toBeDefined();
   });
 
+  it('show-sessions has correct shortcut on macOS', () => {
+    const commands = getCommands(emptyCtx);
+    const cmd = commands.find((c) => c.id === 'show-sessions');
+    expect(cmd).toBeDefined();
+    expect(cmd!.shortcut).toBe('⌘⇧O');
+  });
+
   it('includes show-stats and not show-commits or show-tokens', () => {
     const commands = getCommands(emptyCtx);
     const ids = commands.map((c) => c.id);

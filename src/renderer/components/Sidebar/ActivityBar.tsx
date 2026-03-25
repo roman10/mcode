@@ -54,7 +54,7 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
           active={activeTab}
           panelCollapsed={panelCollapsed}
           onSelect={onTabSelect}
-          tooltip="Sessions"
+          tooltip={`Sessions (${formatKeys('Shift+O', true)})`}
           badge={attentionCount}
         />
         <ActivityBarButton
