@@ -97,7 +97,7 @@ export function useAppInitialization(): { loading: boolean; error: string | null
       });
 
     return () => { signal.cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return { loading, error };
 }

@@ -64,7 +64,7 @@ function NewSessionDialog({
       });
     }
     prevOpenRef.current = open;
-  }, [open]);
+  }, [open, initialSessionType]);
 
   const handleBrowse = async (): Promise<void> => {
     const dir = await window.mcode.app.selectDirectory();
