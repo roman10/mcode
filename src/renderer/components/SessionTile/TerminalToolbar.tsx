@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Maximize2, Minimize2, Plus, Square, X } from 'lucide-react';
+import { Maximize2, Minimize2, Plus, Square, TimerOff, X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import { useTaskStore } from '../../stores/task-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
@@ -180,6 +180,23 @@ function TerminalToolbar({
               onClick={() => setShowCreateDialog(true)}
             >
               <Plus size={14} strokeWidth={1.5} />
+            </button>
+          </Tooltip>
+        )}
+        {canQueueTasks && (
+          <Tooltip content={session?.autoClose ? 'Auto-close enabled — session will close when queue empties' : 'Auto-close disabled'} side="bottom">
+            <button
+              aria-label={session?.autoClose ? 'Disable auto-close' : 'Enable auto-close'}
+              className={`px-1 transition-colors rounded ${
+                session?.autoClose
+                  ? 'text-accent bg-accent/15'
+                  : 'text-text-muted hover:text-text-secondary'
+              }`}
+              onClick={() => {
+                window.mcode.sessions.setAutoClose(sessionId, !session?.autoClose).catch(console.error);
+              }}
+            >
+              <TimerOff size={14} strokeWidth={1.5} />
             </button>
           </Tooltip>
         )}

@@ -66,6 +66,9 @@ function KanbanCard({
               <span className="text-xs text-text-muted ml-1.5">{accountName}</span>
             )}
           </span>
+          {session.autoClose && (
+            <span className="text-xs bg-accent/15 text-accent px-1 rounded shrink-0">auto</span>
+          )}
           {shortTime && (
             <span className="text-xs text-text-muted shrink-0">{shortTime}</span>
           )}

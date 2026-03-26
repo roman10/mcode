@@ -182,6 +182,11 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
                 </span>
               </Tooltip>
             )}
+            {session.autoClose && (
+              <span className="text-xs bg-accent/15 text-accent px-1 rounded shrink-0">
+                auto
+              </span>
+            )}
           </div>
         </div>
 

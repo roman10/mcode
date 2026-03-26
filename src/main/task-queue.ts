@@ -715,6 +715,32 @@ export class TaskQueue {
     if (task) this.broadcastChange({ type: 'upsert', task });
 
     this.dispatchPending();
+
+    // Auto-close: if the session has autoClose=true and the queue is now empty,
+    // schedule a kill after a short debounce to avoid closing on rapid re-enqueue.
+    if (task?.targetSessionId) {
+      this.maybeScheduleAutoClose(task.targetSessionId);
+    }
+  }
+
+  private maybeScheduleAutoClose(sessionId: string): void {
+    const session = this.sessionManager.get(sessionId);
+    if (!session?.autoClose || session.status === 'ended') return;
+
+    setTimeout(() => {
+      const current = this.sessionManager.get(sessionId);
+      if (!current?.autoClose || current.status === 'ended') return;
+
+      const db = getDb();
+      const row = db.prepare(
+        `SELECT COUNT(*) as cnt FROM task_queue WHERE target_session_id = ? AND status IN ('pending','dispatched')`,
+      ).get(sessionId) as { cnt: number };
+
+      if (row.cnt === 0) {
+        logger.info('task', 'Auto-closing session (queue drained)', { sessionId });
+        this.sessionManager.kill(sessionId).catch(() => {});
+      }
+    }, 500);
   }
 
   private failTask(taskId: number, error: string, permanent = false): void {

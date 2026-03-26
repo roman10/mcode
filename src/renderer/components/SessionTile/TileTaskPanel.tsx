@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ChevronUp, ChevronDown, Pencil, X } from 'lucide-react';
+import { ChevronUp, ChevronDown, Pencil, TimerOff, X } from 'lucide-react';
 import { useTaskStore } from '../../stores/task-store';
 import { useSessionStore } from '../../stores/session-store';
 import type { Task, TaskStatus } from '@shared/types';
@@ -248,6 +248,12 @@ function TileTaskPanel({
               <span className="text-xs bg-bg-elevated text-text-muted px-1 rounded">
                 {sessionTasks.length} queued
               </span>
+              {session?.autoClose && (
+                <span className="ml-1.5 flex items-center gap-0.5 text-xs text-accent">
+                  <TimerOff size={10} strokeWidth={1.5} />
+                  <span>auto-close</span>
+                </span>
+              )}
             </div>
             {expanded && (
               <div className="max-h-32 overflow-y-auto">

@@ -32,9 +32,10 @@ export function registerSessionTools(
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
       worktree: z.string().optional().describe('Run session in an isolated git worktree. Pass a name to create a named worktree, or empty string to auto-generate. Ignored for terminal sessions.'),
       accountId: z.string().optional().describe('Account profile ID to run this session under'),
+      autoClose: z.boolean().optional().describe('If true, automatically kill the session when its task queue empties'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, enableAutoMode, command, args, sessionType, worktree, accountId }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, enableAutoMode, command, args, sessionType, worktree, accountId, autoClose }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -48,6 +49,7 @@ export function registerSessionTools(
         sessionType,
         worktree,
         accountId,
+        autoClose,
       });
       // Notify renderer to add session to store (best-effort)
       try {
@@ -261,6 +263,28 @@ export function registerSessionTools(
     annotations: { readOnlyHint: false },
   }, async ({ sessionId, label }) => {
     ctx.sessionManager.setAutoLabel(sessionId, label);
+    const updated = ctx.sessionManager.get(sessionId);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
+    };
+  });
+
+  server.registerTool('session_set_auto_close', {
+    description: 'Enable or disable auto-close for a session. When enabled, the session is automatically killed when its task queue empties.',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID'),
+      autoClose: z.boolean().describe('Set to true to enable auto-close, false to disable'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, autoClose }) => {
+    const session = ctx.sessionManager.get(sessionId);
+    if (!session) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+    ctx.sessionManager.setAutoClose(sessionId, autoClose);
     const updated = ctx.sessionManager.get(sessionId);
     return {
       content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],

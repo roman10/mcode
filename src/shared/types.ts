@@ -93,6 +93,7 @@ export interface SessionInfo {
   sessionType: SessionType;
   terminalConfig: TerminalConfig;
   accountId: string | null;
+  autoClose: boolean;
 }
 
 export interface SessionCreateInput {
@@ -108,6 +109,7 @@ export interface SessionCreateInput {
   sessionType?: SessionType;
   accountId?: string;
   initialCommand?: string;
+  autoClose?: boolean;
 }
 
 export interface SessionDefaults {
@@ -313,6 +315,7 @@ export interface MCodeAPI {
     kill(sessionId: string): Promise<void>;
     setLabel(sessionId: string, label: string): Promise<void>;
     setAutoLabel(sessionId: string, label: string): Promise<void>;
+    setAutoClose(sessionId: string, value: boolean): Promise<void>;
     setTerminalConfig(sessionId: string, config: Partial<TerminalConfig>): Promise<void>;
     clearAttention(sessionId: string): Promise<void>;
     clearAllAttention(): Promise<void>;

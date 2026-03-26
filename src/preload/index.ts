@@ -142,6 +142,9 @@ contextBridge.exposeInMainWorld('mcode', {
     setAutoLabel: (sessionId: string, label: string): Promise<void> =>
       typedInvoke('session:set-auto-label', sessionId, label),
 
+    setAutoClose: (sessionId: string, value: boolean): Promise<void> =>
+      typedInvoke('session:set-auto-close', sessionId, value),
+
     setTerminalConfig: (sessionId: string, config: Record<string, unknown>): Promise<void> =>
       typedInvoke('session:set-terminal-config', sessionId, config),
 

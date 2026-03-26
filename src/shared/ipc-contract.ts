@@ -69,6 +69,7 @@ export interface IpcInvokeContract {
   'session:get-last-defaults':          { params: []; result: SessionDefaults | null };
   'session:set-label':                  { params: [sessionId: string, label: string]; result: void };
   'session:set-auto-label':             { params: [sessionId: string, label: string]; result: void };
+  'session:set-auto-close':             { params: [sessionId: string, value: boolean]; result: void };
   'session:set-terminal-config':        { params: [sessionId: string, config: Record<string, unknown>]; result: void };
   'session:clear-attention':            { params: [sessionId: string]; result: void };
   'session:clear-all-attention':        { params: []; result: void };

@@ -62,6 +62,7 @@ interface SessionRecord {
   enable_auto_mode: number | null;
   worktree: string | null;
   account_id: string | null;
+  auto_close: number;
 }
 
 function isClaudeCommand(command: string): boolean {
@@ -90,6 +91,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     sessionType: row.session_type as SessionType,
     terminalConfig: JSON.parse(row.terminal_config || '{}'),
     accountId: row.account_id,
+    autoClose: row.auto_close === 1,
   };
 }
 
@@ -272,10 +274,11 @@ export class SessionManager {
     const db = getDb();
     const worktree = isTerminal ? null : (input.worktree !== undefined ? (input.worktree || '') : null);
     const accountId = input.accountId ?? null;
+    const autoClose = input.autoClose === true ? 1 : 0;
     db.prepare(
-      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, effort, enable_auto_mode, status, started_at, hook_mode, session_type, worktree, account_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, labelSource, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), isTerminal ? null : (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null), startedAt, hookMode, sessionType, worktree, accountId);
+      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, effort, enable_auto_mode, status, started_at, hook_mode, session_type, worktree, account_id, auto_close)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?, ?)`,
+    ).run(sessionId, label, labelSource, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), isTerminal ? null : (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null), startedAt, hookMode, sessionType, worktree, accountId, autoClose);
 
     // Track account usage
     if (accountId) {
@@ -941,6 +944,12 @@ export class SessionManager {
     }
   }
 
+  setAutoClose(sessionId: string, value: boolean): void {
+    const db = getDb();
+    db.prepare('UPDATE sessions SET auto_close = ? WHERE session_id = ?').run(value ? 1 : 0, sessionId);
+    this.broadcastSessionUpdate(sessionId);
+  }
+
   setTerminalConfig(sessionId: string, partial: Partial<TerminalConfig>): void {
     const db = getDb();
     const row = db
@@ -1212,6 +1221,10 @@ export function registerSessionIpc(sessionManager: SessionManager): void {
 
   typedHandle('session:set-auto-label', (sessionId, label) => {
     sessionManager.setAutoLabel(sessionId, label);
+  });
+
+  typedHandle('session:set-auto-close', (sessionId, value) => {
+    sessionManager.setAutoClose(sessionId, value);
   });
 
   typedHandle('session:set-terminal-config', (sessionId, config) => {
