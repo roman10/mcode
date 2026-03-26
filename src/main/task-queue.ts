@@ -560,7 +560,13 @@ export class TaskQueue {
     const row = db.prepare(
       `SELECT * FROM task_queue WHERE session_id = ? AND status = 'dispatched' LIMIT 1`,
     ).get(session.sessionId) as TaskRecord | undefined;
-    if (!row) return;
+    if (!row) {
+      // No dispatched task — if session just went idle and has autoClose, check for drain.
+      if (session.status === 'idle' && session.autoClose) {
+        this.maybeScheduleAutoClose(session.sessionId);
+      }
+      return;
+    }
 
     const taskId = row.id;
     const state = this.dispatchStates.get(taskId);
@@ -718,8 +724,10 @@ export class TaskQueue {
 
     // Auto-close: if the session has autoClose=true and the queue is now empty,
     // schedule a kill after a short debounce to avoid closing on rapid re-enqueue.
-    if (task?.targetSessionId) {
-      this.maybeScheduleAutoClose(task.targetSessionId);
+    // Use sessionId as fallback for new-session tasks (targetSessionId is null).
+    const sessionIdForAutoClose = task?.targetSessionId ?? task?.sessionId;
+    if (sessionIdForAutoClose) {
+      this.maybeScheduleAutoClose(sessionIdForAutoClose);
     }
   }
 
@@ -733,10 +741,12 @@ export class TaskQueue {
 
       const db = getDb();
       const row = db.prepare(
-        `SELECT COUNT(*) as cnt FROM task_queue WHERE target_session_id = ? AND status IN ('pending','dispatched')`,
-      ).get(sessionId) as { cnt: number };
+        `SELECT COUNT(*) as cnt FROM task_queue
+         WHERE status IN ('pending','dispatched')
+           AND (session_id = ? OR target_session_id = ?)`,
+      ).get(sessionId, sessionId) as { cnt: number };
 
-      if (row.cnt === 0) {
+      if (row.cnt === 0 && current.status === 'idle') {
         logger.info('task', 'Auto-closing session (queue drained)', { sessionId });
         this.sessionManager.kill(sessionId).catch(() => {});
       }

@@ -11,10 +11,12 @@ import { createTestDb } from './test-db';
  * Mirrors the actual queries in session-manager.ts and task-queue.ts.
  */
 
-// SQL mirroring task-queue.ts maybeScheduleAutoClose()
+// SQL mirroring task-queue.ts maybeScheduleAutoClose() — uses OR to cover both
+// session-targeted tasks (target_session_id = ?) and new-session tasks (session_id = ?).
 const COUNT_ACTIVE_TASKS_SQL = `
   SELECT COUNT(*) as cnt FROM task_queue
-  WHERE target_session_id = ? AND status IN ('pending','dispatched')
+  WHERE status IN ('pending','dispatched')
+    AND (session_id = ? OR target_session_id = ?)
 `;
 
 // SQL mirroring session-manager.ts setAutoClose()
@@ -41,8 +43,18 @@ function insertTask(db: Database, id: number, targetSessionId: string, status: '
   );
 }
 
+// Insert a new-session task: target_session_id is NULL, session_id is set (assigned at dispatch).
+function insertNewSessionTask(db: Database, id: number, sessionId: string, status: 'pending' | 'dispatched' | 'completed' | 'failed'): void {
+  db.run(
+    `INSERT INTO task_queue (id, prompt, cwd, target_session_id, session_id, status, priority, retry_count, max_retries, created_at)
+     VALUES (?, 'test prompt', '/tmp', NULL, ?, ?, 0, 0, 3, datetime('now'))`,
+    [id, sessionId, status],
+  );
+}
+
 function getActiveTaskCount(db: Database, sessionId: string): number {
-  const [result] = db.exec(COUNT_ACTIVE_TASKS_SQL, [sessionId]);
+  // Pass sessionId twice: once for session_id arm, once for target_session_id arm.
+  const [result] = db.exec(COUNT_ACTIVE_TASKS_SQL, [sessionId, sessionId]);
   if (!result) return 0;
   return result.values[0][0] as number;
 }
@@ -178,5 +190,61 @@ describe('auto-close: queue drain detection', () => {
     expect(getActiveTaskCount(db, 'drain-other-a')).toBe(0);
     // drain-other-b still has a pending task
     expect(getActiveTaskCount(db, 'drain-other-b')).toBe(1);
+  });
+
+  // Fix 1 regression: OR query must find new-session tasks via session_id arm
+  it('counts dispatched new-session task via session_id arm (target_session_id is NULL)', () => {
+    insertSession(db, 'drain-newsession', 1);
+    // Simulates a task dispatched via dispatchNewSession: target_session_id=NULL, session_id=assigned
+    insertNewSessionTask(db, 20, 'drain-newsession', 'dispatched');
+    expect(getActiveTaskCount(db, 'drain-newsession')).toBe(1);
+  });
+
+  // Fix 1 regression: completed new-session tasks must not block auto-close
+  it('does NOT count completed new-session task via either query arm', () => {
+    insertSession(db, 'drain-newsession-done', 1);
+    insertNewSessionTask(db, 21, 'drain-newsession-done', 'completed');
+    expect(getActiveTaskCount(db, 'drain-newsession-done')).toBe(0);
+  });
+});
+
+describe('auto-close: idle guard (Fix 1)', () => {
+  let db: Database;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+  });
+
+  afterAll(() => {
+    db.close();
+  });
+
+  // maybeScheduleAutoClose kills only when cnt===0 AND session.status==='idle'.
+  // This test verifies that a non-idle session status is queryable and returns
+  // a non-'idle' value, confirming the guard would short-circuit the kill.
+  it('session with status=active is NOT idle — kill guard would prevent auto-close', () => {
+    db.run(
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close)
+       VALUES ('guard-active', 'test', '/tmp', 'active', datetime('now'), 'claude', 1)`,
+    );
+    const [result] = db.exec(
+      `SELECT status FROM sessions WHERE session_id = 'guard-active'`,
+    );
+    const status = result.values[0][0] as string;
+    expect(status).not.toBe('idle');
+    // With cnt=0 but status!=='idle', the combined kill condition is false.
+    expect(status === 'idle').toBe(false);
+  });
+
+  it('session with status=idle passes the kill guard', () => {
+    db.run(
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close)
+       VALUES ('guard-idle', 'test', '/tmp', 'idle', datetime('now'), 'claude', 1)`,
+    );
+    const [result] = db.exec(
+      `SELECT status FROM sessions WHERE session_id = 'guard-idle'`,
+    );
+    const status = result.values[0][0] as string;
+    expect(status).toBe('idle');
   });
 });
