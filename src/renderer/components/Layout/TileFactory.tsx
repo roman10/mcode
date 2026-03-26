@@ -18,10 +18,17 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
   const ref = useRef<HTMLDivElement>(null);
   const removeAnyTile = useLayoutStore((s) => s.removeAnyTile);
   const persist = useLayoutStore((s) => s.persist);
+  const isSelected = useLayoutStore((s) => s.selectedTileId === tileId);
 
   useEffect(() => {
     ref.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (isSelected) {
+      ref.current?.focus();
+    }
+  }, [isSelected]);
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     const mod = isMac ? e.metaKey : e.ctrlKey;
@@ -33,12 +40,19 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
     }
   };
 
+  const handlePointerDown = (): void => {
+    useLayoutStore.getState().setSelectedTileId(tileId);
+    useSessionStore.getState().selectSession(null);
+  };
+
   return (
     <div
       ref={ref}
-      className="h-full w-full outline-none"
+      className={`h-full w-full outline-none border-t-2 transition-colors ${isSelected ? 'border-t-accent' : 'border-t-transparent'}`}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
+      onPointerDown={handlePointerDown}
+      data-tile-id={tileId}
     >
       {children}
     </div>

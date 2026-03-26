@@ -26,6 +26,7 @@ function resetStores() {
     mosaicTree: null,
     viewMode: 'tiles',
     kanbanExpandedSessionId: null,
+    selectedTileId: null,
   });
   useSessionStore.setState({
     sessions: {},
@@ -130,6 +131,55 @@ describe('focus commands — tile visibility filtering', () => {
 
     // Should cycle to s2 (next in canonical order: s3→s2→s1)
     expect(useSessionStore.getState().selectedSessionId).toBe('s2');
+  });
+
+  it('focus-next includes file viewer tiles', () => {
+    useSessionStore.setState({
+      sessions: { s1: makeSession({ sessionId: 's1' }) },
+      selectedSessionId: 's1',
+    });
+    useLayoutStore.setState({
+      viewMode: 'tiles',
+      mosaicTree: createBalancedTreeFromLeaves(['session:s1', 'file:/foo/bar.ts']),
+    });
+
+    executeAppCommand({ command: 'focus-next-session' });
+
+    expect(useSessionStore.getState().selectedSessionId).toBeNull();
+    expect(useLayoutStore.getState().selectedTileId).toBe('file:/foo/bar.ts');
+  });
+
+  it('focus-next from viewer tile cycles to session tile', () => {
+    useSessionStore.setState({
+      sessions: { s1: makeSession({ sessionId: 's1' }) },
+      selectedSessionId: null,
+    });
+    useLayoutStore.setState({
+      viewMode: 'tiles',
+      mosaicTree: createBalancedTreeFromLeaves(['session:s1', 'file:/foo/bar.ts']),
+      selectedTileId: 'file:/foo/bar.ts',
+    });
+
+    executeAppCommand({ command: 'focus-next-session' });
+
+    expect(useSessionStore.getState().selectedSessionId).toBe('s1');
+    expect(useLayoutStore.getState().selectedTileId).toBe('session:s1');
+  });
+
+  it('focus-prev includes diff viewer tiles', () => {
+    useSessionStore.setState({
+      sessions: { s1: makeSession({ sessionId: 's1' }) },
+      selectedSessionId: 's1',
+    });
+    useLayoutStore.setState({
+      viewMode: 'tiles',
+      mosaicTree: createBalancedTreeFromLeaves(['diff:/foo/bar.ts', 'session:s1']),
+    });
+
+    executeAppCommand({ command: 'focus-prev-session' });
+
+    expect(useSessionStore.getState().selectedSessionId).toBeNull();
+    expect(useLayoutStore.getState().selectedTileId).toBe('diff:/foo/bar.ts');
   });
 
   it('still skips ended sessions in both modes', () => {

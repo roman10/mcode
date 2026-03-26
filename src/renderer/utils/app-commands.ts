@@ -57,6 +57,51 @@ export function executeAppCommand(command: AppCommand): void {
 
     case 'focus-next-session':
     case 'focus-prev-session': {
+      const { viewMode, mosaicTree, selectedTileId } = useLayoutStore.getState();
+
+      if (viewMode === 'tiles') {
+        if (!mosaicTree) break;
+        const sessions = useSessionStore.getState().sessions;
+        const allTileIds = getLeaves(mosaicTree).filter((id) => {
+          const sid = sessionIdFromTileId(id);
+          if (!sid) return true; // viewer/diff tiles always included
+          return sessions[sid] && sessions[sid].status !== 'ended';
+        });
+        if (allTileIds.length === 0) break;
+
+        const { selectedSessionId } = useSessionStore.getState();
+        const currentTileId = selectedSessionId
+          ? `session:${selectedSessionId}`
+          : selectedTileId;
+        const currentIdx = currentTileId ? allTileIds.indexOf(currentTileId) : -1;
+
+        let nextIdx: number;
+        if (command.command === 'focus-next-session') {
+          nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % allTileIds.length;
+        } else {
+          nextIdx = currentIdx < 0 ? allTileIds.length - 1 : (currentIdx - 1 + allTileIds.length) % allTileIds.length;
+        }
+
+        const nextTileId = allTileIds[nextIdx];
+        const nextSessionId = sessionIdFromTileId(nextTileId);
+
+        useLayoutStore.getState().setSelectedTileId(nextTileId);
+
+        if (nextSessionId) {
+          useLayoutStore.getState().addTile(nextSessionId);
+          useLayoutStore.getState().persist();
+          useSessionStore.getState().selectSession(nextSessionId);
+        } else {
+          useSessionStore.getState().selectSession(null);
+          requestAnimationFrame(() => {
+            const el = document.querySelector(`[data-tile-id="${nextTileId}"]`) as HTMLElement | null;
+            el?.focus();
+          });
+        }
+        break;
+      }
+
+      // Kanban mode: cycle through sessions (tile-independent)
       const selectedId = useSessionStore.getState().selectedSessionId;
       const ordered = getNavigableSessions();
       if (ordered.length === 0) break;

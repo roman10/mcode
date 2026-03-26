@@ -58,6 +58,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
 
   const handleFocus = (): void => {
     selectSession(sessionId, 'user');
+    useLayoutStore.getState().setSelectedTileId(`session:${sessionId}`);
   };
 
   // Drag-and-drop: paste file paths into terminal.

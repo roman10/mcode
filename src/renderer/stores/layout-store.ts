@@ -78,8 +78,11 @@ interface LayoutState {
   quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets';
   restoreTree: MosaicNode<string> | null;
   pendingFileLine: { path: string; line: number } | null;
+  /** Tracks the focused tile ID (for non-session tiles like file/diff viewers). Transient, not persisted. */
+  selectedTileId: string | null;
 
   setMosaicTree(tree: MosaicNode<string> | null): void;
+  setSelectedTileId(id: string | null): void;
   addTile(sessionId: string): void;
   addTileAdjacent(anchorSessionId: string, newSessionId: string, direction: 'row' | 'column'): void;
   removeTile(sessionId: string): void;
@@ -271,8 +274,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   quickOpenInitialMode: 'files' as const,
   restoreTree: null,
   pendingFileLine: null,
+  selectedTileId: null,
 
   setMosaicTree: (tree) => set({ mosaicTree: tree }),
+  setSelectedTileId: (id) => set({ selectedTileId: id }),
 
   addTile: (sessionId) =>
     set((state) => {
