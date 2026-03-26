@@ -291,9 +291,19 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
       // Create a balanced tree with all existing leaves plus the new one
       const allLeaves = [...leaves, newTile];
-      return {
-        mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
-      };
+      const newMosaicTree = createBalancedTreeFromLeaves(allLeaves) ?? newTile;
+
+      // If maximized, also add to restoreTree so the tile appears when restoring
+      if (state.restoreTree) {
+        const restoreLeaves = getLeaves(state.restoreTree);
+        if (!restoreLeaves.includes(newTile)) {
+          const newRestoreTree =
+            createBalancedTreeFromLeaves([...restoreLeaves, newTile]) ?? state.restoreTree;
+          return { mosaicTree: newMosaicTree, restoreTree: newRestoreTree };
+        }
+      }
+
+      return { mosaicTree: newMosaicTree };
     }),
 
   addTileAdjacent: (anchorSessionId, newSessionId, direction) =>
@@ -313,15 +323,25 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       }
 
       // Check if anchor exists in tree
+      let newMosaicTree;
       if (!leaves.includes(anchorTile)) {
         // Anchor not found — fall back to balanced insert
-        const allLeaves = [...leaves, newTile];
-        return { mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile };
+        newMosaicTree = createBalancedTreeFromLeaves([...leaves, newTile]) ?? newTile;
+      } else {
+        newMosaicTree = insertAdjacentLeaf(current, anchorTile, newTile, direction);
       }
 
-      return {
-        mosaicTree: insertAdjacentLeaf(current, anchorTile, newTile, direction),
-      };
+      // If maximized, also add to restoreTree so the tile appears when restoring
+      if (state.restoreTree) {
+        const restoreLeaves = getLeaves(state.restoreTree);
+        if (!restoreLeaves.includes(newTile)) {
+          const newRestoreTree =
+            createBalancedTreeFromLeaves([...restoreLeaves, newTile]) ?? state.restoreTree;
+          return { mosaicTree: newMosaicTree, restoreTree: newRestoreTree };
+        }
+      }
+
+      return { mosaicTree: newMosaicTree };
     }),
 
   removeTile: (sessionId) =>

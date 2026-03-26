@@ -296,6 +296,51 @@ describe('layout-store', () => {
       expect(getTree()).toEqual(beforeTree);
       expect(useLayoutStore.getState().restoreTree).toBeNull();
     });
+
+    it('adds new tile alongside maximized tile in mosaicTree', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addTile('s2');
+      useLayoutStore.getState().addTile('s3');
+      useLayoutStore.getState().maximize('s1');
+
+      useLayoutStore.getState().addTile('s4');
+
+      const leaves = getLeafIds();
+      expect(leaves).toContain('session:s1');
+      expect(leaves).toContain('session:s4');
+      expect(leaves).not.toContain('session:s2');
+      expect(leaves).not.toContain('session:s3');
+    });
+
+    it('adds new tile to restoreTree when maximized', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addTile('s2');
+      useLayoutStore.getState().addTile('s3');
+      useLayoutStore.getState().maximize('s1');
+
+      useLayoutStore.getState().addTile('s4');
+
+      const restoreLeaves = getLeaves(useLayoutStore.getState().restoreTree!);
+      expect(restoreLeaves).toContain('session:s1');
+      expect(restoreLeaves).toContain('session:s2');
+      expect(restoreLeaves).toContain('session:s3');
+      expect(restoreLeaves).toContain('session:s4');
+    });
+
+    it('restore after adding tile while maximized includes new tile', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addTile('s2');
+      useLayoutStore.getState().maximize('s1');
+
+      useLayoutStore.getState().addTile('s3');
+      useLayoutStore.getState().restoreFromMaximize();
+
+      const leaves = getLeafIds();
+      expect(leaves).toContain('session:s1');
+      expect(leaves).toContain('session:s2');
+      expect(leaves).toContain('session:s3');
+      expect(useLayoutStore.getState().restoreTree).toBeNull();
+    });
   });
 
   describe('pruneTiles', () => {
