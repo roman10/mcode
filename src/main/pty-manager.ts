@@ -21,6 +21,19 @@ interface PtyHandle {
   exitPromise: Promise<void>;
 }
 
+// Strip Electron-internal env vars that must not leak into user shell sessions.
+// ELECTRON_RUN_AS_NODE=1 causes the Electron binary to start in plain Node.js
+// mode, which breaks `require('electron')` in any child process (e.g. npm run dev).
+const ELECTRON_INTERNAL_VARS = ['ELECTRON_RUN_AS_NODE', 'ELECTRON_EXEC_PATH', 'ELECTRON_MAJOR_VER'];
+
+function buildPtyEnv(overrides?: Record<string, string>): Record<string, string> {
+  const base = { ...process.env };
+  for (const key of ELECTRON_INTERNAL_VARS) {
+    delete base[key];
+  }
+  return { ...base, ...overrides } as Record<string, string>;
+}
+
 export class PtyManager implements IPtyManager {
   private ptys = new Map<string, PtyHandle>();
   private onData: (id: string, data: string) => void;
@@ -45,7 +58,7 @@ export class PtyManager implements IPtyManager {
       cols,
       rows,
       cwd,
-      env: { ...process.env, ...env } as Record<string, string>,
+      env: buildPtyEnv(env),
     });
 
     let resolveExit: () => void;
