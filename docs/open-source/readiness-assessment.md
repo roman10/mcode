@@ -71,12 +71,12 @@ All documentation blockers are resolved. Screenshots are in `docs/screenshots/`.
 
 **Key differentiators to emphasize:**
 1. **See all sessions at once** — react-mosaic tiling + kanban view, not tabs or sidebar
-2. **Multi-account support** — bypass rate limits, isolate work contexts
+2. **Multi-account support** — switch accounts when an account limit reaches and resume work from a different account
 3. **Real terminal** — node-pty + xterm.js WebGL, not a chat wrapper
 4. **Deep Claude Code integration** — hook-driven monitoring, attention system, token tracking
 5. **100 MCP tools** — fully automatable via MCP; every feature is agent-accessible
 6. **Task queue** — dispatch work to sessions with per-session reordering and retry logic
-7. **Built-in analytics** — commit tracking (streaks, heatmaps, cadence) + token usage (cost, model breakdown)
+7. **Built-in analytics** — commit tracking (streaks, heatmaps, cadence) + token usage (human input, output tokens, estimated cost, model breakdown)
 8. **Command palette + quick open** — VS Code-style navigation with fuzzy search
 9. **PTY persistence** — sessions survive app restarts via PTY broker
 10. **Git commit graph** — branch topology visualization in Changes sidebar

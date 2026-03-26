@@ -15,7 +15,7 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude 
 
 - **Tiling layout** — split the screen into resizable tiles, each running a fully interactive Claude Code terminal. See all sessions at once.
 - **Kanban board** — switch to a board view with columns by status: Needs Attention, Working, Ready, and Completed.
-- **Multi-account support** — run sessions under different Claude accounts to bypass rate limits or isolate work contexts.
+- **Multi-account support** — run sessions under different Claude accounts; switch accounts when an account limit reaches and resume work from a different account.
 
 ![Kanban board grouped by session status](docs/screenshots/kanban-view.png)
 
