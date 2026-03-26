@@ -7,15 +7,18 @@ const isMac = navigator.userAgent.includes('Mac');
 
 interface NewSessionDialogProps {
   open: boolean;
+  initialSessionType?: 'claude' | 'codex';
   onOpenChange(open: boolean): void;
   onCreate(input: SessionCreateInput): void;
 }
 
 function NewSessionDialog({
   open,
+  initialSessionType,
   onOpenChange,
   onCreate,
 }: NewSessionDialogProps): React.JSX.Element {
+  const [sessionType, setSessionType] = useState<'claude' | 'codex'>(initialSessionType ?? 'claude');
   const [cwd, setCwd] = useState('');
   const [label, setLabel] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
@@ -27,11 +30,13 @@ function NewSessionDialog({
   const [isCreating, setIsCreating] = useState(false);
   const [accounts, setAccounts] = useState<AccountProfile[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const isClaude = sessionType === 'claude';
 
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
+      setSessionType(initialSessionType ?? 'claude');
       setLabel('');
       setInitialPrompt('');
       setEnableAutoMode(false);
@@ -71,18 +76,28 @@ function NewSessionDialog({
     if (!cwd.trim() || isCreating) return;
 
     setIsCreating(true);
-    const defaultAccount = accounts.find((a) => a.isDefault);
-    const isDefaultSelected = !selectedAccountId || selectedAccountId === defaultAccount?.accountId;
-    onCreate({
-      cwd: cwd.trim(),
-      label: label.trim() || undefined,
-      initialPrompt: initialPrompt.trim() || undefined,
-      permissionMode: permissionMode || undefined,
-      effort: effort || undefined,
-      enableAutoMode: enableAutoMode,
-      worktree: useWorktree ? (worktreeName.trim() || '') : undefined,
-      accountId: isDefaultSelected ? undefined : selectedAccountId,
-    });
+    if (isClaude) {
+      const defaultAccount = accounts.find((a) => a.isDefault);
+      const isDefaultSelected = !selectedAccountId || selectedAccountId === defaultAccount?.accountId;
+      onCreate({
+        cwd: cwd.trim(),
+        label: label.trim() || undefined,
+        initialPrompt: initialPrompt.trim() || undefined,
+        permissionMode: permissionMode || undefined,
+        effort: effort || undefined,
+        enableAutoMode: enableAutoMode,
+        worktree: useWorktree ? (worktreeName.trim() || '') : undefined,
+        accountId: isDefaultSelected ? undefined : selectedAccountId,
+        sessionType: 'claude',
+      });
+    } else {
+      onCreate({
+        cwd: cwd.trim(),
+        label: label.trim() || undefined,
+        initialPrompt: initialPrompt.trim() || undefined,
+        sessionType: 'codex',
+      });
+    }
   };
 
   // Cmd+Enter to submit — use ref to avoid stale closure
@@ -111,6 +126,21 @@ function NewSessionDialog({
     >
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
+          {/* Agent type */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">
+              Agent
+            </label>
+            <select
+              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+              value={sessionType}
+              onChange={(e) => setSessionType(e.target.value as 'claude' | 'codex')}
+            >
+              <option value="claude">Claude Code</option>
+              <option value="codex">Codex CLI</option>
+            </select>
+          </div>
+
           {/* Working directory */}
           <div>
             <label className="block text-sm text-text-secondary mb-1">
@@ -157,119 +187,124 @@ function NewSessionDialog({
               rows={3}
               value={initialPrompt}
               onChange={(e) => setInitialPrompt(e.target.value)}
-              placeholder="What should Claude work on?"
+              placeholder={isClaude ? 'What should Claude work on?' : 'What should Codex work on?'}
             />
           </div>
 
-          {/* Permission mode */}
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">
-              Permission mode
-            </label>
-            <select
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-              value={permissionMode}
-              onChange={(e) => {
-                const value = e.target.value;
-                setPermissionMode(
-                  value === '' || PERMISSION_MODES.includes(value as PermissionMode)
-                    ? (value as PermissionMode | '')
-                    : '',
-                );
-              }}
-            >
-              <option value="">default</option>
-              {PERMISSION_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Claude-specific fields */}
+          {isClaude && (
+            <>
+              {/* Permission mode */}
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">
+                  Permission mode
+                </label>
+                <select
+                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                  value={permissionMode}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setPermissionMode(
+                      value === '' || PERMISSION_MODES.includes(value as PermissionMode)
+                        ? (value as PermissionMode | '')
+                        : '',
+                    );
+                  }}
+                >
+                  <option value="">default</option>
+                  {PERMISSION_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {mode}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Effort */}
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">
-              Effort
-            </label>
-            <select
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-              value={effort}
-              onChange={(e) => {
-                const value = e.target.value;
-                setEffort(
-                  value === '' || EFFORT_LEVELS.includes(value as EffortLevel)
-                    ? (value as EffortLevel | '')
-                    : '',
-                );
-              }}
-            >
-              <option value="">default</option>
-              {EFFORT_LEVELS.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-          </div>
+              {/* Effort */}
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">
+                  Effort
+                </label>
+                <select
+                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                  value={effort}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEffort(
+                      value === '' || EFFORT_LEVELS.includes(value as EffortLevel)
+                        ? (value as EffortLevel | '')
+                        : '',
+                    );
+                  }}
+                >
+                  <option value="">default</option>
+                  {EFFORT_LEVELS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Enable auto mode */}
-          <div>
-            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={enableAutoMode}
-                onChange={(e) => setEnableAutoMode(e.target.checked)}
-              />
-              Enable auto mode (unlocks in Shift+Tab cycle)
-            </label>
-          </div>
+              {/* Enable auto mode */}
+              <div>
+                <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-accent"
+                    checked={enableAutoMode}
+                    onChange={(e) => setEnableAutoMode(e.target.checked)}
+                  />
+                  Enable auto mode (unlocks in Shift+Tab cycle)
+                </label>
+              </div>
 
-          {/* Account (only shown when multiple accounts exist) */}
-          {accounts.length > 1 && (
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">
-                Account
-              </label>
-              <select
-                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                value={selectedAccountId}
-                onChange={(e) => setSelectedAccountId(e.target.value)}
-              >
-                {accounts.map((account) => (
-                  <option key={account.accountId} value={account.accountId}>
-                    {account.name}{account.email ? ` (${account.email})` : ''}
-                    {account.isDefault ? ' — default' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+              {/* Account (only shown when multiple accounts exist) */}
+              {accounts.length > 1 && (
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">
+                    Account
+                  </label>
+                  <select
+                    className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                    value={selectedAccountId}
+                    onChange={(e) => setSelectedAccountId(e.target.value)}
+                  >
+                    {accounts.map((account) => (
+                      <option key={account.accountId} value={account.accountId}>
+                        {account.name}{account.email ? ` (${account.email})` : ''}
+                        {account.isDefault ? ' — default' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Worktree */}
+              <div>
+                <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-accent"
+                    checked={useWorktree}
+                    onChange={(e) => {
+                      setUseWorktree(e.target.checked);
+                      if (!e.target.checked) setWorktreeName('');
+                    }}
+                  />
+                  Run in isolated worktree
+                </label>
+                {useWorktree && (
+                  <input
+                    className="w-full mt-2 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                    value={worktreeName}
+                    onChange={(e) => setWorktreeName(e.target.value)}
+                    placeholder="Auto-generated if empty"
+                  />
+                )}
+              </div>
+            </>
           )}
-
-          {/* Worktree */}
-          <div>
-            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={useWorktree}
-                onChange={(e) => {
-                  setUseWorktree(e.target.checked);
-                  if (!e.target.checked) setWorktreeName('');
-                }}
-              />
-              Run in isolated worktree
-            </label>
-            {useWorktree && (
-              <input
-                className="w-full mt-2 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                value={worktreeName}
-                onChange={(e) => setWorktreeName(e.target.value)}
-                placeholder="Auto-generated if empty"
-              />
-            )}
-          </div>
         </div>
 
         {/* Actions */}

@@ -19,6 +19,7 @@ import {
 import type { HookEventName } from './session-state-machine';
 import {
   CLAUDE_ICON,
+  CODEX_ICON,
   DEFAULT_COLS,
   DEFAULT_ROWS,
   HOOK_TOOL_INPUT_MAX_BYTES,
@@ -69,6 +70,15 @@ interface SessionRecord {
 function isClaudeCommand(command: string): boolean {
   const normalized = basename(command).toLowerCase();
   return normalized === 'claude' || normalized === 'claude.exe' || normalized === 'claude.cmd';
+}
+
+function isCodexCommand(command: string): boolean {
+  const normalized = basename(command).toLowerCase();
+  return normalized === 'codex' || normalized === 'codex.exe';
+}
+
+function isAgentSession(sessionType: SessionType): boolean {
+  return sessionType === 'claude' || sessionType === 'codex';
 }
 
 function toSessionInfo(row: SessionRecord): SessionInfo {
@@ -207,15 +217,19 @@ export class SessionManager {
     const cwd = input.cwd;
     const userLabel = input.label || null;
     const label = (() => {
-      if (userLabel) {
-        // For Claude sessions, ensure the ✳ icon prefix is present (mirrors label-utils.ts)
-        if (input.sessionType !== 'terminal' && !/^[\u2800-\u28FF\u2733]/.test(userLabel)) {
-          return `${CLAUDE_ICON} ${userLabel}`;
+      const prefixed = (raw: string): string => {
+        if (sessionType === 'claude') {
+          return /^[\u2800-\u28FF\u2733]/.test(raw) ? raw : `${CLAUDE_ICON} ${raw}`;
         }
-        return userLabel;
-      }
-      return (input.initialPrompt ? truncatePromptToLabel(input.initialPrompt, 50) : null)
+        if (sessionType === 'codex') {
+          return raw.startsWith(CODEX_ICON) ? raw : `${CODEX_ICON} ${raw}`;
+        }
+        return raw;
+      };
+      if (userLabel) return prefixed(userLabel);
+      const autoLabel = (input.initialPrompt ? truncatePromptToLabel(input.initialPrompt, 50) : null)
         || this.nextDisambiguatedLabel(cwd);
+      return isTerminal ? autoLabel : prefixed(autoLabel);
     })();
     // Preserve user-provided labels from being overwritten by terminal title updates.
     const labelSource = userLabel ? 'user' : 'auto';
@@ -226,9 +240,10 @@ export class SessionManager {
 
     const command = isTerminal
       ? (input.command ?? process.env.SHELL ?? '/bin/zsh')
-      : (input.command ?? 'claude');
+      : (input.command ?? (sessionType === 'codex' ? 'codex' : 'claude'));
 
     const isClaude = !isTerminal && isClaudeCommand(command);
+    const isCodex = !isTerminal && isCodexCommand(command);
 
     // Block Claude startup until the hook subsystem reaches a terminal runtime state.
     const hookRuntime = this.hookRuntimeGetter();
@@ -244,6 +259,11 @@ export class SessionManager {
       // For terminal sessions, pass through caller-provided args (e.g. ['-c', 'git push'])
       if (input.args) {
         args.push(...input.args);
+      }
+    } else if (isCodex) {
+      // Codex CLI: pass initial prompt as positional arg
+      if (input.initialPrompt) {
+        args.push(input.initialPrompt);
       }
     } else {
       if (input.worktree !== undefined) {
@@ -277,13 +297,13 @@ export class SessionManager {
     // Insert DB row FIRST so that onFirstData/onExit callbacks can UPDATE it.
     // If spawn fails, we delete the row.
     const db = getDb();
-    const worktree = isTerminal ? null : (input.worktree !== undefined ? (input.worktree || '') : null);
+    const worktree = isClaude ? (input.worktree !== undefined ? (input.worktree || '') : null) : null;
     const accountId = input.accountId ?? null;
     const autoClose = input.autoClose === true ? 1 : 0;
     db.prepare(
       `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, effort, enable_auto_mode, allow_bypass_permissions, status, started_at, hook_mode, session_type, worktree, account_id, auto_close)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, labelSource, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), isTerminal ? null : (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null), isTerminal ? null : (input.allowBypassPermissions === true ? 1 : input.allowBypassPermissions === false ? 0 : null), startedAt, hookMode, sessionType, worktree, accountId, autoClose);
+    ).run(sessionId, label, labelSource, cwd, isClaude ? (input.permissionMode ?? null) : null, isClaude ? (input.effort ?? null) : null, isClaude ? (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null) : null, isClaude ? (input.allowBypassPermissions === true ? 1 : input.allowBypassPermissions === false ? 0 : null) : null, startedAt, hookMode, sessionType, worktree, accountId, autoClose);
 
     // Track account usage
     if (accountId) {
@@ -310,7 +330,7 @@ export class SessionManager {
             // PermissionRequest, etc.) may have already advanced the status.
             const current = this.get(sessionId);
             if (current?.status === 'starting') {
-              this.updateStatus(sessionId, sessionType === 'claude' ? 'idle' : 'active');
+              this.updateStatus(sessionId, isAgentSession(sessionType) ? 'idle' : 'active');
             }
           }
         },
@@ -328,7 +348,7 @@ export class SessionManager {
     setTimeout(() => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
-        const targetStatus = sessionType === 'claude' && !input.initialCommand ? 'idle' : 'active';
+        const targetStatus = isAgentSession(sessionType) && !input.initialCommand ? 'idle' : 'active';
         logger.warn('session', 'Starting timeout, forcing status', { sessionId, targetStatus });
         this.updateStatus(sessionId, targetStatus);
       }

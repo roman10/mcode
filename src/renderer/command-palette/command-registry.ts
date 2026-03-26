@@ -56,6 +56,14 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'new-session' }),
     },
     {
+      id: 'new-codex-session',
+      label: 'New Codex Session',
+      category: 'General',
+      keywords: ['codex', 'openai', 'agent'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'new-session', sessionType: 'codex' }),
+    },
+    {
       id: 'new-terminal',
       label: 'New Terminal',
       category: 'General',

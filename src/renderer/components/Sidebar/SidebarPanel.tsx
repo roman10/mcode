@@ -23,6 +23,7 @@ import {
 function SidebarPanel(): React.JSX.Element {
   const showNewDialog = useLayoutStore((s) => s.showNewSessionDialog);
   const setShowNewDialog = useLayoutStore((s) => s.setShowNewSessionDialog);
+  const newSessionDialogType = useLayoutStore((s) => s.newSessionDialogType);
   const splitIntent = useLayoutStore((s) => s.splitIntent);
   const setSplitIntent = useLayoutStore((s) => s.setSplitIntent);
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth);
@@ -364,6 +365,7 @@ function SidebarPanel(): React.JSX.Element {
 
       <NewSessionDialog
         open={showNewDialog}
+        initialSessionType={newSessionDialogType}
         onOpenChange={handleNewDialogOpenChange}
         onCreate={handleCreate}
       />

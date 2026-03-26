@@ -72,11 +72,12 @@ export function classifyCommitType(subject: string): string {
   return 'other';
 }
 
-/** Detect if commit has a Claude co-author trailer. */
-export function detectClaudeAssisted(coAuthor: string): boolean {
+/** Detect if commit has an AI co-author trailer (Claude, Codex, etc.). */
+export function detectAIAssisted(coAuthor: string): boolean {
   if (!coAuthor) return false;
   const lower = coAuthor.toLowerCase();
-  return lower.includes('claude') || lower.includes('anthropic');
+  return lower.includes('claude') || lower.includes('anthropic')
+    || lower.includes('codex') || lower.includes('openai');
 }
 
 /** Parse git log output into structured commits. */
@@ -281,7 +282,7 @@ export class CommitTracker {
       for (const commit of commits) {
         const date = commit.committedAt.slice(0, 10); // "2026-03-18"
         const commitType = classifyCommitType(commit.subject);
-        const isClaudeAssisted = detectClaudeAssisted(commit.coAuthor) ? 1 : 0;
+        const isClaudeAssisted = detectAIAssisted(commit.coAuthor) ? 1 : 0;
 
         const result = insertStmt.run(
           repoPath,

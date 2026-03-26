@@ -15,7 +15,8 @@ import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { normalizeClaudeLabel } from '../../utils/label-utils';
+import { normalizeAgentLabel } from '../../utils/label-utils';
+import type { SessionType } from '@shared/types';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -56,7 +57,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
 
     // Claude Code draws its own cursor character; hide the real xterm cursor
     // to prevent a stray blinking block on the last terminal row.
-    const hideCursor = sessionType === 'claude';
+    const hideCursor = sessionType === 'claude' || sessionType === 'codex';
     const term = new Terminal({
       cursorBlink: !hideCursor,
       cursorInactiveStyle: hideCursor ? 'none' : undefined,
@@ -208,7 +209,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     // Only updates if the user hasn't manually renamed the session (checked server-side).
     const unsubTitle = term.onTitleChange((title) => {
       if (title) {
-        const normalized = sessionType === 'claude' ? normalizeClaudeLabel(title) : title;
+        const normalized = sessionType ? normalizeAgentLabel(title, sessionType as SessionType) : title;
         window.mcode.sessions.setAutoLabel(sessionId, normalized);
       }
     });

@@ -1,38 +1,60 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeClaudeLabel, splitLabelIcon } from '../../../../src/renderer/utils/label-utils';
+import { normalizeAgentLabel, splitLabelIcon } from '../../../../src/renderer/utils/label-utils';
 
-describe('normalizeClaudeLabel', () => {
-  it('replaces Braille spinner characters with canonical icon', () => {
-    // Braille range U+2800-U+28FF
-    expect(normalizeClaudeLabel('\u2801 Working on task')).toBe('\u2733 Working on task');
-    expect(normalizeClaudeLabel('\u28FF Busy')).toBe('\u2733 Busy');
+describe('normalizeAgentLabel', () => {
+  it('replaces Braille spinner characters with canonical icon for Claude', () => {
+    expect(normalizeAgentLabel('\u2801 Working on task', 'claude')).toBe('\u2733 Working on task');
+    expect(normalizeAgentLabel('\u28FF Busy', 'claude')).toBe('\u2733 Busy');
   });
 
-  it('normalizes the canonical icon itself (idempotent)', () => {
-    expect(normalizeClaudeLabel('\u2733 Already normalized')).toBe('\u2733 Already normalized');
+  it('normalizes the canonical Claude icon itself (idempotent)', () => {
+    expect(normalizeAgentLabel('\u2733 Already normalized', 'claude')).toBe('\u2733 Already normalized');
   });
 
-  it('leaves labels without Braille/icon prefix unchanged', () => {
-    expect(normalizeClaudeLabel('My Custom Session')).toBe('My Custom Session');
-    expect(normalizeClaudeLabel('')).toBe('');
+  it('leaves labels without Braille/icon prefix unchanged for Claude', () => {
+    expect(normalizeAgentLabel('My Custom Session', 'claude')).toBe('My Custom Session');
   });
 
-  it('handles Braille character with extra spacing', () => {
-    expect(normalizeClaudeLabel('\u2801   spaced out')).toBe('\u2733 spaced out');
+  it('handles Braille character with extra spacing for Claude', () => {
+    expect(normalizeAgentLabel('\u2801   spaced out', 'claude')).toBe('\u2733 spaced out');
+  });
+
+  it('prepends Codex icon for codex sessions', () => {
+    expect(normalizeAgentLabel('My Codex Task', 'codex')).toBe('\u2742 My Codex Task');
+  });
+
+  it('preserves Codex icon if already present', () => {
+    expect(normalizeAgentLabel('\u2742 Already prefixed', 'codex')).toBe('\u2742 Already prefixed');
+  });
+
+  it('returns title unchanged for terminal sessions', () => {
+    expect(normalizeAgentLabel('zsh', 'terminal')).toBe('zsh');
   });
 });
 
 describe('splitLabelIcon', () => {
-  it('splits canonical icon from text', () => {
+  it('splits canonical Claude icon from text', () => {
     const [icon, text] = splitLabelIcon('\u2733 My Session');
     expect(icon).toBe('\u2733');
     expect(text).toBe('My Session');
   });
 
-  it('splits Braille character (legacy) and normalizes to canonical icon', () => {
+  it('splits Braille character (legacy) and normalizes to canonical Claude icon', () => {
     const [icon, text] = splitLabelIcon('\u2801 Legacy Label');
     expect(icon).toBe('\u2733');
     expect(text).toBe('Legacy Label');
+  });
+
+  it('splits Codex icon from text', () => {
+    const [icon, text] = splitLabelIcon('\u2742 My Codex Session');
+    expect(icon).toBe('\u2742');
+    expect(text).toBe('My Codex Session');
+  });
+
+  it('splits Codex icon with no trailing space', () => {
+    const [icon, text] = splitLabelIcon('\u2742NoSpace');
+    expect(icon).toBe('\u2742');
+    expect(text).toBe('NoSpace');
   });
 
   it('returns empty icon for labels without prefix', () => {
@@ -47,7 +69,7 @@ describe('splitLabelIcon', () => {
     expect(text).toBe('');
   });
 
-  it('handles icon with no trailing text', () => {
+  it('handles Claude icon with no trailing text', () => {
     const [icon, text] = splitLabelIcon('\u2733 ');
     expect(icon).toBe('\u2733');
     expect(text).toBe('');

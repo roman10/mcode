@@ -70,6 +70,7 @@ interface LayoutState {
   sessionFilterQuery: string; // transient, not persisted
   splitIntent: SplitIntent | null;
   showNewSessionDialog: boolean;
+  newSessionDialogType: 'claude' | 'codex';
   showKeyboardShortcuts: boolean;
   showSettings: boolean;
   showAccountsDialog: boolean;
@@ -103,6 +104,7 @@ interface LayoutState {
   setSessionFilterQuery(query: string): void;
   setSplitIntent(intent: SplitIntent | null): void;
   setShowNewSessionDialog(show: boolean): void;
+  setNewSessionDialogType(type: 'claude' | 'codex'): void;
   setShowKeyboardShortcuts(show: boolean): void;
   setShowSettings(show: boolean): void;
   setShowAccountsDialog(show: boolean): void;
@@ -266,6 +268,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   sessionFilterQuery: '',
   splitIntent: null,
   showNewSessionDialog: false,
+  newSessionDialogType: 'claude' as const,
   showKeyboardShortcuts: false,
   showSettings: false,
   showAccountsDialog: false,
@@ -448,6 +451,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setSplitIntent: (intent) => set({ splitIntent: intent }),
 
   setShowNewSessionDialog: (show) => set({ showNewSessionDialog: show }),
+  setNewSessionDialogType: (type) => set({ newSessionDialogType: type }),
   setShowKeyboardShortcuts: (show) => set({ showKeyboardShortcuts: show }),
   setShowSettings: (show) => set({ showSettings: show }),
   setShowAccountsDialog: (show) => set({ showAccountsDialog: show }),

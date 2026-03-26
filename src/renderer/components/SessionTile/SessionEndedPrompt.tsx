@@ -50,12 +50,16 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
     setError(null);
     try {
       const accountOverride = selectedAccountId || undefined;
-      const newSession = await window.mcode.sessions.create({
-        cwd: session.cwd,
-        permissionMode: session.permissionMode,
-        sessionType: session.sessionType,
-        accountId: accountOverride,
-      });
+      const newSession = await window.mcode.sessions.create(
+        session.sessionType === 'codex'
+          ? { cwd: session.cwd, sessionType: 'codex' }
+          : {
+              cwd: session.cwd,
+              permissionMode: session.permissionMode,
+              sessionType: session.sessionType,
+              accountId: accountOverride,
+            },
+      );
       useSessionStore.getState().addSession(newSession);
       useLayoutStore.getState().replaceTile(sessionId, newSession.sessionId);
       useLayoutStore.getState().persist();
@@ -84,7 +88,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
         </div>
       )}
 
-      {accounts.length > 1 && (
+      {accounts.length > 1 && session?.sessionType !== 'codex' && (
         <div className="flex items-center gap-2 text-sm">
           <span className="text-text-muted">Account:</span>
           <select
@@ -121,9 +125,14 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
         </button>
       </div>
 
-      {!canResume && session?.sessionType !== 'terminal' && (
+      {session?.sessionType === 'claude' && !canResume && (
         <div className="text-xs text-text-muted">
           No Claude session ID recorded — cannot resume
+        </div>
+      )}
+      {session?.sessionType === 'codex' && (
+        <div className="text-xs text-text-muted">
+          Codex sessions cannot currently be resumed
         </div>
       )}
 

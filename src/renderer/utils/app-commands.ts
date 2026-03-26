@@ -28,6 +28,7 @@ function getNavigableSessions(): SessionInfo[] {
 export function executeAppCommand(command: AppCommand): void {
   switch (command.command) {
     case 'new-session':
+      useLayoutStore.getState().setNewSessionDialogType(command.sessionType ?? 'claude');
       useLayoutStore.getState().setShowNewSessionDialog(true);
       break;
 

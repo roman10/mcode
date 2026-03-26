@@ -78,7 +78,7 @@ export type SessionType = 'claude' | 'codex' | 'terminal';
 
 **`src/shared/constants.ts`** — Add Codex icon constant:
 ```typescript
-export const CODEX_ICON = '\u2318'; // ⌘ (U+2318 PLACE OF INTEREST SIGN) — strongly associated with "Codex" in earlier OpenAI branding/discussions
+export const CODEX_ICON = '\u2742'; // ❂ (U+2742 CIRCLED OPEN CENTRE EIGHT POINTED STAR) — structurally closest to the OpenAI knot logo
 ```
 
 **`db/migrations/028_codex_session_type.sql`** — No-op migration (SQLite TEXT column already accepts any string, but document the new value):
@@ -191,7 +191,7 @@ function isAgentSession(sessionType: SessionType): boolean {
    ```
    This is required so **auto-generated Codex labels** also carry the Codex icon. Prefixing only `userLabel` is insufficient.
 
-   **DB INSERT (line 278-281):** Use `isClaude` instead of `!isTerminal` for permission_mode, effort, enable_auto_mode fields (these are null for both terminal AND codex sessions).
+   **DB INSERT (line 278-281):** Use `isClaude` instead of `!isTerminal` for `permission_mode`, `effort`, `enable_auto_mode`, and `allow_bypass_permissions` fields (these are null for both terminal AND codex sessions).
 
    **onFirstData status (line 308):**
    ```typescript
@@ -214,7 +214,7 @@ function isAgentSession(sessionType: SessionType): boolean {
   - Command resolved to `'codex'`
   - Hook mode is `'fallback'`
   - Session status transitions through `starting` → `idle`
-  - Label has `⌘` prefix for both user-provided and auto-generated labels
+  - Label has `❂` prefix for both user-provided and auto-generated labels
 - Integration test (with `codex` CLI installed): spawn a Codex session, confirm PTY produces output
 
 ---
@@ -234,7 +234,7 @@ export function splitLabelIcon(label: string): [icon: string, text: string] {
   const claudeMatch = label.match(/^([\u2800-\u28FF\u2733])\s*/);
   if (claudeMatch) return [CLAUDE_ICON, label.slice(claudeMatch[0].length)];
 
-  // Codex icon: ⌘ (U+2318)
+  // Codex icon: ❂ (U+2742)
   if (label.startsWith(CODEX_ICON)) {
     const text = label.slice(1).trimStart();
     return [CODEX_ICON, text];
@@ -252,10 +252,9 @@ const hideCursor = sessionType === 'claude';
 const hideCursor = sessionType === 'claude' || sessionType === 'codex';
 ```
 
-**`src/renderer/components/SessionTile/TerminalInstance.tsx`** — Label normalization:
+**`src/renderer/utils/label-utils.ts`** — Rename `normalizeClaudeLabel` → `normalizeAgentLabel` and extend:
 ```typescript
-// Generalize normalizeClaudeLabel → normalizeAgentLabel:
-function normalizeAgentLabel(title: string, sessionType: SessionType): string {
+export function normalizeAgentLabel(title: string, sessionType: SessionType): string {
   if (sessionType === 'claude') {
     return title.replace(/^[\u2800-\u28FF\u2733]\s*/, `${CLAUDE_ICON} `);
   }
@@ -264,6 +263,16 @@ function normalizeAgentLabel(title: string, sessionType: SessionType): string {
   }
   return title;
 }
+```
+
+**`src/renderer/components/SessionTile/TerminalInstance.tsx`** — Update import and call site:
+```typescript
+// Before:
+import { normalizeClaudeLabel } from '../../utils/label-utils';
+const normalized = sessionType === 'claude' ? normalizeClaudeLabel(title) : title;
+// After:
+import { normalizeAgentLabel } from '../../utils/label-utils';
+const normalized = normalizeAgentLabel(title, sessionType);
 ```
 
 **`src/renderer/components/SessionTile/SessionEndedPrompt.tsx`** — Fix ended-state copy:
@@ -328,7 +337,7 @@ Required UI behavior:
 - `CreateTaskDialog.tsx` — filters for `'claude'` only; Codex task support deferred to Phase 2
 
 #### Verification
-- Visual: Create a Codex session, verify it appears in sidebar with `⌘` icon
+- Visual: Create a Codex session, verify it appears in sidebar with `❂` icon
 - Visual: Codex session appears in kanban board in correct column
 - Visual: Codex session renders as a mosaic tile (not redirected to bottom panel)
 - Visual: Terminal cursor is hidden for Codex sessions
@@ -446,11 +455,11 @@ case 'new-session':
 | Phase | File | Change |
 |-------|------|--------|
 | 1A | `src/shared/types.ts` | Add `'codex'` to `SessionType` union |
-| 1A | `src/shared/constants.ts` | Add `CODEX_ICON` constant (`⌘`) |
+| 1A | `src/shared/constants.ts` | Add `CODEX_ICON` constant (`❂`) |
 | 1A | `db/migrations/028_codex_session_type.sql` | Documentation marker migration |
 | 1B | `src/main/session-manager.ts` | `isCodexCommand()`, `isAgentSession()`, Codex arg builder, label prefix helper, status transitions |
-| 1C | `src/renderer/utils/label-utils.ts` | Extend `splitLabelIcon()` for Codex icon |
-| 1C | `src/renderer/components/SessionTile/TerminalInstance.tsx` | Hide cursor for Codex, add `normalizeAgentLabel()` |
+| 1C | `src/renderer/utils/label-utils.ts` | Extend `splitLabelIcon()` for Codex icon; rename `normalizeClaudeLabel` → `normalizeAgentLabel` with Codex support |
+| 1C | `src/renderer/components/SessionTile/TerminalInstance.tsx` | Hide cursor for Codex; update import to use `normalizeAgentLabel` |
 | 1C | `src/renderer/components/SessionTile/SessionEndedPrompt.tsx` | Codex-specific non-resumable copy; Codex-safe "Start New Session" behavior |
 | 1D | `src/main/commit-tracker.ts` | Rename `detectClaudeAssisted` → `detectAIAssisted`, add Codex patterns |
 | 1D | `src/renderer/components/Sidebar/NewSessionDialog.tsx` | Agent type selector, conditional Claude-specific fields |
