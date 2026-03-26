@@ -129,7 +129,7 @@ function TerminalToolbar({
           {lastTool}
         </span>
       )}
-      {labelIcon && <span className="text-xs mr-1">{labelIcon}</span>}
+      {labelIcon && <span className="text-xs mr-1 text-text-secondary">{labelIcon}</span>}
       {isEditing ? (
         <input
           ref={inputRef}
