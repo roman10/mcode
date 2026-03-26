@@ -645,7 +645,13 @@ export class SessionManager {
       currentAttention,
       { hasPendingTasks },
     );
-    const newStatus = result.status;
+    // If the state machine says 'ended' but the PTY is still alive, the Claude
+    // process is transitioning between sessions (e.g. /resume), not exiting.
+    // Keep the current status — the PTY onExit callback will set 'ended' when
+    // the process truly terminates.
+    const newStatus = (result.status === 'ended' && this.ptyManager.getInfo(sessionId) !== null)
+      ? currentStatus
+      : result.status;
 
     // Persist event with computed status
     this.eventStore.persistEvent(sessionId, event, newStatus);

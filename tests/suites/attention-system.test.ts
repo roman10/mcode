@@ -185,11 +185,13 @@ describe('attention system', () => {
     // Set action attention before ending
     await injectHookEvent(client, session.sessionId, 'PermissionRequest');
 
-    // SessionEnd should clear attention regardless of claudeSessionId
+    // SessionEnd should clear attention regardless of claudeSessionId.
+    // With PTY alive, status is kept (not transitioned to ended) — only
+    // PTY exit causes the ended transition.
     const afterEnd = await injectHookEvent(client, session.sessionId, 'SessionEnd', {
       claudeSessionId: 'test-claude-session-id',
     });
-    expect(afterEnd.status).toBe('ended');
+    expect(afterEnd.status).toBe('waiting');
     expect(afterEnd.attentionLevel).toBe('none');
     expect(afterEnd.attentionReason).toBeNull();
   });

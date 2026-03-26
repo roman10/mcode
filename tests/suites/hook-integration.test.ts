@@ -93,7 +93,7 @@ describe('hook integration', () => {
     expect(updated.attentionLevel).toBe('none');
   });
 
-  it('SessionEnd transitions to ended and clears attention (no claudeSessionId)', async () => {
+  it('SessionEnd with PTY alive clears attention but keeps status (no claudeSessionId)', async () => {
     // Create a fresh session for this test — no claudeSessionId, so not resumable
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
@@ -102,12 +102,14 @@ describe('hook integration', () => {
     await injectHookEvent(client, session.sessionId, 'SessionStart');
     await injectHookEvent(client, session.sessionId, 'PermissionRequest');
 
-    const ended = await injectHookEvent(client, session.sessionId, 'SessionEnd');
-    expect(ended.status).toBe('ended');
-    expect(ended.attentionLevel).toBe('none');
+    // SessionEnd while PTY is alive should NOT transition to ended —
+    // only PTY exit does that. But attention should still be cleared.
+    const afterEnd = await injectHookEvent(client, session.sessionId, 'SessionEnd');
+    expect(afterEnd.status).toBe('waiting');
+    expect(afterEnd.attentionLevel).toBe('none');
   });
 
-  it('SessionEnd clears attention even for resumable sessions (has claudeSessionId)', async () => {
+  it('SessionEnd with PTY alive clears attention for resumable sessions (has claudeSessionId)', async () => {
     const session = await createTestSession(client);
     sessionIds.push(session.sessionId);
     await waitForActive(client, session.sessionId);
@@ -120,10 +122,49 @@ describe('hook integration', () => {
     // Set action attention before ending
     await injectHookEvent(client, session.sessionId, 'PermissionRequest');
 
-    const ended = await injectHookEvent(client, session.sessionId, 'SessionEnd');
-    expect(ended.status).toBe('ended');
-    expect(ended.attentionLevel).toBe('none');
-    expect(ended.attentionReason).toBeNull();
+    // SessionEnd while PTY is alive should NOT transition to ended
+    const afterEnd = await injectHookEvent(client, session.sessionId, 'SessionEnd');
+    expect(afterEnd.status).toBe('waiting');
+    expect(afterEnd.attentionLevel).toBe('none');
+    expect(afterEnd.attentionReason).toBeNull();
+  });
+
+  it('SessionEnd with PTY alive keeps current status (supports /resume)', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+
+    // Establish an active session with a claude_session_id
+    await injectHookEvent(client, session.sessionId, 'SessionStart', {
+      claudeSessionId: 'old-session-111',
+    });
+
+    // SessionEnd while PTY is alive should NOT transition to ended
+    const afterEnd = await injectHookEvent(client, session.sessionId, 'SessionEnd');
+    expect(afterEnd.status).toBe('active');
+    expect(afterEnd.attentionLevel).toBe('none');
+  });
+
+  it('/resume flow: SessionEnd + SessionStart with new claudeSessionId', async () => {
+    const session = await createTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+
+    // Old session active
+    await injectHookEvent(client, session.sessionId, 'SessionStart', {
+      claudeSessionId: 'old-session-222',
+    });
+
+    // Old session ends (/resume triggered) — PTY still alive
+    const afterEnd = await injectHookEvent(client, session.sessionId, 'SessionEnd');
+    expect(afterEnd.status).not.toBe('ended');
+
+    // New session starts with different claudeSessionId
+    const afterResume = await injectHookEvent(client, session.sessionId, 'SessionStart', {
+      claudeSessionId: 'new-session-333',
+    });
+    expect(afterResume.status).toBe('active');
+    expect(afterResume.claudeSessionId).toBe('new-session-333');
   });
 
   it('events are persisted and retrievable with sessionStatus', async () => {
