@@ -208,6 +208,50 @@ describe('auto-close: queue drain detection', () => {
   });
 });
 
+describe('auto-close: resume clears auto_close flag', () => {
+  let db: Database;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+  });
+
+  afterAll(() => {
+    db.close();
+  });
+
+  // SQL mirroring the updated session-manager.ts resume() method
+  const RESUME_SQL = `
+    UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = 'live', auto_close = 0
+    WHERE session_id = ?
+  `;
+
+  it('resume clears auto_close so the session is not immediately re-killed', () => {
+    db.run(
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, claude_session_id)
+       VALUES ('resume-autoclose', 'test', '/tmp', 'ended', datetime('now'), 'claude', 1, 'abc123')`,
+    );
+    expect(getAutoClose(db, 'resume-autoclose')).toBe(true);
+
+    // Simulate what session-manager.ts resume() does
+    db.run(RESUME_SQL, ['resume-autoclose']);
+
+    expect(getAutoClose(db, 'resume-autoclose')).toBe(false);
+  });
+
+  it('status is reset to starting after resume', () => {
+    db.run(
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, claude_session_id)
+       VALUES ('resume-status', 'test', '/tmp', 'ended', datetime('now'), 'claude', 1, 'abc456')`,
+    );
+    db.run(RESUME_SQL, ['resume-status']);
+
+    const [result] = db.exec(`SELECT status, auto_close FROM sessions WHERE session_id = 'resume-status'`);
+    const [status, autoClose] = result.values[0];
+    expect(status).toBe('starting');
+    expect(autoClose).toBe(0);
+  });
+});
+
 describe('auto-close: idle guard (Fix 1)', () => {
   let db: Database;
 

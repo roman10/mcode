@@ -385,9 +385,10 @@ export class SessionManager {
     const hookRuntime = this.hookRuntimeGetter();
     const hookMode = hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
-    // Reset session to starting state
+    // Reset session to starting state; clear auto_close so a manual resume
+    // doesn't immediately re-kill the session when it goes idle.
     db.prepare(
-      `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = ? WHERE session_id = ?`,
+      `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = ?, auto_close = 0 WHERE session_id = ?`,
     ).run(hookMode, sessionId);
 
     // Build args: claude --resume <claude_session_id>
