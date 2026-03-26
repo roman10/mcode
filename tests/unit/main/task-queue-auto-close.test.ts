@@ -231,9 +231,8 @@ describe('auto-close: idle guard (Fix 1)', () => {
       `SELECT status FROM sessions WHERE session_id = 'guard-active'`,
     );
     const status = result.values[0][0] as string;
-    expect(status).not.toBe('idle');
     // With cnt=0 but status!=='idle', the combined kill condition is false.
-    expect(status === 'idle').toBe(false);
+    expect(status).not.toBe('idle');
   });
 
   it('session with status=idle passes the kill guard', () => {
