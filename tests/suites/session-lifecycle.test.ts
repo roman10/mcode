@@ -11,32 +11,34 @@ import {
 
 describe('session lifecycle', () => {
   const client = new McpTestClient();
-  const sessionIds: string[] = [];
+  // sessionId/createdSession are set in beforeAll so all tests can reference them
+  // without depending on test 1 having run first.
+  let sessionId: string;
+  let createdSession: SessionInfo;
+  const extraSessionIds: string[] = [];
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+    createdSession = await createTestSession(client);
+    sessionId = createdSession.sessionId;
   });
 
   afterAll(async () => {
-    await cleanupSessions(client, sessionIds);
+    await cleanupSessions(client, [sessionId, ...extraSessionIds]);
     await client.disconnect();
   });
 
-  it('creates a session with starting status', async () => {
-    const session = await createTestSession(client);
-    sessionIds.push(session.sessionId);
-
-    expect(session.sessionId).toMatch(
+  it('starts with starting status', async () => {
+    expect(sessionId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
-    expect(session.status).toBe('starting');
-    expect(session.startedAt).toBeTruthy();
-    expect(session.endedAt).toBeNull();
+    expect(createdSession.status).toBe('starting');
+    expect(createdSession.startedAt).toBeTruthy();
+    expect(createdSession.endedAt).toBeNull();
   });
 
   it('transitions from starting to active', async () => {
-    const sessionId = sessionIds[0];
     const session = await waitForActive(client, sessionId);
 
     expect(session.status).toBe('active');
@@ -44,7 +46,6 @@ describe('session lifecycle', () => {
   });
 
   it('appears in session list', async () => {
-    const sessionId = sessionIds[0];
     const sessions = await client.callToolJson<SessionInfo[]>('session_list');
 
     const found = sessions.find((s) => s.sessionId === sessionId);
@@ -53,7 +54,6 @@ describe('session lifecycle', () => {
   });
 
   it('can set label', async () => {
-    const sessionId = sessionIds[0];
     const newLabel = `renamed-${Date.now()}`;
     const updated = await client.callToolJson<SessionInfo>('session_set_label', {
       sessionId,
@@ -70,7 +70,6 @@ describe('session lifecycle', () => {
   });
 
   it('has PTY info with valid pid and dimensions', async () => {
-    const sessionId = sessionIds[0];
     const info = await client.callToolJson<{
       id: string;
       pid: number;
@@ -86,7 +85,6 @@ describe('session lifecycle', () => {
   });
 
   it('kills session and transitions to ended', async () => {
-    const sessionId = sessionIds[0];
     await killAndWaitEnded(client, sessionId);
 
     const session = await client.callToolJson<SessionInfo>('session_get_status', {
@@ -97,9 +95,13 @@ describe('session lifecycle', () => {
   });
 
   it('double kill is safe (idempotent)', async () => {
-    const sessionId = sessionIds[0];
-    // Second kill should not error
-    const result = await client.callTool('session_kill', { sessionId });
+    // Create a fresh session, kill it, then kill again — does not depend on above test
+    const s = await createTestSession(client);
+    extraSessionIds.push(s.sessionId);
+    await waitForActive(client, s.sessionId);
+    await killAndWaitEnded(client, s.sessionId);
+
+    const result = await client.callTool('session_kill', { sessionId: s.sessionId });
     expect(result.isError).toBeFalsy();
   });
 });

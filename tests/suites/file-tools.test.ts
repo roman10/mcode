@@ -108,5 +108,10 @@ describe('file tools', () => {
 
     const text2 = await client.callToolText('quick_open_toggle', { mode: 'commands' });
     expect(text2).toContain('commands');
+
+    // Dismiss the overlay so it doesn't bleed into subsequent tests
+    try {
+      await client.callToolText('quick_open_toggle', { mode: 'commands' });
+    } catch { /* best-effort close */ }
   });
 });

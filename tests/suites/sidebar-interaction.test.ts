@@ -12,10 +12,17 @@ import {
 describe('sidebar interaction', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
+  // session1Id is created in beforeAll so tests that use it don't depend on
+  // the first 'it' block having run.
+  let session1Id: string;
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+    const s = await createTestSession(client);
+    await waitForActive(client, s.sessionId);
+    session1Id = s.sessionId;
+    sessionIds.push(session1Id);
   });
 
   afterAll(async () => {
@@ -28,17 +35,13 @@ describe('sidebar interaction', () => {
   });
 
   it('selects a session', async () => {
-    const session = await createTestSession(client);
-    sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
-
     await client.callTool('sidebar_select_session', {
-      sessionId: session.sessionId,
+      sessionId: session1Id,
     });
 
     const selected = await getSidebarSelected(client);
 
-    expect(selected.selectedSessionId).toBe(session.sessionId);
+    expect(selected.selectedSessionId).toBe(session1Id);
   });
 
   it('deselects with null', async () => {
@@ -56,17 +59,17 @@ describe('sidebar interaction', () => {
 
     // Select first
     await client.callTool('sidebar_select_session', {
-      sessionId: sessionIds[0],
+      sessionId: session1Id,
     });
     let selected = await getSidebarSelected(client);
-    expect(selected.selectedSessionId).toBe(sessionIds[0]);
+    expect(selected.selectedSessionId).toBe(session1Id);
 
     // Switch to second
     await client.callTool('sidebar_select_session', {
-      sessionId: sessionIds[1],
+      sessionId: session2.sessionId,
     });
     selected = await getSidebarSelected(client);
-    expect(selected.selectedSessionId).toBe(sessionIds[1]);
+    expect(selected.selectedSessionId).toBe(session2.sessionId);
   });
 
   it('gets sidebar width', async () => {

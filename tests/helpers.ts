@@ -148,15 +148,21 @@ export async function cleanupSessions(
   client: McpTestClient,
   sessionIds: string[],
 ): Promise<void> {
-  for (const id of sessionIds) {
-    try {
-      await client.callTool('session_kill', { sessionId: id });
-    } catch {
-      // Best-effort cleanup
-    }
-  }
-  // Give processes time to exit
-  await sleep(500);
+  if (sessionIds.length === 0) return;
+  // Kill all concurrently
+  await Promise.allSettled(
+    sessionIds.map((id) => client.callTool('session_kill', { sessionId: id })),
+  );
+  // Wait for each to reach 'ended' concurrently with a short timeout
+  await Promise.allSettled(
+    sessionIds.map((id) =>
+      client.callToolJson('session_wait_for_status', {
+        sessionId: id,
+        status: 'ended',
+        timeout_ms: 5000,
+      }),
+    ),
+  );
 }
 
 // --- Hook helpers ---

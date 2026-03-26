@@ -19,10 +19,21 @@ import {
 describe('attention system', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
+  // actionSessionId is created with action attention in beforeAll so tests that
+  // inspect or clear it don't cascade-fail if test 1 fails.
+  let actionSessionId: string;
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+    // Pre-create a session with action attention so tests 2 and 5 can reference
+    // it without depending on test 1 having run first.
+    const s = await createTestSession(client);
+    await waitForActive(client, s.sessionId);
+    sessionIds.push(s.sessionId);
+    await injectHookEvent(client, s.sessionId, 'SessionStart');
+    await injectHookEvent(client, s.sessionId, 'PermissionRequest', { toolName: 'Write' });
+    actionSessionId = s.sessionId;
   });
 
   afterAll(async () => {
@@ -31,19 +42,12 @@ describe('attention system', () => {
   });
 
   it('PermissionRequest sets action attention', async () => {
-    const session = await createTestSession(client);
-    sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
-    await injectHookEvent(client, session.sessionId, 'SessionStart');
-
-    const updated = await injectHookEvent(
-      client,
-      session.sessionId,
-      'PermissionRequest',
-      { toolName: 'Write' },
-    );
-    expect(updated.attentionLevel).toBe('action');
-    expect(updated.status).toBe('waiting');
+    // Verify the session set up in beforeAll has action attention
+    const session = await client.callToolJson<SessionInfo>('session_get_status', {
+      sessionId: actionSessionId,
+    });
+    expect(session.attentionLevel).toBe('action');
+    expect(session.status).toBe('waiting');
   });
 
   it('attention summary reports one action session', async () => {
@@ -80,8 +84,8 @@ describe('attention system', () => {
   });
 
   it('clear_attention clears one session without changing status', async () => {
-    const sessionId = sessionIds[0]; // The one with action attention
-    const updated = await clearAttention(client, sessionId);
+    // Uses the beforeAll session which has action attention
+    const updated = await clearAttention(client, actionSessionId);
     expect(updated.attentionLevel).toBe('none');
     expect(updated.status).toBe('waiting'); // Status unchanged
   });

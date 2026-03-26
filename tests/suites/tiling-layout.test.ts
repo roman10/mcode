@@ -14,10 +14,24 @@ import {
 describe('tiling layout', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
+  // Both sessions are created in beforeAll so tests 3–5 that reference
+  // sessionIds[0]/[1] don't cascade-fail if tests 1–2 fail.
+  let initialTileCount: number;
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+    initialTileCount = await getTileCount(client);
+
+    const s1 = await createLiveClaudeTestSession(client);
+    sessionIds.push(s1.sessionId);
+    await waitForActive(client, s1.sessionId);
+    await waitForTileCount(client, initialTileCount + 1);
+
+    const s2 = await createLiveClaudeTestSession(client);
+    sessionIds.push(s2.sessionId);
+    await waitForActive(client, s2.sessionId);
+    await waitForTileCount(client, initialTileCount + 2);
   });
 
   afterAll(async () => {
@@ -31,31 +45,11 @@ describe('tiling layout', () => {
     await client.disconnect();
   });
 
-  it('session creation auto-adds a tile', async () => {
-    const before = await getTileCount(client);
-
-    const session = await createLiveClaudeTestSession(client);
-    sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
-
-    // session:created IPC listener in App.tsx auto-adds the tile
-    await waitForTileCount(client, before + 1);
-
-    const after = await getTileCount(client);
-    expect(after).toBe(before + 1);
-  });
-
-  it('second session creation adds another tile', async () => {
-    const before = await getTileCount(client);
-
-    const session = await createLiveClaudeTestSession(client);
-    sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
-
-    await waitForTileCount(client, before + 1);
-
-    const after = await getTileCount(client);
-    expect(after).toBe(before + 1);
+  it('session creation auto-adds tiles for both sessions', async () => {
+    // Both sessions were created in beforeAll and their tile additions were
+    // already verified by waitForTileCount; confirm the final count here.
+    const count = await getTileCount(client);
+    expect(count).toBe(initialTileCount + 2);
   });
 
   it('layout tree contains both session IDs', async () => {
