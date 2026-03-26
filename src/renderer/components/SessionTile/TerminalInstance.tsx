@@ -11,6 +11,7 @@ import {
   SCROLLBACK_PRESETS,
 } from '@shared/constants';
 import { terminalRegistry } from '../../devtools/terminal-registry';
+import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
@@ -30,9 +31,24 @@ function resolveScrollback(value: number | undefined): number {
 function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalInstanceProps): React.JSX.Element {
   const termRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [currentScrollback, setCurrentScrollback] = useState(scrollbackLines);
   const search = useTerminalSearch();
+
+  // Subscribe to terminal panel height changes so that fit() is called even when
+  // ResizeObserver doesn't fire (e.g. in background/non-painting Electron windows).
+  useEffect(() => {
+    let lastH = useTerminalPanelStore.getState().panelHeight;
+    const unsub = useTerminalPanelStore.subscribe((s) => {
+      if (s.panelHeight !== lastH) {
+        lastH = s.panelHeight;
+        // Delay one tick so the DOM layout has propagated from the state change.
+        window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
+      }
+    });
+    return unsub;
+  }, []);
 
   useEffect(() => {
     const container = termRef.current;
@@ -54,6 +70,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     termInstanceRef.current = term;
 
     const fitAddon = new FitAddon();
+    fitAddonRef.current = fitAddon;
     const webLinksAddon = new WebLinksAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
@@ -154,10 +171,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     });
 
     // Defer initial fit to after browser layout is finalized.
-    // The ResizeObserver below is a second safety net.
-    requestAnimationFrame(() => {
-      fitAddon.fit();
-    });
+    // Using setTimeout instead of requestAnimationFrame so this fires even
+    // when the Electron window is not actively painting (e.g. during tests).
+    const initialFitTimer = window.setTimeout(() => { fitAddon.fit(); }, 0);
 
     // Replay buffered output before attaching live listener
     window.mcode.pty
@@ -204,26 +220,42 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     };
     container.addEventListener('contextmenu', handleContextMenu);
 
-    // Resize handling with rAF debounce
-    let resizeRaf = 0;
-    const resizeObserver = new ResizeObserver(() => {
-      cancelAnimationFrame(resizeRaf);
-      resizeRaf = requestAnimationFrame(() => {
-        fitAddon.fit();
-      });
-    });
+    // Resize handling with setTimeout debounce.
+    // requestAnimationFrame is not used here because it does not fire when the
+    // Electron window is not actively painting (e.g. tests, background window).
+    // setTimeout(0) fires regardless and is sufficient for post-layout fit().
+    let resizeTimer = 0;
+    const scheduleFit = (): void => {
+      clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => { fitAddon.fit(); }, 0);
+    };
+
+    const resizeObserver = new ResizeObserver(() => { scheduleFit(); });
     resizeObserver.observe(container);
+
+    // MutationObserver on the terminal panel element catches panel height
+    // changes that come via inline-style updates (e.g. terminal_panel_set_height).
+    // This fires synchronously on DOM mutations even when Electron is not
+    // actively painting, unlike ResizeObserver which requires the rendering loop.
+    const panelEl = container.closest('[data-terminal-panel]');
+    const mutationObserver = panelEl
+      ? new MutationObserver(() => { scheduleFit(); })
+      : null;
+    mutationObserver?.observe(panelEl!, { attributes: true, attributeFilter: ['style'] });
 
     return () => {
       termInstanceRef.current = null;
+      fitAddonRef.current = null;
       terminalRegistry.delete(sessionId);
-      cancelAnimationFrame(resizeRaf);
+      clearTimeout(initialFitTimer);
+      clearTimeout(resizeTimer);
       unsubResize.dispose();
       unsubTitle.dispose();
       unsubData();
       unsubExit();
       container.removeEventListener('contextmenu', handleContextMenu);
       resizeObserver.disconnect();
+      mutationObserver?.disconnect();
       webglAddon?.dispose();
       term.dispose();
     };

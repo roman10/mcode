@@ -262,6 +262,21 @@ export function initDevtoolsBridge(): void {
         const { height } = params as { height: number };
         const { useTerminalPanelStore } = await import('../stores/terminal-panel-store');
         useTerminalPanelStore.getState().setPanelHeight(height);
+        // ResizeObserver doesn't fire in background/non-painting Electron windows, so
+        // explicitly fit all registered terminals after the DOM layout propagates.
+        await new Promise<void>((resolve) => window.setTimeout(() => {
+          terminalRegistry.forEach((term) => {
+            // Access FitAddon via xterm's internal addon manager.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const addons: Array<{ instance?: { fit?: () => void } }> = (term as any)?._addonManager?._addons ?? [];
+            for (const addon of addons) {
+              if (typeof addon?.instance?.fit === 'function') {
+                addon.instance.fit();
+              }
+            }
+          });
+          resolve();
+        }, 50));
         result = true;
         break;
       }

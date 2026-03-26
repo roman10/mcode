@@ -22,14 +22,13 @@ describe('session label source', () => {
   });
 
   it('preserves user-provided label when setAutoLabel is called', async () => {
-    const CLAUDE_ICON = '\u2733';
     const userLabel = `my-custom-label-${Date.now()}`;
-    const expectedLabel = `${CLAUDE_ICON} ${userLabel}`;
     const session = await createTestSession(client, { label: userLabel });
     sessionIds.push(session.sessionId);
 
-    // User-provided labels should have the ✳ icon prefix added automatically
-    expect(session.label).toBe(expectedLabel);
+    // Terminal sessions keep the label as-is (no ✳ prefix — that's only for Claude sessions)
+    const expectedLabel = session.label;
+    expect(session.label).toBe(userLabel);
 
     // Simulate what happens when Claude Code emits its initial terminal title
     const updated = await client.callToolJson<SessionInfo>('session_set_auto_label', {

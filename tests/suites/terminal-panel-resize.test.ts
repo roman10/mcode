@@ -15,12 +15,24 @@ describe('terminal panel resize', () => {
 
   beforeAll(async () => {
     await client.connect();
+
+    // Reload the renderer to ensure fresh code is active. This is necessary in
+    // dev/test mode where HMR may not have updated all running module instances.
+    // In CI (fresh app start) this is a no-op equivalent.
+    try {
+      await client.callToolJson<null>('window_execute_js', { code: 'location.reload(); null' });
+    } catch {
+      // Expected: renderer reloads, breaking the executeJavaScript response
+    }
+    await sleep(3000); // wait for renderer to reinitialize
+
     await resetTestState(client);
 
     const session = await createTestSession(client);
     sessionId = session.sessionId;
     sessionIds.push(sessionId);
     await waitForActive(client, sessionId);
+    await sleep(500);
   });
 
   afterAll(async () => {
