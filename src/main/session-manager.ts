@@ -216,6 +216,8 @@ export class SessionManager {
     const sessionId = randomUUID();
     const cwd = input.cwd;
     const userLabel = input.label || null;
+    const sessionType = input.sessionType ?? 'claude';
+    const isTerminal = sessionType === 'terminal';
     const label = (() => {
       const prefixed = (raw: string): string => {
         if (sessionType === 'claude') {
@@ -234,9 +236,6 @@ export class SessionManager {
     // Preserve user-provided labels from being overwritten by terminal title updates.
     const labelSource = userLabel ? 'user' : 'auto';
     const startedAt = new Date().toISOString();
-    const sessionType = input.sessionType ?? 'claude';
-
-    const isTerminal = sessionType === 'terminal';
 
     const command = isTerminal
       ? (input.command ?? process.env.SHELL ?? '/bin/zsh')
