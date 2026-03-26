@@ -54,6 +54,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Split Horizontal', keys: 'D', mod: true, category: 'terminal' },
   { label: 'Split Vertical', keys: 'Shift+D', mod: true, category: 'terminal' },
   { label: 'Toggle Maximize', keys: 'Enter', mod: true, category: 'terminal' },
+  { label: 'Toggle Auto-close', keys: 'Shift+Q', mod: true, category: 'terminal' },
   { label: 'Zoom In', keys: '=', mod: true, category: 'terminal' },
   { label: 'Zoom Out', keys: '-', mod: true, category: 'terminal' },
   { label: 'Reset Zoom', keys: '0', mod: true, category: 'terminal' },

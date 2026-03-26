@@ -21,7 +21,10 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const selectSession = useSessionStore((s) => s.selectSession);
   const status = useSessionStore((s) => s.sessions[sessionId]?.status);
   const sessionType = useSessionStore((s) => s.sessions[sessionId]?.sessionType);
+  const hookMode = useSessionStore((s) => s.sessions[sessionId]?.hookMode);
   const scrollbackLines = useSessionStore((s) => s.sessions[sessionId]?.terminalConfig?.scrollbackLines);
+
+  const canQueueTasks = sessionType === 'claude' && hookMode === 'live' && status !== 'ended';
 
   const isFocused = useSessionStore((s) => s.selectedSessionId === sessionId);
   const viewMode = useLayoutStore((s) => s.viewMode);
@@ -138,6 +141,16 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
         e.preventDefault();
         e.stopPropagation();
         handleToggleMaximize();
+        break;
+
+      case 'q':
+        if (e.shiftKey && canQueueTasks) {
+          e.preventDefault();
+          e.stopPropagation();
+          window.mcode.sessions
+            .setAutoClose(sessionId, !useSessionStore.getState().sessions[sessionId]?.autoClose)
+            .catch(console.error);
+        }
         break;
     }
   };

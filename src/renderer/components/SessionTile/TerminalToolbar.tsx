@@ -184,7 +184,7 @@ function TerminalToolbar({
           </Tooltip>
         )}
         {canQueueTasks && (
-          <Tooltip content={session?.autoClose ? 'Auto-close enabled — session will close when queue empties' : 'Auto-close disabled'} side="bottom">
+          <Tooltip content={session?.autoClose ? 'Auto-close enabled — session will close when queue empties (⌘⇧Q)' : 'Auto-close disabled (⌘⇧Q)'} side="bottom">
             <button
               aria-label={session?.autoClose ? 'Disable auto-close' : 'Enable auto-close'}
               className={`px-1 transition-colors rounded ${
