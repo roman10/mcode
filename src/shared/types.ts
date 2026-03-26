@@ -80,6 +80,7 @@ export interface SessionInfo {
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
   enableAutoMode?: boolean;
+  allowBypassPermissions?: boolean;
   worktree: string | null;
   startedAt: string; // ISO 8601
   endedAt: string | null;
@@ -103,6 +104,7 @@ export interface SessionCreateInput {
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
   enableAutoMode?: boolean;
+  allowBypassPermissions?: boolean;
   worktree?: string;
   command?: string;
   args?: string[];

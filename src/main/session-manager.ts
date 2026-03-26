@@ -60,6 +60,7 @@ interface SessionRecord {
   terminal_config: string;
   effort: string | null;
   enable_auto_mode: number | null;
+  allow_bypass_permissions: number | null;
   worktree: string | null;
   account_id: string | null;
   auto_close: number;
@@ -79,6 +80,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
     effort: (row.effort as EffortLevel) ?? undefined,
     enableAutoMode: row.enable_auto_mode === 1 ? true : undefined,
+    allowBypassPermissions: row.allow_bypass_permissions === 1 ? true : undefined,
     worktree: row.worktree,
     startedAt: row.started_at,
     endedAt: row.ended_at,
@@ -259,6 +261,9 @@ export class SessionManager {
       if (input.enableAutoMode) {
         args.push('--enable-auto-mode');
       }
+      if (input.allowBypassPermissions) {
+        args.push('--allow-dangerously-skip-permissions');
+      }
       if (input.initialPrompt) {
         args.push(input.initialPrompt);
       }
@@ -276,9 +281,9 @@ export class SessionManager {
     const accountId = input.accountId ?? null;
     const autoClose = input.autoClose === true ? 1 : 0;
     db.prepare(
-      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, effort, enable_auto_mode, status, started_at, hook_mode, session_type, worktree, account_id, auto_close)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, labelSource, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), isTerminal ? null : (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null), startedAt, hookMode, sessionType, worktree, accountId, autoClose);
+      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, effort, enable_auto_mode, allow_bypass_permissions, status, started_at, hook_mode, session_type, worktree, account_id, auto_close)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?, ?)`,
+    ).run(sessionId, label, labelSource, cwd, isTerminal ? null : (input.permissionMode ?? null), isTerminal ? null : (input.effort ?? null), isTerminal ? null : (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null), isTerminal ? null : (input.allowBypassPermissions === true ? 1 : input.allowBypassPermissions === false ? 0 : null), startedAt, hookMode, sessionType, worktree, accountId, autoClose);
 
     // Track account usage
     if (accountId) {
@@ -375,6 +380,9 @@ export class SessionManager {
     }
     if (row.enable_auto_mode) {
       args.push('--enable-auto-mode');
+    }
+    if (row.allow_bypass_permissions) {
+      args.push('--allow-dangerously-skip-permissions');
     }
 
     // Use account override if provided, otherwise fall back to the session's stored account

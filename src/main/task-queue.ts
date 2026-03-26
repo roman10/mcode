@@ -1,3 +1,6 @@
+import { openSync, readSync, statSync, closeSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 import type { WebContents } from 'electron';
 import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from './session-manager';
@@ -8,6 +11,7 @@ import { typedHandle } from './ipc-helpers';
 import type {
   Task,
   TaskStatus,
+  TaskPermissionMode,
   PlanModeAction,
   CreateTaskInput,
   UpdateTaskInput,
@@ -34,6 +38,7 @@ interface TaskRecord {
   created_at: string;
   plan_mode_action: string | null;
   sort_order: number | null;
+  permission_mode: string | null;
 }
 
 interface DispatchState {
@@ -64,10 +69,91 @@ function toTask(row: TaskRecord): Task {
     error: row.error,
     planModeAction: row.plan_mode_action ? (JSON.parse(row.plan_mode_action) as PlanModeAction) : null,
     sortOrder: row.sort_order,
+    permissionMode: (row.permission_mode as TaskPermissionMode) ?? null,
   };
 }
 
 const DISPATCH_INTERVAL_MS = 2000;
+const SHIFT_TAB_DELAY_MS = 150;
+
+// --- Permission mode cycling helpers (exported for testing) ---
+
+/**
+ * Build the Shift+Tab cycle order for a given session.
+ * Docs: default → acceptEdits → plan → [bypassPermissions] → [auto] → wrap
+ */
+export function buildModeCycle(session: SessionInfo): string[] {
+  const cycle: string[] = ['default', 'acceptEdits', 'plan'];
+  if (session.permissionMode === 'bypassPermissions' || session.allowBypassPermissions) {
+    cycle.push('bypassPermissions');
+  }
+  if (session.enableAutoMode) {
+    cycle.push('auto');
+  }
+  return cycle;
+}
+
+/**
+ * Calculate the number of forward Shift+Tab presses to go from `current` to `target`
+ * in the given cycle. Returns -1 if either mode is not in the cycle.
+ */
+export function calcShiftTabPresses(cycle: string[], current: string, target: string): number {
+  const curIdx = cycle.indexOf(current);
+  const tgtIdx = cycle.indexOf(target);
+  if (curIdx === -1 || tgtIdx === -1) return -1;
+  return (tgtIdx - curIdx + cycle.length) % cycle.length;
+}
+
+/**
+ * Read the current permission mode for a session.
+ * 1. Try the JSONL session log (last human message's permissionMode field)
+ * 2. Fallback to the DB-stored permission_mode from session creation
+ */
+export function getCurrentPermissionMode(session: SessionInfo): string {
+  if (session.claudeSessionId) {
+    const mode = readLastPermissionModeFromJsonl(session.cwd, session.claudeSessionId);
+    if (mode) return mode;
+  }
+  return session.permissionMode ?? 'default';
+}
+
+/**
+ * Read the last permissionMode from a Claude Code JSONL session log.
+ * Reads the tail of the file for efficiency.
+ */
+function readLastPermissionModeFromJsonl(cwd: string, claudeSessionId: string): string | null {
+  try {
+    const encoded = cwd.replace(/\//g, '-');
+    const jsonlPath = join(homedir(), '.claude', 'projects', encoded, `${claudeSessionId}.jsonl`);
+    const stat = statSync(jsonlPath);
+    const readSize = Math.min(stat.size, 16384); // Read last 16KB
+    const buf = Buffer.alloc(readSize);
+    const fd = openSync(jsonlPath, 'r');
+    try {
+      readSync(fd, buf, 0, readSize, stat.size - readSize);
+    } finally {
+      closeSync(fd);
+    }
+    const content = buf.toString('utf-8');
+    const lines = content.split('\n');
+    // Iterate from end to find last human message with permissionMode
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      try {
+        const obj = JSON.parse(line);
+        if (obj.type === 'user' && obj.permissionMode) {
+          return obj.permissionMode as string;
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // File doesn't exist or can't be read — fall through to fallback
+  }
+  return null;
+}
 
 export class TaskQueue {
   private sessionManager: SessionManager;
@@ -144,6 +230,23 @@ export class TaskQueue {
       if (session.hookMode !== 'live') {
         throw new Error('Target session must be in live hook mode');
       }
+
+      // Validate permissionMode reachability BEFORE resuming an ended session
+      // so we don't needlessly resume if the mode is invalid.
+      if (input.permissionMode) {
+        if (input.permissionMode === 'dontAsk') {
+          throw new Error('dontAsk is never reachable via Shift+Tab cycling');
+        }
+        const cycle = buildModeCycle(session);
+        if (!cycle.includes(input.permissionMode)) {
+          const available = cycle.join(', ');
+          throw new Error(
+            `Permission mode '${input.permissionMode}' is not reachable via Shift+Tab for this session. ` +
+            `Available modes: ${available}`,
+          );
+        }
+      }
+
       if (session.status === 'ended') {
         if (input.planModeAction) {
           throw new Error('Cannot create plan mode response for an ended session');
@@ -163,6 +266,10 @@ export class TaskQueue {
       throw new Error('Plan mode response tasks must target an existing session');
     }
 
+    if (input.permissionMode && !input.targetSessionId) {
+      throw new Error('permissionMode requires a target session (Shift+Tab cycling only works on existing sessions)');
+    }
+
     const db = getDb();
 
     // Compute sort_order for session-targeted tasks
@@ -177,8 +284,8 @@ export class TaskQueue {
     }
 
     const result = db.prepare(
-      `INSERT INTO task_queue (prompt, cwd, target_session_id, priority, scheduled_at, max_retries, plan_mode_action, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO task_queue (prompt, cwd, target_session_id, priority, scheduled_at, max_retries, plan_mode_action, sort_order, permission_mode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       input.prompt,
       input.cwd,
@@ -188,6 +295,7 @@ export class TaskQueue {
       input.maxRetries ?? 3,
       input.planModeAction ? JSON.stringify(input.planModeAction) : null,
       sortOrder,
+      input.permissionMode ?? null,
     );
 
     const taskId = result.lastInsertRowid as number;
@@ -420,6 +528,98 @@ export class TaskQueue {
       return;
     }
     if (session.status !== 'idle') return; // Wait for session to become idle
+
+    // Check if we need to cycle permission mode before dispatching
+    if (task.permissionMode) {
+      const currentMode = getCurrentPermissionMode(session);
+      const cycle = buildModeCycle(session);
+      const presses = calcShiftTabPresses(cycle, currentMode, task.permissionMode);
+
+      if (presses === -1) {
+        // Current mode not in cycle — shouldn't happen (validated at creation) but log and proceed without cycling
+        logger.warn('task', 'Cannot determine Shift+Tab presses; dispatching without mode cycling', {
+          taskId: task.id,
+          currentMode,
+          targetMode: task.permissionMode,
+        });
+      } else if (presses > 0) {
+        this.cycleAndDispatch(task, presses);
+        return;
+      }
+    }
+
+    this.writePromptAndMarkDispatched(task);
+  }
+
+  /**
+   * Send N Shift+Tab presses with delays, then dispatch the prompt.
+   * Follows the same setTimeout pattern as dispatchPlanModeTask.
+   */
+  private cycleAndDispatch(task: Task, presses: number): void {
+    const db = getDb();
+
+    // Mark dispatched immediately (same as dispatchPlanModeTask)
+    const dispatchedAt = new Date().toISOString();
+    db.prepare(
+      `UPDATE task_queue SET status = 'dispatched', session_id = ?, dispatched_at = ? WHERE id = ?`,
+    ).run(task.targetSessionId, dispatchedAt, task.id);
+
+    this.dispatchStates.set(task.id, {
+      hasStarted: false,
+      completedViaIdle: false,
+      dispatchedAtMs: Date.now(),
+      idleTimer: null,
+    });
+
+    logger.info('task', 'Cycling permission mode before dispatch', {
+      taskId: task.id,
+      sessionId: task.targetSessionId,
+      targetMode: task.permissionMode,
+      shiftTabPresses: presses,
+    });
+
+    const updated = this.getById(task.id)!;
+    this.broadcastChange({ type: 'upsert', task: updated });
+
+    // Send Shift+Tab presses with SHIFT_TAB_DELAY_MS intervals
+    let sent = 0;
+    const sendNext = (): void => {
+      const currentSession = this.sessionManager.get(task.targetSessionId!);
+      if (!currentSession || currentSession.status === 'ended') return;
+
+      if (sent < presses) {
+        this.ptyManager.write(task.targetSessionId!, '\x1b[Z');
+        sent++;
+        setTimeout(sendNext, SHIFT_TAB_DELAY_MS);
+      } else {
+        // All presses sent — wait for mode to settle, then send prompt
+        setTimeout(() => {
+          const sess = this.sessionManager.get(task.targetSessionId!);
+          if (!sess || sess.status === 'ended') return;
+          this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
+          this.sessionManager.updateStatus(task.targetSessionId!, 'active');
+
+          // Update DB permission_mode so future tasks have accurate state
+          if (task.permissionMode) {
+            const modeForDb = task.permissionMode === 'default' ? null : task.permissionMode;
+            getDb().prepare('UPDATE sessions SET permission_mode = ? WHERE session_id = ?')
+              .run(modeForDb, task.targetSessionId);
+          }
+
+          logger.info('task', 'Dispatched task after permission mode cycling', {
+            taskId: task.id,
+            sessionId: task.targetSessionId,
+          });
+        }, SHIFT_TAB_DELAY_MS);
+      }
+    };
+
+    sendNext();
+  }
+
+  /** Write prompt to PTY and mark the task as dispatched. Shared by direct dispatch and post-cycling dispatch. */
+  private writePromptAndMarkDispatched(task: Task): void {
+    const db = getDb();
 
     // Write prompt to PTY
     this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');

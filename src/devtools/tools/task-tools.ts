@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
+import { PERMISSION_MODES } from '../../shared/constants';
 
 const TASK_STATUSES = ['pending', 'dispatched', 'completed', 'failed'] as const;
 
@@ -24,9 +25,15 @@ export function registerTaskTools(
         'the task queue navigates to the "Type here" option and types the prompt as feedback. ' +
         'Requires targetSessionId. The prompt should express intent, e.g. "proceed with implementation" or "add error handling first".',
       ),
+      permissionMode: z.enum([...PERMISSION_MODES, 'default']).optional().describe(
+        'Permission mode to cycle to via Shift+Tab before sending the prompt. ' +
+        'Reachable modes depend on session flags: default/acceptEdits/plan always; ' +
+        'bypassPermissions if session allows it; auto if enableAutoMode. ' +
+        'dontAsk is never reachable. Omit to use the session\'s current mode.',
+      ),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ prompt, cwd, targetSessionId, priority, scheduledAt, maxRetries, planModeAction }) => {
+  }, async ({ prompt, cwd, targetSessionId, priority, scheduledAt, maxRetries, planModeAction, permissionMode }) => {
     try {
       const task = ctx.taskQueue.create({
         prompt,
@@ -36,6 +43,7 @@ export function registerTaskTools(
         scheduledAt,
         maxRetries,
         planModeAction,
+        permissionMode,
       });
       return {
         content: [{ type: 'text', text: JSON.stringify(task, null, 2) }],

@@ -27,6 +27,7 @@ export function registerSessionTools(
       permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the Claude session (ignored for terminal sessions)'),
       effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for the Claude session (ignored for terminal sessions)'),
       enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode to unlock auto mode in the Shift+Tab cycle. Team plan required, Sonnet 4.6 / Opus 4.6 only. Ignored for terminal sessions.'),
+      allowBypassPermissions: z.boolean().optional().describe('Pass --allow-dangerously-skip-permissions to add bypassPermissions to the Shift+Tab cycle without activating it. Composable with other starting modes. Ignored for terminal sessions.'),
       command: z.string().optional().describe('Command to spawn (default: "claude")'),
       args: z.array(z.string()).optional().describe('Arguments for the command (e.g. ["-c", "git push"] for terminal sessions)'),
       sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
@@ -35,7 +36,7 @@ export function registerSessionTools(
       autoClose: z.boolean().optional().describe('If true, automatically kill the session when its task queue empties'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, enableAutoMode, command, args, sessionType, worktree, accountId, autoClose }) => {
+  }, async ({ cwd, label, initialPrompt, permissionMode, effort, enableAutoMode, allowBypassPermissions, command, args, sessionType, worktree, accountId, autoClose }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -44,6 +45,7 @@ export function registerSessionTools(
         permissionMode,
         effort,
         enableAutoMode,
+        allowBypassPermissions,
         command,
         args,
         sessionType,

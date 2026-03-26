@@ -1,6 +1,11 @@
 // --- Task Queue ---
 
+import type { PermissionMode } from './constants';
+
 export type TaskStatus = 'pending' | 'dispatched' | 'completed' | 'failed';
+
+/** Permission mode that a task can target via Shift+Tab cycling. Includes 'default' which is a valid cycle position. */
+export type TaskPermissionMode = PermissionMode | 'default';
 
 export interface PlanModeAction {
   exitPlanMode: boolean; // UI hint: true = proceed, false = revise
@@ -23,6 +28,7 @@ export interface Task {
   error: string | null;
   planModeAction: PlanModeAction | null;
   sortOrder: number | null;
+  permissionMode: TaskPermissionMode | null;
 }
 
 export interface CreateTaskInput {
@@ -33,6 +39,7 @@ export interface CreateTaskInput {
   scheduledAt?: string;
   maxRetries?: number;
   planModeAction?: PlanModeAction;
+  permissionMode?: TaskPermissionMode;
 }
 
 export interface UpdateTaskInput {
