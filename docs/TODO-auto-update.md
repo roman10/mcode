@@ -1,50 +1,34 @@
 # Auto-Update Roadmap
 
-## Current: Phase 1 — Manual Version Check (shipped)
+## Phase 1 — Manual Version Check (retired)
 
 Manual version check against GitHub Releases API + StatusBar pill notification.
-No code signing required. User downloads manually from GitHub Releases page.
-
-See `src/main/update-checker.ts` for implementation.
+Replaced by Phase 2. Old `src/main/update-checker.ts` has been removed.
 
 ---
 
-## Phase 2 — Seamless Auto-Update via electron-updater
+## Current: Phase 2 — Seamless Auto-Update via electron-updater (shipped)
 
-**Prerequisites:**
-- Apple Developer Program enrollment ($99/yr)
-- Code signing configured in electron-builder
-- CI/CD pipeline publishing to GitHub Releases
+Full auto-update pipeline using `electron-updater` with GitHub as the update provider.
 
-**Implementation:**
-1. Add `electron-updater` dependency (already bundled with electron-builder)
-2. Add `publish` config to package.json:
-   ```json
-   "publish": {
-     "provider": "github",
-     "owner": "roman10",
-     "repo": "mcode"
-   }
-   ```
-3. Add `zip` target alongside `dmg` in mac config (required for auto-update on macOS)
-4. Replace `UpdateChecker.check()` with `autoUpdater.checkForUpdatesAndNotify()`
-5. Keep the same `app:update-available` IPC contract — renderer/preload layer unchanged
-6. Add download progress tracking and "Restart to Update" button in StatusBar
+**What's in place:**
+- `electron-updater` v6.8.3 with `autoDownload = false` (user-initiated download)
+- Periodic checks: 10s after launch, then every 4 hours
+- GitHub publish config in package.json (`provider: github`, `owner: roman10`, `repo: mcode`)
+- macOS targets: `dmg` + `zip` (zip required for auto-update)
+- Code signing: Developer ID Application + hardened runtime
+- Notarization: `@electron/notarize` via `scripts/notarize.js` afterSign hook
+- CI/CD: `.github/workflows/release.yml` — triggered on `v*` tags, builds + publishes signed artifacts
+- StatusBar UI pill with states: available → downloading (with %) → restart to update → error fallback
+- Type-safe IPC contract for all update events
+- Unit tests in `tests/unit/main/auto-updater.test.ts`
 
-**Code signing setup:**
-- Generate/obtain Apple Developer ID Application certificate
-- Configure `CSC_LINK` and `CSC_KEY_PASSWORD` in CI environment
-- Enable notarization in electron-builder config:
-  ```json
-  "mac": {
-    "notarize": true
-  }
-  ```
-
-**CI/CD (GitHub Actions):**
-- Build on macOS runner with Xcode
-- Sign and notarize via `electron-builder --publish always`
-- Artifacts uploaded to GitHub Releases automatically
+**Key files:**
+- `src/main/auto-updater.ts` — core AutoUpdater class
+- `src/renderer/components/BottomPanel/StatusBar.tsx` — update UI
+- `src/shared/ipc-contract.ts` — IPC type definitions
+- `scripts/notarize.js` — Apple notarization hook
+- `.github/workflows/release.yml` — release pipeline
 
 ---
 
