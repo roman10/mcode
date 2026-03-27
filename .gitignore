@@ -9,3 +9,4 @@ dist/
 .claude/worktrees/
 .claude/plans/
 docs/marketing/
+.env.signing
