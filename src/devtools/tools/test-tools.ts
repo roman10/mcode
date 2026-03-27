@@ -76,6 +76,17 @@ export function registerTestTools(
       summary.push(`Cancelled ${cancelledCount} pending task(s)`);
     }
 
+    // 9. Force a renderer session-store sync from main so kanban/sidebar
+    // queries do not see stale sessions if IPC delete/update events raced.
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'session-set-sessions', {
+        sessions: ctx.sessionManager.list(),
+      });
+      summary.push('Synced renderer session store');
+    } catch {
+      // Best-effort
+    }
+
     return {
       content: [{
         type: 'text',

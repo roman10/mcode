@@ -3,6 +3,7 @@ import type { SessionInfo } from '@shared/types';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
+import { canResumeSession } from '../../utils/session-resume';
 import Tooltip from '../shared/Tooltip';
 import StatusBadge from './StatusBadge';
 import ContextMenu from '../shared/ContextMenu';
@@ -82,7 +83,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
       return account && !account.isDefault ? account.name : null;
     });
 
-    const resumable = session.sessionType === 'claude' && !!session.claudeSessionId;
+    const resumable = canResumeSession(session);
     const canOpenTile = !hasTile && (session.status !== 'ended' || resumable);
     const isEnded = session.status === 'ended';
 

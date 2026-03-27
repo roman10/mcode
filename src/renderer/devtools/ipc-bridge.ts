@@ -122,6 +122,34 @@ export function initDevtoolsBridge(): void {
         result = useSessionStore.getState().selectedSessionId;
         break;
       }
+      case 'session-created': {
+        const { session } = params as { session: import('@shared/types').SessionInfo };
+        const { useSessionStore } = await import('../stores/session-store');
+        const { useLayoutStore } = await import('../stores/layout-store');
+        const { useTerminalPanelStore } = await import('../stores/terminal-panel-store');
+        const { basename } = await import('../utils/path-utils');
+        useSessionStore.getState().addSession(session);
+        if (session.sessionType === 'terminal') {
+          useTerminalPanelStore.getState().addTerminal({
+            sessionId: session.sessionId,
+            label: session.label || 'Terminal',
+            cwd: session.cwd,
+            repo: basename(session.cwd),
+          });
+        } else {
+          useLayoutStore.getState().addTile(session.sessionId);
+          useLayoutStore.getState().persist();
+        }
+        result = true;
+        break;
+      }
+      case 'session-set-sessions': {
+        const { sessions } = params as { sessions: import('@shared/types').SessionInfo[] };
+        const { useSessionStore } = await import('../stores/session-store');
+        useSessionStore.getState().setSessions(sessions);
+        result = true;
+        break;
+      }
       case 'layout-sidebar-collapsed': {
         const { useLayoutStore } = await import('../stores/layout-store');
         result = useLayoutStore.getState().sidebarCollapsed;

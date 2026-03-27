@@ -13,6 +13,7 @@ export function makeSession(overrides: Partial<SessionInfo> = {}): SessionInfo {
     startedAt: new Date().toISOString(),
     endedAt: null,
     claudeSessionId: null,
+    codexThreadId: null,
     lastTool: null,
     lastEventAt: null,
     attentionLevel: 'none',
@@ -21,6 +22,8 @@ export function makeSession(overrides: Partial<SessionInfo> = {}): SessionInfo {
     sessionType: 'claude',
     terminalConfig: {},
     accountId: null,
+    autoClose: false,
+    model: null,
     ...overrides,
   };
 }

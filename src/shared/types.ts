@@ -86,6 +86,7 @@ export interface SessionInfo {
   endedAt: string | null;
 
   claudeSessionId: string | null;
+  codexThreadId: string | null;
   lastTool: string | null;
   lastEventAt: string | null;
   attentionLevel: SessionAttentionLevel;
@@ -95,6 +96,7 @@ export interface SessionInfo {
   terminalConfig: TerminalConfig;
   accountId: string | null;
   autoClose: boolean;
+  model: string | null;
 }
 
 export interface SessionCreateInput {

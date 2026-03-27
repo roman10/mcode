@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useAccountsStore } from '../../stores/accounts-store';
+import { canResumeSession } from '../../utils/session-resume';
 
 interface SessionEndedPromptProps {
   sessionId: string;
@@ -17,7 +18,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
   const [error, setError] = useState<string | null>(null);
   const accountInitialized = useRef(false);
 
-  const canResume = session?.sessionType === 'claude' && !!session?.claudeSessionId;
+  const canResume = canResumeSession(session);
   const busy = resuming || creating;
 
   // Initialize account selector once accounts are available; preserve user's selection after that
@@ -130,9 +131,9 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
           No Claude session ID recorded — cannot resume
         </div>
       )}
-      {session?.sessionType === 'codex' && (
+      {session?.sessionType === 'codex' && !canResume && (
         <div className="text-xs text-text-muted">
-          Codex sessions cannot currently be resumed
+          No Codex thread ID recorded — cannot resume
         </div>
       )}
 

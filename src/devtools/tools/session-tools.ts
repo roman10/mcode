@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
+import { queryRenderer } from '../ipc';
 import { EFFORT_LEVELS, PERMISSION_MODES } from '../../shared/constants';
 
 export function registerSessionTools(
@@ -53,10 +54,11 @@ export function registerSessionTools(
         accountId,
         autoClose,
       });
-      // Notify renderer to add session to store (best-effort)
+      // Sync renderer state for MCP-created sessions so integration tests
+      // do not depend on the normal IPC event subscription timing.
       try {
         if (!ctx.mainWindow.isDestroyed()) {
-          ctx.mainWindow.webContents.send('session:created', session);
+          await queryRenderer<void>(ctx.mainWindow, 'session-created', { session });
         }
       } catch {
         // Notification failure should not mask a successful creation
@@ -170,6 +172,27 @@ export function registerSessionTools(
     };
   });
 
+  server.registerTool('session_resume', {
+    description: 'Resume an ended session in place',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID'),
+      accountId: z.string().optional().describe('Optional account override (Claude only)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, accountId }) => {
+    try {
+      const session = ctx.sessionManager.resume(sessionId, accountId);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(session, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('session_info', {
     description: 'Get PTY-level metadata for a session (pid, cols, rows)',
     inputSchema: {
@@ -269,6 +292,50 @@ export function registerSessionTools(
     return {
       content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
     };
+  });
+
+  server.registerTool('session_set_model', {
+    description: 'Set the model for a session (for testing model display)',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID'),
+      model: z.string().describe('Normalized model version, e.g. "opus-4.6", "sonnet-4.5"'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, model }) => {
+    const session = ctx.sessionManager.get(sessionId);
+    if (!session) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+    ctx.sessionManager.setModel(sessionId, model);
+    const updated = ctx.sessionManager.get(sessionId);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
+    };
+  });
+
+  server.registerTool('session_set_codex_thread_id', {
+    description: 'Set the Codex thread ID for a session (useful for testing or manual recovery)',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID'),
+      codexThreadId: z.string().describe('Codex thread ID'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, codexThreadId }) => {
+    try {
+      ctx.sessionManager.setCodexThreadId(sessionId, codexThreadId);
+      const updated = ctx.sessionManager.get(sessionId);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+        isError: true,
+      };
+    }
   });
 
   server.registerTool('session_set_auto_close', {

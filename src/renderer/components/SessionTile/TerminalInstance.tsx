@@ -160,7 +160,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
 
     // When the terminal gains focus and WebGL was lost, try to re-attach.
     // This recovers rendering quality after transient context exhaustion.
-    const unsubFocus = term.onFocus(() => {
+    const focusHandler = () => {
       if (!webgl.active) {
         window.setTimeout(() => {
           if (!webgl.active && termInstanceRef.current === term) {
@@ -168,7 +168,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
           }
         }, 500);
       }
-    });
+    };
+    container.addEventListener('focus', focusHandler, true);
 
     // PTY resize chain (verified correct at runtime — PTY and xterm cols always match):
     //   ResizeObserver(container) → rAF → fitAddon.fit() → xterm.resize()
@@ -265,7 +266,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       container.removeEventListener('contextmenu', handleContextMenu);
       resizeObserver.disconnect();
       mutationObserver?.disconnect();
-      unsubFocus.dispose();
+      container.removeEventListener('focus', focusHandler, true);
       webgl.detach();
       term.dispose();
     };

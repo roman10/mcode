@@ -10,6 +10,9 @@ import type { AccountManager } from './account-manager';
 import { getDb } from './db';
 import { logger } from './logger';
 import { stripAnsi } from '../shared/strip-ansi';
+import { extractLatestModel } from './jsonl-usage-parser';
+import { normalizeModelVersion } from './token-cost';
+import { findCodexThreadMatch } from './codex-session-store';
 import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
 import {
   computeTransition,
@@ -51,7 +54,9 @@ interface SessionRecord {
   status: string;
   started_at: string;
   ended_at: string | null;
+  command: string | null;
   claude_session_id: string | null;
+  codex_thread_id: string | null;
   last_tool: string | null;
   last_event_at: string | null;
   attention_level: string;
@@ -65,6 +70,7 @@ interface SessionRecord {
   worktree: string | null;
   account_id: string | null;
   auto_close: number;
+  model: string | null;
 }
 
 function isClaudeCommand(command: string): boolean {
@@ -94,6 +100,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     worktree: row.worktree,
     startedAt: row.started_at,
     endedAt: row.ended_at,
+    codexThreadId: row.codex_thread_id,
     claudeSessionId: row.claude_session_id,
     lastTool: row.last_tool,
     lastEventAt: row.last_event_at,
@@ -104,6 +111,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     terminalConfig: JSON.parse(row.terminal_config || '{}'),
     accountId: row.account_id,
     autoClose: row.auto_close === 1,
+    model: row.model,
   };
 }
 
@@ -165,6 +173,9 @@ export class SessionManager {
   private eventStore: SessionEventStore;
   private layoutRepo: LayoutRepository;
 
+  /** Set to true after Codex hook bridge is successfully configured at startup. */
+  codexHookBridgeReady = false;
+
   constructor(
     ptyManager: IPtyManager,
     getWebContents: () => WebContents | null,
@@ -193,6 +204,62 @@ export class SessionManager {
         // Listener errors must not break session state transitions
       }
     }
+  }
+
+  private scheduleCodexThreadCapture(
+    sessionId: string,
+    cwd: string,
+    startedAt: string,
+    initialPrompt?: string,
+  ): void {
+    const startedAtMs = Date.parse(startedAt);
+    if (!Number.isFinite(startedAtMs)) return;
+
+    const deadline = Date.now() + 15_000;
+    const poll = async (): Promise<void> => {
+      const db = getDb();
+      const row = db.prepare(
+        'SELECT session_type, codex_thread_id FROM sessions WHERE session_id = ?',
+      ).get(sessionId) as { session_type: string; codex_thread_id: string | null } | undefined;
+      if (!row || row.session_type !== 'codex' || row.codex_thread_id) return;
+
+      const claimedThreadIds = new Set(
+        (
+          db.prepare(
+            'SELECT codex_thread_id FROM sessions WHERE codex_thread_id IS NOT NULL AND session_id != ?',
+          ).all(sessionId) as { codex_thread_id: string }[]
+        ).map((entry) => entry.codex_thread_id),
+      );
+
+      const match = findCodexThreadMatch({
+        cwd,
+        initialPrompt,
+        startedAtMs,
+        nowMs: Date.now(),
+        claimedThreadIds,
+      });
+      if (match) {
+        const result = db.prepare(
+          'UPDATE sessions SET codex_thread_id = ? WHERE session_id = ? AND codex_thread_id IS NULL',
+        ).run(match.id, sessionId);
+        if (result.changes > 0) {
+          logger.info('session', 'Captured Codex thread ID', { sessionId, codexThreadId: match.id });
+          this.broadcastSessionUpdate(sessionId);
+        }
+        return;
+      }
+
+      if (Date.now() >= deadline) {
+        logger.warn('session', 'Failed to capture Codex thread ID', { sessionId, cwd });
+        return;
+      }
+
+      setTimeout(() => {
+        poll().catch(() => {});
+      }, 500);
+    };
+
+    poll().catch(() => {});
   }
 
   private nextDisambiguatedLabel(cwd: string): string {
@@ -250,7 +317,8 @@ export class SessionManager {
       throw new Error('Hook system is still initializing. Retry session creation shortly.');
     }
 
-    const hookMode = isClaude && hookRuntime.state === 'ready' ? 'live' : 'fallback';
+    const codexBridgeReady = isCodex && this.codexHookBridgeReady;
+    const hookMode = (isClaude || codexBridgeReady) && hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
     // Build args for CLI
     const args: string[] = [];
@@ -260,6 +328,10 @@ export class SessionManager {
         args.push(...input.args);
       }
     } else if (isCodex) {
+      // Enable hooks feature so the bridge script receives events
+      if (codexBridgeReady) {
+        args.push('--enable', 'codex_hooks');
+      }
       // Codex CLI: pass initial prompt as positional arg
       if (input.initialPrompt) {
         args.push(input.initialPrompt);
@@ -300,9 +372,9 @@ export class SessionManager {
     const accountId = input.accountId ?? null;
     const autoClose = input.autoClose === true ? 1 : 0;
     db.prepare(
-      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, effort, enable_auto_mode, allow_bypass_permissions, status, started_at, hook_mode, session_type, worktree, account_id, auto_close)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, labelSource, cwd, isClaude ? (input.permissionMode ?? null) : null, isClaude ? (input.effort ?? null) : null, isClaude ? (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null) : null, isClaude ? (input.allowBypassPermissions === true ? 1 : input.allowBypassPermissions === false ? 0 : null) : null, startedAt, hookMode, sessionType, worktree, accountId, autoClose);
+      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, status, started_at, ended_at, command, hook_mode, session_type, terminal_config, effort, enable_auto_mode, allow_bypass_permissions, worktree, account_id, auto_close)
+       VALUES (?, ?, ?, ?, ?, 'starting', ?, NULL, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?)`,
+    ).run(sessionId, label, labelSource, cwd, isClaude ? (input.permissionMode ?? null) : null, startedAt, command, hookMode, sessionType, isClaude ? (input.effort ?? null) : null, isClaude ? (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null) : null, isClaude ? (input.allowBypassPermissions === true ? 1 : input.allowBypassPermissions === false ? 0 : null) : null, worktree, accountId, autoClose);
 
     // Track account usage
     if (accountId) {
@@ -317,7 +389,11 @@ export class SessionManager {
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
         args: args.length > 0 ? args : undefined,
-        env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
+        env: {
+          MCODE_SESSION_ID: sessionId,
+          ...(codexBridgeReady && hookRuntime.port ? { MCODE_HOOK_PORT: String(hookRuntime.port) } : {}),
+          ...accountEnv,
+        },
         onFirstData: () => {
           if (input.initialCommand) {
             // Session has pre-loaded work — mark active so the task queue
@@ -355,11 +431,19 @@ export class SessionManager {
 
     logger.info('session', 'Created session', { sessionId, cwd, label, hookMode });
 
+    if (isCodex) {
+      this.scheduleCodexThreadCapture(sessionId, cwd, startedAt, input.initialPrompt);
+    }
+
     const session = this.get(sessionId)!;
+    const wc = this.getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('session:created', session);
+    }
     return session;
   }
 
-  /** Resume an ended Claude session via `claude --resume`. */
+  /** Resume an ended agent session in place. */
   resume(sessionId: string, accountId?: string): SessionInfo {
     const db = getDb();
     const row = db
@@ -368,6 +452,70 @@ export class SessionManager {
 
     if (!row) throw new Error(`Session not found: ${sessionId}`);
     if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status})`);
+
+    if (row.session_type === 'codex') {
+      if (!row.codex_thread_id) throw new Error('Cannot resume: no Codex thread ID recorded');
+
+      const hookRuntime = this.hookRuntimeGetter();
+      const codexBridgeReady = this.codexHookBridgeReady && hookRuntime.state === 'ready';
+      const hookMode = codexBridgeReady ? 'live' : 'fallback';
+      const command = row.command || 'codex';
+      const args = [
+        ...(codexBridgeReady ? ['--enable', 'codex_hooks'] : []),
+        'resume',
+        row.codex_thread_id,
+      ];
+
+      db.prepare(
+        `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = ?, auto_close = 0 WHERE session_id = ?`,
+      ).run(hookMode, sessionId);
+
+      try {
+        this.ptyManager.spawn({
+          id: sessionId,
+          command,
+          cwd: row.cwd,
+          cols: DEFAULT_COLS,
+          rows: DEFAULT_ROWS,
+          args,
+          env: {
+            MCODE_SESSION_ID: sessionId,
+            ...(codexBridgeReady && hookRuntime.port ? { MCODE_HOOK_PORT: String(hookRuntime.port) } : {}),
+          },
+          onFirstData: () => {
+            this.updateStatus(sessionId, 'idle');
+          },
+          onExit: () => {
+            this.updateStatus(sessionId, 'ended');
+          },
+        });
+      } catch (err) {
+        db.prepare(
+          `UPDATE sessions SET status = 'ended', ended_at = ? WHERE session_id = ?`,
+        ).run(new Date().toISOString(), sessionId);
+        throw err;
+      }
+
+      setTimeout(() => {
+        const s = this.get(sessionId);
+        if (s && s.status === 'starting') {
+          logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
+          this.updateStatus(sessionId, 'idle');
+        }
+      }, 15_000);
+
+      logger.info('session', 'Resumed Codex session', {
+        sessionId,
+        codexThreadId: row.codex_thread_id,
+        cwd: row.cwd,
+        hookMode,
+      });
+
+      const session = this.get(sessionId)!;
+      this.broadcastSessionUpdate(sessionId);
+      return session;
+    }
+
     if (!row.claude_session_id) throw new Error('Cannot resume: no Claude session ID recorded');
 
     // Determine effective cwd (worktree sessions run inside the worktree directory)
@@ -415,7 +563,7 @@ export class SessionManager {
     try {
       this.ptyManager.spawn({
         id: sessionId,
-        command: 'claude',
+        command: row.command || 'claude',
         cwd: effectiveCwd,
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
@@ -984,6 +1132,53 @@ export class SessionManager {
     this.broadcastSessionUpdate(sessionId);
   }
 
+  setModel(sessionId: string, normalizedModel: string): void {
+    const db = getDb();
+    const row = db.prepare('SELECT model FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { model: string | null } | undefined;
+    if (!row || row.model === normalizedModel) return;
+    db.prepare('UPDATE sessions SET model = ? WHERE session_id = ?').run(normalizedModel, sessionId);
+    this.broadcastSessionUpdate(sessionId);
+  }
+
+  setCodexThreadId(sessionId: string, codexThreadId: string): void {
+    const db = getDb();
+    const row = db.prepare('SELECT session_type, codex_thread_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { session_type: string; codex_thread_id: string | null } | undefined;
+    if (!row) throw new Error(`Session not found: ${sessionId}`);
+    if (row.session_type !== 'codex') throw new Error('Only Codex sessions can store a Codex thread ID');
+    if (row.codex_thread_id === codexThreadId) return;
+    db.prepare('UPDATE sessions SET codex_thread_id = ? WHERE session_id = ?').run(codexThreadId, sessionId);
+    this.broadcastSessionUpdate(sessionId);
+  }
+
+  async updateModelFromTranscript(sessionId: string, transcriptPath: string): Promise<void> {
+    let fh: FileHandle;
+    try {
+      fh = await fsOpen(transcriptPath, 'r');
+    } catch { return; }
+
+    try {
+      const stats = await fh.stat();
+      const tailSize = Math.min(8192, stats.size);
+      const buf = Buffer.alloc(tailSize);
+      await fh.read(buf, 0, tailSize, stats.size - tailSize);
+      const raw = buf.toString('utf-8');
+      // Discard first partial line only when reading from mid-file offset
+      const isPartialStart = tailSize < stats.size;
+      const firstNewline = raw.indexOf('\n');
+      const chunk = isPartialStart && firstNewline >= 0 ? raw.slice(firstNewline + 1) : raw;
+
+      const rawModel = extractLatestModel(chunk);
+      if (!rawModel) return;
+
+      const normalized = normalizeModelVersion(rawModel);
+      this.setModel(sessionId, normalized);
+    } finally {
+      await fh.close();
+    }
+  }
+
   setTerminalConfig(sessionId: string, partial: Partial<TerminalConfig>): void {
     const db = getDb();
     const row = db
@@ -1072,10 +1267,10 @@ export class SessionManager {
     const db = getDb();
     const rows = db
       .prepare(
-        `SELECT session_id, status, attention_level, last_tool FROM sessions
-         WHERE status IN ('active', 'idle', 'waiting') AND session_type = 'claude'`,
+        `SELECT session_id, status, attention_level, last_tool, session_type FROM sessions
+         WHERE status IN ('active', 'idle', 'waiting') AND session_type IN ('claude', 'codex')`,
       )
-      .all() as { session_id: string; status: string; attention_level: string; last_tool: string | null }[];
+      .all() as { session_id: string; status: string; attention_level: string; last_tool: string | null; session_type: string }[];
 
     const now = Date.now();
 
@@ -1084,10 +1279,22 @@ export class SessionManager {
       if (!buffer) continue;
 
       const lastDataAt = this.ptyManager.getLastDataAt(row.session_id);
+      const isQuiescent = lastDataAt > 0 && now - lastDataAt > SessionManager.PTY_QUIESCENCE_MS;
+
+      // Codex: activity-based heuristic only (no prompt detection).
+      // For hookMode 'live' sessions, hooks handle state transitions and
+      // this polling is just a safety net.
+      if (row.session_type === 'codex') {
+        if (row.status === 'active' && isQuiescent) {
+          this.updateStatusWithAttention(row.session_id, 'idle', 'action', 'Codex finished — awaiting input');
+        }
+        continue;
+      }
+
+      // Claude: full prompt/permission detection
       const tail = stripAnsi(buffer.slice(-2000));
       const rawTail = buffer.slice(-2000);
       const hasPermissionPrompt = SessionManager.PERMISSION_PATTERNS.some((re) => re.test(tail));
-      const isQuiescent = lastDataAt > 0 && now - lastDataAt > SessionManager.PTY_QUIESCENCE_MS;
 
       if (
         (row.status === 'active' || row.status === 'idle') &&
