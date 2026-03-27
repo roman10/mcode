@@ -12,6 +12,7 @@ import { logger } from './logger';
 import { stripAnsi } from '../shared/strip-ansi';
 import { extractLatestModel } from './jsonl-usage-parser';
 import { normalizeModelVersion } from './token-cost';
+import { getTranscriptPath } from './transcript-path';
 import { findCodexThreadMatch } from './codex-session-store';
 import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
 import {
@@ -764,8 +765,8 @@ export class SessionManager {
 
     // Verify session exists
     let row = db
-      .prepare('SELECT status, attention_level, cwd, worktree, last_tool FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; last_tool: string | null } | undefined;
+      .prepare('SELECT status, attention_level, cwd, worktree, last_tool, model, claude_session_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; last_tool: string | null; model: string | null; claude_session_id: string | null } | undefined;
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
       return false;
@@ -878,6 +879,24 @@ export class SessionManager {
     if (newStatus !== currentStatus) {
       const session = this.get(sessionId);
       if (session) this.notifyListeners(session, currentStatus);
+    }
+
+    // Model detection from transcript:
+    // - Stop events: always check (handles mid-session /model switches)
+    // - Other events: only check when model is still unknown (early detection)
+    if (event.hookEventName === 'Stop' || row.model === null) {
+      const effectiveClaudeSessionId = event.claudeSessionId ?? row.claude_session_id;
+      if (effectiveClaudeSessionId) {
+        // Prefer authoritative transcript_path from Stop payload; fall back to constructed path
+        const payload = event.payload as { transcript_path?: string } | undefined;
+        const transcriptPath = payload?.transcript_path
+          ?? getTranscriptPath(row.cwd, effectiveClaudeSessionId);
+        // Delay on Stop to let Claude finalize the transcript file
+        const delay = event.hookEventName === 'Stop' ? 500 : 0;
+        setTimeout(() => {
+          this.updateModelFromTranscript(sessionId, transcriptPath).catch(() => {});
+        }, delay);
+      }
     }
 
     return true;

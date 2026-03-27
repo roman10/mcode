@@ -203,14 +203,6 @@ async function initializeHookSystem(): Promise<void> {
           commitTracker.onHookEvent(sessionId, event).catch(() => {});
           tokenTracker.onHookEvent(sessionId, event).catch(() => {});
           gitChangesService.onHookEvent(sessionId, event).catch(() => {});
-          if (event.hookEventName === 'Stop') {
-            const payload = event.payload as { transcript_path?: string } | undefined;
-            if (payload?.transcript_path) {
-              setTimeout(() => {
-                sessionManager.updateModelFromTranscript(sessionId, payload.transcript_path!).catch(() => {});
-              }, 500);
-            }
-          }
         }
         return handled;
       },

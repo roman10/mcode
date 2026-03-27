@@ -1,12 +1,11 @@
 import { openSync, readSync, statSync, closeSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
 import type { WebContents } from 'electron';
 import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from './session-manager';
 import { getDb } from './db';
 import { logger } from './logger';
 import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from './prompt-detect';
+import { getTranscriptPath } from './transcript-path';
 import { typedHandle } from './ipc-helpers';
 import type {
   Task,
@@ -123,8 +122,7 @@ export function getCurrentPermissionMode(session: SessionInfo): string {
  */
 function readLastPermissionModeFromJsonl(cwd: string, claudeSessionId: string): string | null {
   try {
-    const encoded = cwd.replace(/\//g, '-');
-    const jsonlPath = join(homedir(), '.claude', 'projects', encoded, `${claudeSessionId}.jsonl`);
+    const jsonlPath = getTranscriptPath(cwd, claudeSessionId);
     const stat = statSync(jsonlPath);
     const readSize = Math.min(stat.size, 16384); // Read last 16KB
     const buf = Buffer.alloc(readSize);
