@@ -10,7 +10,8 @@ export type HookEventName =
   | 'PermissionRequest'
   | 'Notification'
   | 'PostToolUseFailure'
-  | 'SessionEnd';
+  | 'SessionEnd'
+  | 'UserPromptSubmit';
 
 export type AttentionRule =
   | { type: 'clear' }
@@ -116,6 +117,16 @@ export function computeTransition(
         lastTool: { type: 'preserve' },
         selfHealed,
       };
+
+    case 'UserPromptSubmit': {
+      const resumes = effectiveStatus === 'idle' || effectiveStatus === 'waiting';
+      return {
+        status: resumes ? 'active' : effectiveStatus,
+        attention: resumes ? { type: 'clear-if-action' } : { type: 'preserve' },
+        lastTool: { type: 'clear' },
+        selfHealed,
+      };
+    }
 
     case 'SessionEnd':
       return {

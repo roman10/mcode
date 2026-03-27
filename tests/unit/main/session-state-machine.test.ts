@@ -210,6 +210,31 @@ describe('computeTransition', () => {
     });
   });
 
+  describe('UserPromptSubmit', () => {
+    it('idle → active, clears action attention', () => {
+      const r = computeTransition('UserPromptSubmit', ctx({ currentStatus: 'idle' }));
+      expect(r!.status).toBe('active');
+      expect(r!.attention.type).toBe('clear-if-action');
+    });
+
+    it('waiting → active, clears action attention', () => {
+      const r = computeTransition('UserPromptSubmit', ctx({ currentStatus: 'waiting' }));
+      expect(r!.status).toBe('active');
+      expect(r!.attention.type).toBe('clear-if-action');
+    });
+
+    it('active → active, preserves attention', () => {
+      const r = computeTransition('UserPromptSubmit', ctx({ currentStatus: 'active' }));
+      expect(r!.status).toBe('active');
+      expect(r!.attention.type).toBe('preserve');
+    });
+
+    it('clears lastTool', () => {
+      const r = computeTransition('UserPromptSubmit', ctx({ lastTool: 'ExitPlanMode' }));
+      expect(r!.lastTool).toEqual({ type: 'clear' });
+    });
+  });
+
   describe('SessionEnd', () => {
     it('any → ended, attention = clear', () => {
       const r = computeTransition('SessionEnd', ctx({ currentStatus: 'active' }));
@@ -225,6 +250,7 @@ describe('ended state guard', () => {
   const events: HookEventName[] = [
     'SessionStart', 'PreToolUse', 'PostToolUse', 'Stop',
     'PermissionRequest', 'Notification', 'PostToolUseFailure', 'SessionEnd',
+    'UserPromptSubmit',
   ];
 
   for (const event of events) {
@@ -438,6 +464,26 @@ describe('multi-step sequences', () => {
     expect(results[0].attention).toBe('none');
     // Re-set on idle
     expect(results[2].attention).toBe('action');
+  });
+
+  it('Codex flow: SessionStart → PreToolUse → Stop → UserPromptSubmit → PreToolUse → Stop', () => {
+    const results = runSequence(
+      [
+        { event: 'SessionStart' },
+        { event: 'PreToolUse', toolName: 'Bash' },
+        { event: 'Stop' },
+        { event: 'UserPromptSubmit' },
+        { event: 'PreToolUse', toolName: 'Bash' },
+        { event: 'Stop' },
+      ],
+      { status: 'starting', attention: 'none' },
+    );
+    expect(results.map((r) => r.status)).toEqual([
+      'active', 'active', 'idle', 'active', 'active', 'idle',
+    ]);
+    // UserPromptSubmit clears the action attention set by Stop
+    expect(results[2].attention).toBe('action');
+    expect(results[3].attention).toBe('none');
   });
 
   it('notification does not override action: PermissionRequest → Notification', () => {
