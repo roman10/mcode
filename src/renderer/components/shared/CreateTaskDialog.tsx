@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { formatShortTime } from '../../hooks/useRelativeTime';
 import Dialog from './Dialog';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
-import type { CreateTaskInput } from '@shared/types';
+import { buildModeCycle, TASK_PERMISSION_MODE_LABELS } from '@shared/task-utils';
+import type { CreateTaskInput, TaskPermissionMode } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
 
@@ -25,6 +26,7 @@ function CreateTaskDialog({
   const [prompt, setPrompt] = useState('');
   const [cwd, setCwd] = useState(defaultCwd ?? '');
   const [targetSessionId, setTargetSessionId] = useState(defaultTargetSessionId ?? '');
+  const [permissionMode, setPermissionMode] = useState<TaskPermissionMode | ''>('');
   const [isCreating, setIsCreating] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -38,6 +40,20 @@ function CreateTaskDialog({
       (s.status === 'active' || s.status === 'idle'),
   );
 
+  // Available permission modes based on selected target session
+  const selectedSession = targetSessionId ? sessions[targetSessionId] : undefined;
+  const availableModes = useMemo(
+    () => (selectedSession ? buildModeCycle(selectedSession) : []),
+    [selectedSession],
+  );
+
+  // Reset permissionMode when target session changes and current selection is unavailable
+  useEffect(() => {
+    if (permissionMode && availableModes.length > 0 && !availableModes.includes(permissionMode)) {
+      setPermissionMode('');
+    }
+  }, [availableModes, permissionMode]);
+
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
   useEffect(() => {
@@ -45,6 +61,7 @@ function CreateTaskDialog({
       setPrompt('');
       setCwd(defaultCwd ?? '');
       setTargetSessionId(defaultTargetSessionId ?? '');
+      setPermissionMode('');
       setIsCreating(false);
       if (!defaultCwd) {
         window.mcode.sessions.getLastDefaults().then((defaults) => {
@@ -70,6 +87,7 @@ function CreateTaskDialog({
       prompt: prompt.trim(),
       cwd: cwd.trim(),
       targetSessionId,
+      ...(permissionMode ? { permissionMode } : {}),
     });
   };
 
@@ -160,6 +178,26 @@ function CreateTaskDialog({
               {targetableSessions.map((s) => (
                 <option key={s.sessionId} value={s.sessionId}>
                   {s.label || s.sessionId.slice(0, 8)} — {s.status} · {formatShortTime(s.startedAt)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Permission mode */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">
+              Permission mode
+            </label>
+            <select
+              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
+              value={permissionMode}
+              onChange={(e) => setPermissionMode(e.target.value as TaskPermissionMode | '')}
+              disabled={!targetSessionId}
+            >
+              <option value="">Don&apos;t change</option>
+              {availableModes.map((mode) => (
+                <option key={mode} value={mode}>
+                  {TASK_PERMISSION_MODE_LABELS[mode as TaskPermissionMode] ?? mode}
                 </option>
               ))}
             </select>

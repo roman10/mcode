@@ -77,20 +77,7 @@ const SHIFT_TAB_DELAY_MS = 150;
 
 // --- Permission mode cycling helpers (exported for testing) ---
 
-/**
- * Build the Shift+Tab cycle order for a given session.
- * Docs: default → acceptEdits → plan → [bypassPermissions] → [auto] → wrap
- */
-export function buildModeCycle(session: SessionInfo): string[] {
-  const cycle: string[] = ['default', 'acceptEdits', 'plan'];
-  if (session.permissionMode === 'bypassPermissions' || session.allowBypassPermissions) {
-    cycle.push('bypassPermissions');
-  }
-  if (session.enableAutoMode) {
-    cycle.push('auto');
-  }
-  return cycle;
-}
+export { buildModeCycle } from '../shared/task-utils';
 
 /**
  * Calculate the number of forward Shift+Tab presses to go from `current` to `target`
