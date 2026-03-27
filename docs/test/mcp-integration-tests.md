@@ -22,7 +22,14 @@ npx vitest run --config vitest.config.mts tests/suites/session-lifecycle.test.ts
 
 # Run tests matching a name pattern
 npx vitest run --config vitest.config.mts -t "resizes terminal"
+
+# Point the test client at a different MCP server
+MCODE_TEST_URL=http://127.0.0.1:7532/mcp npm run test:mcp
 ```
+
+The test client defaults to `http://127.0.0.1:7532/mcp` and respects `MCODE_TEST_URL` when you need to target a different dev instance.
+
+All suites run sequentially against a single shared Electron app instance. `vitest.config.mts` disables file parallelism and concurrent sequencing, so suite-level isolation depends on helpers like `resetTestState()` and `cleanupSessions()`.
 
 ## Architecture
 
@@ -30,6 +37,9 @@ npx vitest run --config vitest.config.mts -t "resizes terminal"
 tests/
 ├── mcp-client.ts          # MCP SDK client wrapper (connects to localhost:7532)
 ├── helpers.ts             # Composable test helpers (session, hook, task, layout, kanban, file, sidebar)
+├── fixtures/
+│   ├── claude             # Fake Claude CLI used by live hook-mode integration tests
+│   └── codex              # Fake Codex CLI used by Codex session integration tests
 ├── suites/                # Test suites organized by feature area
 │   ├── session-lifecycle  # Core session state machine
 │   ├── session-delete     # Session deletion (single, bulk, batch)
@@ -61,6 +71,8 @@ tests/
 │   ├── git-tools          # Git status, diff content, diff viewer
 │   ├── snippet-tools      # Snippet scanning, frontmatter parsing, variable extraction
 │   ├── session-account    # Session account assignment (null vs explicit accountId)
+│   ├── session-label-source # User labels vs auto-generated labels
+│   ├── session-model      # Session model persistence and updates
 │   ├── session-detach-restore # Detach/reconcile cycle preserving session state & attention
 │   ├── sidebar-session-filter # Sidebar search filter set/get/clear
 │   ├── stress-sessions    # 10 concurrent sessions stress test
@@ -68,6 +80,7 @@ tests/
 │   ├── layout-no-page-scroll  # Page scroll prevention
 │   ├── auto-mode              # enableAutoMode flag persistence (claude vs terminal sessions)
 │   ├── codex-support          # Codex session creation, argv handling, sidebar/kanban visibility
+│   ├── codex-resume           # Codex session resume in place via recorded thread ID
 │   └── terminal-panel-resize  # Terminal panel height → xterm resize propagation
 
 vitest.config.mts              # Sequential execution, 30s timeout (repo root)
@@ -78,7 +91,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 **Helpers** (`tests/helpers.ts`): Composable building blocks that combine MCP tool calls:
 
 *Test isolation:*
-- `resetTestState(client)` — calls `app_reset_test_state` to reset app to clean state
+- `resetTestState(client)` — calls `app_reset_test_state` to reset app to clean state before suites that mutate shared app state
 
 *Session lifecycle:*
 - `createTestSession(client, overrides?)` — creates a session with `command: "bash"`
@@ -101,6 +114,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 *Sidebar:*
 - `getSidebarSessions(client)` — lists sessions shown in sidebar
 - `selectSession(client, sessionId)` — selects or deselects a session
+- `getSidebarSelected(client)` — gets the currently selected sidebar session ID
 - `getSidebarActiveTab(client)` — gets the currently active sidebar tab
 - `switchSidebarTab(client, tab)` — switches sidebar to a specific tab
 - `setSessionFilter(client, query)` — sets sidebar filter via `sidebar_set_session_filter`
@@ -132,6 +146,17 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 - `writeTestFile(client, relativePath, content, cwd?)` — writes a file via `file_write`
 
 **Execution model**: All suites run sequentially (no parallelism) because they share a single Electron app instance. Each suite manages its own sessions via `beforeAll`/`afterAll` cleanup.
+
+## Fixtures And Troubleshooting
+
+`createLiveClaudeTestSession()` uses `tests/fixtures/claude` and `createCodexTestSession()` uses `tests/fixtures/codex`. These are fake CLI entrypoints for deterministic integration tests, so if they are missing or not executable the related suite setup will fail before the product code is exercised.
+
+Common failure modes:
+
+- MCP server unavailable: start `npm run dev` and wait for the MCP listener log line before running suites.
+- Wrong target instance: set `MCODE_TEST_URL` explicitly when you are not using the default local server URL.
+- Cross-suite leakage: call `resetTestState(client)` in `beforeAll` for suites that change global UI or app state, and always clean up created sessions in `afterAll` or `afterEach`.
+- Empty terminal reads: add a tile before asserting on xterm output because the terminal buffer is only rendered when a tile is mounted.
 
 ---
 
@@ -169,7 +194,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 
 | # | Test | MCP tools | What it checks |
 |---|------|-----------|----------------|
-| 1 | creates a session with starting status | `session_create` | sessionId is UUID format, status is `starting`, startedAt is set, endedAt is null |
+| 1 | starts with starting status | `session_create` | sessionId is UUID format, status is `starting`, startedAt is set, endedAt is null |
 | 2 | transitions from starting to active | `session_wait_for_status` | Status becomes `active` after PTY emits first data |
 | 3 | appears in session list | `session_list` | The created session is present in the full list with `active` status |
 | 4 | can set label | `session_set_label`, `session_get_status` | Label update returns new label; re-reading from DB confirms persistence |
@@ -466,22 +491,24 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 5 | Stop transitions to idle with action attention | `hook_inject_event` | Status `idle`, attention `action` |
 | 6 | PermissionRequest transitions to waiting with action attention | `hook_inject_event` | Status `waiting`, attention `action`, reason contains tool name |
 | 7 | PostToolUse returns to active and clears action attention | `hook_inject_event` | Status `active`, attention `none` |
-| 8 | SessionEnd transitions to ended and clears attention (no claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status `ended`, attention `none` |
-| 9 | SessionEnd clears attention even for resumable sessions (has claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Status `ended`, attention `none`, attentionReason null |
-| 10 | events are persisted and retrievable with sessionStatus | `hook_list_recent` | Events list is non-empty, contains correct sessionId and sessionStatus |
-| 11 | POST garbage to hook server returns 400 | direct HTTP fetch | 400 status on malformed JSON (skipped if runtime not ready) |
-| 12 | valid JSON but unknown event name returns 400 | direct HTTP fetch | 400 for `MadeUpEvent` |
-| 13 | valid event but unknown session returns 200 (silently accepted) | direct HTTP fetch | 200 for nonexistent session header |
-| 14 | Stop when already idle does not change attention | `hook_inject_event`, `session_clear_attention`, `session_get_status` | Second Stop on idle session with cleared attention keeps attention `none` |
-| 15 | PTY exit transitions to ended and clears attention | `session_kill`, `session_wait_for_status` | Status `ended`, attention `none` after kill |
-| 16 | sessionStatus reflects correct state after each event | `hook_inject_event`, `hook_list_recent` | Each event's sessionStatus matches expected state (active/idle/waiting) |
-| 17 | polling does not override hook-driven waiting status | `hook_inject_event`, `terminal_send_keys`, `session_get_status` | Status remains `waiting` after poll cycle |
-| 18 | Stop after ExitPlanMode transitions to waiting | `hook_inject_event` | Status `waiting`, attention `action`, reason "Waiting for your response" |
-| 19 | Stop after AskUserQuestion transitions to waiting | `hook_inject_event` | Status `waiting`, attention `action`, reason "Waiting for your response" |
-| 20 | PreToolUse after user-choice waiting transitions back to active | `hook_inject_event` | Status `active`, attention `none` after resuming |
-| 21 | Stop after normal tool still transitions to idle | `hook_inject_event` | Status `idle`, attention `action`, reason "Claude finished — awaiting next input" |
-| 22 | hook_list_recent_all returns events with sessionStatus across sessions | `hook_list_recent_all` | Non-empty array with sessionStatus field |
-| 23 | hook_clear_all_events removes all events | `hook_clear_all_events`, `hook_list_recent_all` | Events list empty after clearing |
+| 8 | SessionEnd with PTY alive clears attention but keeps status (no claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Attention clears while the live PTY session keeps its current status |
+| 9 | SessionEnd with PTY alive clears attention for resumable sessions (has claudeSessionId) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Attention clears and `attentionReason` becomes null while status remains resumable |
+| 10 | SessionEnd with PTY alive keeps current status (supports /resume) | `hook_inject_event`, `session_create`, `session_wait_for_status` | Live sessions stay non-`ended` so `/resume` can reuse them |
+| 11 | /resume flow: SessionEnd + SessionStart with new claudeSessionId | `hook_inject_event`, `session_create`, `session_wait_for_status` | Session stays active across a resume handoff and updates to the new Claude session ID |
+| 12 | events are persisted and retrievable with sessionStatus | `hook_list_recent` | Events list is non-empty, contains correct sessionId and sessionStatus |
+| 13 | POST garbage to hook server returns 400 | direct HTTP fetch | 400 status on malformed JSON (skipped if runtime not ready) |
+| 14 | valid JSON but unknown event name returns 400 | direct HTTP fetch | 400 for `MadeUpEvent` |
+| 15 | valid event but unknown session returns 200 (silently accepted) | direct HTTP fetch | 200 for nonexistent session header |
+| 16 | Stop when already idle does not change attention | `hook_inject_event`, `session_clear_attention`, `session_get_status` | Second Stop on idle session with cleared attention keeps attention `none` |
+| 17 | PTY exit transitions to ended and clears attention | `session_kill`, `session_wait_for_status` | Status `ended`, attention `none` after kill |
+| 18 | sessionStatus reflects correct state after each event | `hook_inject_event`, `hook_list_recent` | Each event's sessionStatus matches expected state (active/idle/waiting) |
+| 19 | polling does not override hook-driven waiting status | `hook_inject_event`, `terminal_send_keys`, `session_get_status` | Status remains `waiting` after poll cycle |
+| 20 | Stop after ExitPlanMode transitions to waiting | `hook_inject_event` | Status `waiting`, attention `action`, reason "Waiting for your response" |
+| 21 | Stop after AskUserQuestion transitions to waiting | `hook_inject_event` | Status `waiting`, attention `action`, reason "Waiting for your response" |
+| 22 | PreToolUse after user-choice waiting transitions back to active | `hook_inject_event` | Status `active`, attention `none` after resuming |
+| 23 | Stop after normal tool still transitions to idle | `hook_inject_event` | Status `idle`, attention `action`, reason "Claude finished — awaiting next input" |
+| 24 | hook_list_recent_all returns events with sessionStatus across sessions | `hook_list_recent_all` | Non-empty array with sessionStatus field |
+| 25 | hook_clear_all_events removes all events | `hook_clear_all_events`, `hook_list_recent_all` | Events list empty after clearing |
 
 ### 22. Attention System
 
@@ -630,7 +657,32 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 1 | creates session without accountId → null | `session_create`, `session_get_status` | accountId is null in both create response and DB |
 | 2 | creates session with accountId → stored | `session_create`, `session_get_status`, `account_list` | accountId matches default account |
 
-### 31. Stress Sessions
+### 30. Session Label Source
+
+**File**: `tests/suites/session-label-source.test.ts`
+**What it verifies**: User-provided labels are not overwritten by later auto-label updates, while unlabeled sessions can still accept an auto-generated title.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | preserves user-provided label when setAutoLabel is called | `session_create`, `session_set_auto_label` | Explicit labels survive later auto-label attempts |
+| 2 | allows auto-label to update when no user label was provided | `session_create`, `session_set_auto_label` | Directory-derived default label can be replaced by auto-label |
+
+### 31. Session Model
+
+**File**: `tests/suites/session-model.test.ts`
+**What it verifies**: Session model metadata starts null, can be updated, persists through status/list reads, and errors cleanly for unknown sessions.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | new session has null model | `session_create` | Fresh sessions do not report a model by default |
+| 2 | session_set_model updates model | `session_set_model` | Model field updates to the requested value |
+| 3 | model persists through session_get_status | `session_get_status` | Re-read status returns the persisted model |
+| 4 | model appears in session_list | `session_list` | Session list includes the stored model |
+| 5 | model can be updated (simulates /model switch) | `session_set_model`, `session_get_status` | Later model changes persist correctly |
+| 6 | terminal session has null model | `session_create` | Terminal sessions do not report a model |
+| 7 | session_set_model returns error for unknown session | `session_set_model` | Unknown session IDs return `isError: true` |
+
+### 32. Stress Sessions
 
 **File**: `tests/suites/stress-sessions.test.ts`
 **What it verifies**: The app handles 10 simultaneous sessions — creation, state tracking, independent I/O, and teardown.
@@ -644,7 +696,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 5 | kills all sessions and all transition to ended | `session_kill`, `session_wait_for_status`, `session_get_status` | All 10 reach `ended` |
 | 6 | tile count returns to baseline after kills | `layout_wait_for_tile_count`, `layout_get_tile_count` | Returns to pre-test count |
 
-### 32. Task Concurrent Dispatch
+### 33. Task Concurrent Dispatch
 
 **File**: `tests/suites/task-concurrent-dispatch.test.ts`
 **What it verifies**: Parallel task dispatch to multiple sessions, priority ordering, and graceful failure.
@@ -657,7 +709,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 2 | respects priority ordering for same-session tasks | `task_create`, `task_list`, `task_cancel` | Higher priority task listed first |
 | 3 | tasks targeting non-existent session fail gracefully | `task_create` | Throws `/not found/i` |
 
-### 33. File Search
+### 34. File Search
 
 **File**: `tests/suites/file-search.test.ts`
 **What it verifies**: File search tool — query matching, regex mode, case-sensitivity, and maxResults cap.
@@ -672,7 +724,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 4 | file_search supports case-sensitive mode | `file_search` | `caseSensitive: true` flag is respected |
 | 5 | file_search respects maxResults cap | `file_search` | Results capped at 3 |
 
-### 34. Session Detach and Restore
+### 35. Session Detach and Restore
 
 **File**: `tests/suites/session-detach-restore.test.ts`
 **What it verifies**: The detach/reconcile cycle — simulates app close and reopen, verifying session states and attention levels are preserved.
@@ -685,7 +737,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 4 | reconcileDetachedSessions marks dead sessions as ended | `app_detach_all`, `app_reconcile_detached`, `session_get_status` | Sessions not in aliveSessionIds become ended |
 | 5 | preserves attention levels through detach+restore cycle | `app_detach_all`, `app_reconcile_detached`, `session_get_status`, `hook_inject_event` | action attention preserved through cycle |
 
-### 35. Sidebar Session Filter
+### 36. Sidebar Session Filter
 
 **File**: `tests/suites/sidebar-session-filter.test.ts`
 **What it verifies**: Sidebar search filter — set, get, clear, and verify it's UI-only (doesn't affect `sidebar_get_sessions`).
@@ -696,7 +748,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 2 | clear filter with empty string | `sidebar_set_session_filter`, `sidebar_get_session_filter` | Empty string clears filter |
 | 3 | filter does not affect sidebar_get_sessions (UI-only) | `sidebar_set_session_filter`, `sidebar_get_session_filter`, `sidebar_get_sessions` | All sessions returned regardless of filter |
 
-### 36. Page Scroll Prevention
+### 37. Page Scroll Prevention
 
 **File**: `tests/suites/layout-no-page-scroll.test.ts`
 **What it verifies**: The app root element never overflows the viewport — regression test for the scroll-with-empty-space bug (165b6be).
@@ -705,7 +757,7 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 |---|------|-----------|----------------|
 | 1 | document scrollHeight does not exceed clientHeight | `window_execute_js` | `document.documentElement.scrollHeight ≤ clientHeight` |
 
-### 37. Auto Mode Flag
+### 38. Auto Mode Flag
 
 **File**: `tests/suites/auto-mode.test.ts`
 **What it verifies**: The `enableAutoMode` flag is persisted for Claude sessions and ignored for terminal sessions.
@@ -716,7 +768,28 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 | 2 | session created without enableAutoMode has it undefined | `session_create`, `session_get_status` | `enableAutoMode` absent from response |
 | 3 | terminal session with enableAutoMode=true ignores it | `session_create` | `enableAutoMode` always undefined for `sessionType: 'terminal'` |
 
-### 38. Terminal Panel Resize
+### 39. Codex Support
+
+**File**: `tests/suites/codex-support.test.ts`
+**What it verifies**: Codex sessions can be created through MCP, ignore Claude-only session flags, and appear correctly in sidebar and kanban views.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | creates a Codex session via MCP | `session_create` | Session is marked `sessionType: "codex"` and omits Claude-only fields |
+| 2 | omits Claude-only fields for Codex sessions even if they are provided | `session_create`, `session_get_status` | Permission, effort, auto mode, bypass, and worktree fields are ignored |
+| 3 | shows Codex sessions in the sidebar and kanban as agent sessions | `sidebar_get_sessions`, `kanban_get_columns`, `layout_set_view_mode` | Session appears in sidebar and lands in a valid kanban agent column |
+
+### 40. Codex Resume
+
+**File**: `tests/suites/codex-resume.test.ts`
+**What it verifies**: Codex sessions can only be resumed when a thread ID has been recorded, and resume reuses the existing session ID in place.
+
+| # | Test | MCP tools | What it checks |
+|---|------|-----------|----------------|
+| 1 | returns an error when no Codex thread ID is recorded | `session_resume` | Resume fails with a clear error when the session has no recorded Codex thread ID |
+| 2 | resumes a Codex session in place with the same session ID | `session_set_codex_thread_id`, `session_resume`, `sidebar_get_sessions`, `terminal_read_buffer` | Resume keeps the original session ID, restores live state, and preserves sidebar identity |
+
+### 41. Terminal Panel Resize
 
 **File**: `tests/suites/terminal-panel-resize.test.ts`
 **What it verifies**: The xterm.js container resizes proportionally when the terminal panel height changes.
@@ -729,35 +802,25 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 
 ## Coverage Summary
 
-| Feature Area | Suites | Tests | Key behaviors verified |
-|-------------|--------|-------|----------------------|
-| Session lifecycle | 1, 2, 17, 18, 29 | 38 | Create, status transitions, list, label, PTY info, kill, delete, bulk delete, batch delete, idempotent kill, concurrent create/kill, account assignment, error on missing |
-| Tiling layout | 3, 5, 9, 18, 31 | 31 | Auto-tile on create, add/remove, remove-all, tree structure, detach != kill, re-attach, auto-close on kill, concurrent tiles, 10-session stress |
-| Kanban layout | 4 | 9 | View mode switching, column grouping (working/completed/needs-attention), session expansion, auto-collapse, tile tree in kanban mode, zombie tile removal on kill |
-| Sidebar | 6, 7, 8, 35 | 17 | Session display, status tracking, DB consistency, selection, width control, tab switching, session filter set/get/clear |
-| Terminal I/O | 10, 11, 12, 17 | 13 | Send/read, buffer limits, dimensions, resize, Ctrl+C, timeout, sequential commands, copy/selectAll/clear, file drop, error on missing |
-| Window | 13, 36 | 4 | Screenshot, bounds, resize, page scroll prevention |
-| App introspection | 14, 15, 16 | 10 | Version, console logs (filter + limit), HMR events, sleep prevention, renderer bridge |
-| Permission modes | 19 | 1 | PERMISSION_MODES constant matches Claude CLI |
-| Auto mode flag | 37 | 3 | enableAutoMode persistence for Claude sessions, ignored for terminal sessions |
-| Terminal panel resize | 38 | 1 | xterm resize propagation on panel height change |
-| Hook config | 20 | 9 | Merge/remove mcode hooks, preserve user hooks, PID header, multi-instance, port-scoped removal, port+PID extraction |
-| Hook integration | 21 | 23 | Event lifecycle (all hook events), status transitions, event persistence, sessionStatus tracking, HTTP error responses, PTY exit, ExitPlanMode/AskUserQuestion waiting, poll override protection, cross-session events, event clearing |
-| Attention system | 22 | 12 | Attention levels (action/info/none), priority ordering, clearing, kill clears attention, SessionEnd clears attention, sidebar sorting |
-| Task queue | 23, 32 | 24 | Task CRUD, update, reorder, dispatch, concurrent dispatch, sequential dispatch, failure on session end, scheduling, sort_order, validation |
-| Commit tracking | 24 | 10 | Daily stats, heatmap, streaks, cadence, weekly trend, scan mode |
-| File tools | 25, 33 | 12 | File listing (git-aware), read (text + binary), write round-trip, file viewer, quick open, file search (query, regex, case-sensitive, maxResults) |
-| Token usage | 26 | 9 | Refresh scan, daily/session/model usage, weekly trend, heatmap |
-| Git tools | 27 | 6 | Git status (staged/unstaged, single repo + all repos), diff content, diff viewer |
-| Snippet tools | 28 | 5 | Snippet scanning, frontmatter parsing, variable extraction, empty directory |
-| Detach/restore | 34 | 5 | Detach preserves states, reconcile restores states, dead sessions ended, attention preserved |
-| **Total** | **38** | **237** | |
+Current inventory: **41 suites** and **248 `it(...)` / `it.skipIf(...)` test cases** under `tests/suites`.
+
+| Feature Area | Representative suites | Key behaviors verified |
+|-------------|-----------------------|------------------------|
+| Session lifecycle and metadata | 1, 2, 17, 18, 29, 30, 31 | Create, status transitions, list, label, PTY info, kill/delete flows, error handling, account assignment, label source rules, model persistence |
+| Layout and navigation | 3, 4, 5, 6, 7, 8, 9, 36, 37, 41 | Tile lifecycle, kanban grouping, sidebar state, tab/filter behavior, page scroll regression coverage, terminal panel resize |
+| Terminal and window tools | 10, 11, 12, 13 | Terminal I/O, resize, signals, clipboard actions, file drop, screenshots, window bounds and resize |
+| App and hook runtime | 14, 15, 16, 19, 20, 21, 22 | App metadata, sleep prevention, startup bridge, permission mode checks, hook config, hook lifecycle integration, attention behavior |
+| Tasking and analytics | 23, 24, 26, 33 | Task CRUD/reordering/dispatch, commit tracking, token usage, concurrent task dispatch |
+| File, git, and snippets | 25, 27, 28, 34 | File list/read/write, git status and diff access, snippet parsing, file search |
+| Session persistence and agent-specific flows | 35, 38, 39, 40 | Detach/reconcile cycle, auto mode persistence, Codex session creation, Codex resume semantics |
 
 ## Writing New Tests
 
 1. Add a new file in `tests/suites/` with the `.test.ts` extension.
 2. Use `McpTestClient` from `../mcp-client` and helpers from `../helpers`.
-3. Always connect in `beforeAll` and disconnect in `afterAll`.
-4. Clean up sessions in `afterAll` using `cleanupSessions()`.
-5. If your test needs terminal buffer reads, add a tile first (`layout_add_tile`) — xterm.js only renders the buffer when a tile is mounted.
-6. For tools with all-optional params, pass `{}` (not omit args) to satisfy MCP SDK validation.
+3. For integration suites that mutate shared state, call `resetTestState(client)` in `beforeAll` before creating sessions or toggling global UI state.
+4. Always connect in `beforeAll` and disconnect in `afterAll`.
+5. Clean up sessions in `afterAll` or `afterEach` using `cleanupSessions()`.
+6. Prefer the helpers in `tests/helpers.ts` over raw tool calls when a helper already captures the expected polling or cleanup pattern.
+7. If your test needs terminal buffer reads, add a tile first (`layout_add_tile`) — xterm.js only renders the buffer when a tile is mounted.
+8. For tools with all-optional params, pass `{}` (not omit args) to satisfy MCP SDK validation.
