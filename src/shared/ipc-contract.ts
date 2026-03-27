@@ -86,6 +86,8 @@ export interface IpcInvokeContract {
   'app:select-directory':               { params: []; result: string | null };
   'app:check-for-update':               { params: []; result: void };
   'app:open-update-page':               { params: []; result: void };
+  'app:download-update':                { params: []; result: void };
+  'app:install-update':                 { params: []; result: void };
 
   // --- Tasks ---
   'task:create':                        { params: [input: CreateTaskInput]; result: Task };
@@ -205,6 +207,9 @@ export interface IpcPushContract {
   'app:command':                        { params: [command: AppCommand] };
   'app:error':                          { params: [error: string] };
   'app:update-available':               { params: [info: { version: string }] };
+  'app:update-download-progress':       { params: [info: { percent: number }] };
+  'app:update-downloaded':              { params: [info: { version: string }] };
+  'app:update-error':                   { params: [info: { message: string }] };
   'devtools:query':                     { params: [requestId: string, type: string, params: Record<string, unknown>] };
 }
 

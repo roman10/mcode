@@ -26,6 +26,7 @@
     "@vscode/ripgrep": "^1.15.9",
     "better-sqlite3": "^12.8.0",
     "electron-log": "^5.4.0",
+    "electron-updater": "^6.8.3",
     "fast-glob": "^3.3.3",
     "node-pty": "^1.1.0",
     "yaml": "^2.8.3"
@@ -36,6 +37,11 @@
       "node_modules/@vscode/ripgrep/bin/**"
     ],
     "productName": "mcode",
+    "publish": {
+      "provider": "github",
+      "owner": "roman10",
+      "repo": "mcode"
+    },
     "files": [
       "out/**/*",
       "!node_modules/**/*.{md,ts,map,txt,yml,yaml}",
@@ -45,7 +51,8 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "icon": "resources/icon.icns",
       "hardenedRuntime": true,

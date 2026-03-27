@@ -13,7 +13,7 @@ import { InputTracker, registerInputIpc } from './input-tracker';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister, registerFileIpc } from './file-lister';
 import { FileSearch, registerSearchIpc } from './file-search';
-import { UpdateChecker } from './update-checker';
+import { AutoUpdater } from './auto-updater';
 import { registerSlashCommandIpc } from './slash-command-scanner';
 import { registerSnippetIpc } from './snippet-scanner';
 import { getPreference, setPreference, getPreferenceBool } from './preferences';
@@ -51,7 +51,7 @@ let inputTracker: InputTracker;
 let sleepBlocker: SleepBlocker;
 let fileLister: FileLister;
 let fileSearch: FileSearch;
-let updateChecker: UpdateChecker;
+let appUpdater: AutoUpdater;
 let hookRuntimeInfo: HookRuntimeInfo = {
   state: 'initializing',
   port: null,
@@ -146,8 +146,13 @@ function registerAppIpc(): void {
     app.dock?.setBadge(text);
   });
 
-  typedHandle('app:check-for-update', () => updateChecker.checkManual());
-  typedHandle('app:open-update-page', () => updateChecker.openUpdatePage());
+  typedHandle('app:check-for-update', () => appUpdater.checkManual());
+  typedHandle('app:open-update-page', () => appUpdater.openReleasePage());
+  typedHandle('app:download-update', () => appUpdater.downloadUpdate());
+  typedHandle('app:install-update', () => {
+    isQuitting = true; // bypass close-confirmation dialog before quitAndInstall
+    appUpdater.installUpdate();
+  });
 }
 
 function registerPreferencesIpc(): void {
@@ -270,7 +275,7 @@ app.whenReady().then(async () => {
   buildApplicationMenu({
     sendCommand,
     shutdownBroker: () => brokerClient.shutdownBroker(),
-    checkForUpdates: () => updateChecker.checkManual(),
+    checkForUpdates: () => appUpdater.checkManual(),
   });
 
   // Initialize database
@@ -351,7 +356,7 @@ app.whenReady().then(async () => {
     const wc = getWebContents();
     if (wc && !wc.isDestroyed()) wc.send('search:event', event);
   });
-  updateChecker = new UpdateChecker(getWebContents);
+  appUpdater = new AutoUpdater(getWebContents);
   inputTracker = new InputTracker();
   tokenTracker = new TokenTracker(getWebContents, inputTracker);
   sleepBlocker = new SleepBlocker();
@@ -424,7 +429,7 @@ app.whenReady().then(async () => {
   // Start commit tracker, token tracker, and update checker
   commitTracker.start();
   tokenTracker.start();
-  updateChecker.start();
+  appUpdater.start();
 
   // Wire commit tracker to hook events and session creation
   sessionManager.onSessionUpdated((session, previousStatus) => {
@@ -503,7 +508,7 @@ app.on('before-quit', (e) => {
     commitTracker.stop();
     fileSearch.cancelAll();
     tokenTracker.stop();
-    updateChecker.stop();
+    appUpdater.stop();
 
     // Clean up hook config (primary + all secondary account settings)
     if (hookRuntimeInfo.port) {

@@ -238,11 +238,26 @@ contextBridge.exposeInMainWorld('mcode', {
     onUpdateAvailable: (cb: (info: { version: string }) => void): (() => void) =>
       typedListen('app:update-available', cb),
 
+    onUpdateDownloadProgress: (cb: (info: { percent: number }) => void): (() => void) =>
+      typedListen('app:update-download-progress', cb),
+
+    onUpdateDownloaded: (cb: (info: { version: string }) => void): (() => void) =>
+      typedListen('app:update-downloaded', cb),
+
+    onUpdateError: (cb: (info: { message: string }) => void): (() => void) =>
+      typedListen('app:update-error', cb),
+
     openUpdatePage: (): Promise<void> =>
       typedInvoke('app:open-update-page'),
 
     checkForUpdate: (): Promise<void> =>
       typedInvoke('app:check-for-update'),
+
+    downloadUpdate: (): Promise<void> =>
+      typedInvoke('app:download-update'),
+
+    installUpdate: (): Promise<void> =>
+      typedInvoke('app:install-update'),
   },
 
   tasks: {

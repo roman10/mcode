@@ -367,8 +367,19 @@ export interface MCodeAPI {
     onUpdateAvailable(
       callback: (info: { version: string }) => void,
     ): () => void;
+    onUpdateDownloadProgress(
+      callback: (info: { percent: number }) => void,
+    ): () => void;
+    onUpdateDownloaded(
+      callback: (info: { version: string }) => void,
+    ): () => void;
+    onUpdateError(
+      callback: (info: { message: string }) => void,
+    ): () => void;
     openUpdatePage(): Promise<void>;
     checkForUpdate(): Promise<void>;
+    downloadUpdate(): Promise<void>;
+    installUpdate(): Promise<void>;
   };
 
   preferences: {
