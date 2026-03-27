@@ -37,7 +37,7 @@ The core blocker is the **hook architecture mismatch**: Claude Code sends HTTP w
 1. **Hook architecture mismatch** — Codex runs shell commands for hooks, mcode expects HTTP POSTs. Need a bridge script.
 2. **Codex TUI complexity** — Claude has a simple `❯` prompt for idle detection. Codex uses a full Ink-based TUI.
 3. **Hook system immaturity** — Codex hooks are still being added (`AfterToolUse` in v0.100.0, `UserPromptSubmit` in v0.114.0).
-4. **No session resume** — Codex has no `--resume` equivalent.
+4. **Resume identity capture required** — Codex now has native resume support, but mcode must capture and persist Codex's thread ID to use it reliably in a multi-session UI.
 5. **Task queue coupling** — Prompt dispatch relies on detecting Claude's idle prompt and plan mode menus.
 
 ---
