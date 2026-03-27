@@ -60,6 +60,18 @@ describe('terminal-panel-store', () => {
       expect(group.terminalIds).toEqual(['a', 'b']);
       expect(group.activeTerminalId).toBe('b');
     });
+
+    it('is idempotent — second call with same sessionId is a no-op', () => {
+      const entry = makeEntry({ sessionId: 'dup-1' });
+      useTerminalPanelStore.getState().addTerminal(entry);
+      useTerminalPanelStore.getState().addTerminal(entry);
+
+      const state = useTerminalPanelStore.getState();
+      expect(Object.keys(state.terminals)).toHaveLength(1);
+      expect(Object.keys(state.tabGroups)).toHaveLength(1);
+      const group = Object.values(state.tabGroups)[0];
+      expect(group.terminalIds).toEqual(['dup-1']);
+    });
   });
 
   describe('removeTerminal', () => {

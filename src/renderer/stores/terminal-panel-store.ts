@@ -195,6 +195,11 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
 
   addTerminal: (entry, tabGroupId) =>
     set((state) => {
+      // Idempotent: if terminal already tracked, skip (mirrors addTile in layout-store)
+      if (state.terminals[entry.sessionId]) {
+        return state;
+      }
+
       const terminals = { ...state.terminals, [entry.sessionId]: entry };
       const tabGroups = { ...state.tabGroups };
       let splitTree = state.splitTree;
