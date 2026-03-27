@@ -80,7 +80,6 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
   const addSession = useSessionStore((s) => s.addSession);
   const addTile = useLayoutStore((s) => s.addTile);
   const persist = useLayoutStore((s) => s.persist);
-  const selectSession = useSessionStore((s) => s.selectSession);
 
   const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -112,7 +111,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
         addSession(session);
         addTile(session.sessionId);
         persist();
-        selectSession(session.sessionId);
+        useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
       }
       setPendingAccountId(account.accountId);
     } catch (err) {

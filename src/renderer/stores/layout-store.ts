@@ -12,6 +12,7 @@ import {
   COMMIT_DIFF_TILE_PREFIX,
   sessionIdFromTileId,
 } from '../utils/tile-id';
+import { useSessionStore } from './session-store';
 
 /** Legacy tile IDs — stripped from persisted layouts on restore. */
 const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];
@@ -79,11 +80,13 @@ interface LayoutState {
   quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets';
   restoreTree: MosaicNode<string> | null;
   pendingFileLine: { path: string; line: number } | null;
-  /** Tracks the focused tile ID (for non-session tiles like file/diff viewers). Transient, not persisted. */
+  /** Tracks the focused tile ID (session, file, or diff viewer). Transient, not persisted. */
   selectedTileId: string | null;
 
   setMosaicTree(tree: MosaicNode<string> | null): void;
   setSelectedTileId(id: string | null): void;
+  /** Single entry point for focus changes — atomically updates selectedTileId and selectedSessionId. */
+  focusTile(tileId: string | null): void;
   addTile(sessionId: string): void;
   addTileAdjacent(anchorSessionId: string, newSessionId: string, direction: 'row' | 'column'): void;
   removeTile(sessionId: string): void;
@@ -281,6 +284,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   setMosaicTree: (tree) => set({ mosaicTree: tree }),
   setSelectedTileId: (id) => set({ selectedTileId: id }),
+  focusTile: (tileId) => {
+    set({ selectedTileId: tileId });
+    const sid = tileId ? sessionIdFromTileId(tileId) : null;
+    useSessionStore.getState().selectSession(sid);
+  },
 
   addTile: (sessionId) =>
     set((state) => {
@@ -471,8 +479,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       get().openKanbanFile(absolutePath);
       return;
     }
+    const newTile = fileTileId(absolutePath);
     set((state) => {
-      const newTile = fileTileId(absolutePath);
       const current = state.mosaicTree;
 
       if (!current) {
@@ -490,6 +498,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
       };
     });
+    get().focusTile(newTile);
   },
 
   consumePendingFileLine: (path) => {
@@ -520,10 +529,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       get().openKanbanFile(absolutePath);
       return;
     }
+    const newTile = commitHash
+      ? commitDiffTileId(absolutePath, commitHash)
+      : diffTileId(absolutePath);
     set((state) => {
-      const newTile = commitHash
-        ? commitDiffTileId(absolutePath, commitHash)
-        : diffTileId(absolutePath);
       const current = state.mosaicTree;
 
       if (!current) {
@@ -540,6 +549,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
       };
     });
+    get().focusTile(newTile);
   },
 
   removeDiffTile: (absolutePath) => {

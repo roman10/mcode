@@ -2,11 +2,21 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getLeaves } from 'react-mosaic-component';
 import type { MosaicNode } from 'react-mosaic-component';
 
+const mockSelectSession = vi.fn();
+
+// Mock session-store (used by focusTile)
+vi.mock('../../../../src/renderer/stores/session-store', () => ({
+  useSessionStore: {
+    getState: () => ({ selectSession: mockSelectSession }),
+  },
+}));
+
 // Mock window.mcode before importing the store
 vi.stubGlobal('window', {
   mcode: {
     layout: { save: vi.fn().mockResolvedValue(undefined), load: vi.fn().mockResolvedValue(null) },
     preferences: { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue(undefined) },
+    sessions: { clearAttention: vi.fn().mockResolvedValue(undefined) },
   },
 });
 
@@ -32,6 +42,7 @@ function countTiles(): number {
 
 describe('layout-store', () => {
   beforeEach(() => {
+    mockSelectSession.mockClear();
     useLayoutStore.setState({
       mosaicTree: null,
       sidebarWidth: 280,
@@ -45,6 +56,7 @@ describe('layout-store', () => {
       splitIntent: null,
       restoreTree: null,
       pendingFileLine: null,
+      selectedTileId: null,
     });
   });
 
@@ -487,6 +499,70 @@ describe('layout-store', () => {
 
       expect(useLayoutStore.getState().consumePendingFileLine('/other.ts')).toBeNull();
     });
+  });
+});
+
+describe('focusTile', () => {
+  beforeEach(() => {
+    mockSelectSession.mockClear();
+    useLayoutStore.setState({ selectedTileId: null });
+  });
+
+  it('sets selectedTileId and calls selectSession for a session tile', () => {
+    useLayoutStore.getState().focusTile('session:abc');
+    expect(useLayoutStore.getState().selectedTileId).toBe('session:abc');
+    expect(mockSelectSession).toHaveBeenCalledWith('abc');
+  });
+
+  it('sets selectedTileId and calls selectSession(null) for a file tile', () => {
+    useLayoutStore.getState().focusTile('file:/test.ts');
+    expect(useLayoutStore.getState().selectedTileId).toBe('file:/test.ts');
+    expect(mockSelectSession).toHaveBeenCalledWith(null);
+  });
+
+  it('clears both when called with null', () => {
+    useLayoutStore.setState({ selectedTileId: 'session:abc' });
+    useLayoutStore.getState().focusTile(null);
+    expect(useLayoutStore.getState().selectedTileId).toBeNull();
+    expect(mockSelectSession).toHaveBeenCalledWith(null);
+  });
+});
+
+describe('addFileViewer auto-focus', () => {
+  beforeEach(() => {
+    mockSelectSession.mockClear();
+    useLayoutStore.setState({ mosaicTree: null, selectedTileId: null, viewMode: 'tiles' });
+  });
+
+  it('sets selectedTileId to the new file tile', () => {
+    useLayoutStore.getState().addFileViewer('/test.ts');
+    expect(useLayoutStore.getState().selectedTileId).toBe('file:/test.ts');
+    expect(mockSelectSession).toHaveBeenCalledWith(null);
+  });
+
+  it('re-selects an existing file tile', () => {
+    useLayoutStore.getState().addFileViewer('/test.ts');
+    mockSelectSession.mockClear();
+    useLayoutStore.setState({ selectedTileId: null });
+    useLayoutStore.getState().addFileViewer('/test.ts');
+    expect(useLayoutStore.getState().selectedTileId).toBe('file:/test.ts');
+  });
+});
+
+describe('addDiffViewer auto-focus', () => {
+  beforeEach(() => {
+    mockSelectSession.mockClear();
+    useLayoutStore.setState({ mosaicTree: null, selectedTileId: null, viewMode: 'tiles' });
+  });
+
+  it('sets selectedTileId to the new diff tile', () => {
+    useLayoutStore.getState().addDiffViewer('/test.ts');
+    expect(useLayoutStore.getState().selectedTileId).toBe('diff:/test.ts');
+  });
+
+  it('sets selectedTileId for commit diff tile', () => {
+    useLayoutStore.getState().addDiffViewer('/test.ts', 'abc123');
+    expect(useLayoutStore.getState().selectedTileId).toBe('commit-diff:abc123:/test.ts');
   });
 });
 

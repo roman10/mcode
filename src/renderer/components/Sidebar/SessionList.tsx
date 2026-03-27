@@ -13,7 +13,6 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
   const sessions = useSessionStore((s) => s.sessions);
   const externalSessions = useSessionStore((s) => s.externalSessions);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
-  const selectSession = useSessionStore((s) => s.selectSession);
 
   const mosaicTree = useLayoutStore((s) => s.mosaicTree);
   const addTile = useLayoutStore((s) => s.addTile);
@@ -67,8 +66,8 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
   const handleDoubleClick = useCallback((sessionId: string): void => {
     addTile(sessionId);
     persist();
-    selectSession(sessionId);
-  }, [addTile, persist, selectSession]);
+    useLayoutStore.getState().focusTile(`session:${sessionId}`);
+  }, [addTile, persist]);
 
   const handleKill = useCallback(async (sessionId: string): Promise<void> => {
     try {
@@ -211,7 +210,7 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
                 isSelected={selectedSessionId === session.sessionId}
                 hasTile={tileSessionIds.has(session.sessionId)}
                 onSelect={() => {
-                  selectSession(session.sessionId);
+                  useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
                   if (viewMode === 'kanban') {
                     expandKanbanSession(session.sessionId);
                   }

@@ -64,7 +64,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
       useSessionStore.getState().addSession(newSession);
       useLayoutStore.getState().replaceTile(sessionId, newSession.sessionId);
       useLayoutStore.getState().persist();
-      useSessionStore.getState().selectSession(newSession.sessionId);
+      useLayoutStore.getState().focusTile(`session:${newSession.sessionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setCreating(false);

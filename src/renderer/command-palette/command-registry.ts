@@ -5,7 +5,6 @@ import { KEYBOARD_SHORTCUTS } from '@shared/keyboard-shortcuts';
 import { formatKeys } from '../utils/format-shortcut';
 import { executeAppCommand } from '../utils/app-commands';
 import { useLayoutStore } from '../stores/layout-store';
-import { useSessionStore } from '../stores/session-store';
 import { useTerminalPanelStore } from '../stores/terminal-panel-store';
 import { resolveActiveCwd } from '../utils/session-actions';
 
@@ -349,7 +348,7 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => {
         useLayoutStore.getState().addTile(session.sessionId);
         useLayoutStore.getState().persist();
-        useSessionStore.getState().selectSession(session.sessionId);
+        useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
       },
     });
   }

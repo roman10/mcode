@@ -38,7 +38,6 @@ function SidebarPanel(): React.JSX.Element {
   const todayCost = useStatsStore((s) => s.dailyUsage?.estimatedCostUsd ?? null);
   const refreshStats = useStatsStore((s) => s.refreshAll);
   const addSession = useSessionStore((s) => s.addSession);
-  const selectSession = useSessionStore((s) => s.selectSession);
   const hookRuntime = useSessionStore((s) => s.hookRuntime);
   const sessionFilterQuery = useLayoutStore((s) => s.sessionFilterQuery);
   const setSessionFilterQuery = useLayoutStore((s) => s.setSessionFilterQuery);
@@ -121,7 +120,7 @@ function SidebarPanel(): React.JSX.Element {
       }
 
       persist();
-      selectSession(session.sessionId);
+      useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
       autoExpandInKanban(session.sessionId);
       setShowNewDialog(false);
     } catch (err) {
@@ -159,7 +158,7 @@ function SidebarPanel(): React.JSX.Element {
       addSession(s);
       addTile(s.sessionId);
       persist();
-      selectSession(s.sessionId);
+      useLayoutStore.getState().focusTile(`session:${s.sessionId}`);
       // Send auth command after a brief delay for shell init
       setTimeout(() => window.mcode.pty.write(s.sessionId, 'claude auth login\n'), 300);
     } catch (err) {

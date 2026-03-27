@@ -52,7 +52,7 @@ export function executeAppCommand(command: AppCommand): void {
       if (!target) break;
       useLayoutStore.getState().addTile(target.sessionId);
       useLayoutStore.getState().persist();
-      useSessionStore.getState().selectSession(target.sessionId);
+      useLayoutStore.getState().focusTile(`session:${target.sessionId}`);
       break;
     }
 
@@ -86,14 +86,12 @@ export function executeAppCommand(command: AppCommand): void {
         const nextTileId = allTileIds[nextIdx];
         const nextSessionId = sessionIdFromTileId(nextTileId);
 
-        useLayoutStore.getState().setSelectedTileId(nextTileId);
-
         if (nextSessionId) {
           useLayoutStore.getState().addTile(nextSessionId);
           useLayoutStore.getState().persist();
-          useSessionStore.getState().selectSession(nextSessionId);
-        } else {
-          useSessionStore.getState().selectSession(null);
+        }
+        useLayoutStore.getState().focusTile(nextTileId);
+        if (!nextSessionId) {
           requestAnimationFrame(() => {
             const el = document.querySelector(`[data-tile-id="${nextTileId}"]`) as HTMLElement | null;
             el?.focus();
@@ -121,7 +119,7 @@ export function executeAppCommand(command: AppCommand): void {
       const next = ordered[nextIdx];
       useLayoutStore.getState().addTile(next.sessionId);
       useLayoutStore.getState().persist();
-      useSessionStore.getState().selectSession(next.sessionId);
+      useLayoutStore.getState().focusTile(`session:${next.sessionId}`);
       break;
     }
 

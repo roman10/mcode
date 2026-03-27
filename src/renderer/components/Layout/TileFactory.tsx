@@ -41,8 +41,7 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
   };
 
   const handlePointerDown = (): void => {
-    useLayoutStore.getState().setSelectedTileId(tileId);
-    useSessionStore.getState().selectSession(null);
+    useLayoutStore.getState().focusTile(tileId);
   };
 
   return (

@@ -77,6 +77,7 @@ export function useSessionSubscriptions(): void {
       } else {
         addTile(session.sessionId);
         persist();
+        useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
       }
     });
     return unsub;

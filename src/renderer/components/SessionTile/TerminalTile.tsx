@@ -18,7 +18,6 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const removeTile = useLayoutStore((s) => s.removeTile);
   const persist = useLayoutStore((s) => s.persist);
-  const selectSession = useSessionStore((s) => s.selectSession);
   const status = useSessionStore((s) => s.sessions[sessionId]?.status);
   const sessionType = useSessionStore((s) => s.sessions[sessionId]?.sessionType);
   const hookMode = useSessionStore((s) => s.sessions[sessionId]?.hookMode);
@@ -60,8 +59,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   };
 
   const handleFocus = (): void => {
-    selectSession(sessionId, 'user');
-    useLayoutStore.getState().setSelectedTileId(`session:${sessionId}`);
+    useLayoutStore.getState().focusTile(`session:${sessionId}`);
   };
 
   // Drag-and-drop: paste file paths into terminal.
@@ -168,6 +166,15 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       persist();
     }
   }, [status, sessionId, removeTile, persist]);
+
+  // Auto-focus the xterm terminal when this tile becomes the focused session.
+  useEffect(() => {
+    if (!isFocused) return;
+    const timer = window.setTimeout(() => {
+      terminalRegistry.get(sessionId)?.focus();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isFocused, sessionId]);
 
   return (
     <div

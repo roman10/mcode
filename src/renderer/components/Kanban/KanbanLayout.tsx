@@ -11,7 +11,6 @@ function KanbanLayout(): React.JSX.Element {
   const boardRef = useRef<HTMLDivElement>(null);
   const sessions = useSessionStore((s) => s.sessions);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
-  const selectSession = useSessionStore((s) => s.selectSession);
   const kanbanExpandedSessionId = useLayoutStore((s) => s.kanbanExpandedSessionId);
   const kanbanOpenFiles = useLayoutStore((s) => s.kanbanOpenFiles);
   const expandKanbanSession = useLayoutStore((s) => s.expandKanbanSession);
@@ -29,15 +28,15 @@ function KanbanLayout(): React.JSX.Element {
   }, [kanbanExpandedSessionId, sessions, clearKanbanExpand]);
 
   const handleSelectSession = useCallback((sessionId: string) => {
-    selectSession(sessionId);
+    useLayoutStore.getState().focusTile(`session:${sessionId}`);
     // Focus the board so it can receive Cmd+Enter keyboard events
     boardRef.current?.focus();
-  }, [selectSession]);
+  }, []);
 
   const handleExpandSession = useCallback((sessionId: string) => {
-    selectSession(sessionId);
+    useLayoutStore.getState().focusTile(`session:${sessionId}`);
     expandKanbanSession(sessionId);
-  }, [selectSession, expandKanbanSession]);
+  }, [expandKanbanSession]);
 
   const handleKillSession = useCallback(async (sessionId: string) => {
     try {

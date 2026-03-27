@@ -112,8 +112,8 @@ export function initDevtoolsBridge(): void {
       }
       case 'session-select': {
         const { sessionId } = params as { sessionId: string | null };
-        const { useSessionStore } = await import('../stores/session-store');
-        useSessionStore.getState().selectSession(sessionId);
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().focusTile(sessionId ? `session:${sessionId}` : null);
         result = true;
         break;
       }
@@ -139,6 +139,7 @@ export function initDevtoolsBridge(): void {
         } else {
           useLayoutStore.getState().addTile(session.sessionId);
           useLayoutStore.getState().persist();
+          useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
         }
         result = true;
         break;
