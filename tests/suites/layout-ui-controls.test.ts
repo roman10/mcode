@@ -8,6 +8,7 @@ import {
   waitForTileCount,
   type SessionInfo,
   resetTestState,
+  sleep,
 } from '../helpers';
 
 describe('layout UI controls', () => {
@@ -116,6 +117,34 @@ describe('layout UI controls', () => {
     const shownAgain = text2.includes('shown');
 
     expect(shownAgain).toBe(!shown);
+  });
+
+  it('command palette input receives focus when opened', async () => {
+    // Ensure a terminal tile has focus first (simulates real usage where
+    // xterm.js holds focus and can steal it back from autoFocus).
+    const termFocused = await client.callToolJson<boolean>('window_execute_js', {
+      code: `(() => {
+        const textarea = document.querySelector('.xterm-helper-textarea');
+        if (textarea) textarea.focus();
+        return document.activeElement?.classList.contains('xterm-helper-textarea') ?? false;
+      })()`,
+    });
+    expect(termFocused).toBe(true);
+    await sleep(50);
+
+    // Open the command palette
+    await client.callToolText('layout_toggle_command_palette');
+    await sleep(100);
+
+    // Verify the cmdk input has focus
+    const hasFocus = await client.callToolJson<boolean>(
+      'window_execute_js',
+      { code: 'document.activeElement?.hasAttribute("cmdk-input") ?? false' },
+    );
+    expect(hasFocus).toBe(true);
+
+    // Clean up: close the palette
+    await client.callToolText('layout_toggle_command_palette');
   });
 
   it('remove_all_tiles is idempotent', async () => {

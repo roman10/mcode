@@ -484,9 +484,19 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
     ? input.slice(1).trimStart()
     : input;
 
-  // Save focus target before autoFocus steals it; restore on unmount
+  // Save focus target before we steal focus; restore on unmount
   const restoreFocusRef = useRef(createFocusRestorer());
   useEffect(() => () => restoreFocusRef.current(), []);
+
+  // Explicitly focus the input after mount — autoFocus is unreliable in Electron
+  // when xterm.js terminals hold focus (they reclaim it after React's commit phase).
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    // Use setTimeout instead of requestAnimationFrame — rAF is throttled/paused
+    // when the Electron window is not in the foreground.
+    const id = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   // Escape override for snippet variable form (back to search instead of closing)
   const escapeOverrideRef = useRef<(() => void) | null>(null);
@@ -527,7 +537,7 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
           }}
         >
           <Command.Input
-            autoFocus
+            ref={inputRef}
             value={input}
             onValueChange={setInput}
             placeholder={
