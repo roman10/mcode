@@ -6,6 +6,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
 import Tooltip from '../shared/Tooltip';
 import CreateTaskDialog from '../shared/CreateTaskDialog';
+import ModelPill from './ModelPill';
 import type { SessionStatus, CreateTaskInput } from '@shared/types';
 
 interface TerminalToolbarProps {
@@ -124,6 +125,7 @@ function TerminalToolbar({
       <span className={`text-xs mr-1.5 ${statusColors[status]}`}>
         {statusLabels[status]}
       </span>
+      <ModelPill model={session?.model ?? null} sessionType={session?.sessionType ?? 'terminal'} />
       {lastTool && status !== 'ended' && (
         <span className="text-xs text-text-muted mr-1.5">
           {lastTool}

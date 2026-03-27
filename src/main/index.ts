@@ -19,6 +19,7 @@ import { registerSnippetIpc } from './snippet-scanner';
 import { getPreference, setPreference, getPreferenceBool } from './preferences';
 import { startHookServer, stopHookServer } from './hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hook-config';
+import { writeBridgeScript, reconcileCodexHooks, cleanupCodexHooks } from './codex-hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { fixPath } from './fix-path';
@@ -197,6 +198,14 @@ async function initializeHookSystem(): Promise<void> {
           commitTracker.onHookEvent(sessionId, event).catch(() => {});
           tokenTracker.onHookEvent(sessionId, event).catch(() => {});
           gitChangesService.onHookEvent(sessionId, event).catch(() => {});
+          if (event.hookEventName === 'Stop') {
+            const payload = event.payload as { transcript_path?: string } | undefined;
+            if (payload?.transcript_path) {
+              setTimeout(() => {
+                sessionManager.updateModelFromTranscript(sessionId, payload.transcript_path!).catch(() => {});
+              }, 500);
+            }
+          }
         }
         return handled;
       },
@@ -214,6 +223,18 @@ async function initializeHookSystem(): Promise<void> {
           port: result.port,
           warning: `Hook config failed: ${err instanceof Error ? err.message : String(err)}`,
         };
+      }
+
+      // Codex hook bridge: write bridge script + reconcile ~/.codex/hooks.json
+      try {
+        writeBridgeScript();
+        reconcileCodexHooks();
+        sessionManager.codexHookBridgeReady = true;
+        logger.info('app', 'Codex hook bridge configured');
+      } catch (err) {
+        logger.warn('app', 'Codex hook bridge setup failed — Codex sessions will use fallback mode', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     } else {
       hookRuntimeInfo = result;
@@ -488,6 +509,7 @@ app.on('before-quit', (e) => {
     if (hookRuntimeInfo.port) {
       cleanupOnQuit(hookRuntimeInfo.port, accountManager.getAllSettingsPaths().slice(1));
     }
+    cleanupCodexHooks();
     stopHookServer();
 
     // Kill terminal sessions immediately (no value running headless)

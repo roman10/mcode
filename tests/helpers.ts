@@ -16,6 +16,7 @@ export interface SessionInfo {
   startedAt: string;
   endedAt: string | null;
   claudeSessionId: string | null;
+  codexThreadId: string | null;
   lastTool: string | null;
   lastEventAt: string | null;
   attentionLevel: string;
@@ -26,6 +27,7 @@ export interface SessionInfo {
   terminalConfig?: Record<string, unknown>;
   accountId: string | null;
   autoClose?: boolean;
+  model: string | null;
 }
 
 export interface HookRuntimeInfo {

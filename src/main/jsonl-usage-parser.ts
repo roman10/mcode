@@ -152,6 +152,29 @@ function parseProgressMessage(obj: Record<string, unknown>): ParsedUsageEntry | 
   };
 }
 
+// ── Model extraction ────────────────────────────────────────────────────────
+
+/**
+ * Extract the model from the last assistant message in a JSONL chunk.
+ * Scans backwards for efficiency — returns the most recent model.
+ */
+export function extractLatestModel(chunk: string): string | null {
+  const lines = chunk.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line || !line.includes('"assistant"')) continue;
+    try {
+      const obj = JSON.parse(line) as Record<string, unknown>;
+      if (obj['type'] === 'assistant') {
+        const message = obj['message'] as Record<string, unknown> | undefined;
+        const model = message?.['model'] as string | undefined;
+        if (model && model !== '<synthetic>') return model;
+      }
+    } catch { /* skip malformed */ }
+  }
+  return null;
+}
+
 // ── Human input parsing ─────────────────────────────────────────────────────
 
 export interface ParsedHumanEntry {

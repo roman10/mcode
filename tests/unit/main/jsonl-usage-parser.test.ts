@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseUsageFromChunk, parseHumanMessagesFromChunk } from '../../../src/main/jsonl-usage-parser';
+import { parseUsageFromChunk, parseHumanMessagesFromChunk, extractLatestModel } from '../../../src/main/jsonl-usage-parser';
 
 function jsonl(...lines: unknown[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n');
@@ -328,5 +328,50 @@ describe('parseHumanMessagesFromChunk', () => {
   it('returns empty for empty input', () => {
     expect(parseHumanMessagesFromChunk('', false)).toEqual([]);
     expect(parseHumanMessagesFromChunk('\n\n', false)).toEqual([]);
+  });
+});
+
+describe('extractLatestModel', () => {
+  it('extracts model from the last assistant message', () => {
+    const chunk = jsonl(
+      { type: 'assistant', uuid: 'msg-1', timestamp: 'T1', message: { model: 'claude-sonnet-4-5', usage: { input_tokens: 1 } } },
+      { type: 'assistant', uuid: 'msg-2', timestamp: 'T2', message: { model: 'claude-opus-4-6', usage: { input_tokens: 1 } } },
+    );
+    expect(extractLatestModel(chunk)).toBe('claude-opus-4-6');
+  });
+
+  it('returns null for empty input', () => {
+    expect(extractLatestModel('')).toBeNull();
+    expect(extractLatestModel('\n\n')).toBeNull();
+  });
+
+  it('skips <synthetic> model entries', () => {
+    const chunk = jsonl(
+      { type: 'assistant', uuid: 'msg-1', timestamp: 'T1', message: { model: 'claude-opus-4-6', usage: { input_tokens: 1 } } },
+      { type: 'assistant', uuid: 'msg-2', timestamp: 'T2', message: { model: '<synthetic>', usage: { input_tokens: 1 } } },
+    );
+    expect(extractLatestModel(chunk)).toBe('claude-opus-4-6');
+  });
+
+  it('returns null when only non-assistant messages exist', () => {
+    const chunk = jsonl(
+      { type: 'user', uuid: 'u1', timestamp: 'T1', message: { content: 'hello' } },
+      { type: 'progress', timestamp: 'T2', data: {} },
+    );
+    expect(extractLatestModel(chunk)).toBeNull();
+  });
+
+  it('handles malformed lines gracefully', () => {
+    const chunk = 'not json\n' + jsonl(
+      { type: 'assistant', uuid: 'msg-1', timestamp: 'T1', message: { model: 'claude-opus-4-6', usage: { input_tokens: 1 } } },
+    );
+    expect(extractLatestModel(chunk)).toBe('claude-opus-4-6');
+  });
+
+  it('returns null when assistant messages have no model field', () => {
+    const chunk = jsonl(
+      { type: 'assistant', uuid: 'msg-1', timestamp: 'T1', message: { usage: { input_tokens: 1 } } },
+    );
+    expect(extractLatestModel(chunk)).toBeNull();
   });
 });
