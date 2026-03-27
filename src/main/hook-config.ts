@@ -81,11 +81,6 @@ export function extractMcodeHookPortPids(settings: ClaudeSettings): Map<number, 
   return result;
 }
 
-/** Remove all mcode-owned hook entries from settings. Pure function. */
-export function removeMcodeHooks(settings: ClaudeSettings): ClaudeSettings {
-  return filterMcodeHooks(settings, () => true);
-}
-
 /** Remove mcode hooks targeting a specific port. Pure function. */
 export function removeMcodeHooksForPort(settings: ClaudeSettings, port: number): ClaudeSettings {
   return filterMcodeHooks(settings, (hook) => extractPortFromUrl(hook.url) === port);

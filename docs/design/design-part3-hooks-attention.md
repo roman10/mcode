@@ -157,7 +157,7 @@ This avoids removing a user-created localhost hook that happens to use the same 
 
 `hook-config.ts` must expose pure functions for:
 
-- `removeMcodeHooks(settings)`
+- `removeMcodeHooksForPort(settings, port)`
 - `mergeMcodeHooks(settings, port)`
 
 These are tested against temp fixtures without touching the real home directory.

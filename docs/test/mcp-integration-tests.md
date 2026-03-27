@@ -463,12 +463,12 @@ Uses a fake UUID `00000000-0000-0000-0000-000000000000` for all calls.
 ### 20. Hook Config
 
 **File**: `tests/suites/hook-config.test.ts`
-**What it verifies**: Pure unit tests for hook config merging, removal, port-scoped cleanup, and PID extraction (no MCP server needed).
+**What it verifies**: Pure unit tests for hook config merging, port-scoped cleanup, and PID extraction (no MCP server needed).
 
 | # | Test | What it checks |
 |---|------|----------------|
 | 1 | merges mcode hooks using Claude hook groups | Existing user hooks preserved; mcode hooks appended with correct URL, headers, and `allowedHttpHookUrls` |
-| 2 | removes only mcode-owned hooks and preserves user hooks | Hooks with `X-Mcode-Hook` header removed; user hooks untouched; empty groups pruned |
+| 2 | removes matching-port mcode-owned hooks and preserves user hooks | Port-scoped cleanup removes matching hooks with `X-Mcode-Hook`; user hooks untouched; empty groups pruned |
 | 3 | includes PID header in hook entries | Merged hooks include `X-Mcode-PID` header matching `process.pid` |
 | 4 | mergeMcodeHooks preserves other instances' hooks | Two merges on different ports both survive; PreToolUse has entries for both ports |
 | 5 | mergeMcodeHooks replaces its own port on re-merge | Re-merging same port does not duplicate; PreToolUse has exactly one entry |

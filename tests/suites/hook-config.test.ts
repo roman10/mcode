@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   mergeMcodeHooks,
-  removeMcodeHooks,
   removeMcodeHooksForPort,
   extractMcodeHookPortPids,
 } from '../../src/main/hook-config';
@@ -39,8 +38,8 @@ describe('hook config helpers', () => {
     });
   });
 
-  it('removes only mcode-owned hooks and preserves user hooks', () => {
-    const cleaned = removeMcodeHooks({
+  it('removes matching-port mcode-owned hooks and preserves user hooks', () => {
+    const cleaned = removeMcodeHooksForPort({
       hooks: {
         PreToolUse: [
           {
@@ -74,7 +73,7 @@ describe('hook config helpers', () => {
           },
         ],
       },
-    });
+    }, 7777);
 
     expect(cleaned.hooks?.PreToolUse).toEqual([
       {
