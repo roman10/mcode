@@ -5,7 +5,7 @@ import { sessionIdFromTileId } from './tile-id';
 import { useSessionStore } from '../stores/session-store';
 import { useTerminalPanelStore } from '../stores/terminal-panel-store';
 import { getOrderedOpenSessions } from './session-ordering';
-import { createTerminalSession } from './session-actions';
+import { createTerminalSession, splitAndCreateTerminal } from './session-actions';
 
 /** Sessions navigable by focus commands — in tile mode, only those with visible tiles. */
 function getNavigableSessions(): SessionInfo[] {
@@ -236,13 +236,13 @@ export function executeAppCommand(command: AppCommand): void {
 
     case 'split-terminal-horizontal': {
       const panel = useTerminalPanelStore.getState();
-      if (panel.activeTabGroupId) panel.splitTabGroup(panel.activeTabGroupId, 'horizontal');
+      if (panel.activeTabGroupId) splitAndCreateTerminal(panel.activeTabGroupId, 'horizontal');
       break;
     }
 
     case 'split-terminal-vertical': {
       const panel = useTerminalPanelStore.getState();
-      if (panel.activeTabGroupId) panel.splitTabGroup(panel.activeTabGroupId, 'vertical');
+      if (panel.activeTabGroupId) splitAndCreateTerminal(panel.activeTabGroupId, 'vertical');
       break;
     }
 

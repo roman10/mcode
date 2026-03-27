@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import type { SplitDirection } from '../../stores/terminal-panel-store';
+import { splitAndCreateTerminal } from '../../utils/session-actions';
 import Tooltip from '../shared/Tooltip';
 import { formatKeys } from '../../utils/format-shortcut';
 
@@ -10,7 +11,6 @@ export default function TerminalPanelToolbar(): React.JSX.Element {
   const activeTabGroupId = useTerminalPanelStore((s) => s.activeTabGroupId);
   const tabGroups = useTerminalPanelStore((s) => s.tabGroups);
   const removeTerminal = useTerminalPanelStore((s) => s.removeTerminal);
-  const splitTabGroup = useTerminalPanelStore((s) => s.splitTabGroup);
 
   const activeGroup = activeTabGroupId ? tabGroups[activeTabGroupId] : undefined;
   const activeEntry = activeGroup ? terminals[activeGroup.activeTerminalId] : undefined;
@@ -24,9 +24,9 @@ export default function TerminalPanelToolbar(): React.JSX.Element {
   const handleSplit = useCallback(
     (direction: SplitDirection) => {
       if (!activeTabGroupId) return;
-      splitTabGroup(activeTabGroupId, direction);
+      splitAndCreateTerminal(activeTabGroupId, direction);
     },
-    [activeTabGroupId, splitTabGroup],
+    [activeTabGroupId],
   );
 
   const terminalCount = Object.keys(terminals).length;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
+import { splitAndCreateTerminal } from '../../utils/session-actions';
 import TerminalPanelToolbar from './TerminalPanelToolbar';
 import TerminalSplitContainer from './TerminalSplitContainer';
 
@@ -59,7 +60,7 @@ export default function TerminalPanel(): React.JSX.Element | null {
         if (!panel.activeTabGroupId) return;
         e.preventDefault();
         e.stopPropagation();
-        panel.splitTabGroup(panel.activeTabGroupId, e.shiftKey ? 'vertical' : 'horizontal');
+        splitAndCreateTerminal(panel.activeTabGroupId, e.shiftKey ? 'vertical' : 'horizontal');
         break;
       }
       case ']':

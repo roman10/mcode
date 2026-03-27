@@ -1,7 +1,7 @@
 import { basename } from '../utils/path-utils';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
-import { useTerminalPanelStore } from '../stores/terminal-panel-store';
+import { useTerminalPanelStore, type SplitDirection } from '../stores/terminal-panel-store';
 
 /** Auto-expand a newly created session when in kanban view mode. */
 export function autoExpandInKanban(sessionId: string): void {
@@ -37,6 +37,19 @@ export async function createTerminalSession(tabGroupId?: string): Promise<void> 
     },
     tabGroupId,
   );
+}
+
+/**
+ * Split a terminal tab group and create a new terminal in the new pane.
+ */
+export async function splitAndCreateTerminal(
+  tabGroupId: string,
+  direction: SplitDirection,
+): Promise<void> {
+  const newGroupId = useTerminalPanelStore.getState().splitTabGroup(tabGroupId, direction);
+  if (newGroupId) {
+    await createTerminalSession(newGroupId);
+  }
 }
 
 /** Resolve the CWD from the selected session or most recent session, falling back to $HOME. */

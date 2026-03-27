@@ -64,7 +64,7 @@ interface TerminalPanelState {
   cycleTab(direction: 1 | -1): void;
 
   // Split operations
-  splitTabGroup(tabGroupId: string, direction: SplitDirection): void;
+  splitTabGroup(tabGroupId: string, direction: SplitDirection): string | undefined;
   setSplitRatio(parentNode: PanelNode, ratio: number): void;
 
   // Panel chrome
@@ -317,7 +317,7 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
   splitTabGroup: (tabGroupId, direction) => {
     const state = get();
     const group = state.tabGroups[tabGroupId];
-    if (!group) return;
+    if (!group) return undefined;
 
     const newGroupId = generateId();
     const newGroup: TabGroup = {
@@ -336,11 +336,7 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
     });
 
     set({ tabGroups, splitTree, activeTabGroupId: newGroupId });
-
-    // Create a terminal in the new group (explicitly targeting it by ID)
-    import('../utils/session-actions').then(({ createTerminalSession }) => {
-      createTerminalSession(newGroupId).catch(console.error);
-    });
+    return newGroupId;
   },
 
   setSplitRatio: (_parentNode, ratio) =>
