@@ -42,6 +42,7 @@ export function useSessionSubscriptions(): void {
       // auto-close useEffect never fires and zombie tiles accumulate.
       if (justEnded) {
         removeTile(session.sessionId);
+        useTerminalPanelStore.getState().removeTerminal(session.sessionId);
         persist();
       }
 
