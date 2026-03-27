@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { WebglAddon } from '@xterm/addon-webgl';
+import { attachWebgl } from '../../utils/webgl-lifecycle';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { darkTheme } from '../../styles/theme';
 import {
@@ -153,14 +153,22 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       }
     });
 
-    // WebGL addon must load AFTER term.open() (requires DOM attachment)
-    let webglAddon: WebglAddon | null = null;
-    try {
-      webglAddon = new WebglAddon();
-      term.loadAddon(webglAddon);
-    } catch (e) {
-      console.warn('WebGL addon failed, falling back to canvas renderer:', e);
-    }
+    // WebGL addon must load AFTER term.open() (requires DOM attachment).
+    // attachWebgl handles context-loss recovery and caps total active contexts
+    // to prevent the browser from evicting older terminals' WebGL state.
+    const webgl = attachWebgl(term, sessionId);
+
+    // When the terminal gains focus and WebGL was lost, try to re-attach.
+    // This recovers rendering quality after transient context exhaustion.
+    const unsubFocus = term.onFocus(() => {
+      if (!webgl.active) {
+        window.setTimeout(() => {
+          if (!webgl.active && termInstanceRef.current === term) {
+            webgl.reattach();
+          }
+        }, 500);
+      }
+    });
 
     // PTY resize chain (verified correct at runtime — PTY and xterm cols always match):
     //   ResizeObserver(container) → rAF → fitAddon.fit() → xterm.resize()
@@ -257,7 +265,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       container.removeEventListener('contextmenu', handleContextMenu);
       resizeObserver.disconnect();
       mutationObserver?.disconnect();
-      webglAddon?.dispose();
+      unsubFocus.dispose();
+      webgl.detach();
       term.dispose();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup must only re-run on identity change
