@@ -40,6 +40,14 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-
 
 ![Stats sidebar with commit and token analytics](docs/screenshots/stats-sidebar.png)
 
+## Download
+
+Pre-built DMG for Apple Silicon (macOS):
+
+**[Download mcode-0.1.1-arm64.dmg](https://github.com/roman10/mcode/releases/latest)**
+
+> **Gatekeeper note:** macOS may block the app on first launch since it is not yet notarized. Right-click `mcode.app` in your Applications folder → **Open** → **Open Anyway**. Alternatively: `xattr -cr /Applications/mcode.app`
+
 ## Installation
 
 ### Prerequisites
@@ -49,7 +57,7 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-
 - **Claude Code CLI** installed and authenticated for Claude sessions (`npm install -g @anthropic-ai/claude-code`)
 - **Codex CLI** installed and authenticated for Codex sessions
 
-### Setup
+### Build from source
 
 ```bash
 git clone https://github.com/roman10/mcode.git
@@ -58,15 +66,13 @@ npm install
 npm run dev
 ```
 
-### Build for production
+### Build production DMG
 
 ```bash
 npm run build:mac
 ```
 
 This produces a DMG in the `dist/` directory.
-
-> **Pre-built DMGs** will be available as release artifacts starting from v0.2.0. For now, build from source.
 
 ## Quick Start
 
