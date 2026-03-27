@@ -3,11 +3,12 @@ import { readdir, stat, open as fsOpen } from 'node:fs/promises';
 import { join, basename, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { WebContents } from 'electron';
-import { getDb } from './db';
-import { logger } from './logger';
+import { getDb } from '../db';
+import { logger } from '../logger';
 import { parseUsageFromChunk, parseHumanMessagesFromChunk } from './jsonl-usage-parser';
 import type { InputTracker } from './input-tracker';
 import { estimateCostUsd, normalizeModelFamily } from './token-cost';
+import { localDateStr } from './date-utils';
 import type {
   HookEvent,
   SessionTokenUsage,
@@ -17,8 +18,8 @@ import type {
   TokenHeatmapEntry,
   TokenTotals,
   ModelUsageSummary,
-} from '../shared/types';
-import { typedHandle } from './ipc-helpers';
+} from '../../shared/types';
+import { typedHandle } from '../ipc-helpers';
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
 const SCAN_BATCH_SIZE = 20;
@@ -667,10 +668,6 @@ function estimateWeekCost(db: ReturnType<typeof getDb>, whereClause: string): nu
     cost += estimateCostForTotals(r.model, rowToTotals(r), r.is_fast_mode === 1);
   }
   return cost;
-}
-
-function localDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function registerTokenIpc(tokenTracker: TokenTracker): void {

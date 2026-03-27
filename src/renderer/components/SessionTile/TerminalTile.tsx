@@ -4,6 +4,7 @@ import TileTaskPanel from './TileTaskPanel';
 import TerminalInstance from './TerminalInstance';
 import SessionEndedPrompt from './SessionEndedPrompt';
 import { useLayoutStore } from '../../stores/layout-store';
+import { useDialogStore } from '../../stores/dialog-store';
 import { useSessionStore } from '../../stores/session-store';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import { shellEscapePath } from '@shared/shell-utils';
@@ -132,7 +133,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
           anchorSessionId: sessionId,
           direction: e.shiftKey ? 'column' : 'row',
         });
-        useLayoutStore.getState().setShowNewSessionDialog(true);
+        useDialogStore.getState().setShowNewSessionDialog(true);
         break;
 
       case 'Enter':

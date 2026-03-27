@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectAIAssisted } from '../../../src/main/commit-tracker';
+import { detectAIAssisted } from '../../../src/main/trackers/commit-tracker';
 
 describe('detectAIAssisted', () => {
   it('detects Claude and Anthropic co-authors', () => {

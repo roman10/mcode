@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, chmodSync, mkdirSync, copyFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
-import { logger } from './logger';
+import { logger } from '../logger';
 
 // Bridge script path — used as implicit ownership marker (any hook entry
 // whose command matches this path is mcode-owned).

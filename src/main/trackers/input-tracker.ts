@@ -1,11 +1,12 @@
-import { getDb } from './db';
-import { typedHandle } from './ipc-helpers';
+import { getDb } from '../db';
+import { localDateStr } from './date-utils';
+import { typedHandle } from '../ipc-helpers';
 import type {
   DailyInputStats,
   InputHeatmapEntry,
   InputWeeklyTrend,
   InputCadenceInfo,
-} from '../shared/types';
+} from '../../shared/types';
 import type { ParsedHumanEntry } from './jsonl-usage-parser';
 
 interface DailyAggRow {
@@ -33,10 +34,6 @@ interface HourRow {
 
 interface ThinkTimeRow {
   think_seconds: number;
-}
-
-function localDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export class InputTracker {

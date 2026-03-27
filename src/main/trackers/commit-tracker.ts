@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { WebContents } from 'electron';
-import type { SessionManager } from './session-manager';
-import { getDb } from './db';
-import { getPreferenceBool } from './preferences';
-import { logger } from './logger';
-import { typedHandle } from './ipc-helpers';
+import type { SessionManager } from '../session/session-manager';
+import { getDb } from '../db';
+import { getPreferenceBool } from '../preferences';
+import { logger } from '../logger';
+import { typedHandle } from '../ipc-helpers';
+import { localDateStr, todayDate, nDaysAgoStart } from './date-utils';
 import type {
   HookEvent,
   DailyCommitStats,
@@ -13,7 +14,7 @@ import type {
   CommitStreakInfo,
   CommitCadenceInfo,
   CommitWeeklyTrend,
-} from '../shared/types';
+} from '../../shared/types';
 
 const execFileAsync = promisify(execFile);
 
@@ -702,21 +703,6 @@ export class CommitTracker {
       wc.send('commits:updated');
     }
   }
-}
-
-/** Format a Date as YYYY-MM-DD in the local timezone. */
-function localDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function todayDate(): string {
-  return localDateStr(new Date());
-}
-
-function nDaysAgoStart(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return localDateStr(d) + 'T00:00:00';
 }
 
 export function registerCommitIpc(commitTracker: CommitTracker): void {

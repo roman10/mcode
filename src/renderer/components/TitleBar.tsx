@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { useLayoutStore } from '../stores/layout-store';
+import { useDialogStore } from '../stores/dialog-store';
 import { useSessionStore } from '../stores/session-store';
 import { formatKeys } from '../utils/format-shortcut';
 import { basename } from '../utils/path-utils';
 
 function TitleBar(): React.JSX.Element {
-  const openQuickOpen = useLayoutStore((s) => s.openQuickOpen);
+  const openQuickOpen = useDialogStore((s) => s.openQuickOpen);
   const sessions = useSessionStore((s) => s.sessions);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
 

@@ -9,7 +9,7 @@ vi.stubGlobal('window', {
   },
 });
 
-const { getCommands } = await import('../../../../src/renderer/command-palette/command-registry');
+const { getCommands } = await import('../../../../src/renderer/components/CommandPalette/command-registry');
 
 const emptyCtx = {
   sessions: {},

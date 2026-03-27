@@ -167,16 +167,16 @@ export function initDevtoolsBridge(): void {
         break;
       }
       case 'layout-toggle-keyboard-shortcuts': {
-        const { useLayoutStore } = await import('../stores/layout-store');
-        const current = useLayoutStore.getState().showKeyboardShortcuts;
-        useLayoutStore.getState().setShowKeyboardShortcuts(!current);
+        const { useDialogStore } = await import('../stores/dialog-store');
+        const current = useDialogStore.getState().showKeyboardShortcuts;
+        useDialogStore.getState().setShowKeyboardShortcuts(!current);
         result = !current;
         break;
       }
       case 'layout-toggle-command-palette': {
-        const { useLayoutStore } = await import('../stores/layout-store');
-        const current = useLayoutStore.getState().showCommandPalette;
-        useLayoutStore.getState().setShowCommandPalette(!current);
+        const { useDialogStore } = await import('../stores/dialog-store');
+        const current = useDialogStore.getState().showCommandPalette;
+        useDialogStore.getState().setShowCommandPalette(!current);
         result = !current;
         break;
       }
@@ -276,8 +276,8 @@ export function initDevtoolsBridge(): void {
       }
       case 'quick-open-toggle': {
         const { mode } = params as { mode: 'files' | 'commands' };
-        const { useLayoutStore } = await import('../stores/layout-store');
-        const store = useLayoutStore.getState();
+        const { useDialogStore } = await import('../stores/dialog-store');
+        const store = useDialogStore.getState();
         if (store.showCommandPalette) {
           store.setShowCommandPalette(false);
           result = false;

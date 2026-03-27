@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { app } from 'electron';
-import { logger } from './logger';
+import { logger } from '../logger';
 
 const isDev = !app.isPackaged;
 const mcodeDir = join(homedir(), isDev ? '.mcode-dev' : '.mcode');

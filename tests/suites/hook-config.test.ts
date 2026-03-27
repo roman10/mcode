@@ -3,7 +3,7 @@ import {
   mergeMcodeHooks,
   removeMcodeHooksForPort,
   extractMcodeHookPortPids,
-} from '../../src/main/hook-config';
+} from '../../src/main/hooks/hook-config';
 
 describe('hook config helpers', () => {
   it('merges mcode hooks using Claude hook groups', () => {

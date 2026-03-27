@@ -2,11 +2,11 @@ import * as net from 'node:net';
 import * as readline from 'node:readline';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import type { IPtyManager, PtyInfo } from '../shared/pty-manager-interface';
-import type { PtySpawnOptions } from '../shared/types';
-import { RING_BUFFER_MAX_BYTES } from '../shared/constants';
-import { logger } from './logger';
-import { typedHandle, typedOn } from './ipc-helpers';
+import type { IPtyManager, PtyInfo } from '../../shared/pty-manager-interface';
+import type { PtySpawnOptions } from '../../shared/types';
+import { RING_BUFFER_MAX_BYTES } from '../../shared/constants';
+import { logger } from '../logger';
+import { typedHandle, typedOn } from '../ipc-helpers';
 
 interface PendingRequest {
   resolve: (result: unknown) => void;

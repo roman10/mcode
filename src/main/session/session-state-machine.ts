@@ -1,4 +1,4 @@
-import type { SessionStatus, SessionAttentionLevel } from '../shared/types';
+import type { SessionStatus, SessionAttentionLevel } from '../../shared/types';
 
 // --- Types ---
 

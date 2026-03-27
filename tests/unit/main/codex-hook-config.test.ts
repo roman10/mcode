@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   removeMcodeBridgeHooks,
   mergeMcodeBridgeHooks,
-} from '../../../src/main/codex-hook-config';
+} from '../../../src/main/hooks/codex-hook-config';
 
 // --- Pure function tests (no file I/O) ---
 

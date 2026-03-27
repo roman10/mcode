@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   selectCodexThreadCandidate,
   type CodexThreadRecord,
-} from '../../../src/main/codex-session-store';
+} from '../../../src/main/session/codex-session-store';
 
 function makeThread(overrides: Partial<CodexThreadRecord> = {}): CodexThreadRecord {
   return {

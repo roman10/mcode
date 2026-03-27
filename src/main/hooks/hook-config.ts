@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
-import { logger } from './logger';
-import { KNOWN_HOOK_EVENTS } from '../shared/constants';
+import { logger } from '../logger';
+import { KNOWN_HOOK_EVENTS } from '../../shared/constants';
 
 const MCODE_HOOK_MARKER = 'X-Mcode-Hook';
 const MCODE_PID_HEADER = 'X-Mcode-PID';

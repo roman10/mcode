@@ -5,13 +5,13 @@ import { existsSync } from 'node:fs';
 import { readdir, open as fsOpen } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
-import type { IPtyManager } from '../shared/pty-manager-interface';
-import type { AccountManager } from './account-manager';
-import { getDb } from './db';
-import { logger } from './logger';
-import { stripAnsi } from '../shared/strip-ansi';
-import { extractLatestModel } from './jsonl-usage-parser';
-import { normalizeModelVersion } from './token-cost';
+import type { IPtyManager } from '../../shared/pty-manager-interface';
+import type { AccountManager } from '../account-manager';
+import { getDb } from '../db';
+import { logger } from '../logger';
+import { stripAnsi } from '../../shared/strip-ansi';
+import { extractLatestModel } from '../trackers/jsonl-usage-parser';
+import { normalizeModelVersion } from '../trackers/token-cost';
 import { getTranscriptPath } from './transcript-path';
 import { findCodexThreadMatch } from './codex-session-store';
 import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
@@ -29,7 +29,7 @@ import {
   HOOK_TOOL_INPUT_MAX_BYTES,
   type EffortLevel,
   type PermissionMode,
-} from '../shared/constants';
+} from '../../shared/constants';
 import { SessionEventStore } from './session-event-store';
 import { LayoutRepository } from './layout-repository';
 import type {
@@ -41,11 +41,10 @@ import type {
   ExternalSessionInfo,
   HookEvent,
   HookRuntimeInfo,
-  LayoutStateSnapshot,
   SessionDefaults,
   TerminalConfig,
-} from '../shared/types';
-import { typedHandle } from './ipc-helpers';
+} from '../../shared/types';
+import { typedHandle } from '../ipc-helpers';
 
 interface SessionRecord {
   session_id: string;
@@ -172,7 +171,7 @@ export class SessionManager {
   private accountManager: AccountManager;
   private sessionListeners = new Set<SessionUpdateListener>();
   private eventStore: SessionEventStore;
-  private layoutRepo: LayoutRepository;
+  readonly layoutRepo: LayoutRepository;
 
   /** Set to true after Codex hook bridge is successfully configured at startup. */
   codexHookBridgeReady = false;
@@ -1521,12 +1520,3 @@ export function registerSessionIpc(sessionManager: SessionManager): void {
   });
 }
 
-export function registerLayoutIpc(sessionManager: SessionManager): void {
-  typedHandle('layout:save', (mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState) => {
-    sessionManager.saveLayout(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState);
-  });
-
-  typedHandle('layout:load', () => {
-    return (sessionManager.loadLayout() ?? null) as LayoutStateSnapshot | null;
-  });
-}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeModelVersion, normalizeModelFamily, estimateCostUsd } from '../../../src/main/token-cost';
+import { normalizeModelVersion, normalizeModelFamily, estimateCostUsd } from '../../../src/main/trackers/token-cost';
 
 describe('normalizeModelVersion', () => {
   it('strips claude- prefix and date suffix', () => {

@@ -1,6 +1,7 @@
 import type { AppCommand, SessionInfo } from '@shared/types';
 import { getLeaves } from 'react-mosaic-component';
 import { useLayoutStore } from '../stores/layout-store';
+import { useDialogStore } from '../stores/dialog-store';
 import { sessionIdFromTileId } from './tile-id';
 import { useSessionStore } from '../stores/session-store';
 import { useTerminalPanelStore } from '../stores/terminal-panel-store';
@@ -28,8 +29,8 @@ function getNavigableSessions(): SessionInfo[] {
 export function executeAppCommand(command: AppCommand): void {
   switch (command.command) {
     case 'new-session':
-      useLayoutStore.getState().setNewSessionDialogType(command.sessionType ?? 'claude');
-      useLayoutStore.getState().setShowNewSessionDialog(true);
+      useDialogStore.getState().setNewSessionDialogType(command.sessionType ?? 'claude');
+      useDialogStore.getState().setShowNewSessionDialog(true);
       break;
 
     case 'new-terminal':
@@ -41,8 +42,8 @@ export function executeAppCommand(command: AppCommand): void {
       break;
 
     case 'show-keyboard-shortcuts': {
-      const ls = useLayoutStore.getState();
-      ls.setShowKeyboardShortcuts(!ls.showKeyboardShortcuts);
+      const ds = useDialogStore.getState();
+      ds.setShowKeyboardShortcuts(!ds.showKeyboardShortcuts);
       break;
     }
 
@@ -124,8 +125,8 @@ export function executeAppCommand(command: AppCommand): void {
     }
 
     case 'show-settings': {
-      const ls = useLayoutStore.getState();
-      ls.setShowSettings(!ls.showSettings);
+      const ds = useDialogStore.getState();
+      ds.setShowSettings(!ds.showSettings);
       break;
     }
 
@@ -158,29 +159,29 @@ export function executeAppCommand(command: AppCommand): void {
       break;
 
     case 'show-command-palette': {
-      const ls = useLayoutStore.getState();
-      ls.setShowSettings(false);
-      ls.setShowKeyboardShortcuts(false);
-      if (ls.showCommandPalette) {
-        ls.setShowCommandPalette(false);
+      const ds = useDialogStore.getState();
+      ds.setShowSettings(false);
+      ds.setShowKeyboardShortcuts(false);
+      if (ds.showCommandPalette) {
+        ds.setShowCommandPalette(false);
       } else {
-        ls.openQuickOpen('commands');
+        ds.openQuickOpen('commands');
       }
       break;
     }
 
     case 'show-create-task':
-      useLayoutStore.getState().setShowCreateTaskDialog(true);
+      useDialogStore.getState().setShowCreateTaskDialog(true);
       break;
 
     case 'quick-open': {
-      const ls = useLayoutStore.getState();
-      ls.setShowSettings(false);
-      ls.setShowKeyboardShortcuts(false);
-      if (ls.showCommandPalette) {
-        ls.setShowCommandPalette(false);
+      const ds = useDialogStore.getState();
+      ds.setShowSettings(false);
+      ds.setShowKeyboardShortcuts(false);
+      if (ds.showCommandPalette) {
+        ds.setShowCommandPalette(false);
       } else {
-        ls.openQuickOpen('files');
+        ds.openQuickOpen('files');
       }
       break;
     }
@@ -209,25 +210,25 @@ export function executeAppCommand(command: AppCommand): void {
     }
 
     case 'run-shell-command': {
-      const ls = useLayoutStore.getState();
-      ls.setShowSettings(false);
-      ls.setShowKeyboardShortcuts(false);
-      if (ls.showCommandPalette) {
-        ls.setShowCommandPalette(false);
+      const ds = useDialogStore.getState();
+      ds.setShowSettings(false);
+      ds.setShowKeyboardShortcuts(false);
+      if (ds.showCommandPalette) {
+        ds.setShowCommandPalette(false);
       } else {
-        ls.openQuickOpen('shell');
+        ds.openQuickOpen('shell');
       }
       break;
     }
 
     case 'open-snippets': {
-      const ls = useLayoutStore.getState();
-      ls.setShowSettings(false);
-      ls.setShowKeyboardShortcuts(false);
-      if (ls.showCommandPalette) {
-        ls.setShowCommandPalette(false);
+      const ds = useDialogStore.getState();
+      ds.setShowSettings(false);
+      ds.setShowKeyboardShortcuts(false);
+      if (ds.showCommandPalette) {
+        ds.setShowCommandPalette(false);
       } else {
-        ls.openQuickOpen('snippets');
+        ds.openQuickOpen('snippets');
       }
       break;
     }

@@ -1,7 +1,7 @@
-import { getDb } from './db';
-import { logger } from './logger';
-import { HOOK_EVENT_RETENTION_DAYS } from '../shared/constants';
-import type { HookEvent, SessionStatus } from '../shared/types';
+import { getDb } from '../db';
+import { logger } from '../logger';
+import { HOOK_EVENT_RETENTION_DAYS } from '../../shared/constants';
+import type { HookEvent, SessionStatus } from '../../shared/types';
 
 function serializeToolInput(
   toolInput: Record<string, unknown> | null,

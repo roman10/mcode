@@ -1,10 +1,10 @@
 import type { BrowserWindow } from 'electron';
 import type { IPtyManager } from '../shared/pty-manager-interface';
-import type { SessionManager } from '../main/session-manager';
+import type { SessionManager } from '../main/session/session-manager';
 import type { TaskQueue } from '../main/task-queue';
-import type { CommitTracker } from '../main/commit-tracker';
+import type { CommitTracker } from '../main/trackers/commit-tracker';
 import type { GitChangesService } from '../main/git-changes';
-import type { TokenTracker } from '../main/token-tracker';
+import type { TokenTracker } from '../main/trackers/token-tracker';
 import type { SleepBlocker } from '../main/sleep-blocker';
 import type { FileLister } from '../main/file-lister';
 import type { FileSearch } from '../main/file-search';

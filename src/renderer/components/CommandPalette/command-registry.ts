@@ -2,11 +2,12 @@ import type { MosaicNode } from 'react-mosaic-component';
 import { getLeaves } from 'react-mosaic-component';
 import type { SessionInfo } from '@shared/types';
 import { KEYBOARD_SHORTCUTS } from '@shared/keyboard-shortcuts';
-import { formatKeys } from '../utils/format-shortcut';
-import { executeAppCommand } from '../utils/app-commands';
-import { useLayoutStore } from '../stores/layout-store';
-import { useTerminalPanelStore } from '../stores/terminal-panel-store';
-import { resolveActiveCwd } from '../utils/session-actions';
+import { formatKeys } from '../../utils/format-shortcut';
+import { executeAppCommand } from '../../utils/app-commands';
+import { useLayoutStore } from '../../stores/layout-store';
+import { useDialogStore } from '../../stores/dialog-store';
+import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
+import { resolveActiveCwd } from '../../utils/session-actions';
 
 export interface CommandEntry {
   id: string;
@@ -309,7 +310,7 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => {
         if (!selectedSessionId) return;
         useLayoutStore.getState().setSplitIntent({ anchorSessionId: selectedSessionId, direction: 'row' });
-        useLayoutStore.getState().setShowNewSessionDialog(true);
+        useDialogStore.getState().setShowNewSessionDialog(true);
       },
     },
     {
@@ -321,7 +322,7 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => {
         if (!selectedSessionId) return;
         useLayoutStore.getState().setSplitIntent({ anchorSessionId: selectedSessionId, direction: 'column' });
-        useLayoutStore.getState().setShowNewSessionDialog(true);
+        useDialogStore.getState().setShowNewSessionDialog(true);
       },
     },
     {

@@ -1,7 +1,7 @@
 import * as pty from 'node-pty';
-import type { PtySpawnOptions } from '../shared/types';
-import type { IPtyManager } from '../shared/pty-manager-interface';
-import { PTY_KILL_TIMEOUT_MS, RING_BUFFER_MAX_BYTES } from '../shared/constants';
+import type { PtySpawnOptions } from '../../shared/types';
+import type { IPtyManager } from '../../shared/pty-manager-interface';
+import { PTY_KILL_TIMEOUT_MS, RING_BUFFER_MAX_BYTES } from '../../shared/constants';
 
 interface Logger {
   info(module: string, message: string, data?: Record<string, unknown>): void;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from '../../../src/main/prompt-detect';
+import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from '../../../src/main/session/prompt-detect';
 
 describe('isAtClaudePrompt', () => {
   it('detects a clean prompt', () => {

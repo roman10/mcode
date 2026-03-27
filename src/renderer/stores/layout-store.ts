@@ -70,14 +70,6 @@ interface LayoutState {
   kanbanSplitRatio: number; // transient, 0-1, default 0.5
   sessionFilterQuery: string; // transient, not persisted
   splitIntent: SplitIntent | null;
-  showNewSessionDialog: boolean;
-  newSessionDialogType: 'claude' | 'codex';
-  showKeyboardShortcuts: boolean;
-  showSettings: boolean;
-  showAccountsDialog: boolean;
-  showCommandPalette: boolean;
-  showCreateTaskDialog: boolean;
-  quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets';
   restoreTree: MosaicNode<string> | null;
   pendingFileLine: { path: string; line: number } | null;
   /** Tracks the focused tile ID (session, file, or diff viewer). Transient, not persisted. */
@@ -106,14 +98,6 @@ interface LayoutState {
   setKanbanSplitRatio(ratio: number): void;
   setSessionFilterQuery(query: string): void;
   setSplitIntent(intent: SplitIntent | null): void;
-  setShowNewSessionDialog(show: boolean): void;
-  setNewSessionDialogType(type: 'claude' | 'codex'): void;
-  setShowKeyboardShortcuts(show: boolean): void;
-  setShowSettings(show: boolean): void;
-  setShowAccountsDialog(show: boolean): void;
-  setShowCommandPalette(show: boolean): void;
-  setShowCreateTaskDialog(show: boolean): void;
-  openQuickOpen(mode: 'files' | 'commands' | 'shell' | 'snippets'): void;
   addFileViewer(absolutePath: string, options?: { line?: number }): void;
   consumePendingFileLine(path: string): number | null;
   removeFileTile(absolutePath: string): void;
@@ -270,14 +254,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   kanbanSplitRatio: 0.5,
   sessionFilterQuery: '',
   splitIntent: null,
-  showNewSessionDialog: false,
-  newSessionDialogType: 'claude' as const,
-  showKeyboardShortcuts: false,
-  showSettings: false,
-  showAccountsDialog: false,
-  showCommandPalette: false,
-  showCreateTaskDialog: false,
-  quickOpenInitialMode: 'files' as const,
   restoreTree: null,
   pendingFileLine: null,
   selectedTileId: null,
@@ -457,16 +433,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setSessionFilterQuery: (query) => set({ sessionFilterQuery: query }),
 
   setSplitIntent: (intent) => set({ splitIntent: intent }),
-
-  setShowNewSessionDialog: (show) => set({ showNewSessionDialog: show }),
-  setNewSessionDialogType: (type) => set({ newSessionDialogType: type }),
-  setShowKeyboardShortcuts: (show) => set({ showKeyboardShortcuts: show }),
-  setShowSettings: (show) => set({ showSettings: show }),
-  setShowAccountsDialog: (show) => set({ showAccountsDialog: show }),
-  setShowCommandPalette: (show) => set({ showCommandPalette: show }),
-  setShowCreateTaskDialog: (show) => set({ showCreateTaskDialog: show }),
-
-  openQuickOpen: (mode) => set({ quickOpenInitialMode: mode, showCommandPalette: true }),
 
   addFileViewer: (absolutePath, options) => {
     // Store pending line target if provided

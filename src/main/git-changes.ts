@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { promisify } from 'node:util';
 import type { WebContents } from 'electron';
-import type { SessionManager } from './session-manager';
+import type { SessionManager } from './session/session-manager';
 import type { GitChangedFile, GitFileStatus, GitStatusResult, GitDiffContent, CommitGraphNode, CommitGraphResult, CommitFileEntry, HookEvent } from '../shared/types';
 import { typedHandle } from './ipc-helpers';
 

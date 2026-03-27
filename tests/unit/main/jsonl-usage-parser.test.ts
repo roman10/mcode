@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseUsageFromChunk, parseHumanMessagesFromChunk, extractLatestModel } from '../../../src/main/jsonl-usage-parser';
+import { parseUsageFromChunk, parseHumanMessagesFromChunk, extractLatestModel } from '../../../src/main/trackers/jsonl-usage-parser';
 
 function jsonl(...lines: unknown[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n');

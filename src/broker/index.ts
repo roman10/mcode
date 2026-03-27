@@ -1,7 +1,7 @@
 import * as net from 'node:net';
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
-import { PtyManager } from '../main/pty-manager';
+import { PtyManager } from '../main/pty/pty-manager';
 import { BROKER_AUTO_SHUTDOWN_DELAY_MS } from '../shared/constants';
 
 interface BrokerRequest {

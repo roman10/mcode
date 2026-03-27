@@ -1,5 +1,5 @@
 import { powerSaveBlocker } from 'electron';
-import type { SessionManager } from './session-manager';
+import type { SessionManager } from './session/session-manager';
 import { getPreferenceBool, setPreferenceBool } from './preferences';
 import { logger } from './logger';
 

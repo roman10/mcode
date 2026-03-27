@@ -1,12 +1,12 @@
 import http from 'node:http';
-import { logger } from './logger';
+import { logger } from '../logger';
 import {
   HOOK_PORT_DEFAULT,
   HOOK_PORT_MAX,
   HOOK_TOOL_INPUT_MAX_BYTES,
   KNOWN_HOOK_EVENTS,
-} from '../shared/constants';
-import type { HookRuntimeInfo, HookEvent } from '../shared/types';
+} from '../../shared/constants';
+import type { HookRuntimeInfo, HookEvent } from '../../shared/types';
 
 type HookEventCallback = (sessionId: string, event: HookEvent) => boolean;
 type SessionLookup = (claudeSessionId: string) => string | null;

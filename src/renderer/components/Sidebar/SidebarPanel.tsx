@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Search, X } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layout-store';
+import { useDialogStore } from '../../stores/dialog-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useStatsStore } from '../../stores/stats-store';
@@ -21,9 +22,9 @@ import {
 } from '@shared/constants';
 
 function SidebarPanel(): React.JSX.Element {
-  const showNewDialog = useLayoutStore((s) => s.showNewSessionDialog);
-  const setShowNewDialog = useLayoutStore((s) => s.setShowNewSessionDialog);
-  const newSessionDialogType = useLayoutStore((s) => s.newSessionDialogType);
+  const showNewDialog = useDialogStore((s) => s.showNewSessionDialog);
+  const setShowNewDialog = useDialogStore((s) => s.setShowNewSessionDialog);
+  const newSessionDialogType = useDialogStore((s) => s.newSessionDialogType);
   const splitIntent = useLayoutStore((s) => s.splitIntent);
   const setSplitIntent = useLayoutStore((s) => s.setSplitIntent);
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth);

@@ -1,4 +1,6 @@
-import { getDb } from './db';
+import { getDb } from '../db';
+import { typedHandle } from '../ipc-helpers';
+import type { LayoutStateSnapshot } from '../../shared/types';
 
 interface LayoutRow {
   mosaic_tree: string;
@@ -53,4 +55,14 @@ export class LayoutRepository {
       return null;
     }
   }
+}
+
+export function registerLayoutIpc(layoutRepo: LayoutRepository): void {
+  typedHandle('layout:save', (mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState) => {
+    layoutRepo.save(mosaicTree, sidebarWidth, sidebarCollapsed, activeSidebarTab, terminalPanelState);
+  });
+
+  typedHandle('layout:load', () => {
+    return (layoutRepo.load() ?? null) as LayoutStateSnapshot | null;
+  });
 }

@@ -3,12 +3,12 @@ import {
   computeTransition,
   resolveAttention,
   USER_CHOICE_TOOLS,
-} from '../../../src/main/session-state-machine';
+} from '../../../src/main/session/session-state-machine';
 import type {
   TransitionContext,
   HookEventName,
   AttentionRule,
-} from '../../../src/main/session-state-machine';
+} from '../../../src/main/session/session-state-machine';
 import type { SessionStatus, SessionAttentionLevel } from '../../../src/shared/types';
 
 // --- Helpers ---

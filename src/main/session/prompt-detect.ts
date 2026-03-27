@@ -1,4 +1,4 @@
-import { stripAnsi } from '../shared/strip-ansi';
+import { stripAnsi } from '../../shared/strip-ansi';
 
 /**
  * Check if the terminal buffer tail shows Claude Code's idle prompt (❯).

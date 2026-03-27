@@ -1,11 +1,11 @@
 import { openSync, readSync, statSync, closeSync } from 'fs';
 import type { WebContents } from 'electron';
 import type { IPtyManager } from '../shared/pty-manager-interface';
-import type { SessionManager } from './session-manager';
+import type { SessionManager } from './session/session-manager';
 import { getDb } from './db';
 import { logger } from './logger';
-import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from './prompt-detect';
-import { getTranscriptPath } from './transcript-path';
+import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from './session/prompt-detect';
+import { getTranscriptPath } from './session/transcript-path';
 import { typedHandle } from './ipc-helpers';
 import type {
   Task,
