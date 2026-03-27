@@ -5,7 +5,7 @@ const createFn = vi.fn().mockResolvedValue({ sessionId: 'new-sess' });
 
 vi.stubGlobal('window', {
   mcode: {
-    app: { getPlatform: () => 'darwin' },
+    app: { getPlatform: () => 'darwin', getHomeDir: () => '/home/user' },
     layout: { save: vi.fn().mockResolvedValue(undefined), load: vi.fn().mockResolvedValue(null) },
     preferences: { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue(undefined) },
     sessions: {
