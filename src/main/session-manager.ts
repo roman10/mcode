@@ -881,10 +881,9 @@ export class SessionManager {
       if (session) this.notifyListeners(session, currentStatus);
     }
 
-    // Model detection from transcript:
-    // - Stop events: always check (handles mid-session /model switches)
-    // - Other events: only check when model is still unknown (early detection)
-    if (event.hookEventName === 'Stop' || row.model === null) {
+    // Model detection from transcript on every hook event.
+    // setModel() no-ops when the model is unchanged, so extra reads are harmless.
+    {
       const effectiveClaudeSessionId = event.claudeSessionId ?? row.claude_session_id;
       if (effectiveClaudeSessionId) {
         // Prefer authoritative transcript_path from Stop payload; fall back to constructed path
