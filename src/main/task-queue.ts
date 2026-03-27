@@ -77,7 +77,8 @@ const SHIFT_TAB_DELAY_MS = 150;
 
 // --- Permission mode cycling helpers (exported for testing) ---
 
-export { buildModeCycle } from '../shared/task-utils';
+import { buildModeCycle } from '../shared/task-utils';
+export { buildModeCycle };
 
 /**
  * Calculate the number of forward Shift+Tab presses to go from `current` to `target`
