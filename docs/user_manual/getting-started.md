@@ -1,12 +1,13 @@
 # Getting Started with mcode
 
-mcode is a desktop IDE for managing multiple autonomous Claude Code sessions simultaneously. This guide walks you through installation, launching the app, and core workflows.
+mcode is a desktop IDE for managing multiple autonomous coding-agent sessions simultaneously. It currently supports Claude Code, Codex CLI, and plain terminal sessions. This guide walks you through installation, launching the app, and core workflows.
 
 ## Prerequisites
 
 - **macOS** (primary supported platform)
 - **Node.js** (v20+) and **npm**
-- **Claude Code CLI** installed and authenticated (`claude` command available in your terminal)
+- **Claude Code CLI** installed and authenticated for Claude sessions (`claude` command available in your terminal)
+- **Codex CLI** installed and authenticated for Codex sessions (`codex` command available in your terminal)
 
 ## Installation
 
@@ -53,7 +54,7 @@ On the **Sessions tab**, action buttons appear in the sidebar header: Close all 
 
 The session list shows all sessions grouped by date (Today, Yesterday, then by date):
 
-- **Green dot** — Active session (Claude Code is running)
+- **Green dot** — Active session (the agent is actively working)
 - **Blue dot** — Idle (session is waiting for input)
 - **Red dot** — Waiting (e.g., awaiting permission approval)
 - **Amber dot** — Starting (session is initializing)
@@ -71,7 +72,7 @@ The **sidebar footer** shows the "mcode" label, today's estimated token cost, an
 Each terminal tile has a toolbar showing the session status, label, and uptime. Toolbar buttons:
 
 - **Maximize/Restore** — toggle between a single maximized tile and the full layout (also `Cmd+Enter`)
-- **Kill** (square icon) — terminates the Claude Code process
+- **Kill** (square icon) — terminates the session process
 - **Close** (X icon) — hides the tile; the session keeps running in the background
 
 Double-click the title in the toolbar to rename the session inline.
@@ -80,17 +81,18 @@ Double-click the title in the toolbar to rename the session inline.
 
 1. Click the **+** button in the sidebar header (or press `Cmd+N`)
 2. In the dialog that appears, fill in:
+   - **Agent** (required) — choose Claude Code or Codex CLI
    - **Working directory** (required) — click "Browse" to select a project folder, or type a path
    - **Label** (optional) — a name for the session; defaults to the folder name
-   - **Initial prompt** (optional) — what you want Claude to work on
-   - **Permission mode** (optional) — controls how Claude handles tool permissions (`default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`)
-   - **Effort** (optional) — controls reasoning depth (`low`, `medium`, `high`, `max`)
-   - **Enable auto mode** (checkbox) — allows the session to use Claude's auto permission mode; off by default (Team plan feature)
-   - **Account** (shown when multiple accounts are configured) — select which Claude account to use
-   - **Run in isolated worktree** (checkbox) — creates a git worktree so the session works on an isolated branch; optional branch name field appears when checked
+   - **Initial prompt** (optional) — what you want the agent to work on
+   - **Permission mode** (Claude only) — controls how Claude handles tool permissions (`default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`)
+   - **Effort** (Claude only) — controls reasoning depth (`low`, `medium`, `high`, `max`)
+   - **Enable auto mode** (Claude only) — allows the session to use Claude's auto permission mode; off by default (Team plan feature)
+   - **Account** (Claude only, shown when multiple accounts are configured) — select which Claude account to use
+   - **Run in isolated worktree** (Claude only) — creates a git worktree so the session works on an isolated branch; optional branch name field appears when checked
 3. Click **Create Session**
 
-A new terminal tile opens in the main area and Claude Code starts in your chosen directory. Last-used defaults (directory, permission mode, effort) are remembered.
+A new terminal tile opens in the main area and the selected agent starts in your chosen directory. Last-used Claude defaults (directory, permission mode, effort) are remembered.
 
 You can also open a plain terminal with `Cmd+T` (the terminal icon in the sidebar header).
 
@@ -98,7 +100,7 @@ You can also open a plain terminal with `Cmd+T` (the terminal icon in the sideba
 
 ### Interacting with a Terminal
 
-Click inside a terminal tile to focus it, then type as you would in any terminal. Claude Code runs inside the terminal — you can send prompts, approve tool calls, and see output in real time.
+Click inside a terminal tile to focus it, then type as you would in any terminal. The selected agent runs inside the terminal — you can send prompts, approve tool calls, and see output in real time.
 
 ### Renaming a Session
 
@@ -107,7 +109,7 @@ Double-click the session name in the sidebar or the tile toolbar to edit it inli
 ### Closing vs. Killing a Session
 
 - **Close** (toolbar X icon or `Cmd+W`) — hides the tile but the session keeps running in the background. You can reopen it later.
-- **Kill** (toolbar square icon or `Cmd+Shift+W`) — terminates the Claude Code process. The session moves to "Ended" status.
+- **Kill** (toolbar square icon or `Cmd+Shift+W`) — terminates the session process. The session moves to "Ended" status.
 
 ### Reopening a Closed Session
 
@@ -120,7 +122,7 @@ Right-click any session card in the sidebar to open a context menu with quick ac
 - **Rename** (shortcut: `F2`) — start inline renaming
 - **Open Tile** — open the session's tile in the current layout (running sessions)
 - **View / Resume** — open a tile for the session's output (ended sessions)
-- **Kill Session** — terminate the Claude Code process
+- **Kill Session** — terminate the session process
 - **Delete Session** — permanently remove the session record (ended sessions only)
 
 ## Tiling Layout
@@ -151,7 +153,7 @@ Press `Cmd+/` to see the full shortcut reference. A few essentials:
 
 | Shortcut | Action |
 |---|---|
-| `Cmd+N` | New Claude session |
+| `Cmd+N` | New session |
 | `Cmd+T` | New terminal |
 | `Cmd+P` | Quick Open |
 | `Cmd+Shift+P` | Command Palette |

@@ -15,7 +15,7 @@ Opens the same dialog in command mode (input prefilled with `>`). You can also o
 
 Commands are grouped into three categories:
 
-- **General** — New Session, New Terminal, New Task, Settings, Keyboard Shortcuts
+- **General** — New Session, New Codex Session, New Terminal, New Task, Settings, Keyboard Shortcuts
 - **Layout** — Toggle Sidebar, Show Sessions/Stats/Activity, Switch to Kanban/Tiles, Close All Tiles, Close Tile, Split Horizontal/Vertical
 - **Session** — Clear All Attention, Kill Session, Delete Session, plus a dynamic entry per open session for quick-jumping
 

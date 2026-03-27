@@ -67,7 +67,7 @@ Shows commit output, token costs, and human input metrics across all repos and s
 
 - **Total commits today** with lines changed (insertions + deletions)
 - **Streak** — consecutive days with at least one commit
-- **Claude vs solo** — how many commits were Claude-assisted
+- **AI-assisted vs solo** — how many commits were detected as AI-assisted
 - **7-day heatmap** — color intensity shows commit volume per day
 - **Commits by type** — breakdown by conventional commit prefix (feat, fix, refactor, docs, test, chore)
 - **Per-repo breakdown** — commit count and line changes per repository

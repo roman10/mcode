@@ -6,7 +6,7 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 
 | Shortcut | Action |
 |---|---|
-| `Cmd+N` | New Claude session |
+| `Cmd+N` | New session |
 | `Cmd+T` | New terminal |
 | `Cmd+Shift+T` | New task |
 | `Cmd+P` | Quick Open (file search) |

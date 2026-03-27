@@ -43,6 +43,16 @@ describe('command-registry', () => {
     expect(ids).not.toContain('show-tokens');
   });
 
+  it('includes New Codex Session in the General category', () => {
+    const commands = getCommands(emptyCtx);
+    const cmd = commands.find((c) => c.id === 'new-codex-session');
+    expect(cmd).toBeDefined();
+    expect(cmd!.label).toBe('New Codex Session');
+    expect(cmd!.category).toBe('General');
+    expect(cmd!.enabled).toBe(true);
+    expect(cmd!.keywords).toContain('codex');
+  });
+
   it('toggle-terminal-panel has correct shortcut display on macOS', () => {
     const commands = getCommands(emptyCtx);
     const cmd = commands.find((c) => c.id === 'toggle-terminal-panel')!;

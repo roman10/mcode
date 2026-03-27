@@ -5,12 +5,13 @@ import { makeSession } from '../../test-factories';
 describe('getOrderedVisibleSessions', () => {
   it('filters out terminal sessions (they live in the bottom panel)', () => {
     const sessions = {
-      s1: makeSession({ sessionId: 's1', sessionType: 'claude' }),
+      s1: makeSession({ sessionId: 's1', sessionType: 'claude', startedAt: '2026-03-20T10:00:00Z' }),
+      s3: makeSession({ sessionId: 's3', sessionType: 'codex', startedAt: '2026-03-21T10:00:00Z' }),
       s2: makeSession({ sessionId: 's2', sessionType: 'terminal' }),
     };
     const result = getOrderedVisibleSessions(sessions);
-    expect(result).toHaveLength(1);
-    expect(result[0].sessionId).toBe('s1');
+    expect(result).toHaveLength(2);
+    expect(result.map((s) => s.sessionId)).toEqual(['s3', 's1']);
   });
 
   it('sorts by attention level: action > info > none', () => {

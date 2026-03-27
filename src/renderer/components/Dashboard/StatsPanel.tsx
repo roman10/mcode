@@ -430,13 +430,13 @@ function StatsPanel(): React.JSX.Element {
               )}
             </div>
 
-            {/* Claude vs solo */}
+            {/* AI-assisted vs solo */}
             {total > 0 && (
               <div className="text-xs text-text-secondary">
                 {claudePct != null ? (
                   <>
                     <span className="text-green-400 font-medium">{claudePct}%</span>
-                    <span> with Claude</span>
+                    <span> AI-assisted</span>
                     {soloCount > 0 && (
                       <>
                         <span className="text-text-muted"> · </span>
@@ -446,7 +446,7 @@ function StatsPanel(): React.JSX.Element {
                   </>
                 ) : (
                   <>
-                    {claudeCount > 0 && <span>{claudeCount} with Claude</span>}
+                    {claudeCount > 0 && <span>{claudeCount} AI-assisted</span>}
                     {claudeCount > 0 && soloCount > 0 && <span className="text-text-muted"> · </span>}
                     {soloCount > 0 && <span>{soloCount} solo</span>}
                   </>

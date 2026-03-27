@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { McpTestClient } from './mcp-client';
 
 const TEST_CLAUDE_PATH = join(process.cwd(), 'tests', 'fixtures', 'claude');
+const TEST_CODEX_PATH = join(process.cwd(), 'tests', 'fixtures', 'codex');
 
 export interface SessionInfo {
   sessionId: string;
@@ -9,7 +10,9 @@ export interface SessionInfo {
   cwd: string;
   status: string;
   permissionMode?: string;
+  effort?: string;
   enableAutoMode?: boolean;
+  allowBypassPermissions?: boolean;
   startedAt: string;
   endedAt: string | null;
   claudeSessionId: string | null;
@@ -19,7 +22,10 @@ export interface SessionInfo {
   attentionReason: string | null;
   hookMode: string;
   sessionType: string;
+  worktree: string | null;
+  terminalConfig?: Record<string, unknown>;
   accountId: string | null;
+  autoClose?: boolean;
 }
 
 export interface HookRuntimeInfo {
@@ -106,6 +112,19 @@ export async function createLiveClaudeTestSession(
   // SessionStart arrives; PreToolUse reliably transitions idle → active.
   await injectHookEvent(client, session.sessionId, 'SessionStart');
   return injectHookEvent(client, session.sessionId, 'PreToolUse', { toolName: 'Bash' });
+}
+
+export async function createCodexTestSession(
+  client: McpTestClient,
+  overrides?: Record<string, unknown>,
+): Promise<SessionInfo> {
+  return client.callToolJson<SessionInfo>('session_create', {
+    cwd: process.cwd(),
+    command: TEST_CODEX_PATH,
+    label: `codex-${Date.now()}`,
+    sessionType: 'codex',
+    ...overrides,
+  });
 }
 
 export async function waitForActive(

@@ -36,6 +36,6 @@ Click the trash icon on any secondary account row to remove it. The default acco
 
 ## Selecting an account for a session
 
-When multiple accounts are configured, an **Account** dropdown appears in the New Session dialog. Select which account to use — the session's Claude Code process runs with that account's credentials.
+When multiple accounts are configured, an **Account** dropdown appears in the New Session dialog for Claude sessions. Select which account to use and the Claude Code process runs with that account's credentials. Codex sessions do not currently use mcode's account selector.
 
 In the kanban view, session cards show the account name beneath the session label when it's not the default account.

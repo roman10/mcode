@@ -1,11 +1,11 @@
 # mcode
 
-**Terminal-native tiling IDE for parallel Claude Code sessions**
+**Terminal-native tiling IDE for parallel coding-agent sessions**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/roman10/mcode/ci.yml?label=CI)](https://github.com/roman10/mcode/actions)
 
-mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude Code sessions simultaneously. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring, and 100 MCP tools make it fully automatable.
+mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-agent sessions simultaneously. It currently supports Claude Code, Codex CLI, and plain terminal sessions. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring for Claude sessions, and 100 MCP tools make it highly automatable.
 
 ![Tiling layout with multiple active sessions](docs/screenshots/tiling-layout.png)
 
@@ -13,9 +13,9 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude 
 
 ### Multi-session management
 
-- **Tiling layout** — split the screen into resizable tiles, each running a fully interactive Claude Code terminal. See all sessions at once.
+- **Tiling layout** — split the screen into resizable tiles, each running a fully interactive agent terminal. See all sessions at once.
 - **Kanban board** — switch to a board view with columns by status: Needs Attention, Working, Ready, and Completed.
-- **Multi-account support** — run sessions under different Claude accounts; switch accounts when an account limit reaches and resume work from a different account.
+- **Multi-account support for Claude** — run Claude sessions under different accounts; switch accounts when an account limit reaches and resume work from a different account.
 
 ![Kanban board grouped by session status](docs/screenshots/kanban-view.png)
 
@@ -27,7 +27,7 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude 
 ### Orchestration
 
 - **Task queue** — dispatch prompts to sessions with per-session reordering, retry logic, and concurrent execution.
-- **Hook-driven monitoring** — receives Claude Code hook events (tool use, notifications, permission requests, stops) over HTTP for live session visibility.
+- **Hook-driven monitoring for Claude** — receives Claude Code hook events (tool use, notifications, permission requests, stops) over HTTP for live session visibility.
 - **100 MCP tools** — 14 tool categories covering sessions, terminals, layout, tasks, git, files, commits, tokens, hooks, and more. Every feature is agent-accessible.
 
 ### Productivity
@@ -46,7 +46,8 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple Claude 
 
 - **macOS** (primary platform)
 - **Node.js** 22 or later
-- **Claude Code CLI** installed and authenticated (`npm install -g @anthropic-ai/claude-code`)
+- **Claude Code CLI** installed and authenticated for Claude sessions (`npm install -g @anthropic-ai/claude-code`)
+- **Codex CLI** installed and authenticated for Codex sessions
 
 ### Setup
 
@@ -69,7 +70,7 @@ This produces a DMG in the `dist/` directory.
 
 ## Quick Start
 
-1. **Create a session** — press <kbd>Cmd+N</kbd>, pick a working directory, and optionally set a label, initial prompt, or permission mode.
+1. **Create a session** — press <kbd>Cmd+N</kbd>, choose Claude Code or Codex CLI, then pick a working directory and optional prompt.
 2. **Split the view** — <kbd>Cmd+D</kbd> splits horizontally, <kbd>Cmd+Shift+D</kbd> splits vertically. <kbd>Cmd+Enter</kbd> maximizes a tile.
 3. **Navigate** — <kbd>Cmd+Shift+P</kbd> opens the command palette. <kbd>Cmd+P</kbd> opens Quick Open for file search.
 4. **Queue work** — <kbd>Cmd+Shift+T</kbd> creates a task. Tasks dispatch to sessions automatically or can target a specific session.
@@ -79,7 +80,7 @@ This produces a DMG in the `dist/` directory.
 
 | Shortcut | Action |
 |---|---|
-| <kbd>Cmd+N</kbd> | New Claude session |
+| <kbd>Cmd+N</kbd> | New session |
 | <kbd>Cmd+T</kbd> | New terminal |
 | <kbd>Cmd+D</kbd> | Split horizontal |
 | <kbd>Cmd+Shift+D</kbd> | Split vertical |
@@ -115,7 +116,7 @@ mcode exposes a Model Context Protocol (MCP) server with 100 tools across 14 cat
 | Snippets | 1 | list snippet templates |
 | Kanban/Sidebar | 10+ | get columns, select session, switch tab, filter |
 
-This means Claude Code agents can drive the IDE programmatically — creating sessions, dispatching tasks, reading terminal output, and verifying results without manual interaction.
+This means agents can drive the IDE programmatically — creating sessions, dispatching tasks, reading terminal output, and verifying results without manual interaction.
 
 ## Tech Stack
 

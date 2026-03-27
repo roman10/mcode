@@ -8,7 +8,7 @@ export function registerCommitTools(
   ctx: McpServerContext,
 ): void {
   server.registerTool('commits_get_daily_stats', {
-    description: 'Get commit statistics for a given day (default: today). Includes total count, lines changed, Claude vs solo breakdown, per-repo stats, and commit type distribution.',
+    description: 'Get commit statistics for a given day (default: today). Includes total count, lines changed, AI-assisted vs solo breakdown, per-repo stats, and commit type distribution.',
     inputSchema: {
       date: z.string().optional().describe('ISO date string (e.g., "2026-03-18"). Defaults to today.'),
     },

@@ -67,6 +67,7 @@ tests/
 │   ├── task-concurrent-dispatch # Parallel task dispatch to multiple sessions
 │   ├── layout-no-page-scroll  # Page scroll prevention
 │   ├── auto-mode              # enableAutoMode flag persistence (claude vs terminal sessions)
+│   ├── codex-support          # Codex session creation, argv handling, sidebar/kanban visibility
 │   └── terminal-panel-resize  # Terminal panel height → xterm resize propagation
 
 vitest.config.mts              # Sequential execution, 30s timeout (repo root)
@@ -82,6 +83,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 *Session lifecycle:*
 - `createTestSession(client, overrides?)` — creates a session with `command: "bash"`
 - `createLiveClaudeTestSession(client, overrides?)` — creates a Claude session with `hookMode: 'live'` using the test fixture
+- `createCodexTestSession(client, overrides?)` — creates a Codex session using the `tests/fixtures/codex` fake CLI
 - `waitForActive(client, sessionId, timeoutMs?)` — polls `session_wait_for_status` until active
 - `waitForIdle(client, sessionId, timeoutMs?)` — polls `session_wait_for_status` until idle
 - `killAndWaitEnded(client, sessionId)` — kills and waits for ended status

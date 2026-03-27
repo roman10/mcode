@@ -19,19 +19,19 @@ export function registerSessionTools(
   });
 
   server.registerTool('session_create', {
-    description: 'Create a new Claude Code session or plain terminal',
+    description: 'Create a new Claude Code session, Codex CLI session, or plain terminal',
     inputSchema: {
       cwd: z.string().describe('Working directory for the session'),
       label: z.string().optional().describe('Optional label for the session'),
-      initialPrompt: z.string().optional().describe('Optional initial prompt for Claude (ignored for terminal sessions)'),
-      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the Claude session (ignored for terminal sessions)'),
-      effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for the Claude session (ignored for terminal sessions)'),
-      enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode to unlock auto mode in the Shift+Tab cycle. Team plan required, Sonnet 4.6 / Opus 4.6 only. Ignored for terminal sessions.'),
-      allowBypassPermissions: z.boolean().optional().describe('Pass --allow-dangerously-skip-permissions to add bypassPermissions to the Shift+Tab cycle without activating it. Composable with other starting modes. Ignored for terminal sessions.'),
-      command: z.string().optional().describe('Command to spawn (default: "claude")'),
+      initialPrompt: z.string().optional().describe('Optional initial prompt for Claude or Codex (ignored for terminal sessions)'),
+      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for Claude sessions only (ignored for Codex and terminal sessions)'),
+      effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for Claude sessions only (ignored for Codex and terminal sessions)'),
+      enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode for Claude sessions only. Ignored for Codex and terminal sessions.'),
+      allowBypassPermissions: z.boolean().optional().describe('Pass --allow-dangerously-skip-permissions for Claude sessions only. Ignored for Codex and terminal sessions.'),
+      command: z.string().optional().describe('Command to spawn (defaults to the CLI for the selected session type)'),
       args: z.array(z.string()).optional().describe('Arguments for the command (e.g. ["-c", "git push"] for terminal sessions)'),
-      sessionType: z.enum(['claude', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "terminal" for plain shell (default: "claude")'),
-      worktree: z.string().optional().describe('Run session in an isolated git worktree. Pass a name to create a named worktree, or empty string to auto-generate. Ignored for terminal sessions.'),
+      sessionType: z.enum(['claude', 'codex', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "codex" for Codex CLI, "terminal" for plain shell (default: "claude")'),
+      worktree: z.string().optional().describe('Run session in an isolated git worktree for Claude sessions. Ignored for Codex and terminal sessions.'),
       accountId: z.string().optional().describe('Account profile ID to run this session under'),
       autoClose: z.boolean().optional().describe('If true, automatically kill the session when its task queue empties'),
     },
