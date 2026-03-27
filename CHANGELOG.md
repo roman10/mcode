@@ -2,6 +2,29 @@
 
 All notable changes to mcode are documented here.
 
+## [0.2.0] — 2026-03-27
+
+### New Features
+
+- **Codex CLI sessions** — run and manage OpenAI Codex CLI sessions alongside Claude Code; full hook bridge for session state tracking, resume support, and status detection
+- **Model display in tile toolbar** — active model shown in each tile's title bar
+- **Signed and notarized DMG** — distributed binary is now signed with Developer ID Application and notarized by Apple; no Gatekeeper prompt on first launch
+- **Auto-close on task drain** — session tiles auto-close when their task queue empties (toggle with Cmd+Shift+Q)
+- **permissionMode in task queue** — tasks can specify a Shift+Tab mode for automated permission cycling
+
+### Bug Fixes
+
+- Fix WebGL context loss causing invisible cursor in mixed Claude/Codex sessions
+- Fix tile cycling (Cmd+[/]) to include file and diff viewer tiles
+- Survive `/resume` inside Claude Code CLI without closing the tile
+- Fix xterm resize when terminal panel height changes in background Electron window
+- Fix auto-close firing for sessions with no tasks; guard against non-idle kills
+- Fix new tiles not mirrored into restoreTree when added while maximized
+- Strip `ELECTRON_RUN_AS_NODE` from PTY shell environments
+- Clear `auto_close` on manual resume to prevent immediate re-kill
+- Fix TDZ ReferenceError in session label IIFE
+- Fix Codex icon visibility in tile title bar
+
 ## [0.1.1] — 2026-03-25
 
 ### Bug Fixes

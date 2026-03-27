@@ -44,7 +44,7 @@ mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-
 
 Pre-built DMG for Apple Silicon (macOS):
 
-**[Download mcode-0.1.1-arm64.dmg](https://github.com/roman10/mcode/releases/latest)**
+**[Download mcode-0.2.0-arm64.dmg](https://github.com/roman10/mcode/releases/latest)**
 
 > **Gatekeeper note:** macOS may block the app on first launch since it is not yet notarized. Right-click `mcode.app` in your Applications folder → **Open** → **Open Anyway**. Alternatively: `xattr -cr /Applications/mcode.app`
 

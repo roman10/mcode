@@ -1,6 +1,6 @@
 {
   "name": "mcode",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Desktop IDE for managing multiple autonomous Claude Code sessions",
   "author": "Feipeng Liu with Claude Code and mcode",
   "license": "Apache-2.0",
