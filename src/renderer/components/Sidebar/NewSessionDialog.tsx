@@ -207,7 +207,7 @@ function NewSessionDialog({
                 className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="gemini-2.5-pro"
+                placeholder="gemini-3-flash-preview"
               />
             </div>
           )}
