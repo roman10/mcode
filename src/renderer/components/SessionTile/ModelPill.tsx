@@ -21,7 +21,7 @@ interface ModelPillProps {
 }
 
 function ModelPill({ model, sessionType }: ModelPillProps): React.JSX.Element | null {
-  if (!canDisplaySessionModel({ model, sessionType })) return null;
+  if (!model || !canDisplaySessionModel({ model, sessionType })) return null;
   const family = getFamily(model);
   const color = familyColors[family] ?? familyColors.unknown;
   return (
