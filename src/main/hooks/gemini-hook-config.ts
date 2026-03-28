@@ -127,6 +127,12 @@ printf '{}'
 
 /** Reconcile ~/.gemini/settings.json on app startup. */
 export function reconcileGeminiHooks(): void {
+  const bridgePath = getBridgeScriptPath();
+  if (!existsSync(bridgePath)) {
+    logger.warn('gemini-hook-config', 'Bridge script not found, skipping reconcile', { path: bridgePath });
+    return;
+  }
+
   const settingsPath = getGeminiSettingsPath();
 
   let config: GeminiSettingsConfig;
@@ -151,6 +157,12 @@ export function reconcileGeminiHooks(): void {
   if (existsSync(settingsPath) && !existsSync(backupPath)) {
     copyFileSync(settingsPath, backupPath);
     logger.info('gemini-hook-config', 'Created backup', { path: backupPath });
+  }
+
+  // Detect stale mcode hooks before re-registering
+  const cleaned = removeMcodeBridgeHooks(config);
+  if (JSON.stringify(cleaned.hooks) !== JSON.stringify(config.hooks)) {
+    logger.info('gemini-hook-config', 'Removed stale mcode bridge hooks before re-registering');
   }
 
   const updated = mergeMcodeBridgeHooks(config);

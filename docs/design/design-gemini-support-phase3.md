@@ -2,12 +2,12 @@
 
 ## Status
 
-- **WP0**: Pending — CLI preflight verification not yet performed
+- **WP0**: **Verified** — Gemini CLI v0.35.3; `--output-format json` still emits text for `--list-sessions` → JSON parser deferred; 8 hook events confirmed
 - **WP1**: **Implemented** (commit `88d2769`) — Gemini task queue enablement
-- **WP2**: **Implemented** (commit `88d2769`) — Resume parser hardening (validation-only; JSON parser deferred pending WP0)
-- **WP3**: Pending — Hook bridge cleanup hardening
+- **WP2**: **Implemented** (commit `88d2769`) — Resume parser hardening (validation-only; JSON parser not needed per WP0)
+- **WP3**: **Implemented** — Bridge script existence check + stale hook detection logging
 
-Current: 42 test files, 568 tests passing (1 pre-existing failure in session-event-store unrelated to Phase 3)
+Current: 42 test files, 568 tests passing + integration test suite `gemini-task-queue.test.ts` added
 
 ## Overview
 
@@ -336,7 +336,7 @@ if (resumeIndex === null) {
 - `resolveGeminiResumeIndex()` — straightforward lookup, no changes needed
 - The text parser regex — the format hasn't changed; hardening is about detecting when it does
 
-## WP3: Hook Bridge Cleanup Hardening
+## WP3: Hook Bridge Cleanup Hardening ✅
 
 ### Problem
 
