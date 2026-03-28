@@ -65,7 +65,7 @@ describe('mergeMcodeBridgeHooks', () => {
     const result = mergeMcodeBridgeHooks({});
     expect(result.hooks).toBeDefined();
 
-    const events = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop', 'UserPromptSubmit'];
+    const events = ['SessionStart', 'SessionEnd', 'PreToolUse', 'PostToolUse', 'Stop', 'UserPromptSubmit', 'Notification'];
     for (const event of events) {
       expect(result.hooks![event]).toBeDefined();
       expect(result.hooks![event]).toHaveLength(1);

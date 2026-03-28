@@ -36,14 +36,16 @@ interface CodexHooksConfig {
   [key: string]: unknown;
 }
 
-// Events we register bridge hooks for (subset of Codex's supported events
+// Events we register bridge hooks for (Codex's supported events
 // that map to mcode state machine transitions).
 const CODEX_BRIDGE_EVENTS = [
   'SessionStart',
+  'SessionEnd',
   'PreToolUse',
   'PostToolUse',
   'Stop',
   'UserPromptSubmit',
+  'Notification',
 ] as const;
 
 function isMcodeBridgeHook(entry: CodexHookEntry): boolean {
