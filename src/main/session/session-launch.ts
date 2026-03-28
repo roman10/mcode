@@ -1,5 +1,5 @@
 import { getAgentDefinition } from '../../shared/session-agents';
-import type { SessionCreateInput, SessionType } from '../../shared/types';
+import type { SessionType } from '../../shared/types';
 
 export function truncatePromptToLabel(prompt: string, maxLen: number): string {
   const firstLine = prompt.split('\n')[0].trim();
@@ -51,74 +51,3 @@ export function getDefaultSessionCommand(sessionType: SessionType, shellCommand:
   return getAgentDefinition(sessionType)?.defaultCommand ?? 'claude';
 }
 
-export function buildCreateSessionArgs(input: {
-  session: SessionCreateInput;
-  sessionType: SessionType;
-  isTerminal: boolean;
-  codexBridgeReady: boolean;
-}): string[] {
-  const { session, sessionType, isTerminal, codexBridgeReady } = input;
-  const args: string[] = [];
-
-  if (isTerminal) {
-    if (session.args) {
-      args.push(...session.args);
-    }
-    return args;
-  }
-
-  if (sessionType === 'codex') {
-    if (codexBridgeReady) {
-      args.push('--enable', 'codex_hooks');
-    }
-    if (session.initialPrompt) {
-      args.push(session.initialPrompt);
-    }
-    return args;
-  }
-
-  if (sessionType === 'gemini') {
-    if (session.model) {
-      args.push('--model', session.model);
-    }
-    if (session.initialPrompt) {
-      args.push(session.initialPrompt);
-    }
-    return args;
-  }
-
-  if (session.worktree !== undefined) {
-    args.push('--worktree');
-    if (session.worktree) {
-      args.push(session.worktree);
-    }
-  }
-  if (session.permissionMode) {
-    args.push('--permission-mode', session.permissionMode);
-  }
-  if (session.effort) {
-    args.push('--effort', session.effort);
-  }
-  if (session.enableAutoMode) {
-    args.push('--enable-auto-mode');
-  }
-  if (session.allowBypassPermissions) {
-    args.push('--allow-dangerously-skip-permissions');
-  }
-  if (session.initialPrompt) {
-    args.push(session.initialPrompt);
-  }
-
-  return args;
-}
-
-export function resolveCreateHookMode(input: {
-  sessionType: SessionType;
-  codexBridgeReady: boolean;
-  hookRuntimeState: string;
-}): 'live' | 'fallback' {
-  const { sessionType, codexBridgeReady, hookRuntimeState } = input;
-  return (sessionType === 'claude' || (sessionType === 'codex' && codexBridgeReady)) && hookRuntimeState === 'ready'
-    ? 'live'
-    : 'fallback';
-}

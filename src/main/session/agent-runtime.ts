@@ -2,6 +2,7 @@ import type { AgentSessionType } from '../../shared/session-agents';
 import type {
   HookRuntimeInfo,
   SessionAttentionLevel,
+  SessionCreateInput,
   SessionStatus,
 } from '../../shared/types';
 
@@ -18,6 +19,12 @@ export interface AgentResumeRow {
   cwd: string;
   codexThreadId: string | null;
   geminiSessionId: string | null;
+  claudeSessionId: string | null;
+  permissionMode: string | null;
+  effort: string | null;
+  enableAutoMode: boolean;
+  allowBypassPermissions: boolean;
+  worktree: string | null;
 }
 
 export interface AgentPrepareResumeContext {
@@ -35,6 +42,31 @@ export interface PreparedResume {
   hookMode: 'live' | 'fallback';
   logLabel: string;
   logContext: Record<string, unknown>;
+}
+
+// --- Create types ---
+
+/** Context passed to an adapter's prepareCreate method. */
+export interface AgentCreateContext {
+  input: SessionCreateInput;
+  command: string;
+  hookRuntime: HookRuntimeInfo;
+  codexBridgeReady: boolean;
+}
+
+/** Result from an adapter's prepareCreate: hook mode, CLI args, env, and DB fields. */
+export interface PreparedCreate {
+  hookMode: 'live' | 'fallback';
+  args: string[];
+  env: Record<string, string>;
+  dbFields: {
+    permissionMode?: string | null;
+    effort?: string | null;
+    enableAutoMode?: number | null;
+    allowBypassPermissions?: number | null;
+    worktree?: string | null;
+    model?: string | null;
+  };
 }
 
 // --- Polling types ---
@@ -61,6 +93,7 @@ export interface StateUpdate {
 
 export interface AgentRuntimeAdapter {
   sessionType: AgentSessionType;
+  prepareCreate?(ctx: AgentCreateContext): PreparedCreate;
   afterCreate?(ctx: AgentPostCreateContext): void;
   prepareResume?(ctx: AgentPrepareResumeContext): PreparedResume;
   pollState?(ctx: PtyPollContext): StateUpdate | null;

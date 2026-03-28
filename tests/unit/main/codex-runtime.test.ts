@@ -1,10 +1,86 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildCodexCreatePlan,
   buildCodexResumePlan,
   codexPollState,
   createCodexRuntimeAdapter,
+  isCodexCommand,
 } from '../../../src/main/session/agent-runtimes/codex-runtime';
 import type { PtyPollContext } from '../../../src/main/session/agent-runtime';
+
+describe('isCodexCommand', () => {
+  it('recognizes standard codex binary names', () => {
+    expect(isCodexCommand('codex')).toBe(true);
+    expect(isCodexCommand('/usr/local/bin/codex')).toBe(true);
+    expect(isCodexCommand('codex.exe')).toBe(true);
+  });
+  it('rejects non-codex binaries', () => {
+    expect(isCodexCommand('claude')).toBe(false);
+    expect(isCodexCommand('node')).toBe(false);
+  });
+});
+
+describe('buildCodexCreatePlan', () => {
+  it('produces live hook mode with bridge ready', () => {
+    expect(buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'inspect' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      codexBridgeReady: true,
+    })).toEqual({
+      hookMode: 'live',
+      args: ['--enable', 'codex_hooks', 'inspect'],
+      env: { MCODE_HOOK_PORT: '4312' },
+      dbFields: {},
+    });
+  });
+
+  it('falls back when bridge is not ready', () => {
+    expect(buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'inspect' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      codexBridgeReady: false,
+    })).toEqual({
+      hookMode: 'fallback',
+      args: ['inspect'],
+      env: {},
+      dbFields: {},
+    });
+  });
+
+  it('omits args when no initial prompt', () => {
+    const result = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      codexBridgeReady: false,
+    });
+    expect(result.args).toEqual([]);
+  });
+
+  it('falls back when command is not a recognized codex binary', () => {
+    const result = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'inspect' },
+      command: '/custom/my-codex-wrapper',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      codexBridgeReady: true,
+    });
+    expect(result.hookMode).toBe('fallback');
+    expect(result.args).toEqual(['inspect']);
+    expect(result.env).toEqual({});
+  });
+
+  it('includes MCODE_HOOK_PORT env only when bridge ready and port available', () => {
+    const result = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: null, warning: null },
+      codexBridgeReady: true,
+    });
+    expect(result.env).toEqual({});
+  });
+});
 
 describe('codex-runtime', () => {
   it('builds a live resume plan when the Codex hook bridge is ready', () => {
@@ -15,6 +91,12 @@ describe('codex-runtime', () => {
         cwd: '/tmp/project',
         codexThreadId: 'thread-123',
         geminiSessionId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
       },
       hookRuntime: {
         state: 'ready',
@@ -45,6 +127,12 @@ describe('codex-runtime', () => {
         cwd: '/tmp/project',
         codexThreadId: 'thread-123',
         geminiSessionId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
       },
       hookRuntime: {
         state: 'degraded',
@@ -88,6 +176,7 @@ describe('codex-runtime', () => {
   it('wires pollState into the adapter', () => {
     const adapter = createCodexRuntimeAdapter({ scheduleThreadCapture: vi.fn() });
     expect(adapter.pollState).toBe(codexPollState);
+    expect(adapter.prepareCreate).toBeDefined();
   });
 
   it('delegates post-create capture scheduling through the adapter', () => {

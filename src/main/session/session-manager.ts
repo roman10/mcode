@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
-import { existsSync } from 'node:fs';
 import { readdir, open as fsOpen } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
@@ -14,14 +13,13 @@ import { normalizeModelVersion } from '../trackers/token-cost';
 import { isAgentSession } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
 import {
-  buildCreateSessionArgs,
   buildSessionLabel,
   getDefaultSessionCommand,
-  resolveCreateHookMode,
 } from './session-launch';
 import {
   getAgentRuntimeAdapter,
   type AgentRuntimeAdapterMap,
+  type PreparedCreate,
   type PreparedResume,
 } from './agent-runtime';
 import { createClaudeRuntimeAdapter } from './agent-runtimes/claude-runtime';
@@ -88,16 +86,6 @@ interface SessionRecord {
   account_id: string | null;
   auto_close: number;
   model: string | null;
-}
-
-function isClaudeCommand(command: string): boolean {
-  const normalized = basename(command).toLowerCase();
-  return normalized === 'claude' || normalized === 'claude.exe' || normalized === 'claude.cmd';
-}
-
-function isCodexCommand(command: string): boolean {
-  const normalized = basename(command).toLowerCase();
-  return normalized === 'codex' || normalized === 'codex.exe';
 }
 
 function toSessionInfo(row: SessionRecord): SessionInfo {
@@ -257,48 +245,46 @@ export class SessionManager {
     const startedAt = new Date().toISOString();
 
     const command = input.command ?? getDefaultSessionCommand(sessionType, process.env.SHELL ?? '/bin/zsh');
-
-    const isClaude = sessionType === 'claude';
-    const isCodex = sessionType === 'codex';
-    const supportsClaudeHooks = isClaude && isClaudeCommand(command);
-    const supportsCodexHooks = isCodex && isCodexCommand(command);
-
-    // Block Claude startup until the hook subsystem reaches a terminal runtime state.
     const hookRuntime = this.hookRuntimeGetter();
-    if (supportsClaudeHooks && hookRuntime.state === 'initializing') {
-      throw new Error('Hook system is still initializing. Retry session creation shortly.');
+
+    let hookMode: 'live' | 'fallback' = 'fallback';
+    let args: string[] = [];
+    let spawnEnv: Record<string, string> = {};
+    let dbFields: PreparedCreate['dbFields'] = {};
+
+    if (isTerminal) {
+      if (input.args) args = [...input.args];
+    } else {
+      const agentRuntime = getAgentRuntimeAdapter(sessionType, this.agentRuntimeAdapters);
+      if (!agentRuntime?.prepareCreate) {
+        throw new Error(`No create handler for session type '${sessionType}'`);
+      }
+      const prepared = agentRuntime.prepareCreate({
+        input,
+        command,
+        hookRuntime,
+        codexBridgeReady: this.codexHookBridgeReady,
+      });
+      hookMode = prepared.hookMode;
+      args = prepared.args;
+      spawnEnv = prepared.env;
+      dbFields = prepared.dbFields;
     }
 
-    const codexBridgeReady = supportsCodexHooks && this.codexHookBridgeReady;
-    const hookMode = resolveCreateHookMode({
-      sessionType: supportsClaudeHooks ? 'claude' : supportsCodexHooks ? 'codex' : 'terminal',
-      codexBridgeReady,
-      hookRuntimeState: hookRuntime.state,
-    });
-
-    const args = buildCreateSessionArgs({
-      session: input,
-      sessionType,
-      isTerminal,
-      codexBridgeReady,
-    });
-
     // Build account-specific environment overrides.
-    // Applied for both Claude and terminal sessions so that auth terminals
+    // Applied for both agent and terminal sessions so that auth terminals
     // (terminal sessions with accountId) also see the correct HOME.
     const accountEnv = this.accountManager.getSessionEnv(input.accountId);
 
     // Insert DB row FIRST so that onFirstData/onExit callbacks can UPDATE it.
     // If spawn fails, we delete the row.
     const db = getDb();
-    const worktree = isClaude ? (input.worktree !== undefined ? (input.worktree || '') : null) : null;
     const accountId = input.accountId ?? null;
     const autoClose = input.autoClose === true ? 1 : 0;
-    const model = sessionType === 'gemini' ? (input.model?.trim() || null) : null;
     db.prepare(
       `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, status, started_at, ended_at, command, hook_mode, session_type, terminal_config, effort, enable_auto_mode, allow_bypass_permissions, worktree, account_id, auto_close, model)
        VALUES (?, ?, ?, ?, ?, 'starting', ?, NULL, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, labelSource, cwd, isClaude ? (input.permissionMode ?? null) : null, startedAt, command, hookMode, sessionType, isClaude ? (input.effort ?? null) : null, isClaude ? (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null) : null, isClaude ? (input.allowBypassPermissions === true ? 1 : input.allowBypassPermissions === false ? 0 : null) : null, worktree, accountId, autoClose, model);
+    ).run(sessionId, label, labelSource, cwd, dbFields.permissionMode ?? null, startedAt, command, hookMode, sessionType, dbFields.effort ?? null, dbFields.enableAutoMode ?? null, dbFields.allowBypassPermissions ?? null, dbFields.worktree ?? null, accountId, autoClose, dbFields.model ?? null);
 
     // Track account usage
     if (accountId) {
@@ -315,7 +301,7 @@ export class SessionManager {
         args: args.length > 0 ? args : undefined,
         env: {
           MCODE_SESSION_ID: sessionId,
-          ...(codexBridgeReady && hookRuntime.port ? { MCODE_HOOK_PORT: String(hookRuntime.port) } : {}),
+          ...spawnEnv,
           ...accountEnv,
         },
         onFirstData: () => {
@@ -383,105 +369,37 @@ export class SessionManager {
     if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status})`);
 
     const agentRuntime = getAgentRuntimeAdapter(row.session_type, this.agentRuntimeAdapters);
-    if (agentRuntime?.prepareResume) {
-      const prepared = agentRuntime.prepareResume({
-        sessionId,
-        row: {
-          command: row.command,
-          cwd: row.cwd,
-          codexThreadId: row.codex_thread_id,
-          geminiSessionId: row.gemini_session_id,
-        },
-        hookRuntime: this.hookRuntimeGetter(),
-        codexBridgeReady: this.codexHookBridgeReady,
-      });
-
-      return this.resumeWithPreparedPlan(sessionId, prepared);
+    if (!agentRuntime?.prepareResume) {
+      throw new Error(`Cannot resume: no resume handler for session type '${row.session_type}'`);
     }
 
-    if (!row.claude_session_id) throw new Error('Cannot resume: no Claude session ID recorded');
+    const prepared = agentRuntime.prepareResume({
+      sessionId,
+      row: {
+        command: row.command,
+        cwd: row.cwd,
+        codexThreadId: row.codex_thread_id,
+        geminiSessionId: row.gemini_session_id,
+        claudeSessionId: row.claude_session_id,
+        permissionMode: row.permission_mode,
+        effort: row.effort,
+        enableAutoMode: row.enable_auto_mode === 1,
+        allowBypassPermissions: row.allow_bypass_permissions === 1,
+        worktree: row.worktree,
+      },
+      hookRuntime: this.hookRuntimeGetter(),
+      codexBridgeReady: this.codexHookBridgeReady,
+    });
 
-    // Determine effective cwd (worktree sessions run inside the worktree directory)
-    let effectiveCwd = row.cwd;
-    if (row.worktree) {
-      effectiveCwd = join(row.cwd, '.claude', 'worktrees', row.worktree);
-      if (!existsSync(effectiveCwd)) {
-        throw new Error(`Worktree directory no longer exists: ${effectiveCwd}`);
-      }
-    } else if (row.worktree === '') {
-      throw new Error('Cannot resume: worktree name was never captured.');
-    }
-
-    const hookRuntime = this.hookRuntimeGetter();
-    const hookMode = hookRuntime.state === 'ready' ? 'live' : 'fallback';
-
-    // Reset session to starting state; clear auto_close so a manual resume
-    // doesn't immediately re-kill the session when it goes idle.
-    db.prepare(
-      `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = ?, auto_close = 0 WHERE session_id = ?`,
-    ).run(hookMode, sessionId);
-
-    // Build args: claude --resume <claude_session_id>
-    const args: string[] = ['--resume', row.claude_session_id];
-    if (row.permission_mode) {
-      args.push('--permission-mode', row.permission_mode);
-    }
-    if (row.effort) {
-      args.push('--effort', row.effort);
-    }
-    if (row.enable_auto_mode) {
-      args.push('--enable-auto-mode');
-    }
-    if (row.allow_bypass_permissions) {
-      args.push('--allow-dangerously-skip-permissions');
-    }
-
-    // Use account override if provided, otherwise fall back to the session's stored account
+    // Account handling (generic for all agents)
     const effectiveAccountId = accountId ?? row.account_id ?? undefined;
     if (accountId && accountId !== row.account_id) {
       db.prepare('UPDATE sessions SET account_id = ? WHERE session_id = ?').run(accountId, sessionId);
     }
     const accountEnv = this.accountManager.getSessionEnv(effectiveAccountId);
+    prepared.env = { ...prepared.env, ...accountEnv };
 
-    try {
-      this.ptyManager.spawn({
-        id: sessionId,
-        command: row.command || 'claude',
-        cwd: effectiveCwd,
-        cols: DEFAULT_COLS,
-        rows: DEFAULT_ROWS,
-        args,
-        env: { MCODE_SESSION_ID: sessionId, ...accountEnv },
-        onFirstData: () => {
-          // Resumed session waits for user input — idle is accurate.
-          this.updateStatus(sessionId, 'idle');
-        },
-        onExit: () => {
-          this.updateStatus(sessionId, 'ended');
-        },
-      });
-    } catch (err) {
-      // Spawn failed — revert to ended
-      db.prepare(
-        `UPDATE sessions SET status = 'ended', ended_at = ? WHERE session_id = ?`,
-      ).run(new Date().toISOString(), sessionId);
-      throw err;
-    }
-
-    // Safety net: if still starting after 15s, force-transition to idle
-    setTimeout(() => {
-      const s = this.get(sessionId);
-      if (s && s.status === 'starting') {
-        logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
-        this.updateStatus(sessionId, 'idle');
-      }
-    }, 15_000);
-
-    logger.info('session', 'Resumed session', { sessionId, claudeSessionId: row.claude_session_id, cwd: effectiveCwd, worktree: row.worktree });
-
-    const session = this.get(sessionId)!;
-    this.broadcastSessionUpdate(sessionId);
-    return session;
+    return this.resumeWithPreparedPlan(sessionId, prepared);
   }
 
   private resumeWithPreparedPlan(sessionId: string, prepared: PreparedResume): SessionInfo {

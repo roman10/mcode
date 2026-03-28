@@ -1,10 +1,13 @@
+import { basename } from 'node:path';
 import { getDb } from '../../db';
 import { logger } from '../../logger';
 import { findCodexThreadMatch } from '../codex-session-store';
 import type {
+  AgentCreateContext,
   AgentPostCreateContext,
   AgentPrepareResumeContext,
   AgentRuntimeAdapter,
+  PreparedCreate,
   PreparedResume,
   PtyPollContext,
   StateUpdate,
@@ -77,6 +80,32 @@ export function scheduleCodexThreadCapture(
   poll().catch(() => { });
 }
 
+export function isCodexCommand(command: string): boolean {
+  const normalized = basename(command).toLowerCase();
+  return normalized === 'codex' || normalized === 'codex.exe';
+}
+
+export function buildCodexCreatePlan(ctx: AgentCreateContext): PreparedCreate {
+  const { input, hookRuntime } = ctx;
+  // Only enable hooks when the command is a recognized Codex binary and
+  // the hook bridge is ready — matches the original isCodexCommand guard.
+  const bridgeReady = ctx.codexBridgeReady && isCodexCommand(ctx.command);
+  const hookMode = bridgeReady && hookRuntime.state === 'ready' ? 'live' : 'fallback';
+
+  const args: string[] = [];
+  if (bridgeReady) args.push('--enable', 'codex_hooks');
+  if (input.initialPrompt) args.push(input.initialPrompt);
+
+  return {
+    hookMode,
+    args,
+    env: bridgeReady && hookRuntime.port
+      ? { MCODE_HOOK_PORT: String(hookRuntime.port) }
+      : {},
+    dbFields: {},
+  };
+}
+
 export function buildCodexResumePlan(ctx: AgentPrepareResumeContext): PreparedResume {
   if (!ctx.row.codexThreadId) throw new Error('Cannot resume: no Codex thread ID recorded');
 
@@ -125,6 +154,9 @@ export function createCodexRuntimeAdapter(deps: {
 }): AgentRuntimeAdapter {
   return {
     sessionType: 'codex',
+    prepareCreate(ctx: AgentCreateContext): PreparedCreate {
+      return buildCodexCreatePlan(ctx);
+    },
     afterCreate(ctx: AgentPostCreateContext): void {
       deps.scheduleThreadCapture({
         sessionId: ctx.sessionId,

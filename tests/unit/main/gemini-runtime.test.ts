@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildGeminiCreatePlan,
   buildGeminiResumePlan,
   createGeminiRuntimeAdapter,
 } from '../../../src/main/session/agent-runtimes/gemini-runtime';
@@ -12,6 +13,12 @@ describe('gemini-runtime', () => {
         command: 'gemini',
         cwd: '/tmp/project',
         codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
         geminiSessionId: 'gemini-session-123',
       },
       hookRuntime: {
@@ -51,6 +58,12 @@ describe('gemini-runtime', () => {
         command: 'gemini',
         cwd: '/tmp/project',
         codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
         geminiSessionId: null,
       },
       hookRuntime: {
@@ -71,6 +84,12 @@ describe('gemini-runtime', () => {
         command: null,
         cwd: '/tmp/project',
         codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
         geminiSessionId: 'missing-id',
       },
       hookRuntime: {
@@ -127,6 +146,12 @@ describe('gemini-runtime', () => {
         command: 'gemini',
         cwd: '/tmp/project',
         codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
         geminiSessionId: 'gemini-session-123',
       },
       hookRuntime: {
@@ -138,5 +163,44 @@ describe('gemini-runtime', () => {
     }).args).toEqual(['--resume', '3']);
 
     expect(listSessions).toHaveBeenCalledWith('gemini', '/tmp/project');
+
+    expect(adapter.prepareCreate).toBeDefined();
+  });
+
+  describe('buildGeminiCreatePlan', () => {
+    it('includes model in args and dbFields', () => {
+      expect(buildGeminiCreatePlan({
+        input: { cwd: '/repo', sessionType: 'gemini', model: 'gemini-2.5-pro', initialPrompt: 'inspect' },
+        command: 'gemini',
+        hookRuntime: { state: 'ready', port: 4312, warning: null },
+        codexBridgeReady: false,
+      })).toEqual({
+        hookMode: 'fallback',
+        args: ['--model', 'gemini-2.5-pro', 'inspect'],
+        env: {},
+        dbFields: { model: 'gemini-2.5-pro' },
+      });
+    });
+
+    it('handles missing model and prompt', () => {
+      const result = buildGeminiCreatePlan({
+        input: { cwd: '/repo', sessionType: 'gemini' },
+        command: 'gemini',
+        hookRuntime: { state: 'ready', port: 4312, warning: null },
+        codexBridgeReady: false,
+      });
+      expect(result.args).toEqual([]);
+      expect(result.dbFields).toEqual({ model: null });
+    });
+
+    it('always uses fallback hook mode', () => {
+      const result = buildGeminiCreatePlan({
+        input: { cwd: '/repo', sessionType: 'gemini' },
+        command: 'gemini',
+        hookRuntime: { state: 'ready', port: 4312, warning: null },
+        codexBridgeReady: true,
+      });
+      expect(result.hookMode).toBe('fallback');
+    });
   });
 });

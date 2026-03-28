@@ -8,9 +8,11 @@ import {
   type GeminiListedSession,
 } from '../gemini-session-store';
 import type {
+  AgentCreateContext,
   AgentPostCreateContext,
   AgentPrepareResumeContext,
   AgentRuntimeAdapter,
+  PreparedCreate,
   PreparedResume,
 } from '../agent-runtime';
 
@@ -127,12 +129,31 @@ export function buildGeminiResumePlan(
   };
 }
 
+export function buildGeminiCreatePlan(ctx: AgentCreateContext): PreparedCreate {
+  const { input } = ctx;
+  const args: string[] = [];
+  if (input.model) args.push('--model', input.model);
+  if (input.initialPrompt) args.push(input.initialPrompt);
+
+  return {
+    hookMode: 'fallback',
+    args,
+    env: {},
+    dbFields: {
+      model: input.model?.trim() || null,
+    },
+  };
+}
+
 export function createGeminiRuntimeAdapter(deps: {
   scheduleSessionCapture(input: ScheduleGeminiSessionCaptureInput): void;
   listSessions(command: string, cwd: string): GeminiListedSession[];
 }): AgentRuntimeAdapter {
   return {
     sessionType: 'gemini',
+    prepareCreate(ctx: AgentCreateContext): PreparedCreate {
+      return buildGeminiCreatePlan(ctx);
+    },
     afterCreate(ctx: AgentPostCreateContext): void {
       deps.scheduleSessionCapture({
         sessionId: ctx.sessionId,

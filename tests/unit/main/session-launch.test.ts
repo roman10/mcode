@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildCreateSessionArgs,
   buildSessionLabel,
   getDefaultSessionCommand,
   prefixSessionLabel,
@@ -41,40 +40,4 @@ describe('session-launch helpers', () => {
     expect(getDefaultSessionCommand('terminal', '/bin/zsh')).toBe('/bin/zsh');
   });
 
-  it('builds create args for codex, gemini, and claude sessions', () => {
-    expect(buildCreateSessionArgs({
-      session: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'inspect', args: ['ignored'] },
-      sessionType: 'codex',
-      isTerminal: false,
-      codexBridgeReady: true,
-    })).toEqual(['--enable', 'codex_hooks', 'inspect']);
-
-    expect(buildCreateSessionArgs({
-      session: { cwd: '/repo', sessionType: 'gemini', model: 'gemini-2.5-pro', initialPrompt: 'inspect' },
-      sessionType: 'gemini',
-      isTerminal: false,
-      codexBridgeReady: false,
-    })).toEqual(['--model', 'gemini-2.5-pro', 'inspect']);
-
-    expect(buildCreateSessionArgs({
-      session: {
-        cwd: '/repo',
-        sessionType: 'claude',
-        permissionMode: 'auto',
-        effort: 'high',
-        enableAutoMode: true,
-        allowBypassPermissions: true,
-        initialPrompt: 'ship it',
-      },
-      sessionType: 'claude',
-      isTerminal: false,
-      codexBridgeReady: false,
-    })).toEqual([
-      '--permission-mode', 'auto',
-      '--effort', 'high',
-      '--enable-auto-mode',
-      '--allow-dangerously-skip-permissions',
-      'ship it',
-    ]);
-  });
 });
