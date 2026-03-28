@@ -363,7 +363,7 @@ export class AccountManager {
 
 export function registerAccountIpc(
   accountManager: AccountManager,
-  sessionManager: Pick<import('./session-manager').SessionManager, 'create'>,
+  sessionManager: Pick<import('./session/session-manager').SessionManager, 'create'>,
 ): void {
   typedHandle('account:list', () => {
     return accountManager.list();
