@@ -89,7 +89,7 @@ export function buildCodexCreatePlan(ctx: AgentCreateContext): PreparedCreate {
   const { input, hookRuntime } = ctx;
   // Only enable hooks when the command is a recognized Codex binary and
   // the hook bridge is ready — matches the original isCodexCommand guard.
-  const bridgeReady = ctx.codexBridgeReady && isCodexCommand(ctx.command);
+  const bridgeReady = ctx.agentHookBridgeReady && isCodexCommand(ctx.command);
   const hookMode = bridgeReady && hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
   const args: string[] = [];
@@ -109,7 +109,7 @@ export function buildCodexCreatePlan(ctx: AgentCreateContext): PreparedCreate {
 export function buildCodexResumePlan(ctx: AgentPrepareResumeContext): PreparedResume {
   if (!ctx.row.codexThreadId) throw new Error('Cannot resume: no Codex thread ID recorded');
 
-  const codexBridgeReady = ctx.codexBridgeReady && ctx.hookRuntime.state === 'ready';
+  const codexBridgeReady = ctx.agentHookBridgeReady && ctx.hookRuntime.state === 'ready';
   const hookMode = codexBridgeReady ? 'live' : 'fallback';
 
   return {

@@ -3,10 +3,26 @@ import {
   buildGeminiCreatePlan,
   buildGeminiResumePlan,
   createGeminiRuntimeAdapter,
+  geminiPollState,
+  isGeminiCommand,
 } from '../../../src/main/session/agent-runtimes/gemini-runtime';
+import type { PtyPollContext } from '../../../src/main/session/agent-runtime';
 
-describe('gemini-runtime', () => {
-  it('builds a fallback resume plan from the stored Gemini session id', () => {
+describe('isGeminiCommand', () => {
+  it('recognizes standard gemini binary names', () => {
+    expect(isGeminiCommand('gemini')).toBe(true);
+    expect(isGeminiCommand('/usr/local/bin/gemini')).toBe(true);
+    expect(isGeminiCommand('gemini.exe')).toBe(true);
+  });
+  it('rejects non-gemini binaries', () => {
+    expect(isGeminiCommand('claude')).toBe(false);
+    expect(isGeminiCommand('codex')).toBe(false);
+    expect(isGeminiCommand('node')).toBe(false);
+  });
+});
+
+describe('buildGeminiResumePlan', () => {
+  it('builds a live resume plan when bridge is ready', () => {
     expect(buildGeminiResumePlan({
       sessionId: 'session-1',
       row: {
@@ -26,7 +42,53 @@ describe('gemini-runtime', () => {
         port: 4312,
         warning: null,
       },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
+    }, {
+      listSessions: () => [
+        {
+          index: 7,
+          title: 'Investigate failing test',
+          relativeAgeText: 'just now',
+          geminiSessionId: 'gemini-session-123',
+        },
+      ],
+    })).toEqual({
+      command: 'gemini',
+      cwd: '/tmp/project',
+      args: ['--resume', '7'],
+      env: { MCODE_HOOK_PORT: '4312' },
+      hookMode: 'live',
+      logLabel: 'Gemini',
+      logContext: {
+        geminiSessionId: 'gemini-session-123',
+        cwd: '/tmp/project',
+        resumeIndex: 7,
+        hookMode: 'live',
+      },
+    });
+  });
+
+  it('falls back when bridge is not ready', () => {
+    expect(buildGeminiResumePlan({
+      sessionId: 'session-1',
+      row: {
+        command: 'gemini',
+        cwd: '/tmp/project',
+        codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
+        geminiSessionId: 'gemini-session-123',
+      },
+      hookRuntime: {
+        state: 'degraded',
+        port: null,
+        warning: 'bridge unavailable',
+      },
+      agentHookBridgeReady: false,
     }, {
       listSessions: () => [
         {
@@ -47,6 +109,7 @@ describe('gemini-runtime', () => {
         geminiSessionId: 'gemini-session-123',
         cwd: '/tmp/project',
         resumeIndex: 7,
+        hookMode: 'fallback',
       },
     });
   });
@@ -71,7 +134,7 @@ describe('gemini-runtime', () => {
         port: 4312,
         warning: null,
       },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
     }, {
       listSessions: () => [],
     })).toThrow('Cannot resume: no Gemini session ID recorded');
@@ -97,7 +160,7 @@ describe('gemini-runtime', () => {
         port: 4312,
         warning: null,
       },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
     }, {
       listSessions: () => [
         {
@@ -109,7 +172,68 @@ describe('gemini-runtime', () => {
       ],
     })).toThrow('Cannot resume: Gemini session ID missing-id is no longer available in Gemini session list');
   });
+});
 
+describe('buildGeminiCreatePlan', () => {
+  it('produces live hook mode with bridge ready', () => {
+    expect(buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini', model: 'gemini-2.5-pro', initialPrompt: 'inspect' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: true,
+    })).toEqual({
+      hookMode: 'live',
+      args: ['--model', 'gemini-2.5-pro', 'inspect'],
+      env: { MCODE_HOOK_PORT: '4312' },
+      dbFields: { model: 'gemini-2.5-pro' },
+    });
+  });
+
+  it('falls back when bridge is not ready', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini', model: 'gemini-2.5-pro', initialPrompt: 'inspect' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.hookMode).toBe('fallback');
+    expect(result.env).toEqual({});
+  });
+
+  it('falls back when command is not a recognized gemini binary', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini', initialPrompt: 'inspect' },
+      command: '/custom/my-gemini-wrapper',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: true,
+    });
+    expect(result.hookMode).toBe('fallback');
+    expect(result.env).toEqual({});
+  });
+
+  it('handles missing model and prompt', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toEqual([]);
+    expect(result.dbFields).toEqual({ model: null });
+  });
+
+  it('includes MCODE_HOOK_PORT env only when bridge ready and port available', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: null, warning: null },
+      agentHookBridgeReady: true,
+    });
+    expect(result.env).toEqual({});
+  });
+});
+
+describe('gemini-runtime adapter', () => {
   it('delegates post-create capture scheduling and list lookup through the adapter', () => {
     const scheduleSessionCapture = vi.fn();
     const listSessions = vi.fn().mockReturnValue([
@@ -159,48 +283,47 @@ describe('gemini-runtime', () => {
         port: 4312,
         warning: null,
       },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
     }).args).toEqual(['--resume', '3']);
 
     expect(listSessions).toHaveBeenCalledWith('gemini', '/tmp/project');
 
     expect(adapter.prepareCreate).toBeDefined();
+    expect(adapter.pollState).toBe(geminiPollState);
+  });
+});
+
+describe('geminiPollState', () => {
+  function ctx(overrides: Partial<PtyPollContext> = {}): PtyPollContext {
+    return {
+      sessionId: 'gemini-session',
+      status: 'active',
+      attentionLevel: 'none',
+      lastTool: null,
+      buffer: '',
+      lastDataAt: Date.now(),
+      isQuiescent: false,
+      hasPendingTasks: false,
+      ...overrides,
+    };
+  }
+
+  it('transitions active to idle with attention when quiescent', () => {
+    expect(geminiPollState(ctx({ status: 'active', isQuiescent: true }))).toEqual({
+      status: 'idle',
+      attention: { level: 'action', reason: 'Gemini finished — awaiting input' },
+    });
   });
 
-  describe('buildGeminiCreatePlan', () => {
-    it('includes model in args and dbFields', () => {
-      expect(buildGeminiCreatePlan({
-        input: { cwd: '/repo', sessionType: 'gemini', model: 'gemini-2.5-pro', initialPrompt: 'inspect' },
-        command: 'gemini',
-        hookRuntime: { state: 'ready', port: 4312, warning: null },
-        codexBridgeReady: false,
-      })).toEqual({
-        hookMode: 'fallback',
-        args: ['--model', 'gemini-2.5-pro', 'inspect'],
-        env: {},
-        dbFields: { model: 'gemini-2.5-pro' },
-      });
-    });
+  it('returns null when active but not quiescent', () => {
+    expect(geminiPollState(ctx({ status: 'active', isQuiescent: false }))).toBeNull();
+  });
 
-    it('handles missing model and prompt', () => {
-      const result = buildGeminiCreatePlan({
-        input: { cwd: '/repo', sessionType: 'gemini' },
-        command: 'gemini',
-        hookRuntime: { state: 'ready', port: 4312, warning: null },
-        codexBridgeReady: false,
-      });
-      expect(result.args).toEqual([]);
-      expect(result.dbFields).toEqual({ model: null });
-    });
+  it('returns null when idle', () => {
+    expect(geminiPollState(ctx({ status: 'idle', isQuiescent: true }))).toBeNull();
+  });
 
-    it('always uses fallback hook mode', () => {
-      const result = buildGeminiCreatePlan({
-        input: { cwd: '/repo', sessionType: 'gemini' },
-        command: 'gemini',
-        hookRuntime: { state: 'ready', port: 4312, warning: null },
-        codexBridgeReady: true,
-      });
-      expect(result.hookMode).toBe('fallback');
-    });
+  it('returns null when waiting', () => {
+    expect(geminiPollState(ctx({ status: 'waiting', isQuiescent: true }))).toBeNull();
   });
 });

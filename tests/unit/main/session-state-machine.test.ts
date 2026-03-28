@@ -198,7 +198,7 @@ describe('computeTransition', () => {
     it('status unchanged, attention = set-info-if-not-action', () => {
       const r = computeTransition('Notification', ctx({ currentStatus: 'active' }));
       expect(r!.status).toBe('active');
-      expect(r!.attention).toEqual({ type: 'set-info-if-not-action', reason: 'Notification from Claude' });
+      expect(r!.attention).toEqual({ type: 'set-info-if-not-action', reason: 'Notification' });
     });
   });
 
@@ -333,18 +333,18 @@ describe('resolveAttention', () => {
   });
 
   describe('set-action-if-active-no-pending', () => {
-    const rule: AttentionRule = { type: 'set-action-if-active-no-pending', reason: 'Claude finished — awaiting next input' };
+    const rule: AttentionRule = { type: 'set-action-if-active-no-pending', reason: 'Finished — awaiting input' };
 
     it('no pending, current=none → action with reason', () => {
       const r = resolveAttention(rule, 'none', noPending);
       expect(r.level).toBe('action');
-      expect(r.reason).toBe('Claude finished — awaiting next input');
+      expect(r.reason).toBe('Finished — awaiting input');
     });
 
     it('no pending, current=info → action with reason', () => {
       const r = resolveAttention(rule, 'info', noPending);
       expect(r.level).toBe('action');
-      expect(r.reason).toBe('Claude finished — awaiting next input');
+      expect(r.reason).toBe('Finished — awaiting input');
     });
 
     it('no pending, current=action → preserved (no reason update)', () => {
@@ -361,18 +361,18 @@ describe('resolveAttention', () => {
   });
 
   describe('set-info-if-not-action', () => {
-    const rule: AttentionRule = { type: 'set-info-if-not-action', reason: 'Notification from Claude' };
+    const rule: AttentionRule = { type: 'set-info-if-not-action', reason: 'Notification' };
 
     it('current=none → info with reason', () => {
       const r = resolveAttention(rule, 'none', noPending);
       expect(r.level).toBe('info');
-      expect(r.reason).toBe('Notification from Claude');
+      expect(r.reason).toBe('Notification');
     });
 
     it('current=info → info with reason (updates reason)', () => {
       const r = resolveAttention(rule, 'info', noPending);
       expect(r.level).toBe('info');
-      expect(r.reason).toBe('Notification from Claude');
+      expect(r.reason).toBe('Notification');
     });
 
     it('current=action → preserved', () => {

@@ -281,7 +281,7 @@ describe('buildClaudeResumePlan', () => {
       sessionId: 'test-session',
       row: makeRow(overrides.row),
       hookRuntime: makeHook(overrides.hookState),
-      codexBridgeReady: false,
+      agentHookBridgeReady: false,
     };
   }
 
@@ -382,7 +382,7 @@ describe('buildClaudeCreatePlan', () => {
       input: { cwd: '/tmp', sessionType: 'claude' as const, ...overrides.input },
       command: overrides.command ?? 'claude',
       hookRuntime: makeHook(overrides.hookState),
-      codexBridgeReady: false,
+      agentHookBridgeReady: false,
     };
   }
 

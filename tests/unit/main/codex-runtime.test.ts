@@ -26,7 +26,7 @@ describe('buildCodexCreatePlan', () => {
       input: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'inspect' },
       command: 'codex',
       hookRuntime: { state: 'ready', port: 4312, warning: null },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
     })).toEqual({
       hookMode: 'live',
       args: ['--enable', 'codex_hooks', 'inspect'],
@@ -40,7 +40,7 @@ describe('buildCodexCreatePlan', () => {
       input: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'inspect' },
       command: 'codex',
       hookRuntime: { state: 'ready', port: 4312, warning: null },
-      codexBridgeReady: false,
+      agentHookBridgeReady: false,
     })).toEqual({
       hookMode: 'fallback',
       args: ['inspect'],
@@ -54,7 +54,7 @@ describe('buildCodexCreatePlan', () => {
       input: { cwd: '/repo', sessionType: 'codex' },
       command: 'codex',
       hookRuntime: { state: 'ready', port: 4312, warning: null },
-      codexBridgeReady: false,
+      agentHookBridgeReady: false,
     });
     expect(result.args).toEqual([]);
   });
@@ -64,7 +64,7 @@ describe('buildCodexCreatePlan', () => {
       input: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'inspect' },
       command: '/custom/my-codex-wrapper',
       hookRuntime: { state: 'ready', port: 4312, warning: null },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
     });
     expect(result.hookMode).toBe('fallback');
     expect(result.args).toEqual(['inspect']);
@@ -76,7 +76,7 @@ describe('buildCodexCreatePlan', () => {
       input: { cwd: '/repo', sessionType: 'codex' },
       command: 'codex',
       hookRuntime: { state: 'ready', port: null, warning: null },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
     });
     expect(result.env).toEqual({});
   });
@@ -103,7 +103,7 @@ describe('codex-runtime', () => {
         port: 4312,
         warning: null,
       },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
     })).toEqual({
       command: 'codex',
       cwd: '/tmp/project',
@@ -139,7 +139,7 @@ describe('codex-runtime', () => {
         port: 4312,
         warning: 'bridge unavailable',
       },
-      codexBridgeReady: false,
+      agentHookBridgeReady: false,
     })).toEqual({
       command: 'codex',
       cwd: '/tmp/project',
@@ -169,7 +169,7 @@ describe('codex-runtime', () => {
         port: 4312,
         warning: null,
       },
-      codexBridgeReady: true,
+      agentHookBridgeReady: true,
     })).toThrow('Cannot resume: no Codex thread ID recorded');
   });
 

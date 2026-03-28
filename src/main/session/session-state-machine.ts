@@ -105,7 +105,7 @@ export function computeTransition(
     case 'Notification':
       return {
         status: effectiveStatus,
-        attention: { type: 'set-info-if-not-action', reason: 'Notification from Claude' },
+        attention: { type: 'set-info-if-not-action', reason: 'Notification' },
         lastTool: { type: 'preserve' },
         selfHealed,
       };
@@ -154,7 +154,7 @@ function computeStopTransition(
   return {
     status: 'idle',
     attention: effectiveStatus === 'active'
-      ? { type: 'set-action-if-active-no-pending', reason: 'Claude finished — awaiting next input' }
+      ? { type: 'set-action-if-active-no-pending', reason: 'Finished — awaiting input' }
       : { type: 'preserve' },
     lastTool: { type: 'preserve' },
     selfHealed,

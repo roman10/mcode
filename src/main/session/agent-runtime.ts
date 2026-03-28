@@ -31,7 +31,7 @@ export interface AgentPrepareResumeContext {
   sessionId: string;
   row: AgentResumeRow;
   hookRuntime: HookRuntimeInfo;
-  codexBridgeReady: boolean;
+  agentHookBridgeReady: boolean;
 }
 
 export interface PreparedResume {
@@ -51,7 +51,7 @@ export interface AgentCreateContext {
   input: SessionCreateInput;
   command: string;
   hookRuntime: HookRuntimeInfo;
-  codexBridgeReady: boolean;
+  agentHookBridgeReady: boolean;
 }
 
 /** Result from an adapter's prepareCreate: hook mode, CLI args, env, and DB fields. */

@@ -167,8 +167,8 @@ export class SessionManager {
   readonly layoutRepo: LayoutRepository;
   private agentRuntimeAdapters: AgentRuntimeAdapterMap;
 
-  /** Set to true after Codex hook bridge is successfully configured at startup. */
-  codexHookBridgeReady = false;
+  /** Per-agent hook bridge readiness, keyed by session type (e.g. 'codex', 'gemini'). */
+  hookBridgeReady: Record<string, boolean> = {};
 
   constructor(
     ptyManager: IPtyManager,
@@ -263,7 +263,7 @@ export class SessionManager {
         input,
         command,
         hookRuntime,
-        codexBridgeReady: this.codexHookBridgeReady,
+        agentHookBridgeReady: this.hookBridgeReady[sessionType] ?? false,
       });
       hookMode = prepared.hookMode;
       args = prepared.args;
@@ -388,7 +388,7 @@ export class SessionManager {
         worktree: row.worktree,
       },
       hookRuntime: this.hookRuntimeGetter(),
-      codexBridgeReady: this.codexHookBridgeReady,
+      agentHookBridgeReady: this.hookBridgeReady[row.session_type] ?? false,
     });
 
     // Account handling (generic for all agents)
@@ -615,8 +615,8 @@ export class SessionManager {
 
     // Verify session exists
     let row = db
-      .prepare('SELECT status, attention_level, cwd, worktree, last_tool, model, claude_session_id FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; last_tool: string | null; model: string | null; claude_session_id: string | null } | undefined;
+      .prepare('SELECT status, attention_level, cwd, worktree, last_tool, model, claude_session_id, session_type, gemini_session_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; last_tool: string | null; model: string | null; claude_session_id: string | null; session_type: string; gemini_session_id: string | null } | undefined;
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
       return false;
@@ -625,11 +625,17 @@ export class SessionManager {
     // Don't process events for ended sessions
     if (row.status === 'ended') return true;
 
-    // Persist claude_session_id if present
+    // Persist agent-native session ID if present (route to correct column by session type)
     if (event.claudeSessionId) {
-      db.prepare(
-        'UPDATE sessions SET claude_session_id = ? WHERE session_id = ?',
-      ).run(event.claudeSessionId, sessionId);
+      if (row.session_type === 'claude') {
+        db.prepare(
+          'UPDATE sessions SET claude_session_id = ? WHERE session_id = ?',
+        ).run(event.claudeSessionId, sessionId);
+      } else if (row.session_type === 'gemini' && !row.gemini_session_id) {
+        db.prepare(
+          'UPDATE sessions SET gemini_session_id = ? WHERE session_id = ? AND gemini_session_id IS NULL',
+        ).run(event.claudeSessionId, sessionId);
+      }
     }
 
     // Capture auto-generated worktree name from hook event cwd

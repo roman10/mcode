@@ -398,7 +398,7 @@ describe('hook integration', () => {
     const afterStop = await injectHookEvent(client, session.sessionId, 'Stop');
     expect(afterStop.status).toBe('idle');
     expect(afterStop.attentionLevel).toBe('action');
-    expect(afterStop.attentionReason).toBe('Claude finished — awaiting next input');
+    expect(afterStop.attentionReason).toBe('Finished — awaiting input');
   });
 
   it('hook_list_recent_all returns events with sessionStatus across sessions', async () => {

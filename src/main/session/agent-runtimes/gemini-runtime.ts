@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { basename } from 'node:path';
 import { getDb } from '../../db';
 import { logger } from '../../logger';
 import {
@@ -14,6 +15,8 @@ import type {
   AgentRuntimeAdapter,
   PreparedCreate,
   PreparedResume,
+  PtyPollContext,
+  StateUpdate,
 } from '../agent-runtime';
 
 export interface ScheduleGeminiSessionCaptureInput {
@@ -95,6 +98,11 @@ export function scheduleGeminiSessionCapture(
   poll().catch(() => { });
 }
 
+export function isGeminiCommand(command: string): boolean {
+  const normalized = basename(command).toLowerCase();
+  return normalized === 'gemini' || normalized === 'gemini.exe';
+}
+
 export function buildGeminiResumePlan(
   ctx: AgentPrepareResumeContext,
   deps: { listSessions(command: string, cwd: string): GeminiListedSession[] },
@@ -114,35 +122,62 @@ export function buildGeminiResumePlan(
     throw new Error(`Cannot resume: Gemini session ID ${ctx.row.geminiSessionId} is no longer available in Gemini session list`);
   }
 
+  const bridgeReady = ctx.agentHookBridgeReady && ctx.hookRuntime.state === 'ready';
+  const hookMode = bridgeReady ? 'live' : 'fallback';
+
   return {
     command,
     cwd: ctx.row.cwd,
     args: ['--resume', String(resumeIndex)],
-    env: {},
-    hookMode: 'fallback',
+    env: bridgeReady && ctx.hookRuntime.port
+      ? { MCODE_HOOK_PORT: String(ctx.hookRuntime.port) }
+      : {},
+    hookMode,
     logLabel: 'Gemini',
     logContext: {
       geminiSessionId: ctx.row.geminiSessionId,
       cwd: ctx.row.cwd,
       resumeIndex,
+      hookMode,
     },
   };
 }
 
 export function buildGeminiCreatePlan(ctx: AgentCreateContext): PreparedCreate {
-  const { input } = ctx;
+  const { input, hookRuntime } = ctx;
+  const bridgeReady = ctx.agentHookBridgeReady && isGeminiCommand(ctx.command);
+  const hookMode = bridgeReady && hookRuntime.state === 'ready' ? 'live' : 'fallback';
+
   const args: string[] = [];
   if (input.model) args.push('--model', input.model);
   if (input.initialPrompt) args.push(input.initialPrompt);
 
   return {
-    hookMode: 'fallback',
+    hookMode,
     args,
-    env: {},
+    env: bridgeReady && hookRuntime.port
+      ? { MCODE_HOOK_PORT: String(hookRuntime.port) }
+      : {},
     dbFields: {
       model: input.model?.trim() || null,
     },
   };
+}
+
+/**
+ * Poll-based state detection for Gemini sessions.
+ *
+ * For hookMode 'live' sessions, hooks handle state transitions and
+ * this polling is just a safety net.
+ */
+export function geminiPollState(ctx: PtyPollContext): StateUpdate | null {
+  if (ctx.status === 'active' && ctx.isQuiescent) {
+    return {
+      status: 'idle',
+      attention: { level: 'action', reason: 'Gemini finished — awaiting input' },
+    };
+  }
+  return null;
 }
 
 export function createGeminiRuntimeAdapter(deps: {
@@ -167,5 +202,6 @@ export function createGeminiRuntimeAdapter(deps: {
         listSessions: deps.listSessions,
       });
     },
+    pollState: geminiPollState,
   };
 }

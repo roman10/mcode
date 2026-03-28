@@ -114,14 +114,14 @@ describe('detach/reconcile cycle', () => {
     });
 
     it('preserves attention levels through detach', () => {
-      insertSession(db, 'with-attention', 'idle', 'action', 'Claude finished — awaiting next input');
+      insertSession(db, 'with-attention', 'idle', 'action', 'Finished — awaiting input');
 
       db.run(DETACH_ALL_SQL);
 
       const s = getSession(db, 'with-attention');
       expect(s.status).toBe('detached');
       expect(s.attention_level).toBe('action');
-      expect(s.attention_reason).toBe('Claude finished — awaiting next input');
+      expect(s.attention_reason).toBe('Finished — awaiting input');
     });
   });
 
@@ -129,7 +129,7 @@ describe('detach/reconcile cycle', () => {
     beforeEach(() => {
       // Set up sessions in various pre-detach states
       insertSession(db, 'was-active', 'active');
-      insertSession(db, 'was-idle', 'idle', 'action', 'Claude finished — awaiting next input');
+      insertSession(db, 'was-idle', 'idle', 'action', 'Finished — awaiting input');
       insertSession(db, 'was-waiting', 'waiting', 'action', 'Permission needed: Bash');
       insertSession(db, 'was-starting', 'starting');
 
@@ -200,7 +200,7 @@ describe('detach/reconcile cycle', () => {
       const s = getSession(db, 'was-idle');
       expect(s.status).toBe('idle');
       expect(s.attention_level).toBe('action');
-      expect(s.attention_reason).toBe('Claude finished — awaiting next input');
+      expect(s.attention_reason).toBe('Finished — awaiting input');
     });
 
     it('defaults to active when pre_detach_status is NULL (legacy data)', () => {

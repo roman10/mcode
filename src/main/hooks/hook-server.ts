@@ -11,6 +11,22 @@ import type { HookRuntimeInfo, HookEvent } from '../../shared/types';
 type HookEventCallback = (sessionId: string, event: HookEvent) => boolean;
 type SessionLookup = (claudeSessionId: string) => string | null;
 
+/**
+ * Map of external agent-native hook event names to mcode's canonical names.
+ * Currently Gemini CLI uses different names; Claude and Codex already emit
+ * mcode-standard names.
+ */
+const GEMINI_EVENT_MAP: Record<string, string> = {
+  'BeforeTool': 'PreToolUse',
+  'AfterTool': 'PostToolUse',
+  'AfterAgent': 'Stop',
+  'BeforeAgent': 'UserPromptSubmit',
+};
+
+export function normalizeHookEventName(rawName: string): string {
+  return GEMINI_EVENT_MAP[rawName] ?? rawName;
+}
+
 let httpServer: http.Server | null = null;
 
 function truncateToolInput(
@@ -103,8 +119,9 @@ function handleHookPost(
   onEvent: HookEventCallback,
   lookupByClaudeSessionId: SessionLookup,
 ): void {
-  // Validate hook_event_name
-  const hookEventName = body.hook_event_name as string | undefined;
+  // Validate hook_event_name (normalize external agent names like Gemini's BeforeTool → PreToolUse)
+  const rawEventName = body.hook_event_name as string | undefined;
+  const hookEventName = rawEventName ? normalizeHookEventName(rawEventName) : undefined;
   if (!hookEventName || !(KNOWN_HOOK_EVENTS as readonly string[]).includes(hookEventName)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: `Invalid or missing hook_event_name: ${hookEventName}` }));
