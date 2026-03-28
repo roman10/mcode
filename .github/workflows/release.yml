@@ -25,7 +25,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and publish
-        run: npm run build && npx electron-builder --mac --publish always
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "No signing certificate configured — building unsigned"
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            unset CSC_LINK CSC_KEY_PASSWORD
+          fi
+          npm run build && npx electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
