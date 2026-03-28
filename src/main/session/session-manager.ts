@@ -9,12 +9,10 @@ import type { IPtyManager } from '../../shared/pty-manager-interface';
 import type { AccountManager } from '../account-manager';
 import { getDb } from '../db';
 import { logger } from '../logger';
-import { stripAnsi } from '../../shared/strip-ansi';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
 import { normalizeModelVersion } from '../trackers/token-cost';
 import { isAgentSession } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
-import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
 import {
   buildCreateSessionArgs,
   buildSessionLabel,
@@ -26,6 +24,7 @@ import {
   type AgentRuntimeAdapterMap,
   type PreparedResume,
 } from './agent-runtime';
+import { createClaudeRuntimeAdapter } from './agent-runtimes/claude-runtime';
 import {
   createCodexRuntimeAdapter,
   scheduleCodexThreadCapture,
@@ -38,7 +37,6 @@ import {
 import {
   computeTransition,
   resolveAttention,
-  USER_CHOICE_TOOLS,
 } from './session-state-machine';
 import type { HookEventName } from './session-state-machine';
 import {
@@ -197,6 +195,7 @@ export class SessionManager {
     this.eventStore = new SessionEventStore(HOOK_TOOL_INPUT_MAX_BYTES);
     this.layoutRepo = new LayoutRepository();
     this.agentRuntimeAdapters = {
+      claude: createClaudeRuntimeAdapter(),
       codex: createCodexRuntimeAdapter({
         scheduleThreadCapture: (input) => scheduleCodexThreadCapture(input, {
           broadcastSessionUpdate: (sessionId) => this.broadcastSessionUpdate(sessionId),
@@ -384,7 +383,7 @@ export class SessionManager {
     if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status})`);
 
     const agentRuntime = getAgentRuntimeAdapter(row.session_type, this.agentRuntimeAdapters);
-    if (agentRuntime) {
+    if (agentRuntime?.prepareResume) {
       const prepared = agentRuntime.prepareResume({
         sessionId,
         row: {
@@ -1216,87 +1215,52 @@ export class SessionManager {
 
   // --- PTY-based state detection ---
 
-  private static readonly PERMISSION_PATTERNS = [
-    /Allow\s+once/,
-    /Deny\s+once/,
-    /Allow\s+always/,
-  ];
-
   private static readonly PTY_QUIESCENCE_MS = 5000;
 
-  /** Poll active sessions for permission prompts, idle prompts, and user-choice menus. */
+  /** Poll active agent sessions and delegate state detection to runtime adapters. */
   pollSessionStates(): void {
     const db = getDb();
     const rows = db
       .prepare(
         `SELECT session_id, status, attention_level, last_tool, session_type FROM sessions
-         WHERE status IN ('active', 'idle', 'waiting') AND session_type IN ('claude', 'codex')`,
+         WHERE status IN ('active', 'idle', 'waiting') AND session_type != 'terminal'`,
       )
       .all() as { session_id: string; status: string; attention_level: string; last_tool: string | null; session_type: string }[];
 
     const now = Date.now();
 
     for (const row of rows) {
+      const adapter = this.agentRuntimeAdapters[row.session_type as keyof AgentRuntimeAdapterMap];
+      if (!adapter?.pollState) continue;
+
       const buffer = this.ptyManager.getReplayData(row.session_id);
       if (!buffer) continue;
 
       const lastDataAt = this.ptyManager.getLastDataAt(row.session_id);
       const isQuiescent = lastDataAt > 0 && now - lastDataAt > SessionManager.PTY_QUIESCENCE_MS;
 
-      // Codex: activity-based heuristic only (no prompt detection).
-      // For hookMode 'live' sessions, hooks handle state transitions and
-      // this polling is just a safety net.
-      if (row.session_type === 'codex') {
-        if (row.status === 'active' && isQuiescent) {
-          this.updateStatusWithAttention(row.session_id, 'idle', 'action', 'Codex finished — awaiting input');
-        }
-        continue;
-      }
+      const hasPendingTasks = !!db
+        .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
+        .get(row.session_id);
 
-      // Claude: full prompt/permission detection
-      const tail = stripAnsi(buffer.slice(-2000));
-      const rawTail = buffer.slice(-2000);
-      const hasPermissionPrompt = SessionManager.PERMISSION_PATTERNS.some((re) => re.test(tail));
+      const update = adapter.pollState({
+        sessionId: row.session_id,
+        status: row.status as SessionStatus,
+        attentionLevel: row.attention_level as SessionAttentionLevel,
+        lastTool: row.last_tool,
+        buffer,
+        lastDataAt,
+        isQuiescent,
+        hasPendingTasks,
+      });
 
-      if (
-        (row.status === 'active' || row.status === 'idle') &&
-        row.attention_level !== 'action' &&
-        hasPermissionPrompt &&
-        isQuiescent
-      ) {
-        // Permission prompt detected: quiescent + pattern visible
-        this.updateStatusWithAttention(row.session_id, 'waiting', 'action', 'Permission prompt detected');
-      } else if (
-        (row.status === 'active' || row.status === 'idle') &&
-        row.attention_level !== 'action' &&
-        isAtUserChoice(rawTail) &&
-        (isQuiescent || (row.last_tool != null && USER_CHOICE_TOOLS.has(row.last_tool)))
-      ) {
-        // User-choice menu detected (plan mode, AskUserQuestion, etc.)
-        // When last_tool confirms a user-choice tool, skip quiescence to avoid
-        // status bar updates blocking detection indefinitely.
-        this.updateStatusWithAttention(row.session_id, 'waiting', 'action', 'Waiting for your response');
-      } else if (
-        (row.status === 'active' || row.status === 'waiting') &&
-        isQuiescent &&
-        isAtClaudePrompt(rawTail) &&
-        !isAtUserChoice(rawTail)
-      ) {
-        // Idle prompt detected: Claude is waiting at ❯ for new input
-        // Guard against user-choice menus whose ❯ cursor also satisfies isAtClaudePrompt.
-        const hasPending = db
-          .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
-          .get(row.session_id);
-        if (hasPending) {
-          this.updateStatus(row.session_id, 'idle');
-        } else {
-          this.updateStatusWithAttention(row.session_id, 'idle', 'action', 'Claude finished — awaiting next input');
-        }
+      if (!update) continue;
+
+      if (update.attention) {
+        this.updateStatusWithAttention(row.session_id, update.status, update.attention.level, update.attention.reason);
+      } else {
+        this.updateStatus(row.session_id, update.status);
       }
-      // Note: no explicit waiting → active recovery here. When the user
-      // answers a permission prompt, PreToolUse/PostToolUse hooks handle
-      // the transition. The idle-prompt branch above also covers 'waiting'
-      // as a fallback if hooks fail and Claude reaches the ❯ prompt.
     }
   }
 

@@ -6,6 +6,8 @@ import type {
   AgentPrepareResumeContext,
   AgentRuntimeAdapter,
   PreparedResume,
+  PtyPollContext,
+  StateUpdate,
 } from '../agent-runtime';
 
 export interface ScheduleCodexThreadCaptureInput {
@@ -102,6 +104,22 @@ export function buildCodexResumePlan(ctx: AgentPrepareResumeContext): PreparedRe
   };
 }
 
+/**
+ * Poll-based state detection for Codex sessions.
+ *
+ * For hookMode 'live' sessions, hooks handle state transitions and
+ * this polling is just a safety net.
+ */
+export function codexPollState(ctx: PtyPollContext): StateUpdate | null {
+  if (ctx.status === 'active' && ctx.isQuiescent) {
+    return {
+      status: 'idle',
+      attention: { level: 'action', reason: 'Codex finished — awaiting input' },
+    };
+  }
+  return null;
+}
+
 export function createCodexRuntimeAdapter(deps: {
   scheduleThreadCapture(input: ScheduleCodexThreadCaptureInput): void;
 }): AgentRuntimeAdapter {
@@ -118,5 +136,6 @@ export function createCodexRuntimeAdapter(deps: {
     prepareResume(ctx: AgentPrepareResumeContext): PreparedResume {
       return buildCodexResumePlan(ctx);
     },
+    pollState: codexPollState,
   };
 }

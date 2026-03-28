@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildCodexResumePlan,
+  codexPollState,
   createCodexRuntimeAdapter,
 } from '../../../src/main/session/agent-runtimes/codex-runtime';
+import type { PtyPollContext } from '../../../src/main/session/agent-runtime';
 
 describe('codex-runtime', () => {
   it('builds a live resume plan when the Codex hook bridge is ready', () => {
@@ -83,6 +85,11 @@ describe('codex-runtime', () => {
     })).toThrow('Cannot resume: no Codex thread ID recorded');
   });
 
+  it('wires pollState into the adapter', () => {
+    const adapter = createCodexRuntimeAdapter({ scheduleThreadCapture: vi.fn() });
+    expect(adapter.pollState).toBe(codexPollState);
+  });
+
   it('delegates post-create capture scheduling through the adapter', () => {
     const scheduleThreadCapture = vi.fn();
     const adapter = createCodexRuntimeAdapter({ scheduleThreadCapture });
@@ -101,5 +108,40 @@ describe('codex-runtime', () => {
       startedAt: '2025-01-01T00:00:00.000Z',
       initialPrompt: 'Investigate failing test',
     });
+  });
+});
+
+describe('codexPollState', () => {
+  function ctx(overrides: Partial<PtyPollContext> = {}): PtyPollContext {
+    return {
+      sessionId: 'codex-session',
+      status: 'active',
+      attentionLevel: 'none',
+      lastTool: null,
+      buffer: '',
+      lastDataAt: Date.now(),
+      isQuiescent: false,
+      hasPendingTasks: false,
+      ...overrides,
+    };
+  }
+
+  it('transitions active to idle with attention when quiescent', () => {
+    expect(codexPollState(ctx({ status: 'active', isQuiescent: true }))).toEqual({
+      status: 'idle',
+      attention: { level: 'action', reason: 'Codex finished — awaiting input' },
+    });
+  });
+
+  it('returns null when active but not quiescent', () => {
+    expect(codexPollState(ctx({ status: 'active', isQuiescent: false }))).toBeNull();
+  });
+
+  it('returns null when idle', () => {
+    expect(codexPollState(ctx({ status: 'idle', isQuiescent: true }))).toBeNull();
+  });
+
+  it('returns null when waiting', () => {
+    expect(codexPollState(ctx({ status: 'waiting', isQuiescent: true }))).toBeNull();
   });
 });
