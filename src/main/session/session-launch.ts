@@ -53,11 +53,11 @@ export function getDefaultSessionCommand(sessionType: SessionType, shellCommand:
 
 export function buildCreateSessionArgs(input: {
   session: SessionCreateInput;
+  sessionType: SessionType;
   isTerminal: boolean;
-  isCodex: boolean;
   codexBridgeReady: boolean;
 }): string[] {
-  const { session, isTerminal, isCodex, codexBridgeReady } = input;
+  const { session, sessionType, isTerminal, codexBridgeReady } = input;
   const args: string[] = [];
 
   if (isTerminal) {
@@ -67,10 +67,17 @@ export function buildCreateSessionArgs(input: {
     return args;
   }
 
-  if (isCodex) {
+  if (sessionType === 'codex') {
     if (codexBridgeReady) {
       args.push('--enable', 'codex_hooks');
     }
+    if (session.initialPrompt) {
+      args.push(session.initialPrompt);
+    }
+    return args;
+  }
+
+  if (sessionType === 'gemini') {
     if (session.initialPrompt) {
       args.push(session.initialPrompt);
     }
@@ -103,13 +110,12 @@ export function buildCreateSessionArgs(input: {
 }
 
 export function resolveCreateHookMode(input: {
-  isClaude: boolean;
-  isCodex: boolean;
+  sessionType: SessionType;
   codexBridgeReady: boolean;
   hookRuntimeState: string;
 }): 'live' | 'fallback' {
-  const { isClaude, isCodex, codexBridgeReady, hookRuntimeState } = input;
-  return (isClaude || (isCodex && codexBridgeReady)) && hookRuntimeState === 'ready'
+  const { sessionType, codexBridgeReady, hookRuntimeState } = input;
+  return (sessionType === 'claude' || (sessionType === 'codex' && codexBridgeReady)) && hookRuntimeState === 'ready'
     ? 'live'
     : 'fallback';
 }

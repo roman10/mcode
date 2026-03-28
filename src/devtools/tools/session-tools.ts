@@ -20,19 +20,19 @@ export function registerSessionTools(
   });
 
   server.registerTool('session_create', {
-    description: 'Create a new Claude Code session, Codex CLI session, or plain terminal',
+    description: 'Create a new Claude Code session, Codex CLI session, Gemini CLI session, or plain terminal',
     inputSchema: {
       cwd: z.string().describe('Working directory for the session'),
       label: z.string().optional().describe('Optional label for the session'),
-      initialPrompt: z.string().optional().describe('Optional initial prompt for Claude or Codex (ignored for terminal sessions)'),
-      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for Claude sessions only (ignored for Codex and terminal sessions)'),
-      effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for Claude sessions only (ignored for Codex and terminal sessions)'),
-      enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode for Claude sessions only. Ignored for Codex and terminal sessions.'),
-      allowBypassPermissions: z.boolean().optional().describe('Pass --allow-dangerously-skip-permissions for Claude sessions only. Ignored for Codex and terminal sessions.'),
+      initialPrompt: z.string().optional().describe('Optional initial prompt for Claude, Codex, or Gemini (ignored for terminal sessions)'),
+      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for Claude sessions only (ignored for Codex, Gemini, and terminal sessions)'),
+      effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for Claude sessions only (ignored for Codex, Gemini, and terminal sessions)'),
+      enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode for Claude sessions only. Ignored for Codex, Gemini, and terminal sessions.'),
+      allowBypassPermissions: z.boolean().optional().describe('Pass --allow-dangerously-skip-permissions for Claude sessions only. Ignored for Codex, Gemini, and terminal sessions.'),
       command: z.string().optional().describe('Command to spawn (defaults to the CLI for the selected session type)'),
       args: z.array(z.string()).optional().describe('Arguments for the command (e.g. ["-c", "git push"] for terminal sessions)'),
-      sessionType: z.enum(['claude', 'codex', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "codex" for Codex CLI, "terminal" for plain shell (default: "claude")'),
-      worktree: z.string().optional().describe('Run session in an isolated git worktree for Claude sessions. Ignored for Codex and terminal sessions.'),
+      sessionType: z.enum(['claude', 'codex', 'gemini', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "codex" for Codex CLI, "gemini" for Gemini CLI, "terminal" for plain shell (default: "claude")'),
+      worktree: z.string().optional().describe('Run session in an isolated git worktree for Claude sessions. Ignored for Codex, Gemini, and terminal sessions.'),
       accountId: z.string().optional().describe('Account profile ID to run this session under'),
       autoClose: z.boolean().optional().describe('If true, automatically kill the session when its task queue empties'),
     },
@@ -132,9 +132,11 @@ export function registerSessionTools(
   }, async () => {
     const ids = ctx.sessionManager.deleteAllEnded();
     return {
-      content: [{ type: 'text', text: ids.length === 0
-        ? 'No ended sessions to delete'
-        : `Deleted ${ids.length} session(s): ${ids.join(', ')}` }],
+      content: [{
+        type: 'text', text: ids.length === 0
+          ? 'No ended sessions to delete'
+          : `Deleted ${ids.length} session(s): ${ids.join(', ')}`
+      }],
     };
   });
 
@@ -147,9 +149,11 @@ export function registerSessionTools(
   }, async ({ sessionIds }) => {
     const deleted = ctx.sessionManager.deleteBatch(sessionIds);
     return {
-      content: [{ type: 'text', text: deleted.length === 0
-        ? 'No valid ended sessions to delete from the provided IDs'
-        : `Deleted ${deleted.length} session(s): ${deleted.join(', ')}` }],
+      content: [{
+        type: 'text', text: deleted.length === 0
+          ? 'No valid ended sessions to delete from the provided IDs'
+          : `Deleted ${deleted.length} session(s): ${deleted.join(', ')}`
+      }],
     };
   });
 
@@ -326,6 +330,28 @@ export function registerSessionTools(
   }, async ({ sessionId, codexThreadId }) => {
     try {
       ctx.sessionManager.setCodexThreadId(sessionId, codexThreadId);
+      const updated = ctx.sessionManager.get(sessionId);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('session_set_gemini_session_id', {
+    description: 'Set the Gemini session ID for a session (useful for testing or manual recovery)',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID'),
+      geminiSessionId: z.string().describe('Gemini session ID'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, geminiSessionId }) => {
+    try {
+      ctx.sessionManager.setGeminiSessionId(sessionId, geminiSessionId);
       const updated = ctx.sessionManager.get(sessionId);
       return {
         content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],

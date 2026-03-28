@@ -1,8 +1,9 @@
 import { create } from 'zustand';
+import type { AgentSessionType } from '@shared/session-agents';
 
 interface DialogState {
   showNewSessionDialog: boolean;
-  newSessionDialogType: 'claude' | 'codex';
+  newSessionDialogType: AgentSessionType;
   showKeyboardShortcuts: boolean;
   showSettings: boolean;
   showAccountsDialog: boolean;
@@ -11,7 +12,7 @@ interface DialogState {
   quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets';
 
   setShowNewSessionDialog(show: boolean): void;
-  setNewSessionDialogType(type: 'claude' | 'codex'): void;
+  setNewSessionDialogType(type: AgentSessionType): void;
   setShowKeyboardShortcuts(show: boolean): void;
   setShowSettings(show: boolean): void;
   setShowAccountsDialog(show: boolean): void;

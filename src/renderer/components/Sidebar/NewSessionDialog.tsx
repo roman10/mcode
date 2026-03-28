@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Dialog from '../shared/Dialog';
-import { getAgentDefinition } from '@shared/session-agents';
+import { getAgentDefinition, type AgentSessionType } from '@shared/session-agents';
 import type { AccountProfile, SessionCreateInput } from '@shared/types';
 import { EFFORT_LEVELS, PERMISSION_MODES, type EffortLevel, type PermissionMode } from '@shared/constants';
 
@@ -8,7 +8,7 @@ const isMac = navigator.userAgent.includes('Mac');
 
 interface NewSessionDialogProps {
   open: boolean;
-  initialSessionType?: 'claude' | 'codex';
+  initialSessionType?: AgentSessionType;
   onOpenChange(open: boolean): void;
   onCreate(input: SessionCreateInput): void;
 }
@@ -19,7 +19,7 @@ function NewSessionDialog({
   onOpenChange,
   onCreate,
 }: NewSessionDialogProps): React.JSX.Element {
-  const [sessionType, setSessionType] = useState<'claude' | 'codex'>(initialSessionType ?? 'claude');
+  const [sessionType, setSessionType] = useState<AgentSessionType>(initialSessionType ?? 'claude');
   const [cwd, setCwd] = useState('');
   const [label, setLabel] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
@@ -97,7 +97,7 @@ function NewSessionDialog({
         cwd: cwd.trim(),
         label: label.trim() || undefined,
         initialPrompt: initialPrompt.trim() || undefined,
-        sessionType: 'codex',
+        sessionType,
       });
     }
   };
@@ -136,10 +136,11 @@ function NewSessionDialog({
             <select
               className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
               value={sessionType}
-              onChange={(e) => setSessionType(e.target.value as 'claude' | 'codex')}
+              onChange={(e) => setSessionType(e.target.value as AgentSessionType)}
             >
               <option value="claude">Claude Code</option>
               <option value="codex">Codex CLI</option>
+              <option value="gemini">Gemini CLI</option>
             </select>
           </div>
 

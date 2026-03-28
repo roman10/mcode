@@ -14,6 +14,7 @@ export function makeSession(overrides: Partial<SessionInfo> = {}): SessionInfo {
     endedAt: null,
     claudeSessionId: null,
     codexThreadId: null,
+    geminiSessionId: null,
     lastTool: null,
     lastEventAt: null,
     attentionLevel: 'none',

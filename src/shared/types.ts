@@ -68,7 +68,7 @@ export interface TerminalConfig {
 
 // --- Session ---
 
-export type SessionType = 'claude' | 'codex' | 'terminal';
+export type SessionType = 'claude' | 'codex' | 'gemini' | 'terminal';
 export type SessionStatus = 'starting' | 'active' | 'idle' | 'waiting' | 'detached' | 'ended';
 export type SessionAttentionLevel = 'none' | 'info' | 'action';
 
@@ -87,6 +87,7 @@ export interface SessionInfo {
 
   claudeSessionId: string | null;
   codexThreadId: string | null;
+  geminiSessionId: string | null;
   lastTool: string | null;
   lastEventAt: string | null;
   attentionLevel: SessionAttentionLevel;
@@ -147,7 +148,7 @@ export interface LayoutStateSnapshot {
 // --- App Commands (menu accelerators → renderer) ---
 
 export type AppCommand =
-  | { command: 'new-session'; sessionType?: 'claude' | 'codex' }
+  | { command: 'new-session'; sessionType?: 'claude' | 'codex' | 'gemini' }
   | { command: 'new-terminal' }
   | { command: 'focus-session-index'; index: number }
   | { command: 'focus-next-session' }

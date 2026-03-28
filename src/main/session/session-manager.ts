@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
@@ -16,6 +17,11 @@ import { isAgentSession } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
 import { findCodexThreadMatch } from './codex-session-store';
 import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
+import {
+  parseGeminiSessionList,
+  resolveGeminiResumeIndex,
+  selectGeminiSessionCandidate,
+} from './gemini-session-store';
 import {
   buildCreateSessionArgs,
   buildSessionLabel,
@@ -62,6 +68,7 @@ interface SessionRecord {
   command: string | null;
   claude_session_id: string | null;
   codex_thread_id: string | null;
+  gemini_session_id: string | null;
   last_tool: string | null;
   last_event_at: string | null;
   attention_level: string;
@@ -103,6 +110,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     endedAt: row.ended_at,
     codexThreadId: row.codex_thread_id,
     claudeSessionId: row.claude_session_id,
+    geminiSessionId: row.gemini_session_id,
     lastTool: row.last_tool,
     lastEventAt: row.last_event_at,
     attentionLevel: row.attention_level as SessionAttentionLevel,
@@ -254,6 +262,77 @@ export class SessionManager {
     poll().catch(() => { });
   }
 
+  private listGeminiSessions(command: string, cwd: string): ReturnType<typeof parseGeminiSessionList> {
+    const output = execFileSync(command, ['--list-sessions'], {
+      cwd,
+      timeout: 5000,
+      maxBuffer: 1024 * 1024,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    return parseGeminiSessionList(output);
+  }
+
+  private scheduleGeminiSessionCapture(
+    sessionId: string,
+    cwd: string,
+    command: string,
+    initialPrompt?: string,
+  ): void {
+    const deadline = Date.now() + 15_000;
+    const poll = async (): Promise<void> => {
+      const db = getDb();
+      const row = db.prepare(
+        'SELECT session_type, gemini_session_id FROM sessions WHERE session_id = ?',
+      ).get(sessionId) as { session_type: string; gemini_session_id: string | null } | undefined;
+      if (!row || row.session_type !== 'gemini' || row.gemini_session_id) return;
+
+      try {
+        const claimedSessionIds = new Set(
+          (
+            db.prepare(
+              'SELECT gemini_session_id FROM sessions WHERE gemini_session_id IS NOT NULL AND session_id != ?',
+            ).all(sessionId) as { gemini_session_id: string }[]
+          ).map((entry) => entry.gemini_session_id),
+        );
+
+        const entries = this.listGeminiSessions(command, cwd);
+        const match = selectGeminiSessionCandidate(entries, {
+          initialPrompt,
+          claimedSessionIds,
+        });
+
+        if (match) {
+          const result = db.prepare(
+            'UPDATE sessions SET gemini_session_id = ? WHERE session_id = ? AND gemini_session_id IS NULL',
+          ).run(match.geminiSessionId, sessionId);
+          if (result.changes > 0) {
+            logger.info('session', 'Captured Gemini session ID', {
+              sessionId,
+              geminiSessionId: match.geminiSessionId,
+            });
+            this.broadcastSessionUpdate(sessionId);
+          }
+          return;
+        }
+      } catch {
+        // Gemini may not list the new session immediately; keep polling until deadline.
+      }
+
+      if (Date.now() >= deadline) {
+        logger.warn('session', 'Failed to capture Gemini session ID', { sessionId, cwd });
+        return;
+      }
+
+      setTimeout(() => {
+        poll().catch(() => { });
+      }, 500);
+    };
+
+    poll().catch(() => { });
+  }
+
   private nextDisambiguatedLabel(cwd: string): string {
     const base = basename(cwd);
     const db = getDb();
@@ -286,27 +365,29 @@ export class SessionManager {
 
     const command = input.command ?? getDefaultSessionCommand(sessionType, process.env.SHELL ?? '/bin/zsh');
 
-    const isClaude = !isTerminal && isClaudeCommand(command);
-    const isCodex = !isTerminal && isCodexCommand(command);
+    const isClaude = sessionType === 'claude';
+    const isCodex = sessionType === 'codex';
+    const isGemini = sessionType === 'gemini';
+    const supportsClaudeHooks = isClaude && isClaudeCommand(command);
+    const supportsCodexHooks = isCodex && isCodexCommand(command);
 
     // Block Claude startup until the hook subsystem reaches a terminal runtime state.
     const hookRuntime = this.hookRuntimeGetter();
-    if (isClaude && hookRuntime.state === 'initializing') {
+    if (supportsClaudeHooks && hookRuntime.state === 'initializing') {
       throw new Error('Hook system is still initializing. Retry session creation shortly.');
     }
 
-    const codexBridgeReady = isCodex && this.codexHookBridgeReady;
+    const codexBridgeReady = supportsCodexHooks && this.codexHookBridgeReady;
     const hookMode = resolveCreateHookMode({
-      isClaude,
-      isCodex,
+      sessionType: supportsClaudeHooks ? 'claude' : supportsCodexHooks ? 'codex' : 'terminal',
       codexBridgeReady,
       hookRuntimeState: hookRuntime.state,
     });
 
     const args = buildCreateSessionArgs({
       session: input,
+      sessionType,
       isTerminal,
-      isCodex,
       codexBridgeReady,
     });
 
@@ -384,6 +465,9 @@ export class SessionManager {
     if (isCodex) {
       this.scheduleCodexThreadCapture(sessionId, cwd, startedAt, input.initialPrompt);
     }
+    if (isGemini) {
+      this.scheduleGeminiSessionCapture(sessionId, cwd, command, input.initialPrompt);
+    }
 
     const session = this.get(sessionId)!;
     const wc = this.getWebContents();
@@ -402,6 +486,71 @@ export class SessionManager {
 
     if (!row) throw new Error(`Session not found: ${sessionId}`);
     if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status})`);
+
+    if (row.session_type === 'gemini') {
+      if (!row.gemini_session_id) throw new Error('Cannot resume: no Gemini session ID recorded');
+
+      const command = row.command || 'gemini';
+      let resumeIndex: number | null = null;
+      try {
+        const entries = this.listGeminiSessions(command, row.cwd);
+        resumeIndex = resolveGeminiResumeIndex(entries, row.gemini_session_id);
+      } catch (err) {
+        throw new Error(`Cannot resume Gemini session: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      if (resumeIndex == null) {
+        throw new Error('Cannot resume: stored Gemini session ID is no longer available in Gemini session list');
+      }
+
+      db.prepare(
+        `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = 'fallback', auto_close = 0 WHERE session_id = ?`,
+      ).run(sessionId);
+
+      try {
+        this.ptyManager.spawn({
+          id: sessionId,
+          command,
+          cwd: row.cwd,
+          cols: DEFAULT_COLS,
+          rows: DEFAULT_ROWS,
+          args: ['--resume', String(resumeIndex)],
+          env: {
+            MCODE_SESSION_ID: sessionId,
+          },
+          onFirstData: () => {
+            this.updateStatus(sessionId, 'idle');
+          },
+          onExit: () => {
+            this.updateStatus(sessionId, 'ended');
+          },
+        });
+      } catch (err) {
+        db.prepare(
+          `UPDATE sessions SET status = 'ended', ended_at = ? WHERE session_id = ?`,
+        ).run(new Date().toISOString(), sessionId);
+        throw err;
+      }
+
+      setTimeout(() => {
+        const s = this.get(sessionId);
+        if (s && s.status === 'starting') {
+          logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
+          this.updateStatus(sessionId, 'idle');
+        }
+      }, 15_000);
+
+      logger.info('session', 'Resumed Gemini session', {
+        sessionId,
+        geminiSessionId: row.gemini_session_id,
+        cwd: row.cwd,
+        resumeIndex,
+      });
+
+      const session = this.get(sessionId)!;
+      this.broadcastSessionUpdate(sessionId);
+      return session;
+    }
 
     if (row.session_type === 'codex') {
       if (!row.codex_thread_id) throw new Error('Cannot resume: no Codex thread ID recorded');
@@ -1116,6 +1265,17 @@ export class SessionManager {
     if (row.session_type !== 'codex') throw new Error('Only Codex sessions can store a Codex thread ID');
     if (row.codex_thread_id === codexThreadId) return;
     db.prepare('UPDATE sessions SET codex_thread_id = ? WHERE session_id = ?').run(codexThreadId, sessionId);
+    this.broadcastSessionUpdate(sessionId);
+  }
+
+  setGeminiSessionId(sessionId: string, geminiSessionId: string): void {
+    const db = getDb();
+    const row = db.prepare('SELECT session_type, gemini_session_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { session_type: string; gemini_session_id: string | null } | undefined;
+    if (!row) throw new Error(`Session not found: ${sessionId}`);
+    if (row.session_type !== 'gemini') throw new Error('Only Gemini sessions can store a Gemini session ID');
+    if (row.gemini_session_id === geminiSessionId) return;
+    db.prepare('UPDATE sessions SET gemini_session_id = ? WHERE session_id = ?').run(geminiSessionId, sessionId);
     this.broadcastSessionUpdate(sessionId);
   }
 

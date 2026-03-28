@@ -44,44 +44,26 @@ Phase 1 should be designed around the current Gemini CLI behavior, verified loca
 - `gemini --list-sessions --output-format json` still emits text, so parsing must be text-based
 - Gemini does not currently expose a documented runtime hook registration surface usable by mcode
 
-## Recommended Phase 1 Shape
+## Phase 1 Shape
 
 ### 1. Shared types and agent metadata
 
-Update the type system to include Gemini, but avoid scattering more one-off Claude/Codex/Gemini checks than necessary.
+The refactor groundwork for Gemini Phase 1 is already in place.
 
-Required changes:
+Completed groundwork:
+
+- `src/shared/constants.ts` already defines `GEMINI_ICON`
+- `src/shared/session-agents.ts` already centralizes per-agent metadata such as icon, default command, dialog mode, task-queue support, terminal cursor behavior, account-profile support, and resume identity kind
+- renderer label and resume helpers already consume shared agent metadata instead of duplicating some raw Claude/Codex checks
+
+Remaining implementation work:
 
 - extend `SessionType` to include `gemini`
 - add `geminiSessionId: string | null` to `SessionInfo`
 - extend `AppCommand` new-session union to include `gemini`
-- add `GEMINI_ICON` to shared constants
+- widen renderer/store unions that still only admit `claude | codex`
 
-Recommended organization change before implementation:
-
-- add a small shared agent metadata module, for example `src/shared/session-agents.ts`
-
-Suggested contents:
-
-```ts
-export type AgentSessionType = Exclude<SessionType, 'terminal'>;
-
-export interface AgentDefinition {
-  sessionType: AgentSessionType;
-  displayName: string;
-  icon: string;
-  defaultCommand: string;
-  supportsTaskQueue: boolean;
-  hidesTerminalCursor: boolean;
-  dialogMode: 'full' | 'minimal';
-}
-```
-
-Initial benefit:
-
-- one place for icon, command, and UI capability decisions
-- fewer renderer unions and duplicated conditionals
-- makes the next agent integration cheaper than Gemini
+This keeps Gemini support aligned with the new metadata-driven direction rather than adding another set of ad hoc branches.
 
 ### 2. Database and resume identity
 
@@ -103,74 +85,51 @@ This is the right long-term choice as long as Gemini keeps exposing a stable UUI
 
 ### 3. SessionManager responsibilities
 
-Gemini Phase 1 should not add more large inline branches inside `session-manager.ts` than necessary.
+Gemini Phase 1 should keep `SessionManager` as the orchestration layer without letting it absorb Gemini-specific parsing and launch planning.
 
-Current pressure points:
+Current pressure points remain the same:
 
-- `src/main/session/session-manager.ts` already contains creation, resume, label logic, persistence mapping, hook event handling, external import, model updates, and cleanup logic
-- create/resume logic is already branching for Claude vs Codex
-- adding Gemini naively will make the class harder to reason about and test
+- `src/main/session/session-manager.ts` already contains creation, resume, persistence mapping, hook event handling, model updates, and cleanup logic
+- create/resume logic already has agent-specific branches
+- adding Gemini naively would make the class materially harder to reason about and test
 
-Recommended implementation approach:
+The supporting refactors needed to keep this manageable have already landed.
 
-#### 3.1 Extract Gemini list/parse logic into its own file
+#### 3.1 Gemini list/parse logic already lives in its own file
 
-Create a sibling module such as:
+`src/main/session/gemini-session-store.ts` now exists and already owns:
 
-- `src/main/session/gemini-session-store.ts`
+- parsing numbered Gemini session list output
+- choosing the most likely unclaimed session candidate for a newly created session
+- resolving a stored Gemini UUID back to the current resume index
 
-This module should own:
+What still needs to be wired in Phase 1:
 
-- running `gemini --list-sessions`
-- parsing numbered output lines and bracketed UUIDs
-- choosing the best match for a newly spawned session
-- resolving a stored UUID back to the current resume index
+- run `gemini --list-sessions` from the session layer
+- feed the output into the existing parser/matcher helpers
+- persist the captured Gemini UUID after creation
+- use the stored UUID plus current list output during resume
 
-Suggested API:
+Gemini text parsing should stay in this module rather than moving back into `SessionManager`.
 
-```ts
-export interface GeminiListedSession {
-  index: number;
-  title: string;
-  relativeAgeText: string | null;
-  geminiSessionId: string;
-}
+#### 3.2 Spawn-plan helpers are already extracted
 
-export function parseGeminiSessionList(output: string): GeminiListedSession[];
-export function pickGeminiSessionCandidate(...): GeminiListedSession | null;
-```
+`src/main/session/session-launch.ts` already owns the shared create-time helpers for:
 
-This is the most important pre-implementation refactor. Gemini text parsing should not be embedded deep inside `SessionManager`.
+- default command resolution
+- label construction and prefixing
+- create argument construction
+- hook-mode selection
 
-#### 3.2 Extract spawn-plan helpers from SessionManager
-
-Before implementing Gemini logic, extract small pure helpers for things that are already shared across agents.
-
-Suggested file:
-
-- `src/main/session/session-launch.ts`
-
-Suggested helpers:
-
-- `getDefaultCommand(sessionType)`
-- `prefixSessionLabel(sessionType, rawLabel)`
-- `buildSessionArgs(input, runtimeState)`
-- `resolveHookMode(...)`
-
-This is a modest refactor with immediate payoff:
-
-- Gemini implementation becomes mostly new helper branches rather than new SessionManager complexity
-- these functions are unit-testable without PTY or DB setup
+The remaining Gemini work is to extend those helpers where needed, primarily for Gemini create arguments and fallback-only hook mode.
 
 #### 3.3 Keep SessionManager as the orchestrator
 
-Do not fully split `SessionManager` before Phase 1. That would be too invasive.
-
-The right balance is:
+Do not split `SessionManager` further in Phase 1. The current balance is still correct:
 
 - keep `SessionManager` as the orchestration class
-- move parsing and plan-building into small sibling modules
-- call those helpers from `create()` and `resume()`
+- keep parsing and plan-building in small sibling modules
+- wire Gemini through those helpers from `create()` and `resume()`
 
 ### 4. Resume design
 
@@ -192,7 +151,7 @@ The design is not clean if we treat Gemini's current numeric index as the persis
 
 ### 5. Renderer design
 
-The renderer changes are straightforward functionally, but the current structure has repeated agent-specific branching.
+The renderer already moved part of the way toward metadata-driven agent behavior, but a few type unions and resume checks still need widening.
 
 #### Required Phase 1 updates
 
@@ -205,21 +164,17 @@ The renderer changes are straightforward functionally, but the current structure
 - `src/renderer/components/SessionTile/ModelPill.tsx`
 - `src/renderer/components/SessionTile/TerminalInstance.tsx`
 
-#### Recommended pre-implementation cleanup
+#### Groundwork already completed
 
-Add renderer helpers driven by agent metadata instead of raw string checks.
+- `src/renderer/components/SessionTile/TerminalInstance.tsx` already uses metadata-driven terminal cursor behavior
+- `src/renderer/utils/label-utils.ts` already normalizes and splits labels using shared agent metadata
+- `src/renderer/components/SessionTile/SessionEndedPrompt.tsx` already delegates resume/new-session decisions through shared resume helpers
 
-Examples:
-
-- `isMinimalAgentSession(sessionType)`
-- `supportsResumeIdentity(session)`
-- `shouldHideTerminalCursor(sessionType)`
-
-That allows Gemini support to become data-driven in several places instead of adding another chain of `if (sessionType === ...)` blocks.
+Remaining renderer work is mostly type widening plus Gemini visibility in the new-session and ended-session flows.
 
 ### 6. MCP and tests
 
-Phase 1 should mirror the Codex testing strategy.
+Phase 1 should mirror the Codex testing strategy, with the Gemini parser and label/resume helpers already covered by unit tests from the refactor pass.
 
 Required additions:
 
@@ -228,10 +183,11 @@ Required additions:
 - add `createGeminiTestSession()` to `tests/helpers.ts`
 - add Gemini support and resume suites
 
-Recommended cleanup before adding tests:
+Recommended implementation detail:
 
 - update test factories and helper interfaces to include Gemini metadata once, centrally
-- avoid duplicating per-agent session shapes across suites
+- add a test-only setter for `geminiSessionId` so resume coverage does not depend on flaky external CLI state
+- keep Gemini fixture behavior deterministic and narrow rather than trying to emulate the entire CLI
 
 ## Is This Phase 1 Design Clean And Good Long Term?
 
@@ -257,7 +213,28 @@ The raw implementation path is not clean if it is done by copying the Codex patt
 
 ### Recommended judgment
 
-Phase 1 is good long term if implemented with small preparatory refactors.
+Phase 1 is good long term if the remaining implementation stays on top of the refactor layer that now exists.
+
+## Completed Groundwork
+
+The following refactors are already complete and should be treated as the implementation baseline for Phase 1:
+
+- shared agent metadata in `src/shared/session-agents.ts`
+- shared create/launch helpers in `src/main/session/session-launch.ts`
+- Gemini list parsing and resume-index helpers in `src/main/session/gemini-session-store.ts`
+- metadata-driven renderer resume helpers in `src/renderer/utils/session-resume.ts`
+- metadata-driven label handling in `src/renderer/utils/label-utils.ts`
+
+## Remaining Implementation Work
+
+The remaining Phase 1 implementation should proceed in this order:
+
+1. widen shared types, IPC contracts, renderer dialog state, and test helper DTOs to include Gemini
+2. add the `gemini_session_id` migration and thread it through `SessionManager` row mapping
+3. implement Gemini create-time UUID capture using `gemini --list-sessions` plus the existing parser/matcher helpers
+4. implement Gemini in-place resume by resolving the stored UUID back to the current Gemini index
+5. extend MCP session tools and integration helpers for Gemini
+6. add focused support/resume integration coverage using a deterministic Gemini fixture
 
 Phase 1 is not good long term if implemented as a third copy-pasted agent path inside existing large conditionals.
 

@@ -64,6 +64,14 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'new-session', sessionType: 'codex' }),
     },
     {
+      id: 'new-gemini-session',
+      label: 'New Gemini Session',
+      category: 'General',
+      keywords: ['gemini', 'google', 'agent'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'new-session', sessionType: 'gemini' }),
+    },
+    {
       id: 'new-terminal',
       label: 'New Terminal',
       category: 'General',

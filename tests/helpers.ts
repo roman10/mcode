@@ -3,6 +3,7 @@ import type { McpTestClient } from './mcp-client';
 
 const TEST_CLAUDE_PATH = join(process.cwd(), 'tests', 'fixtures', 'claude');
 const TEST_CODEX_PATH = join(process.cwd(), 'tests', 'fixtures', 'codex');
+const TEST_GEMINI_PATH = TEST_CODEX_PATH;
 
 export interface SessionInfo {
   sessionId: string;
@@ -17,6 +18,7 @@ export interface SessionInfo {
   endedAt: string | null;
   claudeSessionId: string | null;
   codexThreadId: string | null;
+  geminiSessionId: string | null;
   lastTool: string | null;
   lastEventAt: string | null;
   attentionLevel: string;
@@ -125,6 +127,19 @@ export async function createCodexTestSession(
     command: TEST_CODEX_PATH,
     label: `codex-${Date.now()}`,
     sessionType: 'codex',
+    ...overrides,
+  });
+}
+
+export async function createGeminiTestSession(
+  client: McpTestClient,
+  overrides?: Record<string, unknown>,
+): Promise<SessionInfo> {
+  return client.callToolJson<SessionInfo>('session_create', {
+    cwd: process.cwd(),
+    command: TEST_GEMINI_PATH,
+    label: `gemini-${Date.now()}`,
+    sessionType: 'gemini',
     ...overrides,
   });
 }

@@ -10,6 +10,7 @@ describe('session-launch helpers', () => {
   it('prefixes agent labels while leaving terminal labels unchanged', () => {
     expect(prefixSessionLabel('My Session', 'claude')).toBe('\u2733 My Session');
     expect(prefixSessionLabel('My Session', 'codex')).toBe('\u2742 My Session');
+    expect(prefixSessionLabel('My Session', 'gemini')).toBe('\u2726 My Session');
     expect(prefixSessionLabel('shell', 'terminal')).toBe('shell');
   });
 
@@ -36,16 +37,24 @@ describe('session-launch helpers', () => {
   it('resolves default commands by session type', () => {
     expect(getDefaultSessionCommand('claude', '/bin/zsh')).toBe('claude');
     expect(getDefaultSessionCommand('codex', '/bin/zsh')).toBe('codex');
+    expect(getDefaultSessionCommand('gemini', '/bin/zsh')).toBe('gemini');
     expect(getDefaultSessionCommand('terminal', '/bin/zsh')).toBe('/bin/zsh');
   });
 
-  it('builds create args for codex and claude sessions', () => {
+  it('builds create args for codex, gemini, and claude sessions', () => {
     expect(buildCreateSessionArgs({
       session: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'inspect', args: ['ignored'] },
+      sessionType: 'codex',
       isTerminal: false,
-      isCodex: true,
       codexBridgeReady: true,
     })).toEqual(['--enable', 'codex_hooks', 'inspect']);
+
+    expect(buildCreateSessionArgs({
+      session: { cwd: '/repo', sessionType: 'gemini', initialPrompt: 'inspect' },
+      sessionType: 'gemini',
+      isTerminal: false,
+      codexBridgeReady: false,
+    })).toEqual(['inspect']);
 
     expect(buildCreateSessionArgs({
       session: {
@@ -57,8 +66,8 @@ describe('session-launch helpers', () => {
         allowBypassPermissions: true,
         initialPrompt: 'ship it',
       },
+      sessionType: 'claude',
       isTerminal: false,
-      isCodex: false,
       codexBridgeReady: false,
     })).toEqual([
       '--permission-mode', 'auto',

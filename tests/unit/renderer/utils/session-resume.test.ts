@@ -22,6 +22,13 @@ describe('canResumeSession', () => {
     }))).toBe(true);
   });
 
+  it('returns true for Gemini sessions with a Gemini session ID', () => {
+    expect(canResumeSession(makeSession({
+      sessionType: 'gemini',
+      geminiSessionId: 'gemini-session-123',
+    }))).toBe(true);
+  });
+
   it('returns false when the session has no persisted resume identity', () => {
     expect(canResumeSession(makeSession({
       sessionType: 'claude',
@@ -31,6 +38,11 @@ describe('canResumeSession', () => {
     expect(canResumeSession(makeSession({
       sessionType: 'codex',
       codexThreadId: null,
+    }))).toBe(false);
+
+    expect(canResumeSession(makeSession({
+      sessionType: 'gemini',
+      geminiSessionId: null,
     }))).toBe(false);
   });
 
@@ -52,11 +64,17 @@ describe('canResumeSession', () => {
       sessionType: 'codex',
       codexThreadId: null,
     }))).toBe('No Codex thread ID recorded — cannot resume');
+
+    expect(getResumeUnavailableMessage(makeSession({
+      sessionType: 'gemini',
+      geminiSessionId: null,
+    }))).toBe('No Gemini session ID recorded — cannot resume');
   });
 
   it('uses agent metadata to decide account override support', () => {
     expect(canOverrideResumeAccount(makeSession({ sessionType: 'claude' }))).toBe(true);
     expect(canOverrideResumeAccount(makeSession({ sessionType: 'codex' }))).toBe(false);
+    expect(canOverrideResumeAccount(makeSession({ sessionType: 'gemini' }))).toBe(false);
     expect(canOverrideResumeAccount(makeSession({ sessionType: 'terminal' }))).toBe(false);
   });
 
@@ -64,6 +82,11 @@ describe('canResumeSession', () => {
     expect(buildStartNewSessionInput(makeSession({ sessionType: 'codex' }), 'ignored')).toEqual({
       cwd: '/tmp/test',
       sessionType: 'codex',
+    });
+
+    expect(buildStartNewSessionInput(makeSession({ sessionType: 'gemini' }), 'ignored')).toEqual({
+      cwd: '/tmp/test',
+      sessionType: 'gemini',
     });
 
     expect(buildStartNewSessionInput(makeSession({

@@ -4,11 +4,13 @@ import type { SessionCreateInput, SessionInfo } from '@shared/types';
 export function getResumeIdentity(session: SessionInfo | undefined): string | null {
   if (!session) return null;
 
-  switch (session.sessionType) {
-    case 'claude':
+  switch (getAgentDefinition(session.sessionType)?.resumeIdentityKind) {
+    case 'claudeSessionId':
       return session.claudeSessionId;
-    case 'codex':
+    case 'codexThreadId':
       return session.codexThreadId;
+    case 'geminiSessionId':
+      return session.geminiSessionId;
     default:
       return null;
   }
@@ -21,11 +23,13 @@ export function canResumeSession(session: SessionInfo | undefined): boolean {
 export function getResumeUnavailableMessage(session: SessionInfo | undefined): string | null {
   if (!session || canResumeSession(session)) return null;
 
-  switch (session.sessionType) {
-    case 'claude':
+  switch (getAgentDefinition(session.sessionType)?.resumeIdentityKind) {
+    case 'claudeSessionId':
       return 'No Claude session ID recorded — cannot resume';
-    case 'codex':
+    case 'codexThreadId':
       return 'No Codex thread ID recorded — cannot resume';
+    case 'geminiSessionId':
+      return 'No Gemini session ID recorded — cannot resume';
     default:
       return null;
   }
