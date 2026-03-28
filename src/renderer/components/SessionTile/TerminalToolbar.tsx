@@ -7,6 +7,7 @@ import { splitLabelIcon } from '../../utils/label-utils';
 import Tooltip from '../shared/Tooltip';
 import CreateTaskDialog from '../shared/CreateTaskDialog';
 import ModelPill from './ModelPill';
+import { canSessionQueueTasks } from '@shared/session-capabilities';
 import type { SessionStatus, CreateTaskInput } from '@shared/types';
 
 interface TerminalToolbarProps {
@@ -48,10 +49,7 @@ function TerminalToolbar({
   const lastTool = session?.lastTool;
   const shortTime = useRelativeTime(session?.startedAt ?? '');
 
-  const canQueueTasks =
-    session?.sessionType === 'claude' &&
-    session?.hookMode === 'live' &&
-    status !== 'ended';
+  const canQueueTasks = canSessionQueueTasks(session);
 
   const tasks = useTaskStore((s) => s.tasks);
   const addTask = useTaskStore((s) => s.addTask);

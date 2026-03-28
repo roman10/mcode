@@ -21,6 +21,7 @@ import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
 import { useAppInitialization } from './hooks/useAppInitialization';
 import { useSessionSubscriptions } from './hooks/useSessionSubscriptions';
+import { canSessionBeDefaultTaskTarget } from '@shared/session-capabilities';
 import type { CreateTaskInput, SidebarTab } from '@shared/types';
 
 function App(): React.JSX.Element {
@@ -224,16 +225,12 @@ function App(): React.JSX.Element {
           setShowCreateTaskDialog(false);
         }}
         defaultTargetSessionId={
-          selectedSession?.sessionType === 'claude' &&
-          selectedSession?.hookMode === 'live' &&
-          selectedSession?.status !== 'ended'
+          canSessionBeDefaultTaskTarget(selectedSession)
             ? selectedSessionId ?? undefined
             : undefined
         }
         defaultCwd={
-          selectedSession?.sessionType === 'claude' &&
-          selectedSession?.hookMode === 'live' &&
-          selectedSession?.status !== 'ended'
+          canSessionBeDefaultTaskTarget(selectedSession)
             ? selectedSession?.cwd
             : undefined
         }

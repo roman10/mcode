@@ -14,6 +14,8 @@ export interface AgentDefinition {
   hidesTerminalCursor: boolean;
   dialogMode: AgentDialogMode;
   supportsAccountProfiles: boolean;
+  supportsModelDisplay: boolean;
+  installHelpUrl?: string;
   resumeIdentityKind: AgentResumeIdentityKind;
 }
 
@@ -27,6 +29,8 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     hidesTerminalCursor: true,
     dialogMode: 'full',
     supportsAccountProfiles: true,
+    supportsModelDisplay: true,
+    installHelpUrl: 'https://docs.anthropic.com/en/docs/claude-code/overview',
     resumeIdentityKind: 'claudeSessionId',
   },
   codex: {
@@ -38,6 +42,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     hidesTerminalCursor: true,
     dialogMode: 'minimal',
     supportsAccountProfiles: false,
+    supportsModelDisplay: false,
     resumeIdentityKind: 'codexThreadId',
   },
   gemini: {
@@ -49,6 +54,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     hidesTerminalCursor: true,
     dialogMode: 'minimal',
     supportsAccountProfiles: false,
+    supportsModelDisplay: false,
     resumeIdentityKind: 'geminiSessionId',
   },
 };

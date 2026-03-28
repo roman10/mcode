@@ -1,4 +1,5 @@
 import type { SessionType } from '@shared/types';
+import { canDisplaySessionModel } from '@shared/session-capabilities';
 
 const familyColors: Record<string, string> = {
   opus: 'bg-purple-900/80 text-purple-300',
@@ -20,7 +21,7 @@ interface ModelPillProps {
 }
 
 function ModelPill({ model, sessionType }: ModelPillProps): React.JSX.Element | null {
-  if (!model || sessionType !== 'claude') return null;
+  if (!canDisplaySessionModel({ model, sessionType })) return null;
   const family = getFamily(model);
   const color = familyColors[family] ?? familyColors.unknown;
   return (

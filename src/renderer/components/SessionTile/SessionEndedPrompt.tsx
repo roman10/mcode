@@ -8,6 +8,7 @@ import {
   canResumeSession,
   getResumeUnavailableMessage,
 } from '../../utils/session-resume';
+import { getSessionInstallHelp } from '@shared/session-capabilities';
 
 interface SessionEndedPromptProps {
   sessionId: string;
@@ -25,6 +26,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
 
   const canResume = canResumeSession(session);
   const busy = resuming || creating;
+  const installHelp = getSessionInstallHelp(session?.sessionType);
 
   // Initialize account selector once accounts are available; preserve user's selection after that
   useEffect(() => {
@@ -75,14 +77,14 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
         Session ended{session?.endedAt ? ` at ${new Date(session.endedAt).toLocaleString()}` : ''}
       </div>
 
-      {exitCode === 127 && session?.sessionType === 'claude' && (
+      {exitCode === 127 && installHelp && (
         <div className="max-w-sm px-4 py-2.5 bg-red-900/20 border border-red-700/30 rounded-md text-xs text-red-300 text-center">
-          The <code className="bg-red-900/30 px-1 rounded">claude</code> command was not found.{' '}
+          The <code className="bg-red-900/30 px-1 rounded">{installHelp.command}</code> command was not found.{' '}
           <button
             className="underline hover:text-red-200 transition-colors"
-            onClick={() => window.open('https://docs.anthropic.com/en/docs/claude-code/overview', '_blank')}
+            onClick={() => window.open(installHelp.url, '_blank')}
           >
-            Install Claude Code
+            Install {installHelp.displayName}
           </button>
         </div>
       )}

@@ -4,6 +4,7 @@ import { formatShortTime } from '../../hooks/useRelativeTime';
 import Dialog from './Dialog';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import { buildModeCycle, TASK_PERMISSION_MODE_LABELS } from '@shared/task-utils';
+import { canSessionBeTaskTarget } from '@shared/session-capabilities';
 import type { CreateTaskInput, TaskPermissionMode } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
@@ -34,10 +35,7 @@ function CreateTaskDialog({
 
   // Valid targets: live-mode Claude sessions that are active or idle
   const targetableSessions = Object.values(sessions).filter(
-    (s) =>
-      s.sessionType === 'claude' &&
-      s.hookMode === 'live' &&
-      (s.status === 'active' || s.status === 'idle'),
+    (s) => canSessionBeTaskTarget(s),
   );
 
   // Available permission modes based on selected target session

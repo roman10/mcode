@@ -8,6 +8,7 @@ import { useDialogStore } from '../../stores/dialog-store';
 import { useSessionStore } from '../../stores/session-store';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import { shellEscapePath } from '@shared/shell-utils';
+import { canSessionQueueTasks } from '@shared/session-capabilities';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
@@ -24,7 +25,11 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const hookMode = useSessionStore((s) => s.sessions[sessionId]?.hookMode);
   const scrollbackLines = useSessionStore((s) => s.sessions[sessionId]?.terminalConfig?.scrollbackLines);
 
-  const canQueueTasks = sessionType === 'claude' && hookMode === 'live' && status !== 'ended';
+  const canQueueTasks = canSessionQueueTasks(
+    sessionType && hookMode && status
+      ? { sessionType, hookMode, status }
+      : undefined,
+  );
 
   const isFocused = useSessionStore((s) => s.selectedSessionId === sessionId);
   const viewMode = useLayoutStore((s) => s.viewMode);

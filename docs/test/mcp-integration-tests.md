@@ -39,7 +39,8 @@ tests/
 ├── helpers.ts             # Composable test helpers (session, hook, task, layout, kanban, file, sidebar)
 ├── fixtures/
 │   ├── claude             # Fake Claude CLI used by live hook-mode integration tests
-│   └── codex              # Fake Codex CLI used by Codex session integration tests
+│   ├── codex              # Fake Codex CLI used by Codex session integration tests
+│   └── gemini             # Fake Gemini CLI used by Gemini session integration tests
 ├── suites/                # Test suites organized by feature area
 │   ├── session-lifecycle  # Core session state machine
 │   ├── session-delete     # Session deletion (single, bulk, batch)
@@ -97,6 +98,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 - `createTestSession(client, overrides?)` — creates a session with `command: "bash"`
 - `createLiveClaudeTestSession(client, overrides?)` — creates a Claude session with `hookMode: 'live'` using the test fixture
 - `createCodexTestSession(client, overrides?)` — creates a Codex session using the `tests/fixtures/codex` fake CLI
+- `createGeminiTestSession(client, overrides?)` — creates a Gemini session using the `tests/fixtures/gemini` fake CLI
 - `waitForActive(client, sessionId, timeoutMs?)` — polls `session_wait_for_status` until active
 - `waitForIdle(client, sessionId, timeoutMs?)` — polls `session_wait_for_status` until idle
 - `killAndWaitEnded(client, sessionId)` — kills and waits for ended status
@@ -149,7 +151,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 
 ## Fixtures And Troubleshooting
 
-`createLiveClaudeTestSession()` uses `tests/fixtures/claude` and `createCodexTestSession()` uses `tests/fixtures/codex`. These are fake CLI entrypoints for deterministic integration tests, so if they are missing or not executable the related suite setup will fail before the product code is exercised.
+`createLiveClaudeTestSession()` uses `tests/fixtures/claude`, `createCodexTestSession()` uses `tests/fixtures/codex`, and `createGeminiTestSession()` uses `tests/fixtures/gemini`. These are fake CLI entrypoints for deterministic integration tests, so if they are missing or not executable the related suite setup will fail before the product code is exercised.
 
 Common failure modes:
 

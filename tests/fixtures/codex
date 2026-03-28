@@ -1,10 +1,5 @@
 #!/bin/sh
 
-if [ "$1" = "--list-sessions" ]; then
-  printf '1. fake gemini session (just now) [gemini-fixture-session]\n'
-  exit 0
-fi
-
 printf 'fake codex ready\n'
 if [ "$#" -gt 0 ]; then
   printf 'argv: %s\n' "$*"

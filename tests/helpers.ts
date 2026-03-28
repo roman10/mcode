@@ -3,7 +3,7 @@ import type { McpTestClient } from './mcp-client';
 
 const TEST_CLAUDE_PATH = join(process.cwd(), 'tests', 'fixtures', 'claude');
 const TEST_CODEX_PATH = join(process.cwd(), 'tests', 'fixtures', 'codex');
-const TEST_GEMINI_PATH = TEST_CODEX_PATH;
+const TEST_GEMINI_PATH = join(process.cwd(), 'tests', 'fixtures', 'gemini');
 
 export interface SessionInfo {
   sessionId: string;

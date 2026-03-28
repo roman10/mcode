@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
@@ -15,19 +14,27 @@ import { extractLatestModel } from '../trackers/jsonl-usage-parser';
 import { normalizeModelVersion } from '../trackers/token-cost';
 import { isAgentSession } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
-import { findCodexThreadMatch } from './codex-session-store';
 import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
-import {
-  parseGeminiSessionList,
-  resolveGeminiResumeIndex,
-  selectGeminiSessionCandidate,
-} from './gemini-session-store';
 import {
   buildCreateSessionArgs,
   buildSessionLabel,
   getDefaultSessionCommand,
   resolveCreateHookMode,
 } from './session-launch';
+import {
+  getAgentRuntimeAdapter,
+  type AgentRuntimeAdapterMap,
+  type PreparedResume,
+} from './agent-runtime';
+import {
+  createCodexRuntimeAdapter,
+  scheduleCodexThreadCapture,
+} from './agent-runtimes/codex-runtime';
+import {
+  createGeminiRuntimeAdapter,
+  listGeminiSessions,
+  scheduleGeminiSessionCapture,
+} from './agent-runtimes/gemini-runtime';
 import {
   computeTransition,
   resolveAttention,
@@ -172,6 +179,7 @@ export class SessionManager {
   private sessionListeners = new Set<SessionUpdateListener>();
   private eventStore: SessionEventStore;
   readonly layoutRepo: LayoutRepository;
+  private agentRuntimeAdapters: AgentRuntimeAdapterMap;
 
   /** Set to true after Codex hook bridge is successfully configured at startup. */
   codexHookBridgeReady = false;
@@ -188,6 +196,19 @@ export class SessionManager {
     this.accountManager = accountManager;
     this.eventStore = new SessionEventStore(HOOK_TOOL_INPUT_MAX_BYTES);
     this.layoutRepo = new LayoutRepository();
+    this.agentRuntimeAdapters = {
+      codex: createCodexRuntimeAdapter({
+        scheduleThreadCapture: (input) => scheduleCodexThreadCapture(input, {
+          broadcastSessionUpdate: (sessionId) => this.broadcastSessionUpdate(sessionId),
+        }),
+      }),
+      gemini: createGeminiRuntimeAdapter({
+        scheduleSessionCapture: (input) => scheduleGeminiSessionCapture(input, {
+          broadcastSessionUpdate: (sessionId) => this.broadcastSessionUpdate(sessionId),
+        }),
+        listSessions: (command, cwd) => listGeminiSessions(command, cwd),
+      }),
+    };
   }
 
   /** Subscribe to session updates in the main process (used by TaskQueue). */
@@ -204,133 +225,6 @@ export class SessionManager {
         // Listener errors must not break session state transitions
       }
     }
-  }
-
-  private scheduleCodexThreadCapture(
-    sessionId: string,
-    cwd: string,
-    startedAt: string,
-    initialPrompt?: string,
-  ): void {
-    const startedAtMs = Date.parse(startedAt);
-    if (!Number.isFinite(startedAtMs)) return;
-
-    const deadline = Date.now() + 15_000;
-    const poll = async (): Promise<void> => {
-      const db = getDb();
-      const row = db.prepare(
-        'SELECT session_type, codex_thread_id FROM sessions WHERE session_id = ?',
-      ).get(sessionId) as { session_type: string; codex_thread_id: string | null } | undefined;
-      if (!row || row.session_type !== 'codex' || row.codex_thread_id) return;
-
-      const claimedThreadIds = new Set(
-        (
-          db.prepare(
-            'SELECT codex_thread_id FROM sessions WHERE codex_thread_id IS NOT NULL AND session_id != ?',
-          ).all(sessionId) as { codex_thread_id: string }[]
-        ).map((entry) => entry.codex_thread_id),
-      );
-
-      const match = findCodexThreadMatch({
-        cwd,
-        initialPrompt,
-        startedAtMs,
-        nowMs: Date.now(),
-        claimedThreadIds,
-      });
-      if (match) {
-        const result = db.prepare(
-          'UPDATE sessions SET codex_thread_id = ? WHERE session_id = ? AND codex_thread_id IS NULL',
-        ).run(match.id, sessionId);
-        if (result.changes > 0) {
-          logger.info('session', 'Captured Codex thread ID', { sessionId, codexThreadId: match.id });
-          this.broadcastSessionUpdate(sessionId);
-        }
-        return;
-      }
-
-      if (Date.now() >= deadline) {
-        logger.warn('session', 'Failed to capture Codex thread ID', { sessionId, cwd });
-        return;
-      }
-
-      setTimeout(() => {
-        poll().catch(() => { });
-      }, 500);
-    };
-
-    poll().catch(() => { });
-  }
-
-  private listGeminiSessions(command: string, cwd: string): ReturnType<typeof parseGeminiSessionList> {
-    const output = execFileSync(command, ['--list-sessions'], {
-      cwd,
-      timeout: 5000,
-      maxBuffer: 1024 * 1024,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    return parseGeminiSessionList(output);
-  }
-
-  private scheduleGeminiSessionCapture(
-    sessionId: string,
-    cwd: string,
-    command: string,
-    initialPrompt?: string,
-  ): void {
-    const deadline = Date.now() + 15_000;
-    const poll = async (): Promise<void> => {
-      const db = getDb();
-      const row = db.prepare(
-        'SELECT session_type, gemini_session_id FROM sessions WHERE session_id = ?',
-      ).get(sessionId) as { session_type: string; gemini_session_id: string | null } | undefined;
-      if (!row || row.session_type !== 'gemini' || row.gemini_session_id) return;
-
-      try {
-        const claimedSessionIds = new Set(
-          (
-            db.prepare(
-              'SELECT gemini_session_id FROM sessions WHERE gemini_session_id IS NOT NULL AND session_id != ?',
-            ).all(sessionId) as { gemini_session_id: string }[]
-          ).map((entry) => entry.gemini_session_id),
-        );
-
-        const entries = this.listGeminiSessions(command, cwd);
-        const match = selectGeminiSessionCandidate(entries, {
-          initialPrompt,
-          claimedSessionIds,
-        });
-
-        if (match) {
-          const result = db.prepare(
-            'UPDATE sessions SET gemini_session_id = ? WHERE session_id = ? AND gemini_session_id IS NULL',
-          ).run(match.geminiSessionId, sessionId);
-          if (result.changes > 0) {
-            logger.info('session', 'Captured Gemini session ID', {
-              sessionId,
-              geminiSessionId: match.geminiSessionId,
-            });
-            this.broadcastSessionUpdate(sessionId);
-          }
-          return;
-        }
-      } catch {
-        // Gemini may not list the new session immediately; keep polling until deadline.
-      }
-
-      if (Date.now() >= deadline) {
-        logger.warn('session', 'Failed to capture Gemini session ID', { sessionId, cwd });
-        return;
-      }
-
-      setTimeout(() => {
-        poll().catch(() => { });
-      }, 500);
-    };
-
-    poll().catch(() => { });
   }
 
   private nextDisambiguatedLabel(cwd: string): string {
@@ -367,7 +261,6 @@ export class SessionManager {
 
     const isClaude = sessionType === 'claude';
     const isCodex = sessionType === 'codex';
-    const isGemini = sessionType === 'gemini';
     const supportsClaudeHooks = isClaude && isClaudeCommand(command);
     const supportsCodexHooks = isCodex && isCodexCommand(command);
 
@@ -462,12 +355,14 @@ export class SessionManager {
 
     logger.info('session', 'Created session', { sessionId, cwd, label, hookMode });
 
-    if (isCodex) {
-      this.scheduleCodexThreadCapture(sessionId, cwd, startedAt, input.initialPrompt);
-    }
-    if (isGemini) {
-      this.scheduleGeminiSessionCapture(sessionId, cwd, command, input.initialPrompt);
-    }
+    const agentRuntime = getAgentRuntimeAdapter(sessionType, this.agentRuntimeAdapters);
+    agentRuntime?.afterCreate?.({
+      sessionId,
+      cwd,
+      startedAt,
+      command,
+      initialPrompt: input.initialPrompt,
+    });
 
     const session = this.get(sessionId)!;
     const wc = this.getWebContents();
@@ -487,132 +382,21 @@ export class SessionManager {
     if (!row) throw new Error(`Session not found: ${sessionId}`);
     if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status})`);
 
-    if (row.session_type === 'gemini') {
-      if (!row.gemini_session_id) throw new Error('Cannot resume: no Gemini session ID recorded');
-
-      const command = row.command || 'gemini';
-      let resumeIndex: number | null = null;
-      try {
-        const entries = this.listGeminiSessions(command, row.cwd);
-        resumeIndex = resolveGeminiResumeIndex(entries, row.gemini_session_id);
-      } catch (err) {
-        throw new Error(`Cannot resume Gemini session: ${err instanceof Error ? err.message : String(err)}`);
-      }
-
-      if (resumeIndex == null) {
-        throw new Error('Cannot resume: stored Gemini session ID is no longer available in Gemini session list');
-      }
-
-      db.prepare(
-        `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = 'fallback', auto_close = 0 WHERE session_id = ?`,
-      ).run(sessionId);
-
-      try {
-        this.ptyManager.spawn({
-          id: sessionId,
-          command,
-          cwd: row.cwd,
-          cols: DEFAULT_COLS,
-          rows: DEFAULT_ROWS,
-          args: ['--resume', String(resumeIndex)],
-          env: {
-            MCODE_SESSION_ID: sessionId,
-          },
-          onFirstData: () => {
-            this.updateStatus(sessionId, 'idle');
-          },
-          onExit: () => {
-            this.updateStatus(sessionId, 'ended');
-          },
-        });
-      } catch (err) {
-        db.prepare(
-          `UPDATE sessions SET status = 'ended', ended_at = ? WHERE session_id = ?`,
-        ).run(new Date().toISOString(), sessionId);
-        throw err;
-      }
-
-      setTimeout(() => {
-        const s = this.get(sessionId);
-        if (s && s.status === 'starting') {
-          logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
-          this.updateStatus(sessionId, 'idle');
-        }
-      }, 15_000);
-
-      logger.info('session', 'Resumed Gemini session', {
+    const agentRuntime = getAgentRuntimeAdapter(row.session_type, this.agentRuntimeAdapters);
+    if (agentRuntime) {
+      const prepared = agentRuntime.prepareResume({
         sessionId,
-        geminiSessionId: row.gemini_session_id,
-        cwd: row.cwd,
-        resumeIndex,
+        row: {
+          command: row.command,
+          cwd: row.cwd,
+          codexThreadId: row.codex_thread_id,
+          geminiSessionId: row.gemini_session_id,
+        },
+        hookRuntime: this.hookRuntimeGetter(),
+        codexBridgeReady: this.codexHookBridgeReady,
       });
 
-      const session = this.get(sessionId)!;
-      this.broadcastSessionUpdate(sessionId);
-      return session;
-    }
-
-    if (row.session_type === 'codex') {
-      if (!row.codex_thread_id) throw new Error('Cannot resume: no Codex thread ID recorded');
-
-      const hookRuntime = this.hookRuntimeGetter();
-      const codexBridgeReady = this.codexHookBridgeReady && hookRuntime.state === 'ready';
-      const hookMode = codexBridgeReady ? 'live' : 'fallback';
-      const command = row.command || 'codex';
-      const args = [
-        ...(codexBridgeReady ? ['--enable', 'codex_hooks'] : []),
-        'resume',
-        row.codex_thread_id,
-      ];
-
-      db.prepare(
-        `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = ?, auto_close = 0 WHERE session_id = ?`,
-      ).run(hookMode, sessionId);
-
-      try {
-        this.ptyManager.spawn({
-          id: sessionId,
-          command,
-          cwd: row.cwd,
-          cols: DEFAULT_COLS,
-          rows: DEFAULT_ROWS,
-          args,
-          env: {
-            MCODE_SESSION_ID: sessionId,
-            ...(codexBridgeReady && hookRuntime.port ? { MCODE_HOOK_PORT: String(hookRuntime.port) } : {}),
-          },
-          onFirstData: () => {
-            this.updateStatus(sessionId, 'idle');
-          },
-          onExit: () => {
-            this.updateStatus(sessionId, 'ended');
-          },
-        });
-      } catch (err) {
-        db.prepare(
-          `UPDATE sessions SET status = 'ended', ended_at = ? WHERE session_id = ?`,
-        ).run(new Date().toISOString(), sessionId);
-        throw err;
-      }
-
-      setTimeout(() => {
-        const s = this.get(sessionId);
-        if (s && s.status === 'starting') {
-          logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
-          this.updateStatus(sessionId, 'idle');
-        }
-      }, 15_000);
-
-      logger.info('session', 'Resumed Codex session', {
-        sessionId,
-        codexThreadId: row.codex_thread_id,
-        cwd: row.cwd,
-        hookMode,
-      });
-
-      const session = this.get(sessionId)!;
-      this.broadcastSessionUpdate(sessionId);
-      return session;
+      return this.resumeWithPreparedPlan(sessionId, prepared);
     }
 
     if (!row.claude_session_id) throw new Error('Cannot resume: no Claude session ID recorded');
@@ -694,6 +478,56 @@ export class SessionManager {
     }, 15_000);
 
     logger.info('session', 'Resumed session', { sessionId, claudeSessionId: row.claude_session_id, cwd: effectiveCwd, worktree: row.worktree });
+
+    const session = this.get(sessionId)!;
+    this.broadcastSessionUpdate(sessionId);
+    return session;
+  }
+
+  private resumeWithPreparedPlan(sessionId: string, prepared: PreparedResume): SessionInfo {
+    const db = getDb();
+    db.prepare(
+      `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = ?, auto_close = 0 WHERE session_id = ?`,
+    ).run(prepared.hookMode, sessionId);
+
+    try {
+      this.ptyManager.spawn({
+        id: sessionId,
+        command: prepared.command,
+        cwd: prepared.cwd,
+        cols: DEFAULT_COLS,
+        rows: DEFAULT_ROWS,
+        args: prepared.args,
+        env: {
+          MCODE_SESSION_ID: sessionId,
+          ...prepared.env,
+        },
+        onFirstData: () => {
+          this.updateStatus(sessionId, 'idle');
+        },
+        onExit: () => {
+          this.updateStatus(sessionId, 'ended');
+        },
+      });
+    } catch (err) {
+      db.prepare(
+        `UPDATE sessions SET status = 'ended', ended_at = ? WHERE session_id = ?`,
+      ).run(new Date().toISOString(), sessionId);
+      throw err;
+    }
+
+    setTimeout(() => {
+      const s = this.get(sessionId);
+      if (s && s.status === 'starting') {
+        logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
+        this.updateStatus(sessionId, 'idle');
+      }
+    }, 15_000);
+
+    logger.info('session', `Resumed ${prepared.logLabel} session`, {
+      sessionId,
+      ...prepared.logContext,
+    });
 
     const session = this.get(sessionId)!;
     this.broadcastSessionUpdate(sessionId);
