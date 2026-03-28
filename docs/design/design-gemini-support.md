@@ -18,6 +18,7 @@ This document serves three purposes:
 
 Detailed Phase 1 implementation status lives in [design-gemini-support-phase1.md](./design-gemini-support-phase1.md).
 Phase 2 final status lives in [design-gemini-support-phase2.md](./design-gemini-support-phase2.md).
+The Phase 3 design lives in [design-gemini-support-phase3.md](./design-gemini-support-phase3.md).
 
 ## Verified CLI Constraints
 
