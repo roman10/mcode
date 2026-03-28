@@ -50,11 +50,11 @@ describe('session-launch helpers', () => {
     })).toEqual(['--enable', 'codex_hooks', 'inspect']);
 
     expect(buildCreateSessionArgs({
-      session: { cwd: '/repo', sessionType: 'gemini', initialPrompt: 'inspect' },
+      session: { cwd: '/repo', sessionType: 'gemini', model: 'gemini-2.5-pro', initialPrompt: 'inspect' },
       sessionType: 'gemini',
       isTerminal: false,
       codexBridgeReady: false,
-    })).toEqual(['inspect']);
+    })).toEqual(['--model', 'gemini-2.5-pro', 'inspect']);
 
     expect(buildCreateSessionArgs({
       session: {

@@ -78,6 +78,9 @@ export function buildCreateSessionArgs(input: {
   }
 
   if (sessionType === 'gemini') {
+    if (session.model) {
+      args.push('--model', session.model);
+    }
     if (session.initialPrompt) {
       args.push(session.initialPrompt);
     }

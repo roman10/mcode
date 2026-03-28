@@ -53,4 +53,32 @@ describe('gemini-session-store', () => {
     expect(resolveGeminiResumeIndex(entries, '841c493b-990e-4fd8-bda0-aae347eda41b')).toBe(2);
     expect(resolveGeminiResumeIndex(entries, 'missing')).toBeNull();
   });
+
+  it('ignores malformed or invalid session list lines', () => {
+    expect(parseGeminiSessionList([
+      'Available sessions for this project (4):',
+      '  not a session line',
+      '  0. bad index (just now) [invalid-zero]',
+      '  3. Valid title (moments ago) [valid-id]',
+      'Loaded cached credentials.',
+    ].join('\n'))).toEqual([
+      {
+        index: 3,
+        title: 'Valid title',
+        relativeAgeText: 'moments ago',
+        geminiSessionId: 'valid-id',
+      },
+    ]);
+  });
+
+  it('returns null when every listed Gemini session is already claimed', () => {
+    const entries = parseGeminiSessionList(sampleOutput);
+    expect(selectGeminiSessionCandidate(entries, {
+      initialPrompt: 'Add Gemini CLI support to mcode.',
+      claimedSessionIds: new Set([
+        'e1bbfe0c-879b-4c8d-84c2-e9308e90fcee',
+        '841c493b-990e-4fd8-bda0-aae347eda41b',
+      ]),
+    })).toBeNull();
+  });
 });

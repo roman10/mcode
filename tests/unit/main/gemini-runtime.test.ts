@@ -88,7 +88,7 @@ describe('gemini-runtime', () => {
           geminiSessionId: 'other-id',
         },
       ],
-    })).toThrow('Cannot resume: stored Gemini session ID is no longer available in Gemini session list');
+    })).toThrow('Cannot resume: Gemini session ID missing-id is no longer available in Gemini session list');
   });
 
   it('delegates post-create capture scheduling and list lookup through the adapter', () => {

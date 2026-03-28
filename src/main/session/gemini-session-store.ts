@@ -23,7 +23,7 @@ export function parseGeminiSessionList(output: string): GeminiListedSession[] {
 
     const [, indexText, title, relativeAgeText, geminiSessionId] = match;
     const index = Number.parseInt(indexText, 10);
-    if (!Number.isFinite(index)) continue;
+    if (!Number.isFinite(index) || index < 1) continue;
 
     entries.push({
       index,

@@ -104,6 +104,7 @@ export interface SessionCreateInput {
   cwd: string;
   label?: string;
   initialPrompt?: string;
+  model?: string;
   permissionMode?: PermissionMode;
   effort?: EffortLevel;
   enableAutoMode?: boolean;

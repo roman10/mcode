@@ -23,6 +23,7 @@ function NewSessionDialog({
   const [cwd, setCwd] = useState('');
   const [label, setLabel] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
+  const [model, setModel] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [effort, setEffort] = useState<EffortLevel | ''>('');
   const [enableAutoMode, setEnableAutoMode] = useState(false);
@@ -33,6 +34,7 @@ function NewSessionDialog({
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const agentDefinition = getAgentDefinition(sessionType);
   const isClaude = agentDefinition?.dialogMode === 'full';
+  const isGemini = sessionType === 'gemini';
 
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
@@ -41,6 +43,7 @@ function NewSessionDialog({
       setSessionType(initialSessionType ?? 'claude');
       setLabel('');
       setInitialPrompt('');
+      setModel('');
       setEnableAutoMode(false);
       setUseWorktree(false);
       setWorktreeName('');
@@ -97,6 +100,7 @@ function NewSessionDialog({
         cwd: cwd.trim(),
         label: label.trim() || undefined,
         initialPrompt: initialPrompt.trim() || undefined,
+        model: isGemini ? (model.trim() || undefined) : undefined,
         sessionType,
       });
     }
@@ -193,6 +197,20 @@ function NewSessionDialog({
               placeholder={`What should ${agentDefinition?.displayName ?? 'the agent'} work on?`}
             />
           </div>
+
+          {isGemini && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">
+                Model (optional)
+              </label>
+              <input
+                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="gemini-2.5-pro"
+              />
+            </div>
+          )}
 
           {/* Claude-specific fields */}
           {isClaude && (

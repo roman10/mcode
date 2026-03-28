@@ -1,37 +1,35 @@
-# Gemini CLI Support — Phase 2 Status And Next Steps
+# Gemini CLI Support — Phase 2 Final Status
 
 ## Overview
 
-Phase 2 is partially complete.
+Phase 2 is complete.
 
-The maintainability work that needed to land before adding more Gemini product surface is now in place:
+The original purpose of Phase 2 was to improve Gemini support without increasing long-term branching cost. That work is now finished:
 
-- WP0 CLI preflight verification is complete
-- WP1 dedicated Gemini integration fixture is complete
-- WP2 renderer runtime capability helpers are complete
-- WP3 non-Claude runtime adapters in the main process are complete
+- the Gemini test fixture is dedicated and no longer piggybacks on Codex
+- renderer capability checks use shared runtime helpers
+- non-Claude runtime behavior no longer sits inline in the hottest `SessionManager` create and resume paths
+- Gemini model selection now flows through the shared `session.model` path
+- Gemini resume parser and failure paths have direct unit and integration coverage
 
-The remaining open work is now product-facing rather than structural:
-
-- WP4 minimal Gemini model option and model pill
-- WP5 resume hardening follow-up
-
-This document is therefore no longer a pre-implementation plan for the full phase. It is the current status record plus the recommended next steps.
+This document is the final status record for the completed phase plus the recommended post-Phase-2 boundaries.
 
 ## Current Outcome
 
-Phase 1 already shipped the Gemini lifecycle that matters for baseline product support:
+Phase 1 already shipped the baseline Gemini lifecycle:
 
 - create
 - display in existing session surfaces
 - kill and delete
 - resume in place
 
-Phase 2 has now reduced the main maintainability risks that would have made additional Gemini work more expensive:
+Phase 2 completed the maintainability and minimal product-surface work that was intentionally deferred from Phase 1:
 
-- Gemini integration tests no longer piggyback on the Codex fixture
-- renderer capability checks now go through shared helpers instead of repeated open-coded Claude checks
-- Codex and Gemini runtime behavior no longer lives inline inside the hottest `SessionManager` create and resume branches
+- dedicated Gemini integration fixture
+- shared runtime capability helpers for renderer logic
+- extracted Codex and Gemini runtime adapters in the main process
+- deterministic Gemini model support through `--model`
+- Gemini resume hardening with parser-level and integration coverage
 
 ## Completed Work Packages
 
@@ -49,9 +47,9 @@ Confirmed behavior:
 - `gemini -p "..." --approval-mode plan` is accepted on a real invocation path
 - `gemini --list-sessions --output-format json` still emits human-readable output rather than usable JSON
 
-Consequences that still hold:
+Conclusions that still hold:
 
-- `--model` remains the only implementation-ready Gemini launch option candidate
+- `--model` is the only implementation-ready Gemini launch option candidate from this phase
 - parser simplification through `--output-format json` remains blocked on current Gemini CLI behavior
 
 ### WP1: Dedicated Gemini Integration Fixture
@@ -61,15 +59,9 @@ Completed.
 Shipped changes:
 
 - added `tests/fixtures/gemini` as a dedicated fake Gemini CLI
-- updated `tests/helpers.ts` so Gemini tests use `tests/fixtures/gemini` instead of the Codex fixture path
-- removed the Gemini-specific `--list-sessions` impersonation from `tests/fixtures/codex`
+- updated `tests/helpers.ts` so Gemini tests use `tests/fixtures/gemini`
+- removed Gemini-specific `--list-sessions` impersonation from `tests/fixtures/codex`
 - updated `docs/test/mcp-integration-tests.md` to document the Gemini fixture alongside the Claude and Codex fixtures
-
-Current fixture behavior:
-
-- plain invocation prints a deterministic ready marker and argv echo for create-path assertions
-- `--list-sessions` returns stable Gemini-format session data for capture and resume resolution
-- resume is exercised through the dedicated Gemini path instead of a Codex surrogate
 
 ### WP2: Runtime Capability Helpers For Renderer Cleanup
 
@@ -99,9 +91,7 @@ Call sites moved onto the shared helpers:
 - `src/renderer/components/SessionTile/SessionEndedPrompt.tsx`
 - `src/renderer/components/SessionTile/ModelPill.tsx`
 
-Scope intentionally unchanged:
-
-- Claude-only external-session import behavior in `src/renderer/components/Sidebar/SessionList.tsx` remains out of scope
+Claude-only external-session import behavior in `src/renderer/components/Sidebar/SessionList.tsx` remains intentionally out of scope.
 
 ### WP3: Non-Claude Session Runtime Adapters In The Main Process
 
@@ -114,7 +104,7 @@ Shipped changes:
 - added `src/main/session/agent-runtimes/gemini-runtime.ts`
 - updated `src/main/session/session-manager.ts` to dispatch Codex and Gemini runtime behavior through adapters
 
-The extracted adapter surface is intentionally narrow:
+The extracted adapter surface remains intentionally narrow:
 
 - `afterCreate(...)`
 - `prepareResume(...)`
@@ -130,100 +120,69 @@ What did not change:
 
 - `SessionManager` still owns orchestration
 - shared create-argument planning stays in `src/main/session/session-launch.ts`
-- Claude create/resume behavior remains inline and unchanged
-
-## Added Test Coverage
-
-The refactor shipped with focused unit coverage for the new seams:
-
-- `tests/unit/shared/session-capabilities.test.ts`
-- `tests/unit/main/codex-runtime.test.ts`
-- `tests/unit/main/gemini-runtime.test.ts`
-
-Those tests cover:
-
-- task-target and model-display capability gating
-- install-help lookup behavior
-- Codex adapter create/resume planning
-- Gemini adapter create/resume planning
-- clearer Gemini missing-session error paths at the adapter layer
-
-## Remaining Work
+- Claude create and resume behavior remains inline and unchanged
 
 ### WP4: Minimal Gemini Model Option And Model Pill
 
-Not started.
+Completed.
 
-Current state:
+Shipped changes:
 
-- Gemini still does not persist a create-time model value through the shared `session.model` field
-- `src/shared/session-agents.ts` still sets `supportsModelDisplay: false` for Gemini
-- `ModelPill` is now capability-driven, but Gemini remains intentionally disabled because there is no deterministic create-time model path wired through the product yet
+- added `model?: string` to the shared `SessionCreateInput`
+- exposed the optional Gemini `model` field through `session_create`
+- added a small Gemini-only model field in `src/renderer/components/Sidebar/NewSessionDialog.tsx`
+- passed Gemini models through `src/main/session/session-launch.ts` as `--model <value>`
+- persisted explicit Gemini models through the existing shared `sessions.model` column at create time
+- enabled Gemini model rendering by setting `supportsModelDisplay: true` in `src/shared/session-agents.ts`
 
-This is now the highest-value remaining item.
+Behavioral result:
+
+- Gemini now uses the same shared `session.model` display path as the existing model-pill infrastructure
+- no runtime Gemini model scraping was added
 
 ### WP5: Resume Hardening
 
-Partially improved, but not complete as a work package.
+Completed.
 
-What already improved as part of WP3:
+Shipped changes:
 
-- Gemini resume preparation now emits clearer missing-ID and missing-session errors
-- Gemini resume log context now includes the stored session ID, cwd, and resolved resume index when available
+- strengthened parser coverage in `tests/unit/main/gemini-session-store.test.ts`
+- added malformed-output and fully-claimed-session coverage for `parseGeminiSessionList(...)` and `selectGeminiSessionCandidate(...)`
+- tightened Gemini resume failure assertions in `tests/unit/main/gemini-runtime.test.ts`
+- added MCP coverage for the stored-session-ID-missing-from-list resume failure in `tests/suites/gemini-resume.test.ts`
+- improved Gemini resume error text so the missing stored session ID is included directly in the failure message
 
-What is still open:
+Behavioral result:
 
-- parser-level malformed-output coverage in `gemini-session-store`
-- dedicated unit coverage for malformed or ambiguous `--list-sessions` output
-- explicit integration coverage for additional resume mismatch scenarios beyond the existing missing-ID and happy-path cases
-- any decision about whether further log enrichment needs to be surfaced through devtools responses
+- Gemini missing-ID and missing-from-list failures are distinct in both unit and integration coverage
+- parser edge cases are covered directly instead of only through higher-level resume tests
+
+## Validation
+
+Focused unit validation passed:
+
+- `npm test -- --run tests/unit/main/session-launch.test.ts tests/unit/shared/session-capabilities.test.ts tests/unit/main/gemini-runtime.test.ts tests/unit/main/gemini-session-store.test.ts`
+
+Focused MCP validation passed against a fresh dev instance:
+
+- `npm run test:mcp -- tests/suites/gemini-support.test.ts tests/suites/gemini-resume.test.ts tests/suites/session-model.test.ts`
 
 ## Locked Decisions That Still Hold
 
-These earlier decisions are still correct after the completed refactor:
+These decisions remain correct after the completed implementation:
 
 1. Keep Gemini in fallback mode.
 2. Keep `session.model` as the shared persisted model field.
-3. Treat `--model` as the only implementation-ready Gemini launch option candidate.
+3. Treat `--model` as the only implementation-ready Gemini launch option candidate from this phase.
 4. Keep `SessionCreateInput` flat.
 5. Keep `SessionManager` as the orchestrator rather than starting a broad rewrite.
-6. Keep Claude-only external-session import behavior out of Gemini Phase 2 scope.
+6. Keep Claude-only external-session import behavior out of Gemini scope.
 
-## Recommended Next Steps
+## Post-Phase-2 Guidance
 
-### 1. Implement WP4 next
+Broader Gemini feature expansion should remain a separate follow-up phase.
 
-Recommended scope:
-
-- add a minimal optional Gemini model field to session creation
-- pass it through `src/main/session/session-launch.ts` as `--model <value>` for Gemini only
-- persist it into the existing shared `session.model` field at create time
-- flip Gemini to `supportsModelDisplay: true` only after the full create-to-render path is wired and tested
-- extend the Gemini fixture only as much as needed to make model assertions deterministic
-
-Why this should go next:
-
-- it turns the verified `--model` CLI support into an actual product capability
-- the new capability helpers already make the renderer-side display logic low-risk
-- the runtime extraction already removed the most expensive `SessionManager` branching pressure
-
-### 2. Finish the remaining WP5 hardening after WP4
-
-Recommended scope:
-
-- add `tests/unit/main/gemini-session-store.test.ts`
-- cover malformed `--list-sessions` output and not-found resolution cases directly at the parser/store layer
-- add one more integration path for stored-session mismatch against the dedicated Gemini fixture if the current suites do not already make that failure mode explicit enough
-
-Why this comes second:
-
-- the user-facing value is lower than deterministic model support
-- the most important resume-path structure is already in place
-- this work is easier to scope correctly once the remaining Gemini product surface is settled
-
-### 3. Do not start broader Phase 2 feature expansion yet
-
-Still defer:
+Still deferred:
 
 - sandbox UI
 - approval-mode UI
@@ -232,14 +191,17 @@ Still defer:
 - task queue support for Gemini
 - Gemini-specific persistence shapes
 
-None of those are justified by the current verification or by the remaining maintainability risks.
+If any later phase considers `--sandbox`, `--approval-mode`, or `--yolo`, it should start with a fresh CLI verification pass and an explicit product decision rather than assuming the evidence from Phase 2 is sufficient.
 
-## Definition Of Done For The Remaining Phase 2 Work
+## Definition Of Done
 
-Phase 2 should now be considered fully complete when all of the following are true:
+Phase 2 is complete because all of the following are now true:
 
+- Gemini has a dedicated integration fixture
+- renderer capability checks use shared runtime helpers instead of open-coded Claude checks
+- Codex and Gemini post-create capture and resume preparation no longer live inline in `SessionManager`
 - Gemini model selection is wired through a deterministic create-time `--model` path
 - Gemini stores the selected model in the existing shared `session.model` field
 - Gemini can render the existing `ModelPill` through the shared capability path
 - Gemini resume parser and not-found failure modes have direct unit coverage
-- Gemini integration tests cover the remaining intended resume failure paths with the dedicated fixture
+- Gemini integration tests cover the intended resume failure paths with the dedicated fixture

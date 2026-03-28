@@ -25,6 +25,7 @@ export function registerSessionTools(
       cwd: z.string().describe('Working directory for the session'),
       label: z.string().optional().describe('Optional label for the session'),
       initialPrompt: z.string().optional().describe('Optional initial prompt for Claude, Codex, or Gemini (ignored for terminal sessions)'),
+      model: z.string().optional().describe('Explicit model for Gemini sessions only (ignored for Claude, Codex, and terminal sessions)'),
       permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for Claude sessions only (ignored for Codex, Gemini, and terminal sessions)'),
       effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for Claude sessions only (ignored for Codex, Gemini, and terminal sessions)'),
       enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode for Claude sessions only. Ignored for Codex, Gemini, and terminal sessions.'),
@@ -37,12 +38,13 @@ export function registerSessionTools(
       autoClose: z.boolean().optional().describe('If true, automatically kill the session when its task queue empties'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, permissionMode, effort, enableAutoMode, allowBypassPermissions, command, args, sessionType, worktree, accountId, autoClose }) => {
+  }, async ({ cwd, label, initialPrompt, model, permissionMode, effort, enableAutoMode, allowBypassPermissions, command, args, sessionType, worktree, accountId, autoClose }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
         label,
         initialPrompt,
+        model,
         permissionMode,
         effort,
         enableAutoMode,

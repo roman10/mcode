@@ -57,6 +57,27 @@ describe('gemini resume', () => {
     expect(result.content[0].text).toContain('no Gemini session ID recorded');
   });
 
+  it('returns an error when the stored Gemini session ID no longer appears in the list', async () => {
+    const session = await createGeminiTestSession(client, {
+      label: `gemini-missing-session-${Date.now()}`,
+      initialPrompt: 'inspect repository state',
+    });
+    sessionIds.push(session.sessionId);
+
+    await waitForIdle(client, session.sessionId);
+    await waitForGeminiSessionId(session.sessionId);
+    await client.callToolJson<SessionInfo>('session_set_gemini_session_id', {
+      sessionId: session.sessionId,
+      geminiSessionId: 'missing-id',
+    });
+
+    await killAndWaitEnded(client, session.sessionId);
+
+    const result = await client.callTool('session_resume', { sessionId: session.sessionId });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Gemini session ID missing-id is no longer available');
+  });
+
   it('resumes a Gemini session in place with the same session ID', async () => {
     const created = await createGeminiTestSession(client, {
       label: `gemini-resume-${Date.now()}`,

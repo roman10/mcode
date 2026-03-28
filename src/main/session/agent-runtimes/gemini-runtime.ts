@@ -109,7 +109,7 @@ export function buildGeminiResumePlan(
   }
 
   if (resumeIndex == null) {
-    throw new Error('Cannot resume: stored Gemini session ID is no longer available in Gemini session list');
+    throw new Error(`Cannot resume: Gemini session ID ${ctx.row.geminiSessionId} is no longer available in Gemini session list`);
   }
 
   return {

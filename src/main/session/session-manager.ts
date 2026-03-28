@@ -295,10 +295,11 @@ export class SessionManager {
     const worktree = isClaude ? (input.worktree !== undefined ? (input.worktree || '') : null) : null;
     const accountId = input.accountId ?? null;
     const autoClose = input.autoClose === true ? 1 : 0;
+    const model = sessionType === 'gemini' ? (input.model?.trim() || null) : null;
     db.prepare(
-      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, status, started_at, ended_at, command, hook_mode, session_type, terminal_config, effort, enable_auto_mode, allow_bypass_permissions, worktree, account_id, auto_close)
-       VALUES (?, ?, ?, ?, ?, 'starting', ?, NULL, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, labelSource, cwd, isClaude ? (input.permissionMode ?? null) : null, startedAt, command, hookMode, sessionType, isClaude ? (input.effort ?? null) : null, isClaude ? (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null) : null, isClaude ? (input.allowBypassPermissions === true ? 1 : input.allowBypassPermissions === false ? 0 : null) : null, worktree, accountId, autoClose);
+      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, status, started_at, ended_at, command, hook_mode, session_type, terminal_config, effort, enable_auto_mode, allow_bypass_permissions, worktree, account_id, auto_close, model)
+       VALUES (?, ?, ?, ?, ?, 'starting', ?, NULL, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(sessionId, label, labelSource, cwd, isClaude ? (input.permissionMode ?? null) : null, startedAt, command, hookMode, sessionType, isClaude ? (input.effort ?? null) : null, isClaude ? (input.enableAutoMode === true ? 1 : input.enableAutoMode === false ? 0 : null) : null, isClaude ? (input.allowBypassPermissions === true ? 1 : input.allowBypassPermissions === false ? 0 : null) : null, worktree, accountId, autoClose, model);
 
     // Track account usage
     if (accountId) {

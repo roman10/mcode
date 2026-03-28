@@ -123,4 +123,21 @@ describe('gemini support', () => {
     const column = await waitForKanbanSession(session.sessionId);
     expect(['working', 'ready']).toContain(column);
   });
+
+  it('persists an explicit Gemini model and launches with --model', async () => {
+    const session = await createGeminiTestSession(client, {
+      label: `gemini-model-${Date.now()}`,
+      model: 'gemini-2.5-pro',
+      initialPrompt: 'inspect repository state',
+    });
+    sessionIds.push(session.sessionId);
+
+    const idle = await waitForIdle(client, session.sessionId);
+    expect(idle.model).toBe('gemini-2.5-pro');
+
+    const status = await client.callToolJson<SessionInfo>('session_get_status', {
+      sessionId: session.sessionId,
+    });
+    expect(status.model).toBe('gemini-2.5-pro');
+  });
 });

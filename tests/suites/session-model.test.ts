@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
   createTestSession,
+  createGeminiTestSession,
   cleanupSessions,
   resetTestState,
   type SessionInfo,
@@ -70,6 +71,20 @@ describe('session model display', () => {
     const session = await createTestSession(client, { sessionType: 'terminal' });
     sessionIds.push(session.sessionId);
     expect(session.model).toBeNull();
+  });
+
+  it('Gemini session persists an explicit create-time model', async () => {
+    const session = await createGeminiTestSession(client, {
+      model: 'gemini-2.5-pro',
+      initialPrompt: 'inspect repository state',
+    });
+    sessionIds.push(session.sessionId);
+    expect(session.model).toBe('gemini-2.5-pro');
+
+    const status = await client.callToolJson<SessionInfo>('session_get_status', {
+      sessionId: session.sessionId,
+    });
+    expect(status.model).toBe('gemini-2.5-pro');
   });
 
   it('session_set_model returns error for unknown session', async () => {
