@@ -56,15 +56,17 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     const container = termRef.current;
     if (!container) return;
 
-    // Claude Code draws its own cursor character; hide the real xterm cursor
-    // to prevent a stray blinking block on the last terminal row.
+    // Agent CLIs draw their own cursor; start with xterm cursor hidden via
+    // escape sequence so it doesn't cause a stray block. The agent CLI's own
+    // \e[?25h will reveal a thin bar cursor in accent color when appropriate.
     const hideCursor = shouldHideTerminalCursor(sessionType);
     const term = new Terminal({
       cursorBlink: !hideCursor,
+      cursorStyle: hideCursor ? 'bar' : undefined,
       cursorInactiveStyle: hideCursor ? 'none' : undefined,
       fontSize: TERMINAL_FONT_SIZE,
       fontFamily: TERMINAL_FONT_FAMILY,
-      theme: hideCursor ? { ...darkTheme, cursor: darkTheme.background } : darkTheme,
+      theme: darkTheme,
       allowProposedApi: true,
       scrollback: resolveScrollback(scrollbackLines),
     });
@@ -79,6 +81,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     search.attach(term);
 
     term.open(container);
+    if (hideCursor) {
+      term.write('\x1b[?25l'); // hide cursor initially; agent CLI shows when ready
+    }
     terminalRegistry.set(sessionId, term);
 
     // Intercept OS-level shortcuts before xterm sends them to the PTY
