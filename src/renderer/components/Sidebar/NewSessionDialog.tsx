@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Dialog from '../shared/Dialog';
+import { getAgentDefinition } from '@shared/session-agents';
 import type { AccountProfile, SessionCreateInput } from '@shared/types';
 import { EFFORT_LEVELS, PERMISSION_MODES, type EffortLevel, type PermissionMode } from '@shared/constants';
 
@@ -30,7 +31,8 @@ function NewSessionDialog({
   const [isCreating, setIsCreating] = useState(false);
   const [accounts, setAccounts] = useState<AccountProfile[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
-  const isClaude = sessionType === 'claude';
+  const agentDefinition = getAgentDefinition(sessionType);
+  const isClaude = agentDefinition?.dialogMode === 'full';
 
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
@@ -187,7 +189,7 @@ function NewSessionDialog({
               rows={3}
               value={initialPrompt}
               onChange={(e) => setInitialPrompt(e.target.value)}
-              placeholder={isClaude ? 'What should Claude work on?' : 'What should Codex work on?'}
+              placeholder={`What should ${agentDefinition?.displayName ?? 'the agent'} work on?`}
             />
           </div>
 

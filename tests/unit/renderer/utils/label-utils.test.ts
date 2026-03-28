@@ -27,6 +27,10 @@ describe('normalizeAgentLabel', () => {
     expect(normalizeAgentLabel('\u2742 Already prefixed', 'codex')).toBe('\u2742 Already prefixed');
   });
 
+  it('prepends Gemini icon for Gemini sessions', () => {
+    expect(normalizeAgentLabel('My Gemini Task', 'gemini')).toBe('\u2726 My Gemini Task');
+  });
+
   it('returns title unchanged for terminal sessions', () => {
     expect(normalizeAgentLabel('zsh', 'terminal')).toBe('zsh');
   });
@@ -55,6 +59,12 @@ describe('splitLabelIcon', () => {
     const [icon, text] = splitLabelIcon('\u2742NoSpace');
     expect(icon).toBe('\u2742');
     expect(text).toBe('NoSpace');
+  });
+
+  it('splits Gemini icon from text', () => {
+    const [icon, text] = splitLabelIcon('\u2726 My Gemini Session');
+    expect(icon).toBe('\u2726');
+    expect(text).toBe('My Gemini Session');
   });
 
   it('returns empty icon for labels without prefix', () => {

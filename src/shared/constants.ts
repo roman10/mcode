@@ -37,6 +37,9 @@ export const CLAUDE_ICON = '\u2733';
 // Codex icon — ❂ (U+2742), used as session label prefix for Codex CLI sessions
 export const CODEX_ICON = '\u2742';
 
+// Gemini icon — ✦ (U+2726), used as session label prefix for Gemini CLI sessions
+export const GEMINI_ICON = '\u2726';
+
 // Hook system
 export const HOOK_PORT_DEFAULT = 7777;
 export const HOOK_PORT_MAX = 7799;

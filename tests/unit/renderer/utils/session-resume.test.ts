@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { canResumeSession } from '../../../../src/renderer/utils/session-resume';
+import {
+  buildStartNewSessionInput,
+  canOverrideResumeAccount,
+  canResumeSession,
+  getResumeUnavailableMessage,
+} from '../../../../src/renderer/utils/session-resume';
 import { makeSession } from '../../test-factories';
 
 describe('canResumeSession', () => {
@@ -35,5 +40,40 @@ describe('canResumeSession', () => {
       claudeSessionId: 'ignored',
       codexThreadId: 'ignored',
     }))).toBe(false);
+  });
+
+  it('returns a helpful message when resume identity is missing', () => {
+    expect(getResumeUnavailableMessage(makeSession({
+      sessionType: 'claude',
+      claudeSessionId: null,
+    }))).toBe('No Claude session ID recorded — cannot resume');
+
+    expect(getResumeUnavailableMessage(makeSession({
+      sessionType: 'codex',
+      codexThreadId: null,
+    }))).toBe('No Codex thread ID recorded — cannot resume');
+  });
+
+  it('uses agent metadata to decide account override support', () => {
+    expect(canOverrideResumeAccount(makeSession({ sessionType: 'claude' }))).toBe(true);
+    expect(canOverrideResumeAccount(makeSession({ sessionType: 'codex' }))).toBe(false);
+    expect(canOverrideResumeAccount(makeSession({ sessionType: 'terminal' }))).toBe(false);
+  });
+
+  it('builds new-session inputs from agent dialog mode', () => {
+    expect(buildStartNewSessionInput(makeSession({ sessionType: 'codex' }), 'ignored')).toEqual({
+      cwd: '/tmp/test',
+      sessionType: 'codex',
+    });
+
+    expect(buildStartNewSessionInput(makeSession({
+      sessionType: 'claude',
+      permissionMode: 'auto',
+    }), 'acct-1')).toEqual({
+      cwd: '/tmp/test',
+      permissionMode: 'auto',
+      sessionType: 'claude',
+      accountId: 'acct-1',
+    });
   });
 });

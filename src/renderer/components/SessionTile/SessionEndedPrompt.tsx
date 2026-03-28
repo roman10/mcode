@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useAccountsStore } from '../../stores/accounts-store';
-import { canResumeSession } from '../../utils/session-resume';
+import {
+  buildStartNewSessionInput,
+  canOverrideResumeAccount,
+  canResumeSession,
+  getResumeUnavailableMessage,
+} from '../../utils/session-resume';
 
 interface SessionEndedPromptProps {
   sessionId: string;
@@ -52,14 +57,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
     try {
       const accountOverride = selectedAccountId || undefined;
       const newSession = await window.mcode.sessions.create(
-        session.sessionType === 'codex'
-          ? { cwd: session.cwd, sessionType: 'codex' }
-          : {
-              cwd: session.cwd,
-              permissionMode: session.permissionMode,
-              sessionType: session.sessionType,
-              accountId: accountOverride,
-            },
+        buildStartNewSessionInput(session, accountOverride),
       );
       useSessionStore.getState().addSession(newSession);
       useLayoutStore.getState().replaceTile(sessionId, newSession.sessionId);
@@ -89,7 +87,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
         </div>
       )}
 
-      {accounts.length > 1 && session?.sessionType !== 'codex' && (
+      {accounts.length > 1 && canOverrideResumeAccount(session) && (
         <div className="flex items-center gap-2 text-sm">
           <span className="text-text-muted">Account:</span>
           <select
@@ -126,14 +124,9 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
         </button>
       </div>
 
-      {session?.sessionType === 'claude' && !canResume && (
+      {getResumeUnavailableMessage(session) && (
         <div className="text-xs text-text-muted">
-          No Claude session ID recorded — cannot resume
-        </div>
-      )}
-      {session?.sessionType === 'codex' && !canResume && (
-        <div className="text-xs text-text-muted">
-          No Codex thread ID recorded — cannot resume
+          {getResumeUnavailableMessage(session)}
         </div>
       )}
 

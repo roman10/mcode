@@ -12,9 +12,16 @@ import { logger } from '../logger';
 import { stripAnsi } from '../../shared/strip-ansi';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
 import { normalizeModelVersion } from '../trackers/token-cost';
+import { isAgentSession } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
 import { findCodexThreadMatch } from './codex-session-store';
 import { isAtClaudePrompt, isAtUserChoice } from './prompt-detect';
+import {
+  buildCreateSessionArgs,
+  buildSessionLabel,
+  getDefaultSessionCommand,
+  resolveCreateHookMode,
+} from './session-launch';
 import {
   computeTransition,
   resolveAttention,
@@ -22,8 +29,6 @@ import {
 } from './session-state-machine';
 import type { HookEventName } from './session-state-machine';
 import {
-  CLAUDE_ICON,
-  CODEX_ICON,
   DEFAULT_COLS,
   DEFAULT_ROWS,
   HOOK_TOOL_INPUT_MAX_BYTES,
@@ -83,10 +88,6 @@ function isCodexCommand(command: string): boolean {
   return normalized === 'codex' || normalized === 'codex.exe';
 }
 
-function isAgentSession(sessionType: SessionType): boolean {
-  return sessionType === 'claude' || sessionType === 'codex';
-}
-
 function toSessionInfo(row: SessionRecord): SessionInfo {
   return {
     sessionId: row.session_id,
@@ -113,15 +114,6 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     autoClose: row.auto_close === 1,
     model: row.model,
   };
-}
-
-function truncatePromptToLabel(prompt: string, maxLen: number): string {
-  const firstLine = prompt.split('\n')[0].trim();
-  if (!firstLine) return '';
-  if (firstLine.length <= maxLen) return firstLine;
-  const truncated = firstLine.slice(0, maxLen);
-  const lastSpace = truncated.lastIndexOf(' ');
-  return (lastSpace > maxLen * 0.3 ? truncated.slice(0, lastSpace) : truncated) + '...';
 }
 
 /**
@@ -255,11 +247,11 @@ export class SessionManager {
       }
 
       setTimeout(() => {
-        poll().catch(() => {});
+        poll().catch(() => { });
       }, 500);
     };
 
-    poll().catch(() => {});
+    poll().catch(() => { });
   }
 
   private nextDisambiguatedLabel(cwd: string): string {
@@ -282,31 +274,17 @@ export class SessionManager {
   create(input: SessionCreateInput): SessionInfo {
     const sessionId = randomUUID();
     const cwd = input.cwd;
-    const userLabel = input.label || null;
     const sessionType = input.sessionType ?? 'claude';
     const isTerminal = sessionType === 'terminal';
-    const label = (() => {
-      const prefixed = (raw: string): string => {
-        if (sessionType === 'claude') {
-          return /^[\u2800-\u28FF\u2733]/.test(raw) ? raw : `${CLAUDE_ICON} ${raw}`;
-        }
-        if (sessionType === 'codex') {
-          return raw.startsWith(CODEX_ICON) ? raw : `${CODEX_ICON} ${raw}`;
-        }
-        return raw;
-      };
-      if (userLabel) return prefixed(userLabel);
-      const autoLabel = (input.initialPrompt ? truncatePromptToLabel(input.initialPrompt, 50) : null)
-        || this.nextDisambiguatedLabel(cwd);
-      return isTerminal ? autoLabel : prefixed(autoLabel);
-    })();
-    // Preserve user-provided labels from being overwritten by terminal title updates.
-    const labelSource = userLabel ? 'user' : 'auto';
+    const { label, labelSource } = buildSessionLabel({
+      sessionType,
+      userLabel: input.label || null,
+      initialPrompt: input.initialPrompt,
+      nextDisambiguatedLabel: () => this.nextDisambiguatedLabel(cwd),
+    });
     const startedAt = new Date().toISOString();
 
-    const command = isTerminal
-      ? (input.command ?? process.env.SHELL ?? '/bin/zsh')
-      : (input.command ?? (sessionType === 'codex' ? 'codex' : 'claude'));
+    const command = input.command ?? getDefaultSessionCommand(sessionType, process.env.SHELL ?? '/bin/zsh');
 
     const isClaude = !isTerminal && isClaudeCommand(command);
     const isCodex = !isTerminal && isCodexCommand(command);
@@ -318,47 +296,19 @@ export class SessionManager {
     }
 
     const codexBridgeReady = isCodex && this.codexHookBridgeReady;
-    const hookMode = (isClaude || codexBridgeReady) && hookRuntime.state === 'ready' ? 'live' : 'fallback';
+    const hookMode = resolveCreateHookMode({
+      isClaude,
+      isCodex,
+      codexBridgeReady,
+      hookRuntimeState: hookRuntime.state,
+    });
 
-    // Build args for CLI
-    const args: string[] = [];
-    if (isTerminal) {
-      // For terminal sessions, pass through caller-provided args (e.g. ['-c', 'git push'])
-      if (input.args) {
-        args.push(...input.args);
-      }
-    } else if (isCodex) {
-      // Enable hooks feature so the bridge script receives events
-      if (codexBridgeReady) {
-        args.push('--enable', 'codex_hooks');
-      }
-      // Codex CLI: pass initial prompt as positional arg
-      if (input.initialPrompt) {
-        args.push(input.initialPrompt);
-      }
-    } else {
-      if (input.worktree !== undefined) {
-        args.push('--worktree');
-        if (input.worktree) {
-          args.push(input.worktree);
-        }
-      }
-      if (input.permissionMode) {
-        args.push('--permission-mode', input.permissionMode);
-      }
-      if (input.effort) {
-        args.push('--effort', input.effort);
-      }
-      if (input.enableAutoMode) {
-        args.push('--enable-auto-mode');
-      }
-      if (input.allowBypassPermissions) {
-        args.push('--allow-dangerously-skip-permissions');
-      }
-      if (input.initialPrompt) {
-        args.push(input.initialPrompt);
-      }
-    }
+    const args = buildCreateSessionArgs({
+      session: input,
+      isTerminal,
+      isCodex,
+      codexBridgeReady,
+    });
 
     // Build account-specific environment overrides.
     // Applied for both Claude and terminal sessions so that auth terminals
@@ -892,7 +842,7 @@ export class SessionManager {
         // Delay on Stop to let Claude finalize the transcript file
         const delay = event.hookEventName === 'Stop' ? 500 : 0;
         setTimeout(() => {
-          this.updateModelFromTranscript(sessionId, transcriptPath).catch(() => {});
+          this.updateModelFromTranscript(sessionId, transcriptPath).catch(() => { });
         }, delay);
       }
     }
@@ -1039,7 +989,7 @@ export class SessionManager {
       `UPDATE sessions SET status = 'ended' WHERE session_type = 'terminal' AND status NOT IN ('ended', 'detached')`,
     ).run();
     for (const row of rows) {
-      this.ptyManager.kill(row.session_id).catch(() => {});
+      this.ptyManager.kill(row.session_id).catch(() => { });
     }
     logger.info('session', 'Killed all terminal sessions on close', { count: rows.length });
   }

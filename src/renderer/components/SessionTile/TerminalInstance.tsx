@@ -10,6 +10,7 @@ import {
   DEFAULT_SCROLLBACK_LINES,
   SCROLLBACK_PRESETS,
 } from '@shared/constants';
+import { shouldHideTerminalCursor } from '@shared/session-agents';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
@@ -57,7 +58,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
 
     // Claude Code draws its own cursor character; hide the real xterm cursor
     // to prevent a stray blinking block on the last terminal row.
-    const hideCursor = sessionType === 'claude' || sessionType === 'codex';
+    const hideCursor = shouldHideTerminalCursor(sessionType);
     const term = new Terminal({
       cursorBlink: !hideCursor,
       cursorInactiveStyle: hideCursor ? 'none' : undefined,
@@ -270,7 +271,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       webgl.detach();
       term.dispose();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup must only re-run on identity change
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup must only re-run on identity change
   }, [sessionId, sessionType]);
 
   const handleContextAction = useCallback((action: string) => {
@@ -294,7 +295,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       case 'paste':
         navigator.clipboard.readText().then((text) => {
           if (text) term.paste(text);
-        }).catch(() => {});
+        }).catch(() => { });
         break;
       case 'selectAll':
         term.selectAll();
@@ -315,22 +316,22 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
   const effectiveScrollback = currentScrollback ?? DEFAULT_SCROLLBACK_LINES;
   const contextMenuItems: MenuItem[] = contextMenu
     ? [
-        { label: 'Copy', action: 'copy', enabled: !!termInstanceRef.current?.hasSelection() },
-        { label: 'Paste', action: 'paste' },
-        { label: 'Select All', action: 'selectAll' },
-        { label: '', action: 'sep', separator: true },
-        { label: 'Clear Terminal', action: 'clear' },
-        { label: '', action: 'sep2', separator: true },
-        {
-          label: 'Scrollback Lines',
-          action: 'scrollback',
-          children: SCROLLBACK_PRESETS.map((v) => ({
-            label: v === 0 ? 'Unlimited' : v.toLocaleString(),
-            action: `scrollback:${v}`,
-            checked: effectiveScrollback === v,
-          })),
-        },
-      ]
+      { label: 'Copy', action: 'copy', enabled: !!termInstanceRef.current?.hasSelection() },
+      { label: 'Paste', action: 'paste' },
+      { label: 'Select All', action: 'selectAll' },
+      { label: '', action: 'sep', separator: true },
+      { label: 'Clear Terminal', action: 'clear' },
+      { label: '', action: 'sep2', separator: true },
+      {
+        label: 'Scrollback Lines',
+        action: 'scrollback',
+        children: SCROLLBACK_PRESETS.map((v) => ({
+          label: v === 0 ? 'Unlimited' : v.toLocaleString(),
+          action: `scrollback:${v}`,
+          checked: effectiveScrollback === v,
+        })),
+      },
+    ]
     : [];
 
   return (

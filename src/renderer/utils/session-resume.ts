@@ -1,15 +1,56 @@
-import type { SessionInfo } from '@shared/types';
+import { getAgentDefinition } from '@shared/session-agents';
+import type { SessionCreateInput, SessionInfo } from '@shared/types';
+
+export function getResumeIdentity(session: SessionInfo | undefined): string | null {
+  if (!session) return null;
+
+  switch (session.sessionType) {
+    case 'claude':
+      return session.claudeSessionId;
+    case 'codex':
+      return session.codexThreadId;
+    default:
+      return null;
+  }
+}
 
 export function canResumeSession(session: SessionInfo | undefined): boolean {
-  if (!session) return false;
+  return !!getResumeIdentity(session);
+}
 
-  if (session.sessionType === 'claude') {
-    return !!session.claudeSessionId;
+export function getResumeUnavailableMessage(session: SessionInfo | undefined): string | null {
+  if (!session || canResumeSession(session)) return null;
+
+  switch (session.sessionType) {
+    case 'claude':
+      return 'No Claude session ID recorded — cannot resume';
+    case 'codex':
+      return 'No Codex thread ID recorded — cannot resume';
+    default:
+      return null;
+  }
+}
+
+export function canOverrideResumeAccount(session: SessionInfo | undefined): boolean {
+  return !!session && (getAgentDefinition(session.sessionType)?.supportsAccountProfiles ?? false);
+}
+
+export function buildStartNewSessionInput(
+  session: SessionInfo,
+  accountOverride?: string,
+): SessionCreateInput {
+  const dialogMode = getAgentDefinition(session.sessionType)?.dialogMode ?? 'minimal';
+  if (dialogMode === 'minimal') {
+    return {
+      cwd: session.cwd,
+      sessionType: session.sessionType,
+    };
   }
 
-  if (session.sessionType === 'codex') {
-    return !!session.codexThreadId;
-  }
-
-  return false;
+  return {
+    cwd: session.cwd,
+    permissionMode: session.permissionMode,
+    sessionType: session.sessionType,
+    accountId: accountOverride,
+  };
 }
