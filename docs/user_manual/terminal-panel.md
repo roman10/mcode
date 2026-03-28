@@ -33,7 +33,7 @@ The following shortcuts are available when the terminal panel is focused:
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+` ` | Toggle terminal panel |
+| `Ctrl+Backtick` | Toggle terminal panel |
 | `Cmd+D` | Split horizontal |
 | `Cmd+Shift+D` | Split vertical |
 | `Cmd+]` | Next terminal tab |
