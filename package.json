@@ -57,7 +57,8 @@
       "icon": "resources/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "identity": "Developer ID Application"
+      "identity": "Developer ID Application",
+      "notarize": false
     },
     "dmg": {
       "contents": [

@@ -37,9 +37,24 @@ exports.default = async function notarizing(context) {
   const appName = context.packager.appInfo.productFilename
   const appPath = path.join(appOutDir, `${appName}.app`)
 
+  // Prefer env-var auth (works in CI and local builds with .env.signing)
+  const { APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID } = process.env
+  if (APPLE_ID && APPLE_APP_SPECIFIC_PASSWORD && APPLE_TEAM_ID) {
+    console.log(`Notarizing ${appPath} via @electron/notarize...`)
+    const { notarize } = require('@electron/notarize')
+    await notarize({
+      appPath,
+      appleId: APPLE_ID,
+      appleIdPassword: APPLE_APP_SPECIFIC_PASSWORD,
+      teamId: APPLE_TEAM_ID,
+    })
+    console.log('Notarization complete.')
+    return
+  }
+
+  // Fallback: keychain profile for local builds without env vars
   const PROFILE = 'mcode-profile'
 
-  // Prefer keychain profile (faster, no secrets on CLI)
   if (keychainProfileExists(PROFILE)) {
     console.log(`Notarizing ${appPath} via keychain profile "${PROFILE}"...`)
 
@@ -82,20 +97,5 @@ exports.default = async function notarizing(context) {
     return
   }
 
-  // Fallback: env-var auth via @electron/notarize
-  const { APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID } = process.env
-  if (!APPLE_ID || !APPLE_APP_SPECIFIC_PASSWORD || !APPLE_TEAM_ID) {
-    console.log('Notarization skipped: no keychain profile and APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID not set')
-    return
-  }
-
-  console.log(`Notarizing ${appPath} via @electron/notarize...`)
-  const { notarize } = require('@electron/notarize')
-  await notarize({
-    appPath,
-    appleId: APPLE_ID,
-    appleIdPassword: APPLE_APP_SPECIFIC_PASSWORD,
-    teamId: APPLE_TEAM_ID,
-  })
-  console.log('Notarization complete.')
+  console.log('Notarization skipped: no env vars and no keychain profile')
 }
