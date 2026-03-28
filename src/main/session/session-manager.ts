@@ -9,7 +9,7 @@ import type { AccountManager } from '../account-manager';
 import { getDb } from '../db';
 import { logger } from '../logger';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
-import { normalizeModelVersion } from '../trackers/token-cost';
+import { normalizeModelVersion, normalizeGeminiModel } from '../trackers/token-cost';
 import { isAgentSession } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
 import {
@@ -751,6 +751,15 @@ export class SessionManager {
         setTimeout(() => {
           this.updateModelFromTranscript(sessionId, transcriptPath).catch(() => { });
         }, delay);
+      }
+    }
+
+    // Gemini model detection from BeforeModel hook payload
+    if (event.hookEventName === 'BeforeModel' && row.session_type === 'gemini') {
+      const llmRequest = (event.payload as { llm_request?: { model?: string } }).llm_request;
+      const rawModel = typeof llmRequest?.model === 'string' ? llmRequest.model : null;
+      if (rawModel) {
+        this.setModel(sessionId, normalizeGeminiModel(rawModel));
       }
     }
 

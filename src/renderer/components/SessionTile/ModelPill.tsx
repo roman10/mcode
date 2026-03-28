@@ -5,6 +5,7 @@ const familyColors: Record<string, string> = {
   opus: 'bg-purple-900/80 text-purple-300',
   sonnet: 'bg-blue-900/80 text-blue-300',
   haiku: 'bg-green-900/80 text-green-300',
+  gemini: 'bg-amber-900/80 text-amber-300',
   unknown: 'bg-gray-700/80 text-gray-300',
 };
 
@@ -12,6 +13,7 @@ function getFamily(model: string): string {
   if (model.startsWith('opus')) return 'opus';
   if (model.startsWith('sonnet')) return 'sonnet';
   if (model.startsWith('haiku')) return 'haiku';
+  if (model.startsWith('gemini')) return 'gemini';
   return 'unknown';
 }
 

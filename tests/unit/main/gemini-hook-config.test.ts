@@ -63,11 +63,11 @@ describe('removeMcodeBridgeHooks', () => {
 });
 
 describe('mergeMcodeBridgeHooks', () => {
-  it('adds bridge hooks for all 7 events to empty config', () => {
+  it('adds bridge hooks for all 8 events to empty config', () => {
     const result = mergeMcodeBridgeHooks({});
     expect(result.hooks).toBeDefined();
 
-    const events = ['SessionStart', 'SessionEnd', 'BeforeTool', 'AfterTool', 'AfterAgent', 'BeforeAgent', 'Notification'];
+    const events = ['SessionStart', 'SessionEnd', 'BeforeTool', 'AfterTool', 'AfterAgent', 'BeforeAgent', 'Notification', 'BeforeModel'];
     for (const event of events) {
       expect(result.hooks![event]).toBeDefined();
       expect(result.hooks![event]).toHaveLength(1);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeModelVersion, normalizeModelFamily, estimateCostUsd } from '../../../src/main/trackers/token-cost';
+import { normalizeModelVersion, normalizeModelFamily, normalizeGeminiModel, estimateCostUsd } from '../../../src/main/trackers/token-cost';
 
 describe('normalizeModelVersion', () => {
   it('strips claude- prefix and date suffix', () => {
@@ -46,6 +46,37 @@ describe('normalizeModelFamily', () => {
   it('returns unknown for unrecognized models', () => {
     expect(normalizeModelFamily('gpt-4')).toBe('unknown');
     expect(normalizeModelFamily('')).toBe('unknown');
+  });
+});
+
+describe('normalizeGeminiModel', () => {
+  it('strips models/ prefix and preview suffix', () => {
+    expect(normalizeGeminiModel('models/gemini-2.5-pro-preview-05-06')).toBe('gemini-2.5-pro');
+  });
+
+  it('strips models/ prefix only when no qualifier', () => {
+    expect(normalizeGeminiModel('models/gemini-2.5-pro')).toBe('gemini-2.5-pro');
+  });
+
+  it('handles flash-lite with preview', () => {
+    expect(normalizeGeminiModel('gemini-2.5-flash-lite-preview-04-17')).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('strips date suffix', () => {
+    expect(normalizeGeminiModel('gemini-2.0-flash-20250417')).toBe('gemini-2.0-flash');
+  });
+
+  it('strips -exp suffix', () => {
+    expect(normalizeGeminiModel('gemini-2.0-flash-exp-0206')).toBe('gemini-2.0-flash');
+  });
+
+  it('strips -latest suffix', () => {
+    expect(normalizeGeminiModel('gemini-2.5-pro-latest')).toBe('gemini-2.5-pro');
+  });
+
+  it('handles already clean names', () => {
+    expect(normalizeGeminiModel('gemini-2.5-pro')).toBe('gemini-2.5-pro');
+    expect(normalizeGeminiModel('gemini-3-flash')).toBe('gemini-3-flash');
   });
 });
 

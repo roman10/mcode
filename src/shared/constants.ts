@@ -57,6 +57,7 @@ export const KNOWN_HOOK_EVENTS = [
   'SessionEnd',
   'Notification',
   'UserPromptSubmit',
+  'BeforeModel',
 ] as const;
 export type KnownHookEvent = (typeof KNOWN_HOOK_EVENTS)[number];
 

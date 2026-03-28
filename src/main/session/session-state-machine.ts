@@ -11,7 +11,8 @@ export type HookEventName =
   | 'Notification'
   | 'PostToolUseFailure'
   | 'SessionEnd'
-  | 'UserPromptSubmit';
+  | 'UserPromptSubmit'
+  | 'BeforeModel';
 
 export type AttentionRule =
   | { type: 'clear' }
@@ -127,6 +128,14 @@ export function computeTransition(
         selfHealed,
       };
     }
+
+    case 'BeforeModel':
+      return {
+        status: effectiveStatus,
+        attention: { type: 'preserve' },
+        lastTool: { type: 'preserve' },
+        selfHealed,
+      };
 
     case 'SessionEnd':
       return {

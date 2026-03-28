@@ -61,7 +61,7 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function pollUntil(
+export async function pollUntil(
   predicate: () => Promise<boolean>,
   timeoutMs: number,
   timeoutMessage: string,
@@ -73,6 +73,26 @@ async function pollUntil(
     await sleep(intervalMs);
   }
   throw new Error(timeoutMessage);
+}
+
+/**
+ * Wait for a condition in the renderer using window_execute_js and polling.
+ */
+export async function waitForRenderer(
+  client: McpTestClient,
+  predicateJs: string,
+  timeoutMs = 10000,
+): Promise<void> {
+  await pollUntil(
+    async () => {
+      const result = await client.callToolJson<boolean>('window_execute_js', {
+        code: `(Boolean(${predicateJs}))`,
+      });
+      return result === true;
+    },
+    timeoutMs,
+    `Timeout waiting for renderer state: ${predicateJs}`,
+  );
 }
 
 // --- Test isolation ---
@@ -144,16 +164,25 @@ export async function createGeminiTestSession(
   });
 }
 
+export async function waitForSessionStatus(
+  client: McpTestClient,
+  sessionId: string,
+  status: string,
+  timeoutMs = 15000,
+): Promise<SessionInfo> {
+  return client.callToolJson<SessionInfo>('session_wait_for_status', {
+    sessionId,
+    status,
+    timeout_ms: timeoutMs,
+  });
+}
+
 export async function waitForActive(
   client: McpTestClient,
   sessionId: string,
   timeoutMs = 15000,
 ): Promise<SessionInfo> {
-  return client.callToolJson<SessionInfo>('session_wait_for_status', {
-    sessionId,
-    status: 'active',
-    timeout_ms: timeoutMs,
-  });
+  return waitForSessionStatus(client, sessionId, 'active', timeoutMs);
 }
 
 export async function waitForIdle(
@@ -161,9 +190,17 @@ export async function waitForIdle(
   sessionId: string,
   timeoutMs = 15000,
 ): Promise<SessionInfo> {
-  return client.callToolJson<SessionInfo>('session_wait_for_status', {
+  return waitForSessionStatus(client, sessionId, 'idle', timeoutMs);
+}
+
+export async function waitForAttentionCleared(
+  client: McpTestClient,
+  sessionId: string,
+  timeoutMs = 15000,
+): Promise<SessionInfo> {
+  return client.callToolJson<SessionInfo>('session_wait_for_attention', {
     sessionId,
-    status: 'idle',
+    attentionLevel: 'none',
     timeout_ms: timeoutMs,
   });
 }
@@ -211,6 +248,7 @@ export async function injectHookEvent(
     toolName?: string;
     toolInput?: Record<string, unknown>;
     claudeSessionId?: string;
+    payload?: Record<string, unknown>;
   },
 ): Promise<SessionInfo> {
   return client.callToolJson<SessionInfo>('hook_inject_event', {

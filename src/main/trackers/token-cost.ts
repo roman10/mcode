@@ -55,6 +55,18 @@ export function normalizeModelVersion(model: string): string {
   return name; // Unknown model, return as-is
 }
 
+/**
+ * Normalize a Gemini model name for display.
+ * "models/gemini-2.5-pro-preview-05-06" → "gemini-2.5-pro"
+ * "gemini-2.5-flash-lite-preview-04-17" → "gemini-2.5-flash-lite"
+ */
+export function normalizeGeminiModel(model: string): string {
+  let name = model.replace(/^models\//, '');
+  name = name.replace(/-(preview|exp|latest)(-\d{2,4}(-\d{2})?)?$/, '');
+  name = name.replace(/-\d{8}$/, '');
+  return name;
+}
+
 /** Normalize to family name: "opus", "sonnet", "haiku", or "unknown". */
 export function normalizeModelFamily(model: string): string {
   const lower = model.toLowerCase();

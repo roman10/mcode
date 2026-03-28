@@ -146,9 +146,13 @@ export function registerTestTools(
         .string()
         .optional()
         .describe('Claude session ID to associate'),
+      payload: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Custom payload fields to merge into the event payload'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ sessionId, hookEventName, toolName, toolInput, claudeSessionId }) => {
+  }, async ({ sessionId, hookEventName, toolName, toolInput, claudeSessionId, payload }) => {
     const session = ctx.sessionManager.get(sessionId);
     if (!session) {
       return {
@@ -169,6 +173,7 @@ export function registerTestTools(
         tool_name: toolName,
         tool_input: toolInput,
         session_id: claudeSessionId,
+        ...payload,
       },
     };
 

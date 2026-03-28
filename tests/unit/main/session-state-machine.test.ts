@@ -244,13 +244,36 @@ describe('computeTransition', () => {
   });
 });
 
+// --- BeforeModel (Gemini model detection) ---
+
+describe('BeforeModel', () => {
+  it('active → active, preserves attention and lastTool', () => {
+    const r = computeTransition('BeforeModel', ctx({ currentStatus: 'active' }));
+    expect(r!.status).toBe('active');
+    expect(r!.attention).toEqual({ type: 'preserve' });
+    expect(r!.lastTool).toEqual({ type: 'preserve' });
+  });
+
+  it('idle → idle, preserves attention', () => {
+    const r = computeTransition('BeforeModel', ctx({ currentStatus: 'idle' }));
+    expect(r!.status).toBe('idle');
+    expect(r!.attention).toEqual({ type: 'preserve' });
+  });
+
+  it('starting → active via self-heal', () => {
+    const r = computeTransition('BeforeModel', ctx({ currentStatus: 'starting' }));
+    expect(r!.status).toBe('active');
+    expect(r!.selfHealed).toBe(true);
+  });
+});
+
 // --- Terminal state guard ---
 
 describe('ended state guard', () => {
   const events: HookEventName[] = [
     'SessionStart', 'PreToolUse', 'PostToolUse', 'Stop',
     'PermissionRequest', 'Notification', 'PostToolUseFailure', 'SessionEnd',
-    'UserPromptSubmit',
+    'UserPromptSubmit', 'BeforeModel',
   ];
 
   for (const event of events) {

@@ -47,6 +47,7 @@ const GEMINI_BRIDGE_EVENTS = [
   'AfterAgent',
   'BeforeAgent',
   'Notification',
+  'BeforeModel',
 ] as const;
 
 function isMcodeBridgeHook(entry: GeminiHookEntry): boolean {
