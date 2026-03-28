@@ -1,6 +1,6 @@
 # Getting Started with mcode
 
-mcode is a desktop IDE for managing multiple autonomous coding-agent sessions simultaneously. It currently supports Claude Code, Codex CLI, and plain terminal sessions. This guide walks you through installation, launching the app, and core workflows.
+mcode is a desktop IDE for managing multiple autonomous coding-agent sessions simultaneously. It currently supports Claude Code, Codex CLI, Gemini CLI, and plain terminal sessions. This guide walks you through installation, launching the app, and core workflows.
 
 ## Prerequisites
 
@@ -8,6 +8,7 @@ mcode is a desktop IDE for managing multiple autonomous coding-agent sessions si
 - **Node.js** (v20+) and **npm**
 - **Claude Code CLI** installed and authenticated for Claude sessions (`claude` command available in your terminal)
 - **Codex CLI** installed and authenticated for Codex sessions (`codex` command available in your terminal)
+- **Gemini CLI** installed and authenticated for Gemini sessions (`gemini` command available in your terminal)
 
 ## Installation
 
@@ -81,10 +82,11 @@ Double-click the title in the toolbar to rename the session inline.
 
 1. Click the **+** button in the sidebar header (or press `Cmd+N`)
 2. In the dialog that appears, fill in:
-   - **Agent** (required) — choose Claude Code or Codex CLI
+   - **Agent** (required) — choose Claude Code, Codex CLI, or Gemini CLI
    - **Working directory** (required) — click "Browse" to select a project folder, or type a path
    - **Label** (optional) — a name for the session; defaults to the folder name
    - **Initial prompt** (optional) — what you want the agent to work on
+   - **Model** (Gemini only, optional) — explicit Gemini model name such as `gemini-2.5-pro`; when set, mcode launches Gemini with `--model <value>` and stores it on the session so the model pill can render consistently
    - **Permission mode** (Claude only) — controls how Claude handles tool permissions (`default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`)
    - **Effort** (Claude only) — controls reasoning depth (`low`, `medium`, `high`, `max`)
    - **Enable auto mode** (Claude only) — allows the session to use Claude's auto permission mode; off by default (Team plan feature)
@@ -114,6 +116,21 @@ Double-click the session name in the sidebar or the tile toolbar to edit it inli
 ### Reopening a Closed Session
 
 Hover over the session in the sidebar and click the **+** button to reopen its tile in the layout.
+
+### Resuming an Ended Session
+
+Ended Claude, Codex, and Gemini sessions can be resumed in place when mcode has a persisted resume identity for that session.
+
+- **Claude** resumes from its recorded Claude session ID
+- **Codex** resumes from its recorded Codex thread ID
+- **Gemini** resumes from its recorded Gemini session ID, which mcode resolves back to the current Gemini session list for that working directory
+
+If resume is unavailable, the ended-session prompt tells you why. For Gemini, the most common cases are:
+
+- no Gemini session ID was recorded for the original session
+- the recorded Gemini session ID is no longer present in Gemini's current project-scoped session list
+
+In those cases, use **Start New Session** instead of **Resume Session**.
 
 ### Context Menu
 
