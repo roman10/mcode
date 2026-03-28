@@ -1,5 +1,14 @@
 # Gemini CLI Support — Phase 3 Design
 
+## Status
+
+- **WP0**: Pending — CLI preflight verification not yet performed
+- **WP1**: **Implemented** (commit `88d2769`) — Gemini task queue enablement
+- **WP2**: **Implemented** (commit `88d2769`) — Resume parser hardening (validation-only; JSON parser deferred pending WP0)
+- **WP3**: Pending — Hook bridge cleanup hardening
+
+Current: 42 test files, 568 tests passing (1 pre-existing failure in session-event-store unrelated to Phase 3)
+
 ## Overview
 
 Phase 3 focuses on two goals:
@@ -18,7 +27,7 @@ Phase 1, Phase 2, and post-Phase 2 hook integration are complete:
 - Gemini sessions get `hookMode='live'` when the bridge is ready
 - Agent runtime adapters handle all per-agent logic (`prepareCreate`, `afterCreate`, `prepareResume`, `pollState`)
 - Shared capability helpers (`canSessionQueueTasks`, `canSessionBeTaskTarget`) gate on `supportsTaskQueue && hookMode === 'live'`
-- 39 test files, 515 tests passing
+- 42 test files, 568 tests passing
 
 ## WP0: CLI Preflight Verification
 
@@ -29,7 +38,7 @@ Before implementation, reverify against the currently installed Gemini CLI.
 1. `gemini --version` — record the version
 2. `gemini --list-sessions --output-format json` — check if structured JSON output is now available
 3. `gemini --help` — verify `--model`, `--resume`, `--list-sessions` flags still exist
-4. Verify hook event names by running a Gemini session with the bridge active and inspecting the events that arrive at the hook server. Confirm the 7 registered events still fire with the expected Gemini-native names: `SessionStart`, `SessionEnd`, `BeforeTool`, `AfterTool`, `AfterAgent`, `BeforeAgent`, `Notification`
+4. Verify hook event names by running a Gemini session with the bridge active and inspecting the events that arrive at the hook server. Confirm the 8 registered events still fire with the expected Gemini-native names: `SessionStart`, `SessionEnd`, `BeforeTool`, `AfterTool`, `AfterAgent`, `BeforeAgent`, `Notification`, `BeforeModel`
 
 ### Decision Gates
 
@@ -37,7 +46,7 @@ Before implementation, reverify against the currently installed Gemini CLI.
 - If `--output-format json` still emits text: WP2 adds defensive validation only, no JSON parser
 - If hook event names changed: update `GEMINI_EVENT_MAP` in `hook-server.ts` and the `GEMINI_BRIDGE_EVENTS` list in `gemini-hook-config.ts` before proceeding
 
-## WP1: Gemini Task Queue Enablement
+## WP1: Gemini Task Queue Enablement ✅
 
 ### Problem
 
@@ -210,7 +219,7 @@ if (input.planModeAction && !agentDef?.supportsPlanMode) {
 - Permission-mode cycling and plan-mode tasks are rejected for Gemini
 - Gemini sessions in fallback mode remain excluded from task queue
 
-## WP2: Resume Parser Hardening
+## WP2: Resume Parser Hardening ✅
 
 ### Problem
 
@@ -385,22 +394,22 @@ The real crash-resilience scenario (stale entries left in `~/.gemini/settings.js
 
 ## Test Plan
 
-### WP1: Task Queue Tests
+### WP1: Task Queue Tests ✅
 
-#### Unit tests
+#### Unit tests (implemented)
 
-**File:** `tests/unit/main/task-queue.test.ts` (extend existing)
+**File:** `tests/unit/shared/session-capabilities.test.ts` (extended)
 
-- `create()` accepts Gemini sessions with `hookMode='live'` as targets
-- `create()` rejects Gemini sessions with `hookMode='fallback'` as targets
-- `create()` rejects `permissionMode` when targeting Gemini sessions
-- `create()` rejects `planModeAction` when targeting Gemini sessions
-- `create()` resumes ended Gemini sessions when `geminiSessionId` is present
-- `create()` rejects ended Gemini sessions when `geminiSessionId` is missing
+- `hasLiveTaskQueue` returns true for live Gemini sessions
+- `hasLiveTaskQueue` returns false for fallback Gemini sessions
+- `hasLiveTaskQueue` does not gate on session status (critical for ended-session resume)
+- `canSessionQueueTasks` and `canSessionBeTaskTarget` work for live Gemini sessions
+- `supportsTaskQueue` flags correct per agent (claude=true, codex=false, gemini=true)
+- `supportsPlanMode` flags correct per agent (claude=true, codex=false, gemini=false)
 
-#### Integration tests
+#### Integration tests (pending)
 
-**File:** `tests/suites/gemini-task-queue.test.ts` (new)
+**File:** `tests/suites/gemini-task-queue.test.ts` (new, not yet created)
 
 Uses the existing Gemini fixture script (`tests/fixtures/gemini`) via `createGeminiTestSession()` from `tests/helpers.ts`, following the same pattern as `gemini-support.test.ts` and `gemini-resume.test.ts`. No real Gemini CLI required.
 
@@ -415,22 +424,23 @@ Test cases:
 - Verify permission-mode task creation is rejected for Gemini targets
 - Verify plan-mode task creation is rejected for Gemini targets
 
-### WP2: Resume Parser Tests
+### WP2: Resume Parser Tests ✅
 
-#### Unit tests
+#### Unit tests (implemented)
 
-**File:** `tests/unit/main/gemini-session-store.test.ts` (extend existing)
+**File:** `tests/unit/main/gemini-session-store.test.ts` (extended)
 
 - `parseGeminiSessionList()` logs warning when output has content but no parseable sessions
-- `parseGeminiSessionListJson()` returns valid entries from well-formed JSON (if implemented)
-- `parseGeminiSessionListJson()` returns null from non-JSON input (if implemented)
-- `parseGeminiSessionListJson()` returns null from JSON that is not an array (if implemented)
+- `parseGeminiSessionList()` does not warn on empty output
+- `parseGeminiSessionList()` does not warn when sessions are successfully parsed
+- `parseGeminiSessionListJson()` tests deferred pending WP0 JSON decision
 
-**File:** `tests/unit/main/gemini-runtime.test.ts` (extend existing)
+**File:** `tests/unit/main/gemini-runtime.test.ts` (extended)
 
 - `buildGeminiResumePlan()` error message includes available session IDs when stored ID not found
+- `buildGeminiResumePlan()` shows zero-session message when list is empty
 
-### WP3: Hook Cleanup Tests
+### WP3: Hook Cleanup Tests (pending)
 
 **File:** `tests/unit/main/gemini-hook-config.test.ts` (extend existing)
 
@@ -439,25 +449,29 @@ Test cases:
 
 ## Verification
 
-After implementation:
+### WP1+WP2 (completed)
 
-1. `npm test` — all unit tests pass (target: 39+ files, 530+ tests)
-2. Focused MCP validation against a fresh dev instance:
-   - `npm run test:mcp -- tests/suites/gemini-task-queue.test.ts tests/suites/gemini-support.test.ts tests/suites/gemini-resume.test.ts`
-3. Manual verification:
+1. `npm test` — 42 files, 568 tests passing (1 pre-existing failure unrelated to Phase 3)
+2. TypeScript compiles clean (`npx tsc --noEmit`)
+3. Remaining manual verification:
    - Create a Gemini session in the UI → confirm task queue button appears in toolbar
    - Queue a task against the Gemini session → confirm it dispatches and completes
    - Attempt to create a permission-mode task for Gemini → confirm rejection
    - Resume a Gemini session → confirm resume works and error messages are improved
 
+### WP3 (pending)
+
+1. Focused MCP validation: `npm run test:mcp -- tests/suites/gemini-support.test.ts tests/suites/gemini-resume.test.ts`
+2. Integration test suite for Gemini task queue (pending WP0 + manual testing)
+
 ## Implementation Order
 
-1. WP0 — CLI verification (no code changes, informs WP2 scope)
-2. WP1 — task queue enablement (largest scope, most value)
-3. WP2 — resume parser hardening (independent of WP1)
+1. ~~WP0 — CLI verification (no code changes, informs WP2 scope)~~ — pending
+2. ~~WP1 — task queue enablement (largest scope, most value)~~ — **done** (`88d2769`)
+3. ~~WP2 — resume parser hardening (independent of WP1)~~ — **done** (`88d2769`, validation-only; JSON parser deferred to WP0)
 4. WP3 — hook cleanup hardening (smallest scope, can be done last)
 
-WP1 and WP2 are independent and can be implemented in parallel.
+WP0 still gates the JSON parser decision in WP2. If WP0 confirms JSON works, add `parseGeminiSessionListJson()` and update `listGeminiSessions()` per the WP2 change 2 design above.
 
 ## Files Modified
 
