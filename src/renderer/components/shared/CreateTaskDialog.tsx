@@ -3,6 +3,7 @@ import { useSessionStore } from '../../stores/session-store';
 import { formatShortTime } from '../../hooks/useRelativeTime';
 import Dialog from './Dialog';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import FileAutocomplete from './FileAutocomplete';
 import { buildModeCycle, TASK_PERMISSION_MODE_LABELS } from '@shared/task-utils';
 import { canSessionBeTaskTarget } from '@shared/session-capabilities';
 import type { CreateTaskInput, TaskPermissionMode } from '@shared/types';
@@ -29,6 +30,7 @@ function CreateTaskDialog({
   const [targetSessionId, setTargetSessionId] = useState(defaultTargetSessionId ?? '');
   const [permissionMode, setPermissionMode] = useState<TaskPermissionMode | ''>('');
   const [isCreating, setIsCreating] = useState(false);
+  const [cursorPos, setCursorPos] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sessions = useSessionStore((s) => s.sessions);
@@ -61,6 +63,7 @@ function CreateTaskDialog({
       setTargetSessionId(defaultTargetSessionId ?? '');
       setPermissionMode('');
       setIsCreating(false);
+      setCursorPos(0);
       if (!defaultCwd) {
         window.mcode.sessions.getLastDefaults().then((defaults) => {
           if (!defaults) return;
@@ -126,7 +129,12 @@ function CreateTaskDialog({
                 className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
                 rows={4}
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => {
+                  setPrompt(e.target.value);
+                  setCursorPos(e.target.selectionStart ?? 0);
+                }}
+                onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+                onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
                 placeholder="What should Claude work on?"
                 autoFocus
               />
@@ -134,7 +142,21 @@ function CreateTaskDialog({
                 prompt={prompt}
                 cwd={cwd}
                 textareaRef={textareaRef}
-                onSelect={(text) => setPrompt(text)}
+                onSelect={(text) => { setPrompt(text); setCursorPos(text.length); }}
+              />
+              <FileAutocomplete
+                text={prompt}
+                cursorPos={cursorPos}
+                cwd={cwd}
+                textareaRef={textareaRef}
+                onSelect={(newText, newPos) => {
+                  setPrompt(newText);
+                  setCursorPos(newPos);
+                  requestAnimationFrame(() => {
+                    const ta = textareaRef.current;
+                    if (ta) { ta.selectionStart = newPos; ta.selectionEnd = newPos; }
+                  });
+                }}
               />
             </div>
           </div>

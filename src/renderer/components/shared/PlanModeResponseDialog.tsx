@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Dialog from './Dialog';
+import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import FileAutocomplete from './FileAutocomplete';
 import type { CreateTaskInput } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
@@ -22,6 +24,7 @@ function PlanModeResponseDialog({
   const [exitPlanMode, setExitPlanMode] = useState(true);
   const [message, setMessage] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [cursorPos, setCursorPos] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Reset form when dialog opens
@@ -30,6 +33,7 @@ function PlanModeResponseDialog({
       setExitPlanMode(true);
       setMessage('');
       setIsCreating(false);
+      setCursorPos(0);
       setTimeout(() => textareaRef.current?.focus(), 50);
     }
   }, [open]);
@@ -107,14 +111,41 @@ function PlanModeResponseDialog({
             <label className="block text-sm text-text-secondary mb-1">
               {exitPlanMode ? 'Tell Claude to proceed' : 'Tell Claude what to change'}
             </label>
-            <textarea
-              ref={textareaRef}
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
-              rows={3}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={placeholder}
-            />
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
+                rows={3}
+                value={message}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  setCursorPos(e.target.selectionStart ?? 0);
+                }}
+                onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+                onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+                placeholder={placeholder}
+              />
+              <SlashCommandAutocomplete
+                prompt={message}
+                cwd={cwd}
+                textareaRef={textareaRef}
+                onSelect={(text) => { setMessage(text); setCursorPos(text.length); }}
+              />
+              <FileAutocomplete
+                text={message}
+                cursorPos={cursorPos}
+                cwd={cwd}
+                textareaRef={textareaRef}
+                onSelect={(newText, newPos) => {
+                  setMessage(newText);
+                  setCursorPos(newPos);
+                  requestAnimationFrame(() => {
+                    const ta = textareaRef.current;
+                    if (ta) { ta.selectionStart = newPos; ta.selectionEnd = newPos; }
+                  });
+                }}
+              />
+            </div>
           </div>
         </div>
 

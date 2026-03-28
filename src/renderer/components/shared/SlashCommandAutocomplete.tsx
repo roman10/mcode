@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { SlashCommandEntry } from '@shared/types';
+import { useTextareaDropdown } from '../../hooks/useTextareaDropdown';
+import { filterByPrefixThenIncludes } from '../../utils/autocomplete-utils';
 
 interface SlashCommandAutocompleteProps {
   prompt: string;
@@ -21,14 +23,9 @@ function SlashCommandAutocomplete({
   onSelect,
 }: SlashCommandAutocompleteProps): React.JSX.Element | null {
   const [commands, setCommands] = useState<SlashCommandEntry[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [navigated, setNavigated] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
 
   // Visible only when prompt is "/" followed by non-whitespace chars (no spaces)
   const matchesSlash = /^\/\S*$/.test(prompt);
-  const visible = matchesSlash && !dismissed;
   const query = matchesSlash ? prompt.slice(1).toLowerCase() : '';
 
   // Fetch commands when cwd changes
@@ -43,63 +40,19 @@ function SlashCommandAutocomplete({
 
   // Filter commands
   const filtered = useMemo(() => {
-    if (!visible) return [];
-    if (!query) return commands;
-    // Try prefix match first
-    const prefixed = commands.filter((c) =>
-      c.name.toLowerCase().startsWith(query),
-    );
-    if (prefixed.length > 0) return prefixed;
-    // Fall back to includes
-    return commands.filter((c) => c.name.toLowerCase().includes(query));
-  }, [visible, query, commands]);
+    if (!matchesSlash) return [];
+    return filterByPrefixThenIncludes(commands, query, (c) => c.name);
+  }, [matchesSlash, query, commands]);
 
-  // Reset selection and re-show dropdown when query changes
-  useEffect(() => {
-    setSelectedIndex(0);
-    setNavigated(false);
-    setDismissed(false);
-  }, [query]);
+  const { selectedIndex, listRef, isOpen } = useTextareaDropdown({
+    textareaRef,
+    items: filtered,
+    visible: matchesSlash,
+    query,
+    onSelect: (cmd) => onSelect('/' + cmd.name + ' '),
+  });
 
-  // Scroll selected item into view
-  useEffect(() => {
-    if (!listRef.current) return;
-    const items = listRef.current.querySelectorAll('[data-index]');
-    items[selectedIndex]?.scrollIntoView({ block: 'nearest' });
-  }, [selectedIndex]);
-
-  // Keyboard handling on the textarea
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea || !visible || filtered.length === 0) return;
-
-    const handler = (e: KeyboardEvent): void => {
-      const idx = Math.min(selectedIndex, filtered.length - 1);
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setNavigated(true);
-        setSelectedIndex((i) => (i + 1) % filtered.length);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setNavigated(true);
-        setSelectedIndex((i) => (i - 1 + filtered.length) % filtered.length);
-      } else if (e.key === 'Tab') {
-        e.preventDefault();
-        onSelect('/' + filtered[idx].name + ' ');
-      } else if (e.key === 'Enter' && navigated) {
-        e.preventDefault();
-        onSelect('/' + filtered[idx].name + ' ');
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setDismissed(true);
-      }
-    };
-
-    textarea.addEventListener('keydown', handler);
-    return () => textarea.removeEventListener('keydown', handler);
-  }, [visible, filtered, selectedIndex, navigated, onSelect, textareaRef]);
-
-  if (!visible || filtered.length === 0) return null;
+  if (!isOpen) return null;
 
   // Group items by source for section headers
   let lastSource = '';
