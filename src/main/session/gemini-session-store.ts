@@ -1,3 +1,5 @@
+import { logger } from '../logger';
+
 export interface GeminiListedSession {
   index: number;
   title: string;
@@ -15,9 +17,15 @@ function normalizeText(value: string): string {
 }
 
 export function parseGeminiSessionList(output: string): GeminiListedSession[] {
+  const lines = output.split('\n');
   const entries: GeminiListedSession[] = [];
+  let nonEmptyLines = 0;
 
-  for (const line of output.split('\n')) {
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    nonEmptyLines++;
+
     const match = line.match(/^\s*(\d+)\.\s+(.*?)\s+\((.*?)\)\s+\[([^\]]+)\]\s*$/);
     if (!match) continue;
 
@@ -30,6 +38,14 @@ export function parseGeminiSessionList(output: string): GeminiListedSession[] {
       title: title.trim(),
       relativeAgeText: relativeAgeText.trim() || null,
       geminiSessionId: geminiSessionId.trim(),
+    });
+  }
+
+  // Warn if we saw non-empty lines but parsed nothing — likely a format change
+  if (nonEmptyLines > 0 && entries.length === 0) {
+    logger.warn('gemini-session-store', 'Gemini --list-sessions output had content but no parseable sessions', {
+      nonEmptyLines,
+      firstLine: lines.find((l) => l.trim())?.slice(0, 120),
     });
   }
 

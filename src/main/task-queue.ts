@@ -19,6 +19,8 @@ import type {
   HookRuntimeInfo,
   SessionInfo,
 } from '../shared/types';
+import { getAgentDefinition } from '../shared/session-agents';
+import { hasLiveTaskQueue } from '../shared/session-capabilities';
 
 interface TaskRecord {
   id: number;
@@ -210,11 +212,19 @@ export class TaskQueue {
       if (!session) {
         throw new Error(`Target session not found: ${input.targetSessionId}`);
       }
-      if (session.sessionType !== 'claude') {
-        throw new Error('Task queue only supports Claude sessions as targets');
+      if (!hasLiveTaskQueue(session)) {
+        throw new Error('Target session does not support task queue (requires live hook mode and a supported agent type)');
       }
-      if (session.hookMode !== 'live') {
-        throw new Error('Target session must be in live hook mode');
+
+      // Hardcoded to claude — permission mode cycling depends on Claude's
+      // Shift+Tab UX and buildModeCycle(); no capability flag needed.
+      if (input.permissionMode && session.sessionType !== 'claude') {
+        throw new Error('Permission mode cycling is only supported for Claude sessions');
+      }
+
+      const agentDef = getAgentDefinition(session.sessionType);
+      if (input.planModeAction && !agentDef?.supportsPlanMode) {
+        throw new Error('Plan mode tasks are only supported for agents with plan-mode capability');
       }
 
       // Validate permissionMode reachability BEFORE resuming an ended session
@@ -237,8 +247,9 @@ export class TaskQueue {
         if (input.planModeAction) {
           throw new Error('Cannot create plan mode response for an ended session');
         }
-        if (!session.claudeSessionId) {
-          throw new Error('Target session has ended and cannot be resumed (no Claude session ID)');
+        const identityKind = agentDef?.resumeIdentityKind;
+        if (identityKind && !session[identityKind]) {
+          throw new Error(`Target session has ended and cannot be resumed (no ${identityKind})`);
         }
         // Resume the ended session so the task runs with its conversation context
         this.sessionManager.resume(input.targetSessionId);
@@ -797,11 +808,14 @@ export class TaskQueue {
 
     // Plan mode tasks also complete when a new user-choice menu appears
     if (session.status === 'waiting' && state.hasStarted && row.plan_mode_action) {
-      const buffer = this.ptyManager.getReplayData(session.sessionId);
-      if (buffer && isAtUserChoice(buffer.slice(-500))) {
-        state.completedViaIdle = true;
-        this.completeTask(taskId);
-        return;
+      const agentDef = getAgentDefinition(session.sessionType);
+      if (agentDef?.supportsPlanMode) {
+        const buffer = this.ptyManager.getReplayData(session.sessionId);
+        if (buffer && isAtUserChoice(buffer.slice(-500))) {
+          state.completedViaIdle = true;
+          this.completeTask(taskId);
+          return;
+        }
       }
     }
 

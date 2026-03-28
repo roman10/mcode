@@ -11,6 +11,7 @@ export interface AgentDefinition {
   icon: string;
   defaultCommand: string;
   supportsTaskQueue: boolean;
+  supportsPlanMode: boolean;
   hidesTerminalCursor: boolean;
   dialogMode: AgentDialogMode;
   supportsAccountProfiles: boolean;
@@ -26,6 +27,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     icon: CLAUDE_ICON,
     defaultCommand: 'claude',
     supportsTaskQueue: true,
+    supportsPlanMode: true,
     hidesTerminalCursor: true,
     dialogMode: 'full',
     supportsAccountProfiles: true,
@@ -39,6 +41,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     icon: CODEX_ICON,
     defaultCommand: 'codex',
     supportsTaskQueue: false,
+    supportsPlanMode: false,
     hidesTerminalCursor: true,
     dialogMode: 'minimal',
     supportsAccountProfiles: false,
@@ -50,7 +53,8 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     displayName: 'Gemini CLI',
     icon: GEMINI_ICON,
     defaultCommand: 'gemini',
-    supportsTaskQueue: false,
+    supportsTaskQueue: true,
+    supportsPlanMode: false,
     hidesTerminalCursor: true,
     dialogMode: 'minimal',
     supportsAccountProfiles: false,

@@ -140,7 +140,7 @@ describe('buildGeminiResumePlan', () => {
     })).toThrow('Cannot resume: no Gemini session ID recorded');
   });
 
-  it('surfaces a clear error when the stored Gemini session is missing from the list', () => {
+  it('surfaces a clear error with available IDs when the stored Gemini session is missing', () => {
     expect(() => buildGeminiResumePlan({
       sessionId: 'session-1',
       row: {
@@ -169,8 +169,40 @@ describe('buildGeminiResumePlan', () => {
           relativeAgeText: '1m ago',
           geminiSessionId: 'other-id',
         },
+        {
+          index: 2,
+          title: 'Another session',
+          relativeAgeText: '5m ago',
+          geminiSessionId: 'another-id',
+        },
       ],
-    })).toThrow('Cannot resume: Gemini session ID missing-id is no longer available in Gemini session list');
+    })).toThrow('Gemini session missing-id is no longer available in the session list. Found 2 session(s): other-id, another-id.');
+  });
+
+  it('shows empty session count when no sessions are listed', () => {
+    expect(() => buildGeminiResumePlan({
+      sessionId: 'session-1',
+      row: {
+        command: null,
+        cwd: '/tmp/project',
+        codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
+        geminiSessionId: 'missing-id',
+      },
+      hookRuntime: {
+        state: 'ready',
+        port: 4312,
+        warning: null,
+      },
+      agentHookBridgeReady: true,
+    }, {
+      listSessions: () => [],
+    })).toThrow('Gemini session missing-id is no longer available in the session list. Found 0 session(s).');
   });
 });
 

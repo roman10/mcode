@@ -1,9 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   parseGeminiSessionList,
   resolveGeminiResumeIndex,
   selectGeminiSessionCandidate,
 } from '../../../src/main/session/gemini-session-store';
+
+vi.mock('../../../src/main/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
 
 const sampleOutput = `Available sessions for this project (2):
   1. copy the CLAUDE.md to the GEMINI.md (9 hours ago) [e1bbfe0c-879b-4c8d-84c2-e9308e90fcee]
@@ -80,5 +89,42 @@ describe('gemini-session-store', () => {
         '841c493b-990e-4fd8-bda0-aae347eda41b',
       ]),
     })).toBeNull();
+  });
+
+  it('logs a warning when output has content but no parseable sessions', async () => {
+    const { logger } = await import('../../../src/main/logger');
+    vi.mocked(logger.warn).mockClear();
+
+    const result = parseGeminiSessionList([
+      'Gemini CLI v1.0',
+      'Some unexpected output format',
+      'No sessions here',
+    ].join('\n'));
+
+    expect(result).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'gemini-session-store',
+      'Gemini --list-sessions output had content but no parseable sessions',
+      expect.objectContaining({ nonEmptyLines: 3 }),
+    );
+  });
+
+  it('does not log warning when output is empty', async () => {
+    const { logger } = await import('../../../src/main/logger');
+    vi.mocked(logger.warn).mockClear();
+
+    parseGeminiSessionList('');
+    parseGeminiSessionList('\n\n');
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('does not log warning when sessions are successfully parsed', async () => {
+    const { logger } = await import('../../../src/main/logger');
+    vi.mocked(logger.warn).mockClear();
+
+    parseGeminiSessionList(sampleOutput);
+
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });

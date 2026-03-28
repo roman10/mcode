@@ -110,16 +110,21 @@ export function buildGeminiResumePlan(
   if (!ctx.row.geminiSessionId) throw new Error('Cannot resume: no Gemini session ID recorded');
 
   const command = ctx.row.command || 'gemini';
-  let resumeIndex: number | null = null;
+  const geminiSessionId = ctx.row.geminiSessionId;
+  let entries: GeminiListedSession[] = [];
   try {
-    const entries = deps.listSessions(command, ctx.row.cwd);
-    resumeIndex = resolveGeminiResumeIndex(entries, ctx.row.geminiSessionId);
+    entries = deps.listSessions(command, ctx.row.cwd);
   } catch (err) {
     throw new Error(`Cannot resume Gemini session: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  const resumeIndex = resolveGeminiResumeIndex(entries, geminiSessionId);
   if (resumeIndex == null) {
-    throw new Error(`Cannot resume: Gemini session ID ${ctx.row.geminiSessionId} is no longer available in Gemini session list`);
+    const availableIds = entries.map((e) => e.geminiSessionId).join(', ');
+    throw new Error(
+      `Gemini session ${geminiSessionId} is no longer available in the session list. ` +
+      `Found ${entries.length} session(s)${entries.length > 0 ? `: ${availableIds}` : ''}.`,
+    );
   }
 
   const bridgeReady = ctx.agentHookBridgeReady && ctx.hookRuntime.state === 'ready';

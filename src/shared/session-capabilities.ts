@@ -4,7 +4,7 @@ import type { SessionInfo, SessionType } from './types';
 type TaskSessionLike = Pick<SessionInfo, 'sessionType' | 'hookMode' | 'status'> | null | undefined;
 type ModelSessionLike = Pick<SessionInfo, 'sessionType' | 'model'> | null | undefined;
 
-function hasLiveTaskQueue(session: TaskSessionLike): session is NonNullable<TaskSessionLike> {
+export function hasLiveTaskQueue(session: TaskSessionLike): session is NonNullable<TaskSessionLike> {
   return !!session
     && (getAgentDefinition(session.sessionType)?.supportsTaskQueue ?? false)
     && session.hookMode === 'live';
