@@ -45,25 +45,61 @@ Gemini sessions cannot be task targets. The task queue system requires `supports
 
 ### Changes Required
 
-#### 1. Agent metadata flag
+#### 1. Agent metadata flags
 
 **File:** `src/shared/session-agents.ts`
 
-Set `supportsTaskQueue: true` for Gemini:
+Add `supportsPlanMode` to `AgentDefinition` and set flags for Gemini:
 
 ```typescript
+export interface AgentDefinition {
+  // ... existing fields ...
+  supportsPlanMode: boolean;
+}
+```
+
+```typescript
+claude: {
+  // ...
+  supportsTaskQueue: true,
+  supportsPlanMode: true,   // new — Claude supports plan-mode tasks
+  // ...
+},
+codex: {
+  // ...
+  supportsTaskQueue: false,
+  supportsPlanMode: false,  // new
+  // ...
+},
 gemini: {
   // ...
   supportsTaskQueue: true,  // was false
+  supportsPlanMode: false,  // new — Gemini has no plan-mode concept
   // ...
 },
 ```
 
-This alone makes `canSessionQueueTasks()` and `canSessionBeTaskTarget()` return true for Gemini sessions in live mode. Sessions in fallback mode remain excluded because the capability helpers gate on `hookMode === 'live'`.
+Setting `supportsTaskQueue: true` makes `canSessionQueueTasks()` and `canSessionBeTaskTarget()` return true for Gemini sessions in live mode. Sessions in fallback mode remain excluded because the capability helpers gate on `hookMode === 'live'`.
 
-#### 2. Widen the session-type guard in TaskQueue.create()
+The `supportsPlanMode` flag replaces hardcoded `sessionType === 'claude'` checks in task queue plan-mode paths (changes 5 and 6 below), keeping the capability-check pattern consistent across all agent-specific guards.
 
-**File:** `src/main/task-queue.ts` (line 213)
+#### 2. Export `hasLiveTaskQueue` and widen the session-type guard in TaskQueue.create()
+
+**File:** `src/shared/session-capabilities.ts`
+
+Export the existing private helper `hasLiveTaskQueue`:
+
+```typescript
+export function hasLiveTaskQueue(session: TaskSessionLike): session is NonNullable<TaskSessionLike> {
+  return !!session
+    && (getAgentDefinition(session.sessionType)?.supportsTaskQueue ?? false)
+    && session.hookMode === 'live';
+}
+```
+
+**Why not `canSessionBeTaskTarget`?** `canSessionBeTaskTarget` gates on `status === 'active' || status === 'idle'`, which rejects ended sessions before they reach the resume logic at line 236. The `create()` method intentionally allows ended (and waiting/starting) sessions through the type/hookMode checks so they can be queued against or resumed. `hasLiveTaskQueue` checks only agent support + hook mode, without a status constraint.
+
+**File:** `src/main/task-queue.ts` (lines 213-218)
 
 Current code:
 
@@ -71,17 +107,20 @@ Current code:
 if (session.sessionType !== 'claude') {
   throw new Error('Task queue only supports Claude sessions as targets');
 }
+if (session.hookMode !== 'live') {
+  throw new Error('Target session must be in live hook mode');
+}
 ```
 
-Replace with a capability check:
+Replace both checks with:
 
 ```typescript
-if (!canSessionBeTaskTarget(session)) {
+if (!hasLiveTaskQueue(session)) {
   throw new Error('Target session does not support task queue (requires live hook mode and a supported agent type)');
 }
 ```
 
-This subsumes the existing `hookMode !== 'live'` check at line 216 since `canSessionBeTaskTarget` already gates on hook mode.
+This subsumes both the session-type check (line 213) and the `hookMode !== 'live'` check (line 216) since `hasLiveTaskQueue` gates on both.
 
 #### 3. Widen the ended-session resume guard
 
@@ -121,16 +160,16 @@ if (input.permissionMode && session.sessionType !== 'claude') {
 
 This goes before the existing `buildModeCycle` validation block (line 220).
 
-#### 5. Skip plan-mode completion detection for non-Claude agents
+#### 5. Skip plan-mode completion detection for agents that don't support it
 
 **File:** `src/main/task-queue.ts` (lines 799-806)
 
-The plan-mode completion path calls `isAtUserChoice(buffer)`, which checks for Claude-specific plan mode prompts. For Gemini tasks, this path should not trigger:
+The plan-mode completion path calls `isAtUserChoice(buffer)`, which checks for Claude-specific plan mode prompts. For agents without plan-mode support, this path should not trigger:
 
 ```typescript
 if (session.status === 'waiting' && state.hasStarted && row.plan_mode_action) {
-  // Plan mode is Claude-only; skip for other agents
-  if (session.sessionType === 'claude') {
+  const agentDef = getAgentDefinition(session.sessionType);
+  if (agentDef?.supportsPlanMode) {
     const buffer = this.ptyManager.getReplayData(session.sessionId);
     if (buffer && isAtUserChoice(buffer.slice(-500))) {
       state.completedViaIdle = true;
@@ -141,15 +180,16 @@ if (session.status === 'waiting' && state.hasStarted && row.plan_mode_action) {
 }
 ```
 
-Note: `planModeAction` creation should also be guarded in `TaskQueue.create()` to reject plan-mode tasks targeting non-Claude sessions.
+Note: `planModeAction` creation should also be guarded in `TaskQueue.create()` to reject plan-mode tasks targeting agents without support.
 
-#### 6. Reject plan-mode tasks for non-Claude targets
+#### 6. Reject plan-mode tasks for agents that don't support it
 
 **File:** `src/main/task-queue.ts`, inside the `create()` method, after the session-type validation
 
 ```typescript
-if (input.planModeAction && session.sessionType !== 'claude') {
-  throw new Error('Plan mode tasks are only supported for Claude sessions');
+const agentDef = getAgentDefinition(session.sessionType);
+if (input.planModeAction && !agentDef?.supportsPlanMode) {
+  throw new Error('Plan mode tasks are only supported for agents with plan-mode capability');
 }
 ```
 
@@ -216,7 +256,9 @@ This does not change behavior — it adds observability for silent failures.
 
 #### 2. Conditional JSON parser (if WP0 confirms json works)
 
-If `--output-format json` now produces usable structured output, add a dual-path parser:
+**Important:** The JSON path is gated by WP0's decision. If WP0 confirms `--output-format json` works, implement the JSON parser as the **primary path** and remove the text parser call from `listGeminiSessions()`. If WP0 confirms it does NOT work, skip this change entirely — do NOT implement a runtime try-catch fallback that spawns two `execFileSync` calls in sequence, as that adds 5+ seconds of blocking latency on every resume when the JSON path fails.
+
+**If WP0 confirms JSON works:**
 
 **File:** `src/main/session/gemini-session-store.ts`
 
@@ -241,32 +283,27 @@ export function parseGeminiSessionListJson(output: string): GeminiListedSession[
 }
 ```
 
-And update `listGeminiSessions()` to try JSON first:
+And update `listGeminiSessions()` to use JSON as primary with text as in-process fallback (no second exec):
 
 **File:** `src/main/session/agent-runtimes/gemini-runtime.ts`
 
 ```typescript
 export function listGeminiSessions(command: string, cwd: string): GeminiListedSession[] {
-  // Try structured JSON output first
-  try {
-    const jsonOutput = execFileSync(command, ['--list-sessions', '--output-format', 'json'], {
-      cwd, timeout: 5000, maxBuffer: 1024 * 1024, encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const jsonParsed = parseGeminiSessionListJson(jsonOutput);
-    if (jsonParsed !== null && jsonParsed.length > 0) return jsonParsed;
-  } catch { /* fall through */ }
-
-  // Fall back to text parsing
-  const output = execFileSync(command, ['--list-sessions'], {
+  const output = execFileSync(command, ['--list-sessions', '--output-format', 'json'], {
     cwd, timeout: 5000, maxBuffer: 1024 * 1024, encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+
+  // Try JSON parse first; if the CLI returned text despite --output-format json, fall back
+  const jsonParsed = parseGeminiSessionListJson(output);
+  if (jsonParsed !== null) return jsonParsed;
   return parseGeminiSessionList(output);
 }
 ```
 
-**Decision:** Only implement the JSON path if WP0 confirms it works. If not, skip this and ship only the format-expectation validation.
+This uses a single `execFileSync` call. If the CLI honours `--output-format json`, the JSON parser succeeds. If the flag is silently ignored and text is returned, `parseGeminiSessionListJson` returns null and the text parser handles the same output.
+
+**If WP0 confirms JSON does NOT work:** Skip this change entirely and ship only the format-expectation validation from change 1.
 
 #### 3. Resume error message improvement
 
@@ -365,7 +402,14 @@ The real crash-resilience scenario (stale entries left in `~/.gemini/settings.js
 
 **File:** `tests/suites/gemini-task-queue.test.ts` (new)
 
-- Create a Gemini session via MCP → verify `canSessionBeTaskTarget` returns true when `hookMode='live'`
+Uses the existing Gemini fixture script (`tests/fixtures/gemini`) via `createGeminiTestSession()` from `tests/helpers.ts`, following the same pattern as `gemini-support.test.ts` and `gemini-resume.test.ts`. No real Gemini CLI required.
+
+Note: The fixture creates sessions with `hookMode='fallback'` since it cannot run the live hook bridge. To test the `hookMode='live'` path in integration tests, either:
+- Patch the session's `hookMode` to `'live'` in the DB after creation (test-only workaround), or
+- Assert the task queue rejects fallback-mode Gemini sessions and separately assert via unit tests that `hasLiveTaskQueue` returns true for `hookMode='live'` Gemini sessions
+
+Test cases:
+- Create a Gemini session via MCP → verify `hasLiveTaskQueue` returns true when `hookMode='live'` (unit-level assertion)
 - Create a task targeting a Gemini session → verify task dispatches when session is idle
 - Verify task completes when Gemini session returns to idle after dispatch
 - Verify permission-mode task creation is rejected for Gemini targets
@@ -419,8 +463,9 @@ WP1 and WP2 are independent and can be implemented in parallel.
 
 | File | WP | Change |
 |------|----|--------|
-| `src/shared/session-agents.ts` | WP1 | `supportsTaskQueue: true` |
-| `src/main/task-queue.ts` | WP1 | Widen session-type guard, resume guard, reject permission/plan mode for non-Claude |
+| `src/shared/session-agents.ts` | WP1 | `supportsTaskQueue: true` for Gemini, add `supportsPlanMode` to `AgentDefinition` |
+| `src/shared/session-capabilities.ts` | WP1 | Export `hasLiveTaskQueue` |
+| `src/main/task-queue.ts` | WP1 | Replace session-type + hookMode guards with `hasLiveTaskQueue`, widen resume guard, use `supportsPlanMode` for plan-mode guards, reject permission mode for non-Claude |
 | `src/main/session/gemini-session-store.ts` | WP2 | Format-expectation logging, optional JSON parser |
 | `src/main/session/agent-runtimes/gemini-runtime.ts` | WP2 | Improved resume error messages, optional JSON-first listing |
 | `src/main/hooks/gemini-hook-config.ts` | WP3 | Bridge script existence check, stale entry logging |
