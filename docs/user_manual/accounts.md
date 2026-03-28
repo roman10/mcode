@@ -2,7 +2,7 @@
 
 mcode supports multiple Claude accounts. This lets you run sessions under different accounts — for example, to separate personal and work usage, or to stay within usage limits.
 
-> This page covers the in-app Accounts dialog. For setting up multi-account GitHub access over SSH, see [Multi-Account GitHub](multi-account-github.md).
+> This page covers the in-app Accounts dialog, which is specifically for Claude Code sessions. Gemini and Codex sessions use the authentication state of their respective CLI tools in your system environment. For setting up multi-account GitHub access over SSH, see [Multi-Account GitHub](multi-account-github.md).
 
 ## Opening the Accounts dialog
 

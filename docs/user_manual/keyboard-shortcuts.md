@@ -24,7 +24,7 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+Shift+M` | Clear all attention |
 | `Cmd+Shift+S` | Snippets |
 | `Cmd+R` | Refresh Stats |
-| `Ctrl+\`` | Toggle Terminal Panel |
+| `Ctrl+Backtick` | Toggle [Terminal Panel](terminal-panel.md) |
 | `Cmd+W` | Close tile |
 | `Cmd+Shift+X` | Close all tiles |
 

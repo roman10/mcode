@@ -67,7 +67,7 @@ Shows commit output, token costs, and human input metrics across all repos and s
 
 - **Total commits today** with lines changed (insertions + deletions)
 - **Streak** — consecutive days with at least one commit
-- **AI-assisted vs solo** — how many commits were detected as AI-assisted
+- **AI-assisted vs solo** — how many commits were detected as AI-assisted (currently detects Claude and Codex co-authors)
 - **7-day heatmap** — color intensity shows commit volume per day
 - **Commits by type** — breakdown by conventional commit prefix (feat, fix, refactor, docs, test, chore)
 - **Per-repo breakdown** — commit count and line changes per repository
@@ -77,6 +77,8 @@ Shows commit output, token costs, and human input metrics across all repos and s
 By default only commits on the main branch are tracked. To include all branches, toggle **Scan all branches** in [Settings](settings.md).
 
 ### AI Cost
+
+> **Note**: AI Cost tracking currently only supports Claude Code sessions.
 
 - **Headline stats** — estimated cost for the selected day, message count, cost per message
 - **Token breakdown** — input tokens, output tokens, total tokens
@@ -88,6 +90,8 @@ By default only commits on the main branch are tracked. To include all branches,
 - **Usage quotas** — subscription quota utilization per account: 5-hour, 7-day, and 7-day Opus limits shown as color-coded progress bars (blue < 80%, amber 80–94%, red ≥ 95%) with time until reset
 
 ### Human Input
+
+> **Note**: Human interaction metrics currently only support Claude Code sessions.
 
 Tracks your own interaction activity:
 

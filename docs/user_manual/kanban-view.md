@@ -22,6 +22,7 @@ Each card shows:
 - Status badge (colored dot)
 - Session label
 - Account name (if not the default account)
+- Gemini model (for Gemini sessions)
 - Relative time since session started
 - Working directory
 - Last tool used (for running sessions) — the most recent Claude Code tool call (e.g., `Read`, `Edit`, `Bash`), updated live

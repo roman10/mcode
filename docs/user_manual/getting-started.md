@@ -6,9 +6,9 @@ mcode is a desktop IDE for managing multiple autonomous coding-agent sessions si
 
 - **macOS** (primary supported platform)
 - **Node.js** (v20+) and **npm**
-- **Claude Code CLI** installed and authenticated for Claude sessions (`claude` command available in your terminal)
-- **Codex CLI** installed and authenticated for Codex sessions (`codex` command available in your terminal)
-- **Gemini CLI** installed and authenticated for Gemini sessions (`gemini` command available in your terminal)
+- **Claude Code CLI** installed and authenticated (`claude` command available)
+- **Codex CLI** installed and authenticated (`codex` command available)
+- **Gemini CLI** installed and authenticated (`gemini` command available)
 
 ## Installation
 
@@ -38,6 +38,7 @@ When you launch mcode, you see two main areas:
 
 1. **Sidebar** (left) — icons for sessions, search, changes, stats, and activity
 2. **Main area** (right) — a tiling layout (or kanban board) where terminal tiles are displayed
+3. **Terminal Panel** (bottom) — a persistent area for plain terminal work, toggled with `Ctrl+` `
 
 ### Sidebar
 
