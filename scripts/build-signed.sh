@@ -17,4 +17,5 @@ set -a
 source "$ENV_FILE"
 set +a
 
-npm run build:mac
+# Pass extra flags (e.g. --publish always) through to electron-builder
+npm run build && electron-builder --mac "$@"

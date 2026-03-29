@@ -11,6 +11,7 @@
     "build": "electron-vite build",
     "build:mac": "npm run build && electron-builder --mac",
     "build:mac:signed": "bash scripts/build-signed.sh",
+    "build:mac:publish": "bash scripts/build-signed.sh --publish always",
     "package": "npm run build && electron-builder",
     "postinstall": "electron-builder install-app-deps",
     "test": "vitest run --config vitest.unit.config.mts",
