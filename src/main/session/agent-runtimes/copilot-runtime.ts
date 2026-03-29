@@ -17,6 +17,7 @@ export interface ScheduleCopilotSessionCaptureInput {
   sessionId: string;
   cwd: string;
   startedAt: string;
+  initialPrompt?: string;
 }
 
 export function isCopilotCommand(command: string): boolean {
@@ -154,6 +155,7 @@ export function createCopilotRuntimeAdapter(deps: {
         sessionId: ctx.sessionId,
         cwd: ctx.cwd,
         startedAt: ctx.startedAt,
+        initialPrompt: ctx.initialPrompt,
       });
     },
     prepareResume(ctx: AgentPrepareResumeContext): PreparedResume {

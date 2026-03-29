@@ -326,6 +326,39 @@ export async function clearAllAttention(
 
 // --- Sidebar helpers ---
 
+export async function waitForSidebarSession(
+  client: McpTestClient,
+  sessionId: string,
+  timeoutMs = 10000,
+): Promise<SessionInfo> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const sessions = await client.callToolJson<SessionInfo[]>('sidebar_get_sessions');
+    const found = sessions.find((s) => s.sessionId === sessionId);
+    if (found) return found;
+    await sleep(250);
+  }
+  throw new Error(`Timed out waiting for sidebar session ${sessionId}`);
+}
+
+export async function waitForKanbanSession(
+  client: McpTestClient,
+  sessionId: string,
+  timeoutMs = 10000,
+): Promise<string> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const kanban = await client.callToolJson<KanbanState>('kanban_get_columns');
+    for (const [column, sessions] of Object.entries(kanban.columns)) {
+      if (sessions.some((s) => s.sessionId === sessionId)) {
+        return column;
+      }
+    }
+    await sleep(250);
+  }
+  throw new Error(`Timed out waiting for kanban session ${sessionId}`);
+}
+
 export async function getSidebarSessions(
   client: McpTestClient,
 ): Promise<SessionInfo[]> {

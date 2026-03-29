@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   buildCopilotCreatePlan,
   buildCopilotResumePlan,
   isCopilotCommand,
   copilotPollState,
+  createCopilotRuntimeAdapter,
 } from '../../../src/main/session/agent-runtimes/copilot-runtime';
 import type { AgentCreateContext, AgentPrepareResumeContext, PtyPollContext } from '../../../src/main/session/agent-runtime';
 
@@ -139,6 +140,11 @@ describe('buildCopilotResumePlan', () => {
     expect(plan.args).toEqual(['--resume', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee']);
     expect(plan.cwd).toBe('/tmp/project');
     expect(plan.logLabel).toBe('Copilot');
+    expect(plan.logContext).toEqual({
+      copilotSessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      cwd: '/tmp/project',
+      hookMode: 'fallback',
+    });
   });
 
   it('uses hookMode live when hooks are ready', () => {
@@ -167,6 +173,35 @@ describe('buildCopilotResumePlan', () => {
   it('defaults to copilot when row.command is null', () => {
     const plan = buildCopilotResumePlan(makeResumeCtx({ command: null }));
     expect(plan.command).toBe('copilot');
+  });
+});
+
+describe('copilot-runtime adapter', () => {
+  it('wires pollState and prepare methods into the adapter', () => {
+    const adapter = createCopilotRuntimeAdapter({ scheduleSessionCapture: vi.fn() });
+    expect(adapter.pollState).toBe(copilotPollState);
+    expect(adapter.prepareCreate).toBeDefined();
+    expect(adapter.prepareResume).toBeDefined();
+  });
+
+  it('delegates post-create capture scheduling through the adapter', () => {
+    const scheduleSessionCapture = vi.fn();
+    const adapter = createCopilotRuntimeAdapter({ scheduleSessionCapture });
+
+    adapter.afterCreate?.({
+      sessionId: 'session-1',
+      cwd: '/tmp/project',
+      startedAt: '2025-01-01T00:00:00.000Z',
+      command: 'copilot',
+      initialPrompt: 'fix the tests',
+    });
+
+    expect(scheduleSessionCapture).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      cwd: '/tmp/project',
+      startedAt: '2025-01-01T00:00:00.000Z',
+      initialPrompt: 'fix the tests',
+    });
   });
 });
 

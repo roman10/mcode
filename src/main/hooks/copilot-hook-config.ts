@@ -121,6 +121,12 @@ printf '{}'
 
 /** Reconcile ~/.copilot/hooks/hooks.json on app startup. */
 export function reconcileCopilotHooks(): void {
+  const bridgePath = getBridgeScriptPath();
+  if (!existsSync(bridgePath)) {
+    logger.warn('copilot-hook-config', 'Bridge script not found, skipping reconcile', { path: bridgePath });
+    return;
+  }
+
   const hooksPath = getCopilotHooksPath();
 
   let config: CopilotHooksConfig;
@@ -145,6 +151,12 @@ export function reconcileCopilotHooks(): void {
   if (existsSync(hooksPath) && !existsSync(backupPath)) {
     copyFileSync(hooksPath, backupPath);
     logger.info('copilot-hook-config', 'Created backup', { path: backupPath });
+  }
+
+  // Detect stale mcode hooks before re-registering
+  const cleaned = removeMcodeBridgeHooks(config);
+  if (JSON.stringify(cleaned.hooks) !== JSON.stringify(config.hooks)) {
+    logger.info('copilot-hook-config', 'Removed stale mcode bridge hooks before re-registering');
   }
 
   const updated = mergeMcodeBridgeHooks(config);
