@@ -32,31 +32,15 @@ Full auto-update pipeline using `electron-updater` with GitHub as the update pro
 
 ---
 
-## Phase 3 — Homebrew Cask Distribution
+## Phase 3 — Homebrew Cask Distribution (shipped)
 
-**Implementation:**
-1. Create a Homebrew tap repository (e.g., `roman10/homebrew-tap`)
-2. Add cask formula pointing to GitHub Releases DMG URL
-3. Auto-update formula on each release (via GitHub Actions)
+Homebrew tap at [`roman10/homebrew-tap`](https://github.com/roman10/homebrew-tap) with auto-updating cask formula.
 
-**Example cask formula:**
-```ruby
-cask "mcode" do
-  version "0.1.0"
-  sha256 "<sha256>"
+**What's in place:**
+- Public tap repo with `Casks/mcode.rb` formula (arm64, macOS Ventura+)
+- `update-homebrew` job in `.github/workflows/release.yml` — runs after `build-mac`, downloads DMG, computes SHA256, pushes updated formula to tap repo
+- Skips pre-release tags (e.g., `v0.3.0-rc1`)
+- Requires `HOMEBREW_TAP_TOKEN` secret in `roman10/mcode` repo
 
-  url "https://github.com/roman10/mcode/releases/download/v#{version}/mcode-#{version}-arm64.dmg"
-  name "mcode"
-  desc "Desktop IDE for managing multiple autonomous Claude Code sessions"
-  homepage "https://github.com/roman10/mcode"
-
-  app "mcode.app"
-
-  zap trash: [
-    "~/Library/Application Support/mcode",
-    "~/Library/Logs/mcode",
-  ]
-end
-```
-
-Users install with `brew install --cask roman10/tap/mcode` and update with `brew upgrade`.
+**Install:** `brew install --cask roman10/tap/mcode`
+**Upgrade:** `brew upgrade --cask mcode`

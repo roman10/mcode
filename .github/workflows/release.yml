@@ -39,3 +39,46 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+  update-homebrew:
+    needs: build-mac
+    if: "!contains(github.ref_name, '-')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download DMG and compute SHA256
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DMG_NAME="mcode-${{ steps.version.outputs.version }}-arm64.dmg"
+          gh release download "${{ github.ref_name }}" \
+            --repo roman10/mcode \
+            --pattern "$DMG_NAME" \
+            --dir .
+          SHA=$(sha256sum "$DMG_NAME" | cut -d ' ' -f 1)
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA256="${{ steps.sha.outputs.sha256 }}"
+
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/roman10/homebrew-tap.git"
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/mcode.rb
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Casks/mcode.rb
+
+          git add Casks/mcode.rb
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Update mcode to ${VERSION}"
+          git push origin main

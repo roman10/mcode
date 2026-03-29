@@ -48,6 +48,12 @@ Pre-built DMG for Apple Silicon (macOS):
 
 > **Gatekeeper note:** macOS may block the app on first launch since it is not yet notarized. Right-click `mcode.app` in your Applications folder → **Open** → **Open Anyway**. Alternatively: `xattr -cr /Applications/mcode.app`
 
+### Install via Homebrew
+
+```sh
+brew install --cask roman10/tap/mcode
+```
+
 ## Installation
 
 ### Prerequisites
