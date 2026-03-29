@@ -33,6 +33,10 @@ import {
   scheduleGeminiSessionCapture,
 } from './agent-runtimes/gemini-runtime';
 import {
+  createCopilotRuntimeAdapter,
+  scheduleCopilotSessionCapture,
+} from './agent-runtimes/copilot-runtime';
+import {
   computeTransition,
   resolveAttention,
 } from './session-state-machine';
@@ -72,6 +76,7 @@ interface SessionRecord {
   claude_session_id: string | null;
   codex_thread_id: string | null;
   gemini_session_id: string | null;
+  copilot_session_id: string | null;
   last_tool: string | null;
   last_event_at: string | null;
   attention_level: string;
@@ -104,6 +109,7 @@ function toSessionInfo(row: SessionRecord): SessionInfo {
     codexThreadId: row.codex_thread_id,
     claudeSessionId: row.claude_session_id,
     geminiSessionId: row.gemini_session_id,
+    copilotSessionId: row.copilot_session_id,
     lastTool: row.last_tool,
     lastEventAt: row.last_event_at,
     attentionLevel: row.attention_level as SessionAttentionLevel,
@@ -194,6 +200,11 @@ export class SessionManager {
           broadcastSessionUpdate: (sessionId) => this.broadcastSessionUpdate(sessionId),
         }),
         listSessions: (command, cwd) => listGeminiSessions(command, cwd),
+      }),
+      copilot: createCopilotRuntimeAdapter({
+        scheduleSessionCapture: (input) => scheduleCopilotSessionCapture(input, {
+          broadcastSessionUpdate: (sessionId) => this.broadcastSessionUpdate(sessionId),
+        }),
       }),
     };
   }
@@ -381,6 +392,7 @@ export class SessionManager {
         codexThreadId: row.codex_thread_id,
         geminiSessionId: row.gemini_session_id,
         claudeSessionId: row.claude_session_id,
+        copilotSessionId: row.copilot_session_id,
         permissionMode: row.permission_mode,
         effort: row.effort,
         enableAutoMode: row.enable_auto_mode === 1,
@@ -1043,6 +1055,17 @@ export class SessionManager {
     if (row.session_type !== 'gemini') throw new Error('Only Gemini sessions can store a Gemini session ID');
     if (row.gemini_session_id === geminiSessionId) return;
     db.prepare('UPDATE sessions SET gemini_session_id = ? WHERE session_id = ?').run(geminiSessionId, sessionId);
+    this.broadcastSessionUpdate(sessionId);
+  }
+
+  setCopilotSessionId(sessionId: string, copilotSessionId: string): void {
+    const db = getDb();
+    const row = db.prepare('SELECT session_type, copilot_session_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { session_type: string; copilot_session_id: string | null } | undefined;
+    if (!row) throw new Error(`Session not found: ${sessionId}`);
+    if (row.session_type !== 'copilot') throw new Error('Only Copilot sessions can store a Copilot session ID');
+    if (row.copilot_session_id === copilotSessionId) return;
+    db.prepare('UPDATE sessions SET copilot_session_id = ? WHERE session_id = ?').run(copilotSessionId, sessionId);
     this.broadcastSessionUpdate(sessionId);
   }
 

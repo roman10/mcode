@@ -40,6 +40,9 @@ export const CODEX_ICON = '\u2742';
 // Gemini icon — ✦ (U+2726), used as session label prefix for Gemini CLI sessions
 export const GEMINI_ICON = '\u2726';
 
+// Copilot icon — ★ (U+2605), used as session label prefix for Copilot CLI sessions
+export const COPILOT_ICON = '\u2605';
+
 // Hook system
 export const HOOK_PORT_DEFAULT = 7777;
 export const HOOK_PORT_MAX = 7799;

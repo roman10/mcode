@@ -1,4 +1,4 @@
-import type { AgentSessionType } from '../../shared/session-agents';
+import { isAgentSessionType, type AgentSessionType } from '../../shared/session-agents';
 import type {
   HookRuntimeInfo,
   SessionAttentionLevel,
@@ -20,6 +20,7 @@ export interface AgentResumeRow {
   codexThreadId: string | null;
   geminiSessionId: string | null;
   claudeSessionId: string | null;
+  copilotSessionId: string | null;
   permissionMode: string | null;
   effort: string | null;
   enableAutoMode: boolean;
@@ -105,8 +106,5 @@ export function getAgentRuntimeAdapter(
   sessionType: string | undefined,
   adapters: AgentRuntimeAdapterMap,
 ): AgentRuntimeAdapter | null {
-  if (sessionType === 'claude' || sessionType === 'codex' || sessionType === 'gemini') {
-    return adapters[sessionType];
-  }
-  return null;
+  return isAgentSessionType(sessionType) ? adapters[sessionType] : null;
 }

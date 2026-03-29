@@ -11,6 +11,8 @@ export function getResumeIdentity(session: SessionInfo | undefined): string | nu
       return session.codexThreadId;
     case 'geminiSessionId':
       return session.geminiSessionId;
+    case 'copilotSessionId':
+      return session.copilotSessionId;
     default:
       return null;
   }
@@ -30,6 +32,8 @@ export function getResumeUnavailableMessage(session: SessionInfo | undefined): s
       return 'No Codex thread ID recorded — cannot resume';
     case 'geminiSessionId':
       return 'No Gemini session ID recorded — cannot resume';
+    case 'copilotSessionId':
+      return 'No Copilot session ID recorded — cannot resume';
     default:
       return null;
   }

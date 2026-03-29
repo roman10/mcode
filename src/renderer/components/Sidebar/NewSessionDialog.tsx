@@ -34,7 +34,7 @@ function NewSessionDialog({
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const agentDefinition = getAgentDefinition(sessionType);
   const isClaude = agentDefinition?.dialogMode === 'full';
-  const isGemini = sessionType === 'gemini';
+  const showModelField = agentDefinition?.supportsModelDisplay ?? false;
 
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
@@ -88,6 +88,7 @@ function NewSessionDialog({
         cwd: cwd.trim(),
         label: label.trim() || undefined,
         initialPrompt: initialPrompt.trim() || undefined,
+        model: model.trim() || undefined,
         permissionMode: permissionMode || undefined,
         effort: effort || undefined,
         enableAutoMode: enableAutoMode,
@@ -100,7 +101,7 @@ function NewSessionDialog({
         cwd: cwd.trim(),
         label: label.trim() || undefined,
         initialPrompt: initialPrompt.trim() || undefined,
-        model: isGemini ? (model.trim() || undefined) : undefined,
+        model: showModelField ? (model.trim() || undefined) : undefined,
         sessionType,
       });
     }
@@ -145,6 +146,7 @@ function NewSessionDialog({
               <option value="claude">Claude Code</option>
               <option value="codex">Codex CLI</option>
               <option value="gemini">Gemini CLI</option>
+              <option value="copilot">Copilot CLI</option>
             </select>
           </div>
 
@@ -198,7 +200,7 @@ function NewSessionDialog({
             />
           </div>
 
-          {isGemini && (
+          {showModelField && (
             <div>
               <label className="block text-sm text-text-secondary mb-1">
                 Model (optional)
@@ -207,7 +209,7 @@ function NewSessionDialog({
                 className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="gemini-3-flash-preview"
+                placeholder={`${agentDefinition?.displayName ?? 'Agent'} model name`}
               />
             </div>
           )}

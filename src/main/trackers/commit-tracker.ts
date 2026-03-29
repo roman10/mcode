@@ -73,12 +73,13 @@ export function classifyCommitType(subject: string): string {
   return 'other';
 }
 
-/** Detect if commit has an AI co-author trailer (Claude, Codex, etc.). */
+const AI_COAUTHOR_PATTERNS = ['claude', 'anthropic', 'codex', 'openai', 'copilot'];
+
+/** Detect if commit has an AI co-author trailer (Claude, Codex, Copilot, etc.). */
 export function detectAIAssisted(coAuthor: string): boolean {
   if (!coAuthor) return false;
   const lower = coAuthor.toLowerCase();
-  return lower.includes('claude') || lower.includes('anthropic')
-    || lower.includes('codex') || lower.includes('openai');
+  return AI_COAUTHOR_PATTERNS.some(p => lower.includes(p));
 }
 
 /** Parse git log output into structured commits. */

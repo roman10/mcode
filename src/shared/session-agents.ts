@@ -1,9 +1,9 @@
-import { CLAUDE_ICON, CODEX_ICON, GEMINI_ICON } from './constants';
+import { CLAUDE_ICON, CODEX_ICON, COPILOT_ICON, GEMINI_ICON } from './constants';
 import type { SessionType } from './types';
 
-export type AgentSessionType = 'claude' | 'codex' | 'gemini';
+export type AgentSessionType = 'claude' | 'codex' | 'gemini' | 'copilot';
 export type AgentDialogMode = 'full' | 'minimal';
-export type AgentResumeIdentityKind = 'claudeSessionId' | 'codexThreadId' | 'geminiSessionId' | null;
+export type AgentResumeIdentityKind = 'claudeSessionId' | 'codexThreadId' | 'geminiSessionId' | 'copilotSessionId' | null;
 
 export interface AgentDefinition {
   sessionType: AgentSessionType;
@@ -60,6 +60,20 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     supportsAccountProfiles: false,
     supportsModelDisplay: true,
     resumeIdentityKind: 'geminiSessionId',
+  },
+  copilot: {
+    sessionType: 'copilot',
+    displayName: 'Copilot CLI',
+    icon: COPILOT_ICON,
+    defaultCommand: 'copilot',
+    supportsTaskQueue: false,
+    supportsPlanMode: false,
+    hidesTerminalCursor: true,
+    dialogMode: 'minimal',
+    supportsAccountProfiles: false,
+    supportsModelDisplay: true,
+    installHelpUrl: 'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started',
+    resumeIdentityKind: 'copilotSessionId',
   },
 };
 

@@ -67,6 +67,12 @@ describe('splitLabelIcon', () => {
     expect(text).toBe('My Gemini Session');
   });
 
+  it('splits Copilot icon from text', () => {
+    const [icon, text] = splitLabelIcon('\u2605 My Copilot Session');
+    expect(icon).toBe('\u2605');
+    expect(text).toBe('My Copilot Session');
+  });
+
   it('returns empty icon for labels without prefix', () => {
     const [icon, text] = splitLabelIcon('Plain Label');
     expect(icon).toBe('');
