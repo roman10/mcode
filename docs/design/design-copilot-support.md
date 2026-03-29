@@ -4,37 +4,89 @@
 
 mcode currently supports three agent types: Claude Code, Codex CLI, and Gemini CLI, plus plain terminal sessions. This document describes the design for adding GitHub Copilot CLI as a fourth supported agent.
 
-GitHub Copilot CLI (`copilot`) reached GA on February 25, 2026. It is a fully interactive, PTY-based coding agent with session resume, model selection, structured JSON output, and a hook/extension system — making it the most feature-complete addition since Gemini.
+GitHub Copilot CLI (`copilot`) reached GA on February 25, 2026. It is a fully interactive, PTY-based coding agent with session resume, model selection, structured JSON output, and a hook/plugin system — making it the most feature-complete addition since Gemini.
 
 ## Verified CLI Constraints
 
-Based on Copilot CLI GA (v0.0.342+):
+Based on Copilot CLI v1.0.12 (latest as of March 2026):
 
 | Feature | Status | Details |
 |---|---|---|
 | Interactive mode | Yes | Default mode; chat-like terminal UI |
 | Command name | `copilot` | Standalone binary (also available via `gh copilot`) |
-| Resume | Yes | `--resume`, `--continue`, `/resume` slash command |
-| Session state dir | `~/.copilot/session-state/` | Per-session files, complete history |
-| Config dir | `~/.copilot/` | `config.json`, `mcp-config.json` |
-| Model selection | Yes | `--model <name>` flag, `/model` slash command |
-| JSON output | Yes | `--output-format=json` emits JSONL |
-| Hook system | Yes | JSON configs in `.github/hooks/<name>.json` (project-scoped) |
+| Resume | Yes | `--resume=<UUID>` (specific), `--continue` (latest), `/resume` (interactive picker) |
+| Session state dir | `~/.copilot/session-state/` | Per-session UUID directories with `workspace.yaml` + `events.jsonl` |
+| Config dir | `~/.copilot/` | `config.json`, `mcp-config.json`; override with `COPILOT_HOME` env var |
+| Model selection | Yes | `--model <name>` flag, `/model` slash command; default is Claude Sonnet 4.5 |
+| Hook system | Yes | Project-scoped: `.github/hooks/hooks.json`; User-scoped: `~/.copilot/hooks/` (v1.0.11+) |
 | Hook events | 6 | `sessionStart`, `sessionEnd`, `preToolUse`, `postToolUse`, `userPromptSubmitted`, `errorOccurred` |
-| Extension system | Yes | `.mjs` extensions in `.github/extensions/` and `~/.copilot/extensions/` |
+| Hook delivery | Shell-exec | JSON via stdin, JSON output on stdout; only `preToolUse` output influences behavior |
+| Plugin system | Yes | Bundles of agents, skills, hooks, MCP configs; installed to `~/.copilot/state/installed-plugins/` |
 | Built-in agents | Yes | Explore, Task, Plan, Code-Review |
 | Cursor hiding | TBD | Needs verification — likely hides cursor like other TUI agents |
 
+### Session state format (verified)
+
+Each session is a UUID-named directory in `~/.copilot/session-state/`:
+
+```
+~/.copilot/session-state/<UUID>/
+  workspace.yaml     # Session metadata: id, cwd, git_root, branch, summary, timestamps
+  events.jsonl       # Chronological event stream (session.start, user.message, etc.)
+  session.db         # SQLite with todos/todo_deps tables
+  checkpoints/       # Context compaction recovery points
+  plan.md            # Session plan (when plan mode used)
+```
+
+`workspace.yaml` format:
+```yaml
+id: <UUID>
+cwd: /path/to/working/directory
+git_root: /path/to/git/root
+branch: main
+summary: <AI-generated session summary>
+created_at: 2026-03-29T05:45:15.486Z
+updated_at: 2026-03-29T05:45:15.614Z
+```
+
+### Hook input/output schemas (verified)
+
+| Event | Input fields | Output |
+|---|---|---|
+| `sessionStart` | `timestamp`, `cwd`, `source` ("new"/"resume"/"startup"), `initialPrompt` | Ignored |
+| `sessionEnd` | `timestamp`, `cwd`, `reason` ("complete"/"error"/"abort"/"timeout"/"user_exit") | Ignored |
+| `userPromptSubmitted` | `timestamp`, `cwd`, `prompt` | Ignored |
+| `preToolUse` | `timestamp`, `cwd`, `toolName`, `toolArgs` (JSON string) | `permissionDecision`: "allow"/"deny", `permissionDecisionReason` |
+| `postToolUse` | `timestamp`, `cwd`, `toolName`, `toolArgs`, `toolResult` | Ignored |
+| `errorOccurred` | `timestamp`, `cwd`, `error` (`{message, name, stack}`) | Ignored |
+
+Hooks config format (`.github/hooks/hooks.json` or `~/.copilot/hooks/hooks.json`):
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [{
+      "type": "command",
+      "bash": "./script.sh",
+      "timeoutSec": 30
+    }]
+  }
+}
+```
+
+Multiple hooks of the same type execute in order. Default timeout is 30 seconds.
+
 ### Key differences from existing agents
 
-1. **Hooks are project-scoped** — `.github/hooks/` in the repo, not `~/.copilot/settings.json`. User-scoped hooks may also work via `~/.copilot/extensions/`.
+1. **User-scoped hooks supported** — `~/.copilot/hooks/hooks.json` (v1.0.11+) works globally across all repos, matching the pattern used for Claude (`~/.claude/settings.json`) and Gemini (`~/.gemini/settings.json`).
 2. **Hook delivery is shell-exec** — Same pattern as Codex and Gemini (not HTTP like Claude). Needs the same bridge script approach.
-3. **Resume uses file-based session state** — `~/.copilot/session-state/` directory, not a SQLite DB (Codex) or list command (Gemini).
+3. **Resume uses UUID-based session state** — `~/.copilot/session-state/<UUID>/workspace.yaml`, not a SQLite DB (Codex) or list command (Gemini). Resume via `--resume=<UUID>`.
 4. **Multi-model by design** — Copilot can use Claude, GPT, and Gemini models. Model field is always relevant.
+5. **Plugin system** — Copilot has a plugin system (not "extensions") that bundles agents, skills, hooks, and MCP configs. Plugin hooks merge with repo-level and user-level hooks. An mcode plugin is a viable alternative to direct hook registration.
 
 ## Pre-Implementation Refactoring
 
-Before adding a 4th agent, two small architectural improvements should be made. These reduce per-agent branching debt that is already visible at 3 agents.
+Before adding a 4th agent, three small architectural improvements should be made. These reduce per-agent branching debt that is already visible at 3 agents.
 
 ### Refactor R1: Generalize commit co-author detection
 
@@ -55,7 +107,23 @@ Note: `'github'` is intentionally excluded — it would false-positive on Depend
 
 **Files:** `src/main/trackers/commit-tracker.ts`
 
-### Refactor R2: Generalize `getAgentRuntimeAdapter` lookup
+### Refactor R2: Fix model field visibility in NewSessionDialog
+
+**Problem:** `NewSessionDialog.tsx:37` uses `sessionType === 'gemini'` to show the model input field. Copilot also needs the model field (`supportsModelDisplay: true`), so this hardcoded check would silently exclude it.
+
+**Proposed change:** Replace `isGemini` check with capability query:
+```typescript
+// Before:
+const isGemini = sessionType === 'gemini';
+// After:
+const showModelField = getAgentDefinition(sessionType)?.supportsModelDisplay ?? false;
+```
+
+This is consistent with how `dialogMode` is already used in the same component (capability-driven, not type-checked).
+
+**Files:** `src/renderer/components/Sidebar/NewSessionDialog.tsx`
+
+### Refactor R3: Generalize `getAgentRuntimeAdapter` lookup
 
 **Problem:** The function hardcodes agent type checks:
 ```typescript
@@ -90,13 +158,13 @@ Copilot is more tractable than Codex or Gemini were because:
 | Integration Point | Difficulty | Notes |
 |---|---|---|
 | Session Spawning | Easy | Same PTY infra, `copilot` command, standard flags |
-| Hook System | Medium | Shell-exec bridge (proven pattern), but project-scoped hooks are new |
+| Hook System | Easy-Medium | Shell-exec bridge (proven pattern); user-scoped `~/.copilot/hooks/` supported (v1.0.11+) |
 | State Machine / Polling | Easy | Fallback polling reusable; hook-based if bridge works |
-| Resume | Medium | File-based `~/.copilot/session-state/`, needs discovery + matching |
+| Resume | Easy-Medium | UUID dirs in `~/.copilot/session-state/`, `workspace.yaml` has cwd+timestamps for matching |
 | Model Display | Easy | `--model` flag, metadata already supports `supportsModelDisplay` |
 | Terminal Output Parsing | Medium | TUI-based like Codex/Gemini; idle detection needs verification |
 | Token Tracking | Deferred | `/usage` command exists but structured tracking deferred |
-| Commit Tracking | Easy | Extend co-author patterns (R2 refactor) |
+| Commit Tracking | Easy | Extend co-author patterns (R1 refactor) |
 
 ---
 
@@ -106,7 +174,7 @@ Spawn and manage Copilot sessions with fallback status tracking. No hooks, no re
 
 ### Phase 1A: Pre-implementation refactoring
 
-Apply R1 and R2 refactors described above. These are small, low-risk, and independently verifiable.
+Apply R1, R2, and R3 refactors described above. These are small, low-risk, and independently verifiable.
 
 ### Phase 1B: Type system + DB migration
 
@@ -162,7 +230,7 @@ copilot: {
 ```
 
 **Runtime adapter `src/main/session/agent-runtimes/copilot-runtime.ts`:**
-- `prepareCreate`: build args (`copilot [initialPrompt]`), pass `--model` if set, set `hookMode: 'fallback'`
+- `prepareCreate`: build args (`copilot --prompt "initialPrompt"` if set, else bare `copilot`), pass `--model` if set, set `hookMode: 'fallback'`
 - `afterCreate`: kick off background session-ID capture (poll `~/.copilot/session-state/` for new entries matching cwd + timing). Capture runs in Phase 1 so the identity is persisted early; resume functionality that uses it ships in Phase 2.
 - `pollState`: fallback quiescence detector (same pattern as Codex/Gemini — watch PTY buffer for idle indicators)
 - `prepareResume`: deferred to Phase 2 (not implemented in Phase 1)
@@ -182,7 +250,7 @@ Most UI changes are metadata-driven via existing abstractions. A few hardcoded l
 
 | Location | What to update |
 |---|---|
-| `src/shared/types.ts:151` | Add `'copilot'` to `AppCommand`'s `new-session` sessionType union |
+| `src/shared/types.ts:151` | Change `AppCommand`'s `new-session` sessionType to `AgentSessionType` (auto-includes `'copilot'` and future agents) |
 | `src/renderer/components/Sidebar/NewSessionDialog.tsx:140-149` | Add `<option value="copilot">Copilot CLI</option>` |
 | `src/renderer/utils/session-resume.ts:8-14` | Add `case 'copilotSessionId'` to `getResumeIdentity()` switch |
 | `src/devtools/tools/session-tools.ts:35` | Add `'copilot'` to `session_create` Zod enum |
@@ -208,58 +276,78 @@ Users can create, view, interact with, and kill Copilot CLI sessions inside mcod
 
 **Goal:** Copilot sessions get `hookMode='live'` for real-time state tracking.
 
-Copilot's hook system is project-scoped (`.github/hooks/`), which differs from Claude (`~/.claude/settings.json`) and Gemini (`~/.gemini/settings.json`). Two approaches:
+Copilot CLI v1.0.11+ supports user-scoped hooks at `~/.copilot/hooks/hooks.json`. This is the same pattern used for Gemini (`~/.gemini/settings.json` hooks). No project-scoped configuration needed.
 
-**Option A: User-scoped extension (preferred)**
-- Write a `.mjs` extension to `~/.copilot/extensions/mcode-bridge.mjs`
-- Extension uses JSON-RPC to receive lifecycle events and forwards them to `http://localhost:$MCODE_HOOK_PORT`
-- mcode installs/updates the extension on startup, removes on quit
-- Pro: Works across all repos without modifying `.github/`; mirrors how Claude/Gemini hooks work
-- Con: Extension API stability risk (newer feature)
+**Approach: User-scoped hooks + bridge script**
 
-**Option B: Bridge shell script (fallback)**
-- Register hook scripts in a well-known project location
-- Bridge script at `~/.mcode/copilot-hook-bridge.sh` (same pattern as Gemini)
-- Con: Project-scoped means it only works in repos where hooks are configured
+mcode writes `~/.copilot/hooks/hooks.json` on startup, registering a bridge script for all 6 events. The bridge script at `~/.mcode/copilot-hook-bridge.sh` reads JSON from stdin and forwards it as an HTTP POST to `http://localhost:$MCODE_HOOK_PORT`. This is the same proven pattern used for Gemini.
 
-**Event mapping:**
-| Copilot Event | mcode Canonical |
-|---|---|
-| `sessionStart` | `SessionStart` |
-| `sessionEnd` | `SessionEnd` |
-| `preToolUse` | `PreToolUse` |
-| `postToolUse` | `PostToolUse` |
-| `userPromptSubmitted` | `UserPromptSubmit` |
-| `errorOccurred` | `Error` |
+**`~/.copilot/hooks/hooks.json`** (managed by mcode):
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart":        [{ "type": "command", "bash": "~/.mcode/copilot-hook-bridge.sh sessionStart" }],
+    "sessionEnd":          [{ "type": "command", "bash": "~/.mcode/copilot-hook-bridge.sh sessionEnd" }],
+    "preToolUse":          [{ "type": "command", "bash": "~/.mcode/copilot-hook-bridge.sh preToolUse" }],
+    "postToolUse":         [{ "type": "command", "bash": "~/.mcode/copilot-hook-bridge.sh postToolUse" }],
+    "userPromptSubmitted": [{ "type": "command", "bash": "~/.mcode/copilot-hook-bridge.sh userPromptSubmitted" }],
+    "errorOccurred":       [{ "type": "command", "bash": "~/.mcode/copilot-hook-bridge.sh errorOccurred" }]
+  }
+}
+```
 
-**Hook config:** `src/main/hooks/copilot-hook-config.ts`
+**Bridge script** (`~/.mcode/copilot-hook-bridge.sh`): reads stdin JSON, wraps it with event name, POSTs to hook server. Same structure as Gemini bridge — could potentially share a single `~/.mcode/agent-hook-bridge.sh` across Gemini + Copilot since the forwarding logic is identical.
 
-**Files:** `src/main/hooks/copilot-hook-config.ts`, `src/main/hooks/hook-server.ts` (event mapping), bridge script
+**Event mapping** (in `hook-server.ts`):
+
+| Copilot Event | mcode Canonical | Notes |
+|---|---|---|
+| `sessionStart` | `SessionStart` | Input includes `source`: "new"/"resume"/"startup" |
+| `sessionEnd` | `SessionEnd` | Input includes `reason`: "complete"/"error"/"abort"/"timeout"/"user_exit" |
+| `preToolUse` | `PreToolUse` | Only hook whose output is used (`permissionDecision`) |
+| `postToolUse` | `PostToolUse` | |
+| `userPromptSubmitted` | `UserPromptSubmit` | |
+| `errorOccurred` | `Error` | |
+
+**Hook conflict handling:** User-scoped hooks merge with project-scoped `.github/hooks/hooks.json`. If the user has their own hooks, mcode's hooks append to the list (multiple hooks of the same type execute in order). mcode should only manage its own entries and not overwrite user hooks.
+
+**Implementation note:** Unlike Gemini (which required reconciling a shared `settings.json`), `~/.copilot/hooks/` is less likely to have conflicts — it's a newer feature and fewer tools write there. However, users may add their own hooks manually, so mcode must merge rather than overwrite (see open question #4).
+
+**Fallback:** If `~/.copilot/hooks/` is not supported (pre-v1.0.11), sessions remain in `hookMode='fallback'` with PTY-based polling. The runtime adapter should check Copilot version during `prepareCreate` and log a warning if user-scoped hooks aren't available.
+
+**Files:** `src/main/hooks/copilot-hook-config.ts` (new), `src/main/hooks/hook-server.ts` (event mapping), `~/.mcode/copilot-hook-bridge.sh` (new)
 
 ### Phase 2B: Resume
 
 **Goal:** Users can resume ended Copilot sessions.
 
 **Session ID capture strategy:**
-1. After spawn, poll `~/.copilot/session-state/` for 15s
-2. Look for new session files created after spawn time
-3. Match by: cwd, creation time proximity, prompt content if available
-4. Persist matched session ID as `copilot_session_id`
-5. If ambiguous, leave NULL (non-resumable, same safety pattern as Codex)
+
+Copilot sessions are stored as UUID-named directories in `~/.copilot/session-state/`. Each contains a `workspace.yaml` with `id`, `cwd`, `created_at`, and `summary` fields. This is simpler than Codex (SQLite) and Gemini (text parsing).
+
+1. After spawn, poll `~/.copilot/session-state/` for 15s (in `afterCreate`, started in Phase 1)
+2. List directories, parse `workspace.yaml` for each new entry
+3. Match by: exact `cwd` match AND `created_at` within ±5s of spawn time
+4. If `sessionStart` hook fires with `source: "new"`, extract the session ID from the hook event directly (more reliable than polling — Phase 2A makes this available)
+5. Persist matched UUID as `copilot_session_id`
+6. If ambiguous or no match, leave NULL (non-resumable, same safety pattern as Codex)
+
+**Dual capture path:** When hooks are live (Phase 2A), the `sessionStart` event delivers the session ID directly — no filesystem polling needed. When in fallback mode, filesystem polling is the backup. The adapter should prefer hook-based capture when available.
 
 **Resume command:**
 ```
-copilot --resume <session-id>
+copilot --resume=<UUID>
 ```
 
 **Session state parser:** `src/main/session/copilot-session-store.ts`
-- Reads `~/.copilot/session-state/` directory
-- Parses session files to extract session ID, cwd, timestamp, prompt
-- Provides `findCopilotSessionId(cwd, spawnTime, initialPrompt)` for post-create matching
+- Reads `~/.copilot/session-state/` directory listing
+- Parses session identity from either `events.jsonl` first line (JSON, preferred — no new dependency) or `workspace.yaml` (requires YAML parser)
+- Provides `findCopilotSessionId(cwd, spawnTime)` for post-create matching
 
 **Runtime adapter updates:**
-- `afterCreate`: implement session-ID capture polling
-- `prepareResume`: build `copilot --resume <id>` command, set hookMode, reuse same `session_id`
+- `afterCreate`: prefer hook-delivered session ID; fall back to filesystem polling
+- `prepareResume`: build `copilot --resume=<UUID>` command, set hookMode, reuse same `session_id`
 
 **Renderer:**
 - Enable resume button when `copilotSessionId` is present (capability-driven, no new branching)
@@ -267,11 +355,10 @@ copilot --resume <session-id>
 
 ### Phase 2C: Model display
 
-Copilot supports `--model` and `/model`. The `supportsModelDisplay: true` flag already gates the model pill in the UI. Implementation:
+Copilot supports `--model` and `/model`. The `supportsModelDisplay: true` flag already gates the model pill in the UI. The `--model` flag is already passed in `prepareCreate` (Phase 1C). Phase 2C adds runtime model detection:
 
-- Pass `--model` in `prepareCreate` when `input.model` is set
-- If hook bridge is live, capture model from session events
-- If fallback mode, model display shows what was requested at creation time
+- If hook bridge is live, detect model changes from `session.model_change` events in `events.jsonl` or from hook event context
+- If fallback mode, model display shows what was requested at creation time (already works from Phase 1)
 
 ### Phase 2 deliverable
 
@@ -324,11 +411,11 @@ These are explicitly deferred and not planned for any phase:
 
 | File | Action | Purpose |
 |---|---|---|
-| `src/shared/types.ts` | Modify | Add `'copilot'` to `SessionType`, add `copilotSessionId` to `SessionInfo` |
+| `src/shared/types.ts` | Modify | Add `'copilot'` to `SessionType`, derive `AppCommand` sessionType from `AgentSessionType`, add `copilotSessionId` to `SessionInfo` |
 | `src/shared/constants.ts` | Modify | Add `COPILOT_ICON` |
 | `src/shared/session-agents.ts` | Modify | Add Copilot to `AgentSessionType`, `AgentDefinition`, `AgentResumeIdentityKind` |
 | `src/shared/session-capabilities.ts` | No change | Already generic |
-| `src/main/session/agent-runtime.ts` | Modify | Add `copilotSessionId` to `AgentResumeRow`, apply R2 refactor |
+| `src/main/session/agent-runtime.ts` | Modify | Add `copilotSessionId` to `AgentResumeRow`, apply R3 refactor |
 | `src/main/session/agent-runtimes/copilot-runtime.ts` | **New** | Copilot runtime adapter |
 | `src/main/session/session-manager.ts` | Modify | Register Copilot adapter in map, add `setCopilotSessionId()` method |
 | `src/main/trackers/commit-tracker.ts` | Modify | Apply R1 refactor |
@@ -342,20 +429,33 @@ These are explicitly deferred and not planned for any phase:
 
 | File | Action | Purpose |
 |---|---|---|
-| `src/main/hooks/copilot-hook-config.ts` | **New** | Hook registration/cleanup |
+| `src/main/hooks/copilot-hook-config.ts` | **New** | Hook registration/cleanup for `~/.copilot/hooks/hooks.json` |
 | `src/main/hooks/hook-server.ts` | Modify | Add Copilot event name mapping |
-| `src/main/session/copilot-session-store.ts` | **New** | Session state directory parser |
-| `src/main/session/agent-runtimes/copilot-runtime.ts` | Modify | Implement afterCreate + prepareResume |
-| `~/.mcode/copilot-hook-bridge.mjs` | **New** | Bridge extension (or .sh fallback) |
+| `src/main/session/copilot-session-store.ts` | **New** | `workspace.yaml` parser + session matcher |
+| `src/main/session/agent-runtimes/copilot-runtime.ts` | Modify | Implement hook-based + fallback session-ID capture, `prepareResume` |
+| `~/.mcode/copilot-hook-bridge.sh` | **New** | Shell bridge script (same pattern as Gemini) |
+| `~/.copilot/hooks/hooks.json` | **New** (managed) | User-scoped hook registration (written by mcode on startup) |
 
 ### Phase 3
 
 No new files. Metadata flag changes + test coverage.
 
-## Open Questions
+## Resolved Questions
 
-1. **Hook scope:** Can Copilot extensions in `~/.copilot/extensions/` intercept all lifecycle events, or only project-scoped hooks? Needs verification against GA release.
-2. **Session state format:** What is the exact file format in `~/.copilot/session-state/`? JSON? One file per session? Needs inspection on a machine with Copilot installed.
-3. **Idle detection:** What does Copilot's terminal output look like when idle? Need to characterize the TUI for fallback polling.
-4. **`--resume` flag format:** Does `--resume` take a session ID string, a file path, or an index? Needs verification.
-5. **Cursor behavior:** Does Copilot hide the terminal cursor during operation? Affects `hidesTerminalCursor` metadata.
+1. **Hook scope:** Copilot v1.0.11+ supports user-scoped hooks at `~/.copilot/hooks/hooks.json`. These merge with project-scoped `.github/hooks/hooks.json`. No "extension" system — Copilot uses **plugins** (`~/.copilot/state/installed-plugins/`), which can also bundle hooks. User-scoped hooks are the recommended approach for mcode.
+
+2. **Session state format:** Each session is a UUID-named directory in `~/.copilot/session-state/` containing `workspace.yaml` (YAML with `id`, `cwd`, `git_root`, `branch`, `summary`, `created_at`, `updated_at`), `events.jsonl` (chronological event stream), `session.db` (SQLite), and optional `plan.md`, `checkpoints/`, etc.
+
+3. **`--resume` flag format:** `--resume=<UUID>` for specific session, `--continue` for most recent, `--resume` (no arg) for interactive fuzzy picker. `/session` slash command shows current session ID.
+
+4. **`sessionStart` hook delivers session ID:** The `sessionStart` event includes session context, enabling hook-based session-ID capture without filesystem polling when hooks are live.
+
+## Remaining Open Questions
+
+1. **Idle detection:** What does Copilot's terminal output look like when idle? Need to characterize the TUI for fallback `pollState`. This blocks Phase 1C (runtime adapter) and should be resolved by running Copilot in a terminal and observing the PTY buffer.
+
+2. **Cursor behavior:** Does Copilot hide the terminal cursor during operation? Affects `hidesTerminalCursor` metadata. Can be verified by inspecting PTY escape sequences.
+
+3. **YAML parser dependency:** `workspace.yaml` needs parsing. However, `events.jsonl` contains a `session.start` event on line 1 with `sessionId`, `cwd`, `startTime`, and `context` in JSON — this may eliminate the YAML dependency entirely. If `events.jsonl` is sufficient for session matching, no new dependency is needed. Decision deferred to Phase 2B implementation.
+
+4. **Hook merge behavior with user hooks:** If the user already has their own `~/.copilot/hooks/hooks.json`, mcode needs to merge rather than overwrite. Need to verify whether Copilot supports a `~/.copilot/hooks/` directory with multiple JSON files, or if it's a single `hooks.json` that must be merged.
