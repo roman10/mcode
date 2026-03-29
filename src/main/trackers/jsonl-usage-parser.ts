@@ -1,6 +1,6 @@
 /**
  * Pure parser for extracting token usage and human input data from Claude Code JSONL chunks.
- * Handles top-level assistant messages, nested sub-agent progress messages, and human prompts.
+ * Handles assistant messages (from both main session and subagent files) and human prompts.
  */
 
 export interface ParsedUsageEntry {
@@ -86,9 +86,6 @@ export function parseUsageFromChunk(
     if (type === 'assistant') {
       const entry = parseAssistantMessage(obj);
       if (entry) entries.push(entry);
-    } else if (type === 'progress') {
-      const entry = parseProgressMessage(obj);
-      if (entry) entries.push(entry);
     }
   }
 
@@ -114,38 +111,6 @@ function parseAssistantMessage(obj: Record<string, unknown>): ParsedUsageEntry |
   const fields = extractFromUsage(usage);
   return {
     messageId: uuid,
-    model,
-    timestamp,
-    ...fields,
-  };
-}
-
-function parseProgressMessage(obj: Record<string, unknown>): ParsedUsageEntry | null {
-  const data = obj['data'] as Record<string, unknown> | undefined;
-  if (!data) return null;
-
-  const outerMsg = data['message'] as Record<string, unknown> | undefined;
-  if (!outerMsg) return null;
-
-  const innerMsg = outerMsg['message'] as Record<string, unknown> | undefined;
-  if (!innerMsg) return null;
-
-  const model = innerMsg['model'] as string | undefined;
-  if (!model || model === '<synthetic>') return null;
-
-  const usage = innerMsg['usage'] as UsageFields | undefined;
-  if (!usage) return null;
-
-  // Use inner message id for dedup (multiple progress entries share same id)
-  const messageId = innerMsg['id'] as string | undefined;
-  if (!messageId) return null;
-
-  const timestamp = obj['timestamp'] as string | undefined;
-  if (!timestamp) return null;
-
-  const fields = extractFromUsage(usage);
-  return {
-    messageId,
     model,
     timestamp,
     ...fields,

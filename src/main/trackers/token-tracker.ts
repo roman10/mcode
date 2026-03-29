@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs';
 import { readdir, stat, open as fsOpen } from 'node:fs/promises';
-import { join, basename, dirname } from 'node:path';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { WebContents } from 'electron';
 import { getDb } from '../db';
@@ -132,10 +132,10 @@ export class TokenTracker {
       for (const proj of projectDirs) {
         const projPath = join(projectsDir, proj);
         try {
-          const files = await readdir(projPath);
-          for (const f of files) {
-            if (f.endsWith('.jsonl')) {
-              allFiles.push(join(projPath, f));
+          const entries = await readdir(projPath, { recursive: true });
+          for (const entry of entries) {
+            if (typeof entry === 'string' && entry.endsWith('.jsonl')) {
+              allFiles.push(join(projPath, entry));
             }
           }
         } catch {
@@ -209,8 +209,8 @@ export class TokenTracker {
       }
 
       // Derive session ID and project dir from file path
-      const fileName = basename(filePath, '.jsonl');
-      const projectDir = basename(dirname(filePath));
+      const projectsDir = join(homedir(), '.claude', 'projects');
+      const { sessionId: fileName, projectDir } = extractSessionMetadata(filePath, projectsDir);
 
       const insertStmt = db.prepare(`
         INSERT OR IGNORE INTO token_usage
@@ -550,8 +550,14 @@ export class TokenTracker {
     projectDir?: string,
   ): void {
     const db = getDb();
-    const sessionId = claudeSessionId ?? basename(filePath, '.jsonl');
-    const projDir = projectDir ?? basename(dirname(filePath));
+    let sessionId = claudeSessionId;
+    let projDir = projectDir;
+    if (!sessionId || !projDir) {
+      const projectsDir = join(homedir(), '.claude', 'projects');
+      const meta = extractSessionMetadata(filePath, projectsDir);
+      sessionId ??= meta.sessionId;
+      projDir ??= meta.projectDir;
+    }
     const now = new Date().toISOString();
 
     db.prepare(`
@@ -573,6 +579,24 @@ export class TokenTracker {
 }
 
 // --- Utility functions ---
+
+/**
+ * Extract sessionId and projectDir from any JSONL file path under the projects directory.
+ * Works for both top-level session files and nested subagent files:
+ *   Main:     <projectsDir>/<projectDir>/<sessionId>.jsonl
+ *   Subagent: <projectsDir>/<projectDir>/<sessionId>/subagents/<agentId>.jsonl
+ */
+export function extractSessionMetadata(
+  filePath: string,
+  projectsDir: string,
+): { sessionId: string; projectDir: string } {
+  const relative = filePath.slice(projectsDir.length + 1); // strip projectsDir + separator
+  const segments = relative.split('/');
+  const projectDir = segments[0];
+  const raw = segments[1];
+  const sessionId = raw.endsWith('.jsonl') ? raw.slice(0, -6) : raw;
+  return { sessionId, projectDir };
+}
 
 function rowToTotals(r: {
   input_tokens: number;

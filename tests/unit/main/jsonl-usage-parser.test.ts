@@ -35,7 +35,7 @@ describe('parseUsageFromChunk', () => {
     });
   });
 
-  it('parses a progress message (sub-agent)', () => {
+  it('ignores progress messages (subagent data comes from subagent files)', () => {
     const chunk = jsonl({
       type: 'progress',
       timestamp: '2026-03-20T10:00:00Z',
@@ -54,13 +54,7 @@ describe('parseUsageFromChunk', () => {
     });
 
     const entries = parseUsageFromChunk(chunk, false);
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({
-      messageId: 'inner-001',
-      model: 'claude-sonnet-4-5',
-      inputTokens: 2000,
-      outputTokens: 800,
-    });
+    expect(entries).toHaveLength(0);
   });
 
   it('skips malformed JSON lines', () => {
