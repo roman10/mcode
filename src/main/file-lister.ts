@@ -96,6 +96,7 @@ const FILENAME_TO_LANG: Record<string, string> = {
 
 interface CacheEntry {
   files: string[];
+  dirs: string[];
   isGitRepo: boolean;
   timestamp: number;
 }
@@ -122,19 +123,22 @@ export class FileLister {
     const resolved = resolve(cwd);
     const cached = this.cache.get(resolved);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-      return { files: cached.files, isGitRepo: cached.isGitRepo };
+      return { files: cached.files, dirs: cached.dirs, isGitRepo: cached.isGitRepo };
     }
 
     // Try git ls-files first
     try {
       const files = await this.gitListFiles(resolved);
+      const capped = files.slice(0, MAX_FILES);
+      const dirs = this.extractDirectories(capped);
       const entry: CacheEntry = {
-        files: files.slice(0, MAX_FILES),
+        files: capped,
+        dirs,
         isGitRepo: true,
         timestamp: Date.now(),
       };
       this.cache.set(resolved, entry);
-      return { files: entry.files, isGitRepo: true };
+      return { files: capped, dirs, isGitRepo: true };
     } catch {
       // Not a git repo or git not available — fall back to fast-glob
     }
@@ -148,13 +152,15 @@ export class FileLister {
     });
 
     const capped = files.slice(0, MAX_FILES);
+    const dirs = this.extractDirectories(capped);
     const entry: CacheEntry = {
       files: capped,
+      dirs,
       isGitRepo: false,
       timestamp: Date.now(),
     };
     this.cache.set(resolved, entry);
-    return { files: capped, isGitRepo: false };
+    return { files: capped, dirs, isGitRepo: false };
   }
 
   async readFile(cwd: string, relativePath: string): Promise<FileReadResult> {
@@ -195,6 +201,18 @@ export class FileLister {
 
   invalidateCache(cwd: string): void {
     this.cache.delete(resolve(cwd));
+  }
+
+  private extractDirectories(files: string[]): string[] {
+    const dirs = new Set<string>();
+    for (const file of files) {
+      let slash = file.indexOf('/');
+      while (slash !== -1) {
+        dirs.add(file.slice(0, slash + 1));
+        slash = file.indexOf('/', slash + 1);
+      }
+    }
+    return [...dirs].sort();
   }
 
   private gitListFiles(cwd: string): Promise<string[]> {

@@ -29,12 +29,16 @@ describe('file tools', () => {
       isGitRepo: boolean;
       count: number;
       files: string[];
+      dirs: string[];
     }>('file_list', { cwd });
 
     expect(result.isGitRepo).toBe(true);
     expect(result.count).toBeGreaterThan(0);
     expect(Array.isArray(result.files)).toBe(true);
     expect(result.files.length).toBeLessThanOrEqual(100);
+    expect(Array.isArray(result.dirs)).toBe(true);
+    expect(result.dirs.length).toBeGreaterThan(0);
+    expect(result.dirs.every((d: string) => d.endsWith('/'))).toBe(true);
   });
 
   it('file_read returns content and language for known file', async () => {

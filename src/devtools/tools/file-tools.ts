@@ -21,7 +21,7 @@ export function registerFileTools(
         {
           type: 'text',
           text: JSON.stringify(
-            { isGitRepo: result.isGitRepo, count: result.files.length, files: result.files.slice(0, 100) },
+            { isGitRepo: result.isGitRepo, count: result.files.length, files: result.files.slice(0, 100), dirs: result.dirs.slice(0, 100) },
             null,
             2,
           ),

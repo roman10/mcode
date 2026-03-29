@@ -7,6 +7,7 @@ import {
   FileTerminal,
   FileText,
   FileType,
+  Folder,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -35,6 +36,9 @@ register(['.sql'], { icon: FileSpreadsheet, color: '#58a6ff' });
 const defaultDef: IconDef = { icon: FileText, color: '#484f58' };
 
 export function getFileIcon(filename: string): React.JSX.Element {
+  if (filename.endsWith('/')) {
+    return <Folder size={16} style={{ color: '#e8a838' }} className="shrink-0" />;
+  }
   const dot = filename.lastIndexOf('.');
   const ext = dot >= 0 ? filename.slice(dot).toLowerCase() : '';
   const { icon: Icon, color } = extMap[ext] ?? defaultDef;

@@ -227,6 +227,7 @@ export type SearchEvent =
 
 export interface FileListResult {
   files: string[];
+  dirs: string[];
   isGitRepo: boolean;
 }
 

@@ -22,13 +22,20 @@ function FileAutocomplete({
   onSelect,
 }: FileAutocompleteProps): React.JSX.Element | null {
   const [files, setFiles] = useState<string[]>([]);
+  const [dirs, setDirs] = useState<string[]>([]);
 
-  // Fetch files when cwd changes
+  // Merged entries: files first, then dirs
+  const allEntries = useMemo(() => [...files, ...dirs], [files, dirs]);
+
+  // Fetch files and dirs when cwd changes
   useEffect(() => {
     if (!cwd) return;
     let stale = false;
     window.mcode.files.list(cwd).then((result) => {
-      if (!stale) setFiles(result.files);
+      if (!stale) {
+        setFiles(result.files);
+        setDirs(result.dirs);
+      }
     });
     return () => { stale = true; };
   }, [cwd]);
@@ -41,19 +48,19 @@ function FileAutocomplete({
 
   const query = token?.query ?? '';
 
-  // Filter files using uFuzzy for fuzzy path matching
+  // Filter entries using uFuzzy for fuzzy path matching
   const filtered = useMemo(() => {
     if (!token) return [];
-    if (!query) return files.slice(0, 50);
+    if (!query) return allEntries.slice(0, 50);
 
-    const idxs = uf.filter(files, query);
+    const idxs = uf.filter(allEntries, query);
     if (!idxs || idxs.length === 0) return [];
 
-    const info = uf.info(idxs, files, query);
-    const order = uf.sort(info, files, query);
+    const info = uf.info(idxs, allEntries, query);
+    const order = uf.sort(info, allEntries, query);
 
-    return order.slice(0, 50).map((sortIdx) => files[info.idx[sortIdx]]);
-  }, [token, query, files]);
+    return order.slice(0, 50).map((sortIdx) => allEntries[info.idx[sortIdx]]);
+  }, [token, query, allEntries]);
 
   const handleSelect = (filePath: string): void => {
     if (!token) return;
@@ -81,9 +88,8 @@ function FileAutocomplete({
       className="absolute left-0 right-0 top-full mt-1 z-10 max-h-[240px] overflow-y-auto rounded-md border border-border-default bg-bg-elevated shadow-lg"
     >
       {filtered.map((filePath, i) => {
-        const lastSlash = filePath.lastIndexOf('/');
-        const filename = lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
-        const directory = lastSlash >= 0 ? filePath.slice(0, lastSlash) : '';
+        const isDir = filePath.endsWith('/');
+        const iconKey = isDir ? filePath : filePath.slice(filePath.lastIndexOf('/') + 1);
 
         return (
           <button
@@ -98,11 +104,8 @@ function FileAutocomplete({
               handleSelect(filePath);
             }}
           >
-            {getFileIcon(filename)}
-            <span className="truncate min-w-0">{filename}</span>
-            {directory && (
-              <span className="truncate text-text-secondary text-xs ml-auto">{directory}</span>
-            )}
+            {getFileIcon(iconKey)}
+            <span className="truncate min-w-0">{filePath}</span>
           </button>
         );
       })}
