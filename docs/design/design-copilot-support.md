@@ -190,51 +190,50 @@ Users can create, view, interact with, and kill Copilot CLI sessions inside mcod
 
 ---
 
-## Phase 2: Hook Bridge + Resume
+## Phase 2: Hook Bridge + Resume ✅ COMPLETE
 
-See [design-copilot-support-phase2.md](./design-copilot-support-phase2.md) for the detailed Phase 2 design.
+Phase 2 is fully implemented and committed (6741779). See [design-copilot-support-phase2.md](./design-copilot-support-phase2.md) for the detailed design.
 
-### Summary
+### What shipped
 
-Phase 2 adds three capabilities on the Phase 1 foundation:
+- **2A: Hook bridge** — `copilot-hook-config.ts` manages `~/.copilot/hooks/hooks.json` with ownership-marker merge/cleanup, bridge script injects `hook_event_name` via per-event `$COPILOT_HOOK_EVENT` env vars, `COPILOT_EVENT_MAP` in `hook-server.ts` maps camelCase → PascalCase, `parseCopilotToolArgs()` handles `toolArgs` format inconsistency (JSON string in `preToolUse`, object in `postToolUse`). Copilot sessions get `hookMode='live'`.
+- **2B: Resume** — `buildCopilotResumePlan` produces `copilot --resume <UUID>` with hook-aware env. Resume button appears once `copilotSessionId` is captured (Phase 1 UI wiring).
+- **2C: Hook-based session-ID capture** — `sessionId` field (undocumented but verified in all Copilot hook payloads) enables instant capture from `SessionStart` events. Filesystem polling (Phase 1) remains as fallback for `hookMode='fallback'` sessions.
+- **2E: Tests** — `copilot-hook-config.test.ts` (hook merge/remove purity), `hook-server.test.ts` (event normalization + toolArgs parsing), extended `copilot-runtime.test.ts` (hook-aware create + resume plans), `copilot-resume.test.ts` integration test (create → set ID → kill → resume). 652 total tests passing.
 
-- **2A: Hook bridge** — `copilot-hook-config.ts` manages `~/.copilot/hooks/hooks.json`, bridge script forwards events to mcode's HTTP hook server, event name mapping in `hook-server.ts`. Copilot sessions get `hookMode='live'`.
-- **2B: Resume** — `prepareResume` in the adapter builds `copilot --resume=<UUID>`. Session-ID capture upgraded to prefer hook-delivered ID when available, keeping filesystem polling as fallback.
-- **2C: Runtime model detection** — Hook-based model change detection for live sessions; fallback shows create-time model (already works from Phase 1).
+**Deferred:** Runtime model detection — Copilot hook payloads do not contain model information. Moved to future enhancement if Copilot CLI adds it.
+
+### Files changed (4 modified, 6 new)
+
+New: `src/main/hooks/copilot-hook-config.ts`, `tests/unit/main/copilot-hook-config.test.ts`, `tests/unit/main/hook-server.test.ts`, `tests/suites/copilot-resume.test.ts`
+Modified: `src/main/hooks/hook-server.ts`, `src/main/session/agent-runtimes/copilot-runtime.ts`, `src/main/index.ts`, `tests/unit/main/copilot-runtime.test.ts`
+Managed (written at runtime): `~/.mcode/copilot-hook-bridge.sh`, `~/.copilot/hooks/hooks.json`
 
 ### Phase 2 deliverable
 
-Copilot sessions have real-time state tracking via hooks, can be resumed, and display runtime model information. Feature set matches Codex/Gemini parity.
+Copilot sessions have real-time state tracking via hooks, can be resumed, and capture session IDs instantly from hook payloads. Feature set matches Codex/Gemini parity.
 
 ---
 
-## Phase 3: Task Queue + Polish (~1 week)
+## Phase 3: Task Queue + Polish
 
-### Phase 3A: Task queue enablement
+See [design-copilot-support-phase3.md](./design-copilot-support-phase3.md) for the detailed Phase 3 design.
 
-**Prerequisite:** Hook bridge is stable and `hookMode='live'` works reliably.
+### Summary
 
-**Changes:**
-- Set `supportsTaskQueue: true` in Copilot agent metadata
-- Existing capability helpers (`hasLiveTaskQueue`, `canSessionQueueTasks`) automatically gate this on `hookMode === 'live'`
-- Verify task prompt injection works with Copilot's input handling
-- Test task completion detection via `sessionEnd` / `postToolUse` events
+Phase 3 is lightweight — Gemini's Phase 3 already generalized the task queue guards, so Copilot benefits directly:
 
-### Phase 3B: Commit tracking
+- **3A: Task queue enablement** — Set `supportsTaskQueue: true` in agent metadata (one-line change). All capability gates (`hasLiveTaskQueue`, `canSessionQueueTasks`, `canSessionBeTaskTarget`) automatically include Copilot. Integration tests mirror `gemini-task-queue.test.ts` (6 cases).
+- **3B: Commit tracking verification** — R1 refactor already applied in Phase 1. Verification-only: confirm `Co-Authored-By: GitHub Copilot` trailers are detected.
+- **3C: Polish** — Verify cursor hiding, idle detection accuracy, concurrent session-ID capture, session-end cleanup. Code changes only if defects found.
 
-Apply R1 refactor if not already done. Copilot commits use `Co-Authored-By: ... GitHub Copilot ...` trailers. The `detectAIAssisted()` function needs `'copilot'` in its pattern list.
+### Files changed (estimated)
 
-### Phase 3C: Polish
-
-- Verify cursor hiding behavior; update `hidesTerminalCursor` if needed
-- Verify idle detection accuracy in fallback mode
-- Harden session-ID capture edge cases (concurrent sessions, rapid create/kill)
-- Add `installHelpUrl` pointing to GitHub Copilot CLI docs
-- Review and update integration tests for full lifecycle coverage
+2 modified (`session-agents.ts`, `session-capabilities.test.ts`), 1 new (`copilot-task-queue.test.ts`). No changes to `task-queue.ts` or renderer code.
 
 ### Phase 3 deliverable
 
-Copilot sessions can be task targets, commits are tracked, and the integration is production-hardened.
+Copilot sessions can be task targets, commits are tracked, and the integration is production-hardened. Full feature parity with Gemini; near-parity with Claude (missing only permission mode cycling and plan mode, which are Claude-specific).
 
 ---
 
@@ -272,15 +271,23 @@ These are explicitly deferred and not planned for any phase:
 | File | Action | Purpose |
 |---|---|---|
 | `src/main/hooks/copilot-hook-config.ts` | **New** | Hook registration/cleanup for `~/.copilot/hooks/hooks.json` |
-| `src/main/hooks/hook-server.ts` | Modify | Add Copilot event name mapping |
-| `src/main/session/agent-runtimes/copilot-runtime.ts` | Modify | Add hook awareness to `prepareCreate`, implement `prepareResume` |
-| `src/main/index.ts` | Modify | Register Copilot hook bridge in `initializeHookSystem()` |
-| `~/.mcode/copilot-hook-bridge.sh` | **New** (managed) | Shell bridge script (same pattern as Gemini) |
+| `src/main/hooks/hook-server.ts` | Modify | Add `COPILOT_EVENT_MAP`, `parseCopilotToolArgs()`, camelCase field fallbacks |
+| `src/main/session/agent-runtimes/copilot-runtime.ts` | Modify | Hook-aware `prepareCreate`, add `prepareResume` + `buildCopilotResumePlan` |
+| `src/main/index.ts` | Modify | Register Copilot hook bridge in `initializeHookSystem()`, cleanup on quit |
+| `tests/unit/main/copilot-hook-config.test.ts` | **New** | Hook config merge/remove purity tests |
+| `tests/unit/main/hook-server.test.ts` | **New** | Event normalization + `parseCopilotToolArgs` tests |
+| `tests/unit/main/copilot-runtime.test.ts` | Modify | Hook-aware create + resume plan tests |
+| `tests/suites/copilot-resume.test.ts` | **New** | Integration tests for resume lifecycle |
+| `~/.mcode/copilot-hook-bridge.sh` | **New** (managed) | Shell bridge script with event name injection |
 | `~/.copilot/hooks/hooks.json` | **New** (managed) | User-scoped hook registration (written by mcode on startup) |
 
 ### Phase 3
 
-No new files. Metadata flag changes + test coverage.
+| File | Action | Purpose |
+|---|---|---|
+| `src/shared/session-agents.ts` | Modify | `supportsTaskQueue: true` |
+| `tests/suites/copilot-task-queue.test.ts` | **New** | Integration tests (6 cases, mirroring Gemini task queue) |
+| `tests/unit/shared/session-capabilities.test.ts` | Modify | Add Copilot cases to capability helper tests |
 
 ## Resolved Questions
 
@@ -298,10 +305,14 @@ No new files. Metadata flag changes + test coverage.
 
 2. **Cursor behavior:** `hidesTerminalCursor: true` set as conservative default. Not yet verified via PTY escape sequences — harmless either way.
 
-3. **Hook merge behavior with user hooks:** If the user already has their own `~/.copilot/hooks/hooks.json`, mcode needs to merge rather than overwrite. Need to verify whether Copilot supports a `~/.copilot/hooks/` directory with multiple JSON files, or if it's a single `hooks.json` that must be merged. Blocks Phase 2A.
+3. ~~**Hook merge behavior with user hooks:**~~ RESOLVED — Phase 2 implemented ownership-marker pattern: mcode entries identified by `bash` field containing `copilot-hook-bridge.sh`. Merge preserves user entries; multiple hooks per event execute in order (arrays). One-time backup before first mutation. Verified with Copilot CLI v1.0.12.
 
 ## Recently Resolved Questions
 
 5. **`--prompt` is headless, use `-i` for interactive:** Verified against v1.0.12 — `-p`/`--prompt` runs non-interactively and exits. `-i`/`--interactive` starts the PTY session and auto-submits the prompt. Phase 1 adapter uses `-i`.
 
 6. **`events.jsonl` format verified:** First line is always `session.start` with fields nested under `data`: `data.sessionId`, `data.context.cwd`, `data.startTime`. Uses camelCase. Most short-lived sessions only have `workspace.yaml` (snake_case: `id`, `cwd`, `created_at`). Session store uses `events.jsonl` primary with `workspace.yaml` fallback; no YAML library dependency needed (simple line-based parsing).
+
+7. **`sessionId` in hook payloads:** Undocumented but verified — all Copilot hook payloads include a `sessionId` UUID field. Phase 2C uses this for instant session-ID capture from `SessionStart` events.
+
+8. **`toolArgs` format inconsistency:** In `preToolUse`, `toolArgs` is a JSON string; in `postToolUse`, it's a parsed object. Phase 2A's `parseCopilotToolArgs()` handles both.

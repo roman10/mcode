@@ -12,10 +12,10 @@ Prerequisite reading: [design-copilot-support.md](./design-copilot-support.md) (
 
 | WP | Description | Dependencies | Status |
 |----|-------------|-------------|--------|
-| 2A | Hook bridge (config, bridge script, event mapping, startup registration) | None | **Ready** |
-| 2B | Resume (`prepareResume` in adapter) | None | **Ready** |
-| 2C | Hook-based session-ID capture from `sessionId` payload field | 2A | **Ready** |
-| 2E | Tests | 2A, 2B, 2C | **Ready** |
+| 2A | Hook bridge (config, bridge script, event mapping, startup registration) | None | **✅ Complete** |
+| 2B | Resume (`prepareResume` in adapter) | None | **✅ Complete** |
+| 2C | Hook-based session-ID capture from `sessionId` payload field | 2A | **✅ Complete** |
+| 2E | Tests | 2A, 2B, 2C | **✅ Complete** |
 
 **Deferred:** Runtime model detection — moved to [Future Enhancements](#future-enhancements) (hook payloads don't contain model info).
 
