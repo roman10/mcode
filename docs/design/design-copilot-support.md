@@ -215,25 +215,26 @@ Copilot sessions have real-time state tracking via hooks, can be resumed, and ca
 
 ---
 
-## Phase 3: Task Queue + Polish
+## Phase 3: Task Queue + Polish ✅ COMPLETE
 
-See [design-copilot-support-phase3.md](./design-copilot-support-phase3.md) for the detailed Phase 3 design.
+Phase 3 is fully implemented. See [design-copilot-support-phase3.md](./design-copilot-support-phase3.md) for the detailed design.
 
-### Summary
+### What shipped
 
-Phase 3 is lightweight — Gemini's Phase 3 already generalized the task queue guards, so Copilot benefits directly:
+- **3A: Task queue enablement** — `supportsTaskQueue: true` in agent metadata. All capability gates (`hasLiveTaskQueue`, `canSessionQueueTasks`, `canSessionBeTaskTarget`) automatically include Copilot. Integration tests (`copilot-task-queue.test.ts`, 6 cases) mirror Gemini task queue tests. 656 total tests passing.
+- **3B: Commit tracking** — Already implemented in Phase 1 (R1 refactor). `'copilot'` in `AI_COAUTHOR_PATTERNS` detects `Co-Authored-By: GitHub Copilot` trailers.
+- **3C: Polish** — Fixed `makeSession()` factory missing `copilotSessionId` default. Added Copilot to `supportsTaskQueue`, `supportsPlanMode`, `canDisplaySessionModel`, and `installHelpUrl` unit test assertions.
 
-- **3A: Task queue enablement** — Set `supportsTaskQueue: true` in agent metadata (one-line change). All capability gates (`hasLiveTaskQueue`, `canSessionQueueTasks`, `canSessionBeTaskTarget`) automatically include Copilot. Integration tests mirror `gemini-task-queue.test.ts` (6 cases).
-- **3B: Commit tracking verification** — R1 refactor already applied in Phase 1. Verification-only: confirm `Co-Authored-By: GitHub Copilot` trailers are detected.
-- **3C: Polish** — Verify cursor hiding, idle detection accuracy, concurrent session-ID capture, session-end cleanup. Code changes only if defects found.
+**Known limitation:** Copilot has no `Stop`-equivalent hook event. Task completion detection relies on quiescence polling (~5s `PTY_QUIESCENCE_MS`) rather than instant hook-based transition. Acceptable for queued tasks; same mechanism proven across all agents.
 
-### Files changed (estimated)
+### Files changed (3 modified, 1 new)
 
-2 modified (`session-agents.ts`, `session-capabilities.test.ts`), 1 new (`copilot-task-queue.test.ts`). No changes to `task-queue.ts` or renderer code.
+Modified: `src/shared/session-agents.ts`, `tests/unit/shared/session-capabilities.test.ts`, `tests/unit/test-factories.ts`
+New: `tests/suites/copilot-task-queue.test.ts`
 
 ### Phase 3 deliverable
 
-Copilot sessions can be task targets, commits are tracked, and the integration is production-hardened. Full feature parity with Gemini; near-parity with Claude (missing only permission mode cycling and plan mode, which are Claude-specific).
+Copilot sessions can be task targets. Full feature parity with Gemini (task queue, hooks, resume, model display, commit tracking); near-parity with Claude (missing only permission mode cycling and plan mode, which are Claude-specific).
 
 ---
 

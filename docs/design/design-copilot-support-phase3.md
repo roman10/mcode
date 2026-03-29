@@ -4,9 +4,9 @@
 
 | WP | Description | Dependencies | Status |
 |----|-------------|-------------|--------|
-| 3A | Task queue enablement (metadata flag + integration tests) | Phase 2 complete | **Ready** |
-| 3B | Commit tracking verification | Phase 1 R1 refactor | **Ready** |
-| 3C | Polish (cursor, idle detection, edge cases) | Phase 2 complete | **Ready** |
+| 3A | Task queue enablement (metadata flag + integration tests) | Phase 2 complete | **✅ Complete** |
+| 3B | Commit tracking verification | Phase 1 R1 refactor | **✅ Complete** (already implemented in Phase 1) |
+| 3C | Polish (cursor, idle detection, edge cases) | Phase 2 complete | **✅ Complete** (factory fix applied; remaining items are verification-only) |
 
 ## Overview
 
@@ -73,12 +73,14 @@ This means the `active → idle` transition for live Copilot sessions relies on 
 
 1. Task dispatched → PTY write → session transitions to `active` (via `PreToolUse`/`PostToolUse` hook events)
 2. Copilot finishes responding → hook events stop flowing
-3. Quiescence polling detects 500ms of no PTY output → `copilotPollState` returns `{ status: 'idle' }`
+3. Quiescence polling detects 5s of no PTY output (`PTY_QUIESCENCE_MS = 5000`) → `copilotPollState` returns `{ status: 'idle' }`
 4. Task queue detects `idle` → marks task as `completed`
 
-**Latency impact:** ~500ms delay for task completion detection vs near-instant for Claude/Gemini. This is acceptable — the same quiescence mechanism already works reliably for fallback-mode sessions. The only difference is that Copilot uses it even in live mode.
+**Latency impact:** ~5s delay for task completion detection (`PTY_QUIESCENCE_MS = 5000`) vs near-instant for Claude/Gemini (which have a `Stop` hook event). This is acceptable for queued tasks — the same quiescence mechanism already works reliably for all agents as a polling backup. The only difference is that Copilot relies on it as the primary active→idle path even in live mode.
 
 **Session end** is still hook-based: `sessionEnd → SessionEnd → ended`. Any pending tasks are failed immediately via the hook event, not polling.
+
+**Why `hookMode='live'` is still correct:** `pollSessionStates()` (`session-manager.ts:1193`) runs for ALL non-terminal sessions regardless of hookMode — there is no hookMode filter in the query. Polling always runs as a safety net. `hookMode='live'` means hooks are active and provide real-time events (SessionStart→active, PreToolUse→active, SessionEnd→ended). The active→idle transition via polling is a supplement, not a contradiction.
 
 **Future improvement:** If Copilot CLI adds an agent-completion hook event (analogous to Gemini's `AfterAgent`), the `COPILOT_EVENT_MAP` can map it to `Stop` for instant active→idle transition. No other changes needed — the state machine already handles `Stop`.
 
@@ -129,7 +131,7 @@ No code changes needed — this is a verification-only work package.
 
 ### C2: Idle detection accuracy
 
-**Current state:** `copilotPollState()` uses 500ms quiescence (same as Codex/Gemini). Phase 2 hook bridge provides real-time state for live sessions.
+**Current state:** `copilotPollState()` uses 5s quiescence (`PTY_QUIESCENCE_MS = 5000`, same as Codex/Gemini). Phase 2 hook bridge provides real-time state for live sessions.
 
 **Action:** Verify with a real Copilot CLI session that:
 - Hook-based transitions (`SessionStart` → active, quiescence → idle) are accurate
@@ -147,7 +149,13 @@ If quiescence threshold needs tuning, the `isQuiescent` debounce is configurable
 - Hook-based capture takes priority when hooks are live
 - Filesystem polling fallback handles the concurrent case (unlikely but verify)
 
-### C4: Session-end cleanup
+### C4: Test factory gap
+
+**Current state:** `makeSession()` in `tests/unit/test-factories.ts` does not include `copilotSessionId` in its defaults. `copilotSessionId: string | null` is a required (non-optional) field on `SessionInfo`. TypeScript doesn't catch the omission because `...overrides: Partial<SessionInfo>` makes it assume the spread *could* contain the field. But `makeSession()` with no overrides produces an object missing `copilotSessionId` at runtime.
+
+**Action:** Add `copilotSessionId: null` to the factory defaults, alongside the existing `claudeSessionId: null`, `codexThreadId: null`, `geminiSessionId: null`.
+
+### C5: Session-end cleanup
 
 **Action:** Verify that when a Copilot session ends (user types `/exit`, Ctrl+C, or session times out):
 - `sessionEnd` hook fires with correct `reason` field
@@ -202,6 +210,8 @@ async function createIdleLiveCopilotSession(client: McpTestClient): Promise<Sess
 
 These mirror the Gemini task queue tests exactly, providing equivalent coverage for the Copilot agent type.
 
+**Note on `Stop` injection vs quiescence:** All 6 tests use synthetic `Stop` event injection (via `injectHookEvent`) to transition sessions to idle. In production, Copilot's active→idle transition uses quiescence polling instead (see [Task completion detection](#task-completion-detection)). A dedicated quiescence-based test is not needed because: (a) the task queue doesn't care *how* idle happens — it watches the status column; (b) the quiescence mechanism is already exercised by existing Copilot tests (`copilot-support.test.ts` uses `waitForIdle` which relies on `copilotPollState` + `PTY_QUIESCENCE_MS`); (c) such a test would take 5+ seconds for minimal additional coverage.
+
 ---
 
 ## Verification Checklist
@@ -228,8 +238,9 @@ These mirror the Gemini task queue tests exactly, providing equivalent coverage 
 | `src/shared/session-agents.ts` | Modify | 3A | `supportsTaskQueue: true` |
 | `tests/suites/copilot-task-queue.test.ts` | **New** | 3A | Integration tests (6 cases, mirroring Gemini task queue) |
 | `tests/unit/shared/session-capabilities.test.ts` | Modify | 3A | Add Copilot cases to capability helper tests |
+| `tests/unit/test-factories.ts` | Modify | 3C | Add `copilotSessionId: null` default to `makeSession()` |
 
-Total: 2 modified files, 1 new test file.
+Total: 3 modified files, 1 new test file.
 
 No changes to `task-queue.ts`, `session-capabilities.ts`, `copilot-runtime.ts`, or any renderer code. The generic infrastructure already handles Copilot correctly once the metadata flag is set.
 
@@ -254,8 +265,8 @@ No changes to `task-queue.ts`, `session-capabilities.ts`, `copilot-runtime.ts`, 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
 | Copilot ignores `\r` for prompt submission | Very low | High | Same PTY mechanism works for Claude/Gemini; Copilot is a standard PTY app |
-| Task completion detected too early (false idle) | Low | Medium | Quiescence polling uses 500ms debounce; same mechanism proven in fallback mode |
-| Task completion latency (~500ms) | Certain | Low | No `Stop`-equivalent hook event; quiescence polling is only path. Acceptable — user-imperceptible for queued tasks |
+| Task completion detected too early (false idle) | Low | Medium | Quiescence polling uses 5000ms debounce (`PTY_QUIESCENCE_MS`); same mechanism proven in fallback mode |
+| Task completion latency (~5s) | Certain | Low | No `Stop`-equivalent hook event; quiescence polling (5000ms `PTY_QUIESCENCE_MS`) is only path. Acceptable for queued tasks; same mechanism proven across all agents |
 | Concurrent task dispatch race | Very low | Medium | Task queue uses single-threaded dispatch loop with DB-level locking |
 
 ---

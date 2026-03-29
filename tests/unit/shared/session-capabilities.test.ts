@@ -36,6 +36,17 @@ describe('session-capabilities', () => {
     expect(canSessionQueueTasks(makeSession({ sessionType: 'gemini', hookMode: 'fallback' }))).toBe(false);
   });
 
+  it('allows live Copilot sessions to queue tasks', () => {
+    expect(hasLiveTaskQueue(makeSession({ sessionType: 'copilot', hookMode: 'live' }))).toBe(true);
+    expect(canSessionQueueTasks(makeSession({ sessionType: 'copilot', hookMode: 'live' }))).toBe(true);
+    expect(canSessionBeTaskTarget(makeSession({ sessionType: 'copilot', hookMode: 'live', status: 'idle' }))).toBe(true);
+  });
+
+  it('blocks fallback Copilot sessions from task queue', () => {
+    expect(hasLiveTaskQueue(makeSession({ sessionType: 'copilot', hookMode: 'fallback' }))).toBe(false);
+    expect(canSessionQueueTasks(makeSession({ sessionType: 'copilot', hookMode: 'fallback' }))).toBe(false);
+  });
+
   it('hasLiveTaskQueue does not gate on session status', () => {
     // hasLiveTaskQueue checks agent support + hookMode only, not status —
     // this is critical so ended sessions can reach the resume path in TaskQueue.create()
@@ -46,6 +57,7 @@ describe('session-capabilities', () => {
   it('shows model pills only for agents that support model display', () => {
     expect(canDisplaySessionModel(makeSession({ model: 'claude-sonnet-4-5' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ sessionType: 'gemini', model: 'gemini-2.5-pro' }))).toBe(true);
+    expect(canDisplaySessionModel(makeSession({ sessionType: 'copilot', model: 'gpt-4o' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ sessionType: 'codex', model: 'gpt-5' }))).toBe(false);
     expect(canDisplaySessionModel(makeSession({ model: null }))).toBe(false);
   });
@@ -54,12 +66,14 @@ describe('session-capabilities', () => {
     expect(getAgentDefinition('claude')?.supportsPlanMode).toBe(true);
     expect(getAgentDefinition('codex')?.supportsPlanMode).toBe(false);
     expect(getAgentDefinition('gemini')?.supportsPlanMode).toBe(false);
+    expect(getAgentDefinition('copilot')?.supportsPlanMode).toBe(false);
   });
 
   it('exposes correct supportsTaskQueue flags per agent', () => {
     expect(getAgentDefinition('claude')?.supportsTaskQueue).toBe(true);
     expect(getAgentDefinition('codex')?.supportsTaskQueue).toBe(false);
     expect(getAgentDefinition('gemini')?.supportsTaskQueue).toBe(true);
+    expect(getAgentDefinition('copilot')?.supportsTaskQueue).toBe(true);
   });
 
   it('returns install help only for agents with an install URL', () => {
@@ -67,6 +81,11 @@ describe('session-capabilities', () => {
       command: 'claude',
       displayName: 'Claude Code',
       url: 'https://docs.anthropic.com/en/docs/claude-code/overview',
+    });
+    expect(getSessionInstallHelp('copilot')).toEqual({
+      command: 'copilot',
+      displayName: 'Copilot CLI',
+      url: 'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started',
     });
     expect(getSessionInstallHelp('codex')).toBeNull();
     expect(getSessionInstallHelp('gemini')).toBeNull();

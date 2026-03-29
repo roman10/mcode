@@ -66,7 +66,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     displayName: 'Copilot CLI',
     icon: COPILOT_ICON,
     defaultCommand: 'copilot',
-    supportsTaskQueue: false,
+    supportsTaskQueue: true,
     supportsPlanMode: false,
     hidesTerminalCursor: true,
     dialogMode: 'minimal',
