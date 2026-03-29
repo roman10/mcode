@@ -567,14 +567,6 @@ describe('addDiffViewer auto-focus', () => {
 });
 
 describe('migrateTab', () => {
-  it("maps 'commits' to 'stats'", () => {
-    expect(migrateTab('commits')).toBe('stats');
-  });
-
-  it("maps 'tokens' to 'stats'", () => {
-    expect(migrateTab('tokens')).toBe('stats');
-  });
-
   it('passes valid tabs through unchanged', () => {
     expect(migrateTab('sessions')).toBe('sessions');
     expect(migrateTab('search')).toBe('search');
@@ -587,5 +579,7 @@ describe('migrateTab', () => {
     expect(migrateTab('garbage')).toBe('sessions');
     expect(migrateTab('')).toBe('sessions');
     expect(migrateTab('dashboard')).toBe('sessions');
+    expect(migrateTab('commits')).toBe('sessions');
+    expect(migrateTab('tokens')).toBe('sessions');
   });
 });

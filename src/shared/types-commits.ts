@@ -1,29 +1,13 @@
 // --- Commit Tracking ---
 
-export interface CommitRecord {
-  id: number;
-  repoPath: string;
-  commitHash: string;
-  commitMessage: string | null;
-  commitType: string | null;
-  authorName: string | null;
-  authorEmail: string | null;
-  isClaudeAssisted: boolean;
-  committedAt: string;
-  date: string;
-  filesChanged: number | null;
-  insertions: number | null;
-  deletions: number | null;
-}
-
-export interface RepoCommitStats {
+interface RepoCommitStats {
   repoPath: string;
   count: number;
   insertions: number;
   deletions: number;
 }
 
-export interface CommitTypeStats {
+interface CommitTypeStats {
   type: string;
   count: number;
 }

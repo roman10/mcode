@@ -14,12 +14,8 @@ import {
 } from '../utils/tile-id';
 import { useSessionStore } from './session-store';
 
-/** Legacy tile IDs — stripped from persisted layouts on restore. */
-const LEGACY_TILE_IDS = ['dashboard', 'commit-stats', 'token-stats'];
-
-/** Migrate persisted sidebar tab values from previous schema to the current schema. Exported for testing. */
+/** Validate a persisted sidebar tab value, falling back to 'sessions' for unknown values. Exported for testing. */
 export function migrateTab(tab: string): SidebarTab {
-  if (tab === 'commits' || tab === 'tokens') return 'stats';
   const valid: SidebarTab[] = ['sessions', 'search', 'changes', 'stats', 'activity'];
   return valid.includes(tab as SidebarTab) ? (tab as SidebarTab) : 'sessions';
 }
@@ -621,19 +617,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const viewMode: ViewMode = viewModePref === 'kanban' ? 'kanban' : 'tiles';
     const showActivityTab = showActivityTabPref === 'true';
     if (snapshot) {
-      // Strip legacy dashboard/stats tiles from persisted layouts
-      let tree = snapshot.mosaicTree;
-      if (tree) {
-        const leaves = getLeaves(tree);
-        const filtered = leaves.filter((l) => !LEGACY_TILE_IDS.includes(l));
-        if (filtered.length < leaves.length) {
-          tree = filtered.length === 0 ? null
-            : filtered.length === 1 ? filtered[0]
-            : createBalancedTreeFromLeaves(filtered) ?? null;
-        }
-      }
       set({
-        mosaicTree: tree,
+        mosaicTree: snapshot.mosaicTree,
         sidebarWidth: snapshot.sidebarWidth,
         sidebarCollapsed: snapshot.sidebarCollapsed ?? false,
         activeSidebarTab: migrateTab(snapshot.activeSidebarTab ?? 'sessions'),
