@@ -47,7 +47,8 @@ export const HOOK_EVENT_RETENTION_DAYS = 7;
 export const HOOK_TOOL_INPUT_MAX_BYTES = 4096;
 export const HOOK_PRUNE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
-export const KNOWN_HOOK_EVENTS = [
+// Events recognised by Claude Code's settings.json hook system.
+export const CLAUDE_HOOK_EVENTS = [
   'PreToolUse',
   'PostToolUse',
   'PostToolUseFailure',
@@ -57,6 +58,11 @@ export const KNOWN_HOOK_EVENTS = [
   'SessionEnd',
   'Notification',
   'UserPromptSubmit',
+] as const;
+
+// All hook events mcode understands, including Gemini-only events like BeforeModel.
+export const KNOWN_HOOK_EVENTS = [
+  ...CLAUDE_HOOK_EVENTS,
   'BeforeModel',
 ] as const;
 export type KnownHookEvent = (typeof KNOWN_HOOK_EVENTS)[number];

@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { logger } from '../logger';
-import { KNOWN_HOOK_EVENTS } from '../../shared/constants';
+import { CLAUDE_HOOK_EVENTS } from '../../shared/constants';
 
 const MCODE_HOOK_MARKER = 'X-Mcode-Hook';
 const MCODE_PID_HEADER = 'X-Mcode-PID';
@@ -158,7 +158,7 @@ export function mergeMcodeHooks(
     allowedEnvVars: ['MCODE_SESSION_ID'],
   };
 
-  for (const eventName of KNOWN_HOOK_EVENTS) {
+  for (const eventName of CLAUDE_HOOK_EVENTS) {
     const existing = hooks[eventName] ?? [];
     hooks[eventName] = [...existing, { hooks: [{ ...mcodeEntry }] }];
   }
