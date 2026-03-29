@@ -249,7 +249,7 @@ describe('task queue', () => {
         cwd: process.cwd(),
         targetSessionId: session.sessionId,
       }),
-    ).rejects.toThrow(/only supports Claude/i);
+    ).rejects.toThrow(/does not support task queue/i);
 
     await killAndWaitEnded(client, session.sessionId);
   });

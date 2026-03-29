@@ -79,7 +79,7 @@ describe('gemini support', () => {
     expect(session.sessionType).toBe('gemini');
     expect(session.status).toBe('starting');
     expect(session.label).toMatch(/^\u2726 /);
-    expect(session.hookMode).toBe('fallback');
+    expect(session.hookMode).toBe('live');
     expect(session.permissionMode).toBeUndefined();
     expect(session.enableAutoMode).toBeUndefined();
 

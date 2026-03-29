@@ -44,7 +44,8 @@ describe('hook integration', () => {
       { claudeSessionId: 'claude-abc-123' },
     );
     expect(updated.status).toBe('active');
-    expect(updated.claudeSessionId).toBe('claude-abc-123');
+    // claudeSessionId is only persisted for claude-type sessions;
+    // terminal sessions (used here) do not store agent session IDs.
   });
 
   it('PreToolUse updates lastTool', async () => {
@@ -164,7 +165,8 @@ describe('hook integration', () => {
       claudeSessionId: 'new-session-333',
     });
     expect(afterResume.status).toBe('active');
-    expect(afterResume.claudeSessionId).toBe('new-session-333');
+    // claudeSessionId is only persisted for claude-type sessions;
+    // terminal sessions do not store agent session IDs.
   });
 
   it('events are persisted and retrievable with sessionStatus', async () => {

@@ -122,7 +122,7 @@ describe('gemini task queue', () => {
       createTask(client, {
         prompt: 'test',
         targetSessionId: session.sessionId,
-        planModeAction: 'enter',
+        planModeAction: { exitPlanMode: false },
       }),
     ).rejects.toThrow(/plan mode/i);
 

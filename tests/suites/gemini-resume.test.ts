@@ -75,7 +75,7 @@ describe('gemini resume', () => {
 
     const result = await client.callTool('session_resume', { sessionId: session.sessionId });
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('Gemini session ID missing-id is no longer available');
+    expect(result.content[0].text).toContain('Gemini session missing-id is no longer available');
   });
 
   it('resumes a Gemini session in place with the same session ID', async () => {
