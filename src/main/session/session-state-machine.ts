@@ -1,18 +1,9 @@
 import type { SessionStatus, SessionAttentionLevel } from '../../shared/types';
+import type { KnownHookEvent } from '../../shared/constants';
 
 // --- Types ---
 
-export type HookEventName =
-  | 'SessionStart'
-  | 'PreToolUse'
-  | 'PostToolUse'
-  | 'Stop'
-  | 'PermissionRequest'
-  | 'Notification'
-  | 'PostToolUseFailure'
-  | 'SessionEnd'
-  | 'UserPromptSubmit'
-  | 'BeforeModel';
+export type HookEventName = KnownHookEvent;
 
 export type AttentionRule =
   | { type: 'clear' }

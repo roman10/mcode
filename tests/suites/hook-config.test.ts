@@ -178,6 +178,11 @@ describe('hook config helpers', () => {
     expect(portPids.get(7778)).toBe(process.pid);
   });
 
+  it('does not register Gemini-only BeforeModel event', () => {
+    const settings = mergeMcodeHooks({}, 7777);
+    expect(settings.hooks?.BeforeModel).toBeUndefined();
+  });
+
   it('extractMcodeHookPortPids returns empty map for no hooks', () => {
     const portPids = extractMcodeHookPortPids({});
     expect(portPids.size).toBe(0);
