@@ -10,6 +10,8 @@ interface DialogState {
   showCommandPalette: boolean;
   showCreateTaskDialog: boolean;
   quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets';
+  /** When set, snippet insertion targets this callback instead of the PTY. */
+  textInsertTarget: ((text: string) => void) | null;
 
   setShowNewSessionDialog(show: boolean): void;
   setNewSessionDialogType(type: AgentSessionType): void;
@@ -19,6 +21,7 @@ interface DialogState {
   setShowCommandPalette(show: boolean): void;
   setShowCreateTaskDialog(show: boolean): void;
   openQuickOpen(mode: 'files' | 'commands' | 'shell' | 'snippets'): void;
+  setTextInsertTarget(target: ((text: string) => void) | null): void;
 }
 
 export const useDialogStore = create<DialogState>((set) => ({
@@ -30,6 +33,7 @@ export const useDialogStore = create<DialogState>((set) => ({
   showCommandPalette: false,
   showCreateTaskDialog: false,
   quickOpenInitialMode: 'files' as const,
+  textInsertTarget: null,
 
   setShowNewSessionDialog: (show) => set({ showNewSessionDialog: show }),
   setNewSessionDialogType: (type) => set({ newSessionDialogType: type }),
@@ -40,4 +44,5 @@ export const useDialogStore = create<DialogState>((set) => ({
   setShowCreateTaskDialog: (show) => set({ showCreateTaskDialog: show }),
 
   openQuickOpen: (mode) => set({ quickOpenInitialMode: mode, showCommandPalette: true }),
+  setTextInsertTarget: (target) => set({ textInsertTarget: target }),
 }));

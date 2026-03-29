@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Command } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
 import { useSessionStore } from '../../stores/session-store';
+import { useDialogStore } from '../../stores/dialog-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { resolveActiveCwd } from '../../utils/session-actions';
 import type { SnippetEntry } from '@shared/types';
@@ -22,6 +23,11 @@ function renderTemplate(body: string, values: Record<string, string>): string {
 }
 
 function insertSnippetText(text: string): boolean {
+  const target = useDialogStore.getState().textInsertTarget;
+  if (target) {
+    target(text);
+    return true;
+  }
   const sessionId = useSessionStore.getState().selectedSessionId;
   if (!sessionId) return false;
   window.mcode.pty.write(sessionId, text);

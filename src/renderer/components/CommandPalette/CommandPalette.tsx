@@ -66,7 +66,7 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-black/50 animate-fade-in"
+      className="fixed inset-0 z-[60] flex items-start justify-center pt-[10vh] bg-black/50 animate-fade-in"
       onClick={onClose}
     >
       <div

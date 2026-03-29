@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { formatShortTime } from '../../hooks/useRelativeTime';
+import { useTextInsertTarget } from '../../hooks/useTextInsertTarget';
 import Dialog from './Dialog';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import FileAutocomplete from './FileAutocomplete';
@@ -32,6 +33,8 @@ function CreateTaskDialog({
   const [isCreating, setIsCreating] = useState(false);
   const [cursorPos, setCursorPos] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useTextInsertTarget(open, textareaRef, setPrompt, setCursorPos);
 
   const sessions = useSessionStore((s) => s.sessions);
 

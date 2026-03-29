@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTextInsertTarget } from '../../hooks/useTextInsertTarget';
 import Dialog from './Dialog';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import FileAutocomplete from './FileAutocomplete';
@@ -26,6 +27,8 @@ function PlanModeResponseDialog({
   const [isCreating, setIsCreating] = useState(false);
   const [cursorPos, setCursorPos] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useTextInsertTarget(open, textareaRef, setMessage, setCursorPos);
 
   // Reset form when dialog opens
   useEffect(() => {
