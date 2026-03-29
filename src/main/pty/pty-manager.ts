@@ -31,7 +31,12 @@ function buildPtyEnv(overrides?: Record<string, string>): Record<string, string>
   for (const key of ELECTRON_INTERNAL_VARS) {
     delete base[key];
   }
-  return { ...base, ...overrides } as Record<string, string>;
+  return {
+    ...base,
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'mcode',
+    ...overrides,
+  } as Record<string, string>;
 }
 
 export class PtyManager implements IPtyManager {
