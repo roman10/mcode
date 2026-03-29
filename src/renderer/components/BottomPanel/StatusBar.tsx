@@ -1,16 +1,8 @@
-import { useEffect, useState } from 'react';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
+import { useUpdateStore } from '../../stores/update-store';
+import type { UpdatePhase } from '../../stores/update-store';
 import Tooltip from '../shared/Tooltip';
 import { formatKeys } from '../../utils/format-shortcut';
-
-const DISMISS_KEY = 'update-dismissed-version';
-
-type UpdateState =
-  | { phase: 'idle' }
-  | { phase: 'available'; version: string }
-  | { phase: 'downloading'; version: string; percent: number }
-  | { phase: 'ready'; version: string }
-  | { phase: 'error'; version: string; message: string };
 
 /** Inline SVG: downward arrow into tray (download icon) */
 function DownloadIcon(): React.JSX.Element {
@@ -69,21 +61,25 @@ function DismissButton({ onDismiss }: { onDismiss: () => void }): React.JSX.Elem
 }
 
 function UpdatePill({
-  state,
+  phase,
+  version,
+  percent,
   onDismiss,
 }: {
-  state: Exclude<UpdateState, { phase: 'idle' }>;
+  phase: Exclude<UpdatePhase, 'idle'>;
+  version: string;
+  percent: number;
   onDismiss: () => void;
 }): React.JSX.Element {
-  switch (state.phase) {
+  switch (phase) {
     case 'available':
       return (
         <button
           type="button"
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono transition-colors cursor-pointer shrink-0 text-accent hover:bg-accent/20 ml-auto"
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono transition-colors cursor-pointer shrink-0 text-accent hover:bg-accent/20 ml-auto animate-pulse-once"
           onClick={() => window.mcode.app.downloadUpdate()}
         >
-          <span>v{state.version} available</span>
+          <span>v{version} available</span>
           <DownloadIcon />
           <DismissButton onDismiss={onDismiss} />
         </button>
@@ -92,7 +88,7 @@ function UpdatePill({
     case 'downloading':
       return (
         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono shrink-0 text-text-secondary ml-auto">
-          <span>Downloading {state.percent}%</span>
+          <span>Downloading {percent}%</span>
         </div>
       );
 
@@ -128,39 +124,18 @@ export default function StatusBar(): React.JSX.Element | null {
   const panelVisible = useTerminalPanelStore((s) => s.panelVisible);
   const setPanelVisible = useTerminalPanelStore((s) => s.setPanelVisible);
 
-  const [updateState, setUpdateState] = useState<UpdateState>({ phase: 'idle' });
-  const [dismissedVersion, setDismissedVersion] = useState<string | null>(
-    () => sessionStorage.getItem(DISMISS_KEY),
-  );
-
-  useEffect(() => {
-    const unsub1 = window.mcode.app.onUpdateAvailable((info) => {
-      setUpdateState({ phase: 'available', version: info.version });
-    });
-    const unsub2 = window.mcode.app.onUpdateDownloadProgress((info) => {
-      setUpdateState((prev) =>
-        prev.phase === 'available' || prev.phase === 'downloading'
-          ? { phase: 'downloading', version: prev.version, percent: info.percent }
-          : prev,
-      );
-    });
-    const unsub3 = window.mcode.app.onUpdateDownloaded((info) => {
-      setUpdateState({ phase: 'ready', version: info.version });
-    });
-    const unsub4 = window.mcode.app.onUpdateError((info) => {
-      setUpdateState((prev) => {
-        if (prev.phase === 'idle') return prev;
-        return { phase: 'error', version: prev.version, message: info.message };
-      });
-    });
-    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
-  }, []);
+  const phase = useUpdateStore((s) => s.phase);
+  const version = useUpdateStore((s) => s.version);
+  const percent = useUpdateStore((s) => s.percent);
+  const dismissedVersion = useUpdateStore((s) => s.dismissedVersion);
+  const dismissVersion = useUpdateStore((s) => s.dismissVersion);
 
   const showUpdate =
-    updateState.phase !== 'idle' &&
+    phase !== 'idle' &&
+    version != null &&
     !(
-      (updateState.phase === 'available' || updateState.phase === 'error') &&
-      updateState.version === dismissedVersion
+      (phase === 'available' || phase === 'error') &&
+      version === dismissedVersion
     );
 
   const terminalCount = Object.keys(terminals).length;
@@ -184,13 +159,11 @@ export default function StatusBar(): React.JSX.Element | null {
 
       {showUpdate && (
         <UpdatePill
-          state={updateState as Exclude<UpdateState, { phase: 'idle' }>}
+          phase={phase as Exclude<UpdatePhase, 'idle'>}
+          version={version!}
+          percent={percent}
           onDismiss={() => {
-            if ('version' in updateState) {
-              setDismissedVersion(updateState.version);
-              sessionStorage.setItem(DISMISS_KEY, updateState.version);
-            }
-            setUpdateState({ phase: 'idle' });
+            if (version) dismissVersion(version);
           }}
         />
       )}

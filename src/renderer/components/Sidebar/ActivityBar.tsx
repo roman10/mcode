@@ -34,7 +34,7 @@ function ActivityBarButton({ icon, tab, active, panelCollapsed, onSelect, toolti
   );
 }
 
-function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount, changesCount, showActivityTab }: {
+function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount, changesCount, showActivityTab, updateBadge }: {
   activeTab: SidebarTab;
   panelCollapsed: boolean;
   onTabSelect: (tab: SidebarTab) => void;
@@ -43,6 +43,7 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
   attentionCount: number;
   changesCount?: number;
   showActivityTab?: boolean;
+  updateBadge?: boolean;
 }): React.JSX.Element {
   return (
     <div className="flex flex-col h-full w-12 bg-bg-primary border-r border-border-default shrink-0">
@@ -106,10 +107,13 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
         </Tooltip>
         <Tooltip content={`Settings (${formatKeys(',', true)})`} side="right">
           <button
-            className="w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
+            className="relative w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
             onClick={onSettingsClick}
           >
             <Settings size={20} strokeWidth={1.5} />
+            {updateBadge && (
+              <span className="absolute top-1.5 right-2 w-2.5 h-2.5 rounded-full bg-accent" />
+            )}
           </button>
         </Tooltip>
       </div>

@@ -21,12 +21,16 @@ import TitleBar from './components/TitleBar';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
 import { useAppInitialization } from './hooks/useAppInitialization';
 import { useSessionSubscriptions } from './hooks/useSessionSubscriptions';
+import { useUpdateSubscriptions } from './hooks/useUpdateSubscriptions';
+import { useUpdateStore } from './stores/update-store';
+import UpdateBanner from './components/UpdateBanner';
 import { canSessionBeDefaultTaskTarget } from '@shared/session-capabilities';
 import type { CreateTaskInput, SidebarTab } from '@shared/types';
 
 function App(): React.JSX.Element {
   const { loading, error } = useAppInitialization();
   useSessionSubscriptions();
+  useUpdateSubscriptions();
 
   const flushPersist = useLayoutStore((s) => s.flushPersist);
 
@@ -120,6 +124,8 @@ function App(): React.JSX.Element {
     s.statuses.reduce((sum, status) => sum + status.staged.length + status.unstaged.length, 0),
   );
 
+  const updateBadge = useUpdateStore((s) => s.phase !== 'idle' && s.phase !== 'error');
+
   const handleActivityBarTabSelect = (tab: SidebarTab): void => {
     if (sidebarCollapsed) {
       setActiveSidebarTab(tab);
@@ -171,6 +177,7 @@ function App(): React.JSX.Element {
     <RadixTooltip.Provider delayDuration={200}>
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
         <TitleBar />
+        <UpdateBanner />
 
         {/* Main content: activity bar + sidebar panel + layout */}
         <div className="flex flex-1 min-h-0">
@@ -183,6 +190,7 @@ function App(): React.JSX.Element {
             attentionCount={attentionCount}
             changesCount={changesCount}
             showActivityTab={showActivityTab}
+            updateBadge={updateBadge}
           />
           {!sidebarCollapsed && <SidebarPanel />}
           <div className="flex-1 min-w-0 flex flex-col">
