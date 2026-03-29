@@ -12,7 +12,7 @@ Based on Copilot CLI v1.0.12 (latest as of March 2026):
 
 | Feature | Status | Details |
 |---|---|---|
-| Interactive mode | Yes | Default mode; chat-like terminal UI |
+| Interactive mode | Yes | Default mode; `-i "prompt"` for interactive with initial prompt; `-p "prompt"` is headless (exits after completion) |
 | Command name | `copilot` | Standalone binary (also available via `gh copilot`) |
 | Resume | Yes | `--resume=<UUID>` (specific), `--continue` (latest), `/resume` (interactive picker) |
 | Session state dir | `~/.copilot/session-state/` | Per-session UUID directories with `workspace.yaml` + `events.jsonl` |
@@ -230,7 +230,7 @@ copilot: {
 ```
 
 **Runtime adapter `src/main/session/agent-runtimes/copilot-runtime.ts`:**
-- `prepareCreate`: build args (`copilot --prompt "initialPrompt"` if set, else bare `copilot`), pass `--model` if set, set `hookMode: 'fallback'`
+- `prepareCreate`: build args (`copilot -i "initialPrompt"` if set, else bare `copilot`), pass `--model` if set, set `hookMode: 'fallback'`
 - `afterCreate`: kick off background session-ID capture (poll `~/.copilot/session-state/` for new entries matching cwd + timing). Capture runs in Phase 1 so the identity is persisted early; resume functionality that uses it ships in Phase 2.
 - `pollState`: fallback quiescence detector (same pattern as Codex/Gemini — watch PTY buffer for idle indicators)
 - `prepareResume`: deferred to Phase 2 (not implemented in Phase 1)
@@ -456,6 +456,10 @@ No new files. Metadata flag changes + test coverage.
 
 2. **Cursor behavior:** Does Copilot hide the terminal cursor during operation? Affects `hidesTerminalCursor` metadata. Can be verified by inspecting PTY escape sequences.
 
-3. **YAML parser dependency:** `workspace.yaml` needs parsing. However, `events.jsonl` contains a `session.start` event on line 1 with `sessionId`, `cwd`, `startTime`, and `context` in JSON — this may eliminate the YAML dependency entirely. If `events.jsonl` is sufficient for session matching, no new dependency is needed. Decision deferred to Phase 2B implementation.
+3. **Hook merge behavior with user hooks:** If the user already has their own `~/.copilot/hooks/hooks.json`, mcode needs to merge rather than overwrite. Need to verify whether Copilot supports a `~/.copilot/hooks/` directory with multiple JSON files, or if it's a single `hooks.json` that must be merged.
 
-4. **Hook merge behavior with user hooks:** If the user already has their own `~/.copilot/hooks/hooks.json`, mcode needs to merge rather than overwrite. Need to verify whether Copilot supports a `~/.copilot/hooks/` directory with multiple JSON files, or if it's a single `hooks.json` that must be merged.
+## Recently Resolved Questions
+
+5. **`--prompt` is headless, use `-i` for interactive:** Verified against v1.0.12 — `-p`/`--prompt` runs non-interactively and exits. `-i`/`--interactive` starts the PTY session and auto-submits the prompt. Phase 1 adapter uses `-i`.
+
+6. **`events.jsonl` format verified:** First line is always `session.start` with fields nested under `data`: `data.sessionId`, `data.context.cwd`, `data.startTime`. Uses camelCase. Most short-lived sessions only have `workspace.yaml` (snake_case: `id`, `cwd`, `created_at`). Session store uses `events.jsonl` primary with `workspace.yaml` fallback; no YAML library dependency needed (simple line-based parsing).
