@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { Database } from 'sql.js';
 import { createTestDb } from './test-db';
 import { buildModeCycle, calcShiftTabPresses } from '../../../src/main/task-queue';
@@ -117,14 +117,19 @@ describe('task_queue permission_mode column', () => {
 
   beforeAll(async () => {
     db = await createTestDb();
+  });
+
+  afterAll(() => db.close());
+
+  beforeEach(() => {
+    db.run('DELETE FROM task_queue');
+    db.run('DELETE FROM sessions');
     // Insert a test session
     db.run(
       `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode)
        VALUES ('s1', 'test', '/tmp', 'idle', datetime('now'), 'claude', 'live')`,
     );
   });
-
-  afterAll(() => db.close());
 
   it('stores and retrieves permission_mode on tasks', () => {
     db.run(
@@ -153,6 +158,10 @@ describe('sessions allow_bypass_permissions column', () => {
   });
 
   afterAll(() => db.close());
+
+  beforeEach(() => {
+    db.run('DELETE FROM sessions');
+  });
 
   it('stores allow_bypass_permissions flag', () => {
     db.run(
