@@ -1,4 +1,3 @@
-1. resumed session remains starting state. state indicator can be incorrect.
 [upstream] 3. Claude Code plan mode input wrapping doesn't reflow on SIGWINCH. mcode PTY resize chain verified correct (PTY and xterm cols always match).
 6. kanban mode diff viewer — opening a diff from Changes tab in kanban mode falls back to regular file viewer instead of showing a proper diff view
 
