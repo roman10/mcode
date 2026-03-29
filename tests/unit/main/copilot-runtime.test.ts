@@ -1,20 +1,56 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildCopilotCreatePlan,
+  buildCopilotResumePlan,
   isCopilotCommand,
   copilotPollState,
 } from '../../../src/main/session/agent-runtimes/copilot-runtime';
-import type { AgentCreateContext, PtyPollContext } from '../../../src/main/session/agent-runtime';
+import type { AgentCreateContext, AgentPrepareResumeContext, PtyPollContext } from '../../../src/main/session/agent-runtime';
 
-function makeCreateCtx(overrides?: Partial<AgentCreateContext['input']>): AgentCreateContext {
+function makeCreateCtx(overrides?: Partial<AgentCreateContext['input']> & {
+  hookReady?: boolean;
+  hookPort?: number;
+  command?: string;
+}): AgentCreateContext {
+  const { hookReady, hookPort, command, ...inputOverrides } = overrides ?? {};
   return {
     input: {
       cwd: '/tmp',
-      ...overrides,
+      ...inputOverrides,
     },
-    command: 'copilot',
-    hookRuntime: { state: 'initializing', port: null, warning: null },
-    agentHookBridgeReady: false,
+    command: command ?? 'copilot',
+    hookRuntime: hookReady
+      ? { state: 'ready', port: hookPort ?? 7777, warning: null }
+      : { state: 'initializing', port: null, warning: null },
+    agentHookBridgeReady: hookReady ?? false,
+  };
+}
+
+function makeResumeCtx(overrides?: Partial<AgentPrepareResumeContext['row']> & {
+  hookReady?: boolean;
+  hookPort?: number;
+}): AgentPrepareResumeContext {
+  const { hookReady, hookPort, ...rowOverrides } = overrides ?? {};
+  return {
+    sessionId: 'test-session',
+    row: {
+      command: 'copilot',
+      cwd: '/tmp/project',
+      codexThreadId: null,
+      geminiSessionId: null,
+      claudeSessionId: null,
+      copilotSessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      permissionMode: null,
+      effort: null,
+      enableAutoMode: false,
+      allowBypassPermissions: false,
+      worktree: null,
+      ...rowOverrides,
+    },
+    hookRuntime: hookReady
+      ? { state: 'ready', port: hookPort ?? 7777, warning: null }
+      : { state: 'initializing', port: null, warning: null },
+    agentHookBridgeReady: hookReady ?? false,
   };
 }
 
@@ -71,6 +107,66 @@ describe('buildCopilotCreatePlan', () => {
     const plan = buildCopilotCreatePlan(makeCreateCtx({ model: '  ' }));
     expect(plan.dbFields.model).toBeNull();
     expect(plan.args).toEqual([]);
+  });
+
+  it('uses hookMode live and sets MCODE_HOOK_PORT when hooks are ready', () => {
+    const plan = buildCopilotCreatePlan(makeCreateCtx({ hookReady: true, hookPort: 7779 }));
+    expect(plan.hookMode).toBe('live');
+    expect(plan.env).toEqual({ MCODE_HOOK_PORT: '7779' });
+  });
+
+  it('falls back to hookMode fallback when bridge is not ready', () => {
+    const plan = buildCopilotCreatePlan(makeCreateCtx({ hookReady: false }));
+    expect(plan.hookMode).toBe('fallback');
+    expect(plan.env).toEqual({});
+  });
+
+  it('falls back when command is not copilot even if bridge ready', () => {
+    const plan = buildCopilotCreatePlan(makeCreateCtx({
+      hookReady: true,
+      hookPort: 7777,
+      command: '/usr/bin/my-wrapper',
+    }));
+    expect(plan.hookMode).toBe('fallback');
+    expect(plan.env).toEqual({});
+  });
+});
+
+describe('buildCopilotResumePlan', () => {
+  it('produces --resume <UUID> with correct args', () => {
+    const plan = buildCopilotResumePlan(makeResumeCtx());
+    expect(plan.command).toBe('copilot');
+    expect(plan.args).toEqual(['--resume', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee']);
+    expect(plan.cwd).toBe('/tmp/project');
+    expect(plan.logLabel).toBe('Copilot');
+  });
+
+  it('uses hookMode live when hooks are ready', () => {
+    const plan = buildCopilotResumePlan(makeResumeCtx({ hookReady: true, hookPort: 7780 }));
+    expect(plan.hookMode).toBe('live');
+    expect(plan.env).toEqual({ MCODE_HOOK_PORT: '7780' });
+  });
+
+  it('uses hookMode fallback when hooks are not ready', () => {
+    const plan = buildCopilotResumePlan(makeResumeCtx({ hookReady: false }));
+    expect(plan.hookMode).toBe('fallback');
+    expect(plan.env).toEqual({});
+  });
+
+  it('throws when copilotSessionId is null', () => {
+    expect(() => buildCopilotResumePlan(makeResumeCtx({ copilotSessionId: null }))).toThrow(
+      'Cannot resume: no Copilot session ID recorded',
+    );
+  });
+
+  it('uses stored command from row', () => {
+    const plan = buildCopilotResumePlan(makeResumeCtx({ command: '/usr/local/bin/copilot' }));
+    expect(plan.command).toBe('/usr/local/bin/copilot');
+  });
+
+  it('defaults to copilot when row.command is null', () => {
+    const plan = buildCopilotResumePlan(makeResumeCtx({ command: null }));
+    expect(plan.command).toBe('copilot');
   });
 });
 

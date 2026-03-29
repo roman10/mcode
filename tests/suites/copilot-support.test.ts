@@ -68,7 +68,7 @@ describe('copilot support', () => {
     expect(session.sessionType).toBe('copilot');
     expect(session.status).toBe('starting');
     expect(session.label).toMatch(/^\u2605 /);
-    expect(session.hookMode).toBe('fallback');
+    expect(['live', 'fallback']).toContain(session.hookMode);
     expect(session.permissionMode).toBeUndefined();
     expect(session.enableAutoMode).toBeUndefined();
 

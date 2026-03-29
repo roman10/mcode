@@ -627,8 +627,8 @@ export class SessionManager {
 
     // Verify session exists
     let row = db
-      .prepare('SELECT status, attention_level, cwd, worktree, last_tool, model, claude_session_id, session_type, gemini_session_id FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; last_tool: string | null; model: string | null; claude_session_id: string | null; session_type: string; gemini_session_id: string | null } | undefined;
+      .prepare('SELECT status, attention_level, cwd, worktree, last_tool, model, claude_session_id, session_type, gemini_session_id, copilot_session_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; last_tool: string | null; model: string | null; claude_session_id: string | null; session_type: string; gemini_session_id: string | null; copilot_session_id: string | null } | undefined;
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
       return false;
@@ -647,6 +647,22 @@ export class SessionManager {
         db.prepare(
           'UPDATE sessions SET gemini_session_id = ? WHERE session_id = ? AND gemini_session_id IS NULL',
         ).run(event.claudeSessionId, sessionId);
+      }
+    }
+
+    // Copilot: capture sessionId from hook payload on SessionStart
+    if (row.session_type === 'copilot' && !row.copilot_session_id && event.hookEventName === 'SessionStart') {
+      const copilotSessionId = event.payload?.sessionId as string | undefined;
+      if (copilotSessionId) {
+        const result = db.prepare(
+          'UPDATE sessions SET copilot_session_id = ? WHERE session_id = ? AND copilot_session_id IS NULL',
+        ).run(copilotSessionId, sessionId);
+        if (result.changes > 0) {
+          logger.info('session', 'Captured Copilot session ID from hook', {
+            sessionId,
+            copilotSessionId,
+          });
+        }
       }
     }
 

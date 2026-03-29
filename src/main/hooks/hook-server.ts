@@ -23,8 +23,30 @@ const GEMINI_EVENT_MAP: Record<string, string> = {
   'BeforeAgent': 'UserPromptSubmit',
 };
 
+const COPILOT_EVENT_MAP: Record<string, string> = {
+  'sessionStart': 'SessionStart',
+  'sessionEnd': 'SessionEnd',
+  'preToolUse': 'PreToolUse',
+  'postToolUse': 'PostToolUse',
+  'userPromptSubmitted': 'UserPromptSubmit',
+  'errorOccurred': 'Notification',
+};
+
 export function normalizeHookEventName(rawName: string): string {
-  return GEMINI_EVENT_MAP[rawName] ?? rawName;
+  return GEMINI_EVENT_MAP[rawName] ?? COPILOT_EVENT_MAP[rawName] ?? rawName;
+}
+
+/**
+ * Parse Copilot's toolArgs field, which is a JSON string in preToolUse
+ * but a parsed object in postToolUse.
+ */
+export function parseCopilotToolArgs(toolArgs: unknown): Record<string, unknown> | null {
+  if (!toolArgs) return null;
+  if (typeof toolArgs === 'object') return toolArgs as Record<string, unknown>;
+  if (typeof toolArgs === 'string') {
+    try { return JSON.parse(toolArgs); } catch { return null; }
+  }
+  return null;
 }
 
 let httpServer: http.Server | null = null;
@@ -151,8 +173,12 @@ function handleHookPost(
     sessionId,
     claudeSessionId: claudeSessionId ?? null,
     hookEventName,
-    toolName: (body.tool_name as string) ?? null,
-    toolInput: truncateToolInput((body.tool_input as Record<string, unknown>) ?? null),
+    toolName: (body.tool_name as string) ?? (body.toolName as string) ?? null,
+    toolInput: truncateToolInput(
+      (body.tool_input as Record<string, unknown>)
+      ?? parseCopilotToolArgs(body.toolArgs)
+      ?? null,
+    ),
     createdAt: new Date().toISOString(),
     payload: body,
   };

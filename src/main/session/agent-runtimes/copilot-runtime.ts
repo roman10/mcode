@@ -5,8 +5,10 @@ import { findCopilotSessionId } from '../copilot-session-store';
 import type {
   AgentCreateContext,
   AgentPostCreateContext,
+  AgentPrepareResumeContext,
   AgentRuntimeAdapter,
   PreparedCreate,
+  PreparedResume,
   PtyPollContext,
   StateUpdate,
 } from '../agent-runtime';
@@ -23,16 +25,46 @@ export function isCopilotCommand(command: string): boolean {
 }
 
 export function buildCopilotCreatePlan(ctx: AgentCreateContext): PreparedCreate {
+  const { input, hookRuntime } = ctx;
+  const bridgeReady = ctx.agentHookBridgeReady && isCopilotCommand(ctx.command);
+  const hookMode = bridgeReady && hookRuntime.state === 'ready' ? 'live' : 'fallback';
+
   const args: string[] = [];
-  const model = ctx.input.model?.trim() || null;
+  const model = input.model?.trim() || null;
   if (model) args.push('--model', model);
-  if (ctx.input.initialPrompt) args.push('-i', ctx.input.initialPrompt);
+  if (input.initialPrompt) args.push('-i', input.initialPrompt);
 
   return {
-    hookMode: 'fallback',
+    hookMode,
     args,
-    env: {},
+    env: bridgeReady && hookRuntime.port
+      ? { MCODE_HOOK_PORT: String(hookRuntime.port) }
+      : {},
     dbFields: { model },
+  };
+}
+
+export function buildCopilotResumePlan(ctx: AgentPrepareResumeContext): PreparedResume {
+  if (!ctx.row.copilotSessionId) throw new Error('Cannot resume: no Copilot session ID recorded');
+
+  const command = ctx.row.command || 'copilot';
+  const bridgeReady = ctx.agentHookBridgeReady && ctx.hookRuntime.state === 'ready';
+  const hookMode = bridgeReady ? 'live' : 'fallback';
+
+  return {
+    command,
+    cwd: ctx.row.cwd,
+    args: ['--resume', ctx.row.copilotSessionId],
+    env: bridgeReady && ctx.hookRuntime.port
+      ? { MCODE_HOOK_PORT: String(ctx.hookRuntime.port) }
+      : {},
+    hookMode,
+    logLabel: 'Copilot',
+    logContext: {
+      copilotSessionId: ctx.row.copilotSessionId,
+      cwd: ctx.row.cwd,
+      hookMode,
+    },
   };
 }
 
@@ -123,6 +155,9 @@ export function createCopilotRuntimeAdapter(deps: {
         cwd: ctx.cwd,
         startedAt: ctx.startedAt,
       });
+    },
+    prepareResume(ctx: AgentPrepareResumeContext): PreparedResume {
+      return buildCopilotResumePlan(ctx);
     },
     pollState: copilotPollState,
   };

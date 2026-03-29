@@ -22,6 +22,7 @@ import { startHookServer, stopHookServer } from './hooks/hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hooks/hook-config';
 import { writeBridgeScript, reconcileCodexHooks, cleanupCodexHooks } from './hooks/codex-hook-config';
 import { writeGeminiBridgeScript, reconcileGeminiHooks, cleanupGeminiHooks } from './hooks/gemini-hook-config';
+import { writeCopilotBridgeScript, reconcileCopilotHooks, cleanupCopilotHooks } from './hooks/copilot-hook-config';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { fixPath } from './fix-path';
@@ -244,6 +245,18 @@ async function initializeHookSystem(): Promise<void> {
         logger.info('app', 'Gemini hook bridge configured');
       } catch (err) {
         logger.warn('app', 'Gemini hook bridge setup failed — Gemini sessions will use fallback mode', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      // Copilot hook bridge: write bridge script + reconcile ~/.copilot/hooks/hooks.json
+      try {
+        writeCopilotBridgeScript();
+        reconcileCopilotHooks();
+        sessionManager.hookBridgeReady['copilot'] = true;
+        logger.info('app', 'Copilot hook bridge configured');
+      } catch (err) {
+        logger.warn('app', 'Copilot hook bridge setup failed — Copilot sessions will use fallback mode', {
           error: err instanceof Error ? err.message : String(err),
         });
       }
@@ -522,6 +535,7 @@ app.on('before-quit', (e) => {
     }
     cleanupCodexHooks();
     cleanupGeminiHooks();
+    cleanupCopilotHooks();
     stopHookServer();
 
     // Kill terminal sessions immediately (no value running headless)
