@@ -4,7 +4,7 @@ This file provides guidance to Gemini CLI when working with code in this reposit
 
 ## Project Overview
 
-**mcode** is a desktop IDE for managing multiple autonomous Claude Code CLI, Codex CLI, Gemini CLI sessions simultaneously. It's MacOS first, but with plans to extend to other OS in the future. 
+**mcode** is a desktop IDE for managing multiple autonomous Claude Code CLI, Codex CLI, Gemini CLI, Copilot CLI sessions simultaneously. It's MacOS first, but with plans to extend to other OS in the future. 
 
 The core hypothesis is that multi-tasking is essential part of the SWE flow in the agentic coding era, and the IDE shall facilitate a SWE to work with a large number of agents efficiently and easily, while maintaining a good sense of control and be able to get into the flow.
 

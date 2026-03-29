@@ -151,7 +151,7 @@ vitest.config.mts              # Sequential execution, 30s timeout (repo root)
 
 ## Fixtures And Troubleshooting
 
-`createLiveClaudeTestSession()` uses `tests/fixtures/claude`, `createCodexTestSession()` uses `tests/fixtures/codex`, and `createGeminiTestSession()` uses `tests/fixtures/gemini`. These are fake CLI entrypoints for deterministic integration tests, so if they are missing or not executable the related suite setup will fail before the product code is exercised.
+`createLiveClaudeTestSession()` uses `tests/fixtures/claude`, `createCodexTestSession()` uses `tests/fixtures/codex`, `createGeminiTestSession()` uses `tests/fixtures/gemini`, and `createCopilotTestSession()` uses `tests/fixtures/copilot`. These are fake CLI entrypoints for deterministic integration tests, so if they are missing or not executable the related suite setup will fail before the product code is exercised.
 
 Common failure modes:
 

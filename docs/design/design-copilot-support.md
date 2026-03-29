@@ -2,7 +2,7 @@
 
 ## Overview
 
-mcode currently supports three agent types: Claude Code, Codex CLI, and Gemini CLI, plus plain terminal sessions. This document describes the design for adding GitHub Copilot CLI as a fourth supported agent.
+mcode supports four agent types: Claude Code, Codex CLI, Gemini CLI, and Copilot CLI, plus plain terminal sessions. This document describes the design for adding GitHub Copilot CLI as the fourth supported agent.
 
 GitHub Copilot CLI (`copilot`) reached GA on February 25, 2026. It is a fully interactive, PTY-based coding agent with session resume, model selection, structured JSON output, and a hook/plugin system — making it the most feature-complete addition since Gemini.
 
@@ -304,7 +304,7 @@ These are explicitly deferred and not planned for any phase:
 
 1. ~~**Idle detection:**~~ RESOLVED — Phase 1 shipped with standard quiescence-based `pollState` (same as Codex/Gemini). Works correctly in practice.
 
-2. **Cursor behavior:** `hidesTerminalCursor: true` set as conservative default. Not yet verified via PTY escape sequences — harmless either way.
+2. ~~**Cursor behavior:**~~ RESOLVED — Conservative default (`hidesTerminalCursor: true`) is harmless and consistent with all four agents. Verification deferred — cosmetic only.
 
 3. ~~**Hook merge behavior with user hooks:**~~ RESOLVED — Phase 2 implemented ownership-marker pattern: mcode entries identified by `bash` field containing `copilot-hook-bridge.sh`. Merge preserves user entries; multiple hooks per event execute in order (arrays). One-time backup before first mutation. Verified with Copilot CLI v1.0.12.
 
