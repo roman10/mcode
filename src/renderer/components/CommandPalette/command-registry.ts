@@ -72,6 +72,14 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'new-session', sessionType: 'gemini' }),
     },
     {
+      id: 'new-copilot-session',
+      label: 'New Copilot Session',
+      category: 'General',
+      keywords: ['copilot', 'github', 'agent'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'new-session', sessionType: 'copilot' }),
+    },
+    {
       id: 'new-terminal',
       label: 'New Terminal',
       category: 'General',
