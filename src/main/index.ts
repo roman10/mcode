@@ -20,9 +20,10 @@ import { registerSnippetIpc } from './snippet-scanner';
 import { getPreference, setPreference, getPreferenceBool } from './preferences';
 import { startHookServer, stopHookServer } from './hooks/hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hooks/hook-config';
-import { writeBridgeScript, reconcileCodexHooks, cleanupCodexHooks } from './hooks/codex-hook-config';
-import { writeGeminiBridgeScript, reconcileGeminiHooks, cleanupGeminiHooks } from './hooks/gemini-hook-config';
-import { writeCopilotBridgeScript, reconcileCopilotHooks, cleanupCopilotHooks } from './hooks/copilot-hook-config';
+import { codexHookBridge } from './hooks/codex-hook-config';
+import { geminiHookBridge } from './hooks/gemini-hook-config';
+import { copilotHookBridge } from './hooks/copilot-hook-config';
+import type { HookBridge } from './hooks/hook-bridge';
 import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { fixPath } from './fix-path';
@@ -62,6 +63,7 @@ let hookRuntimeInfo: HookRuntimeInfo = {
 };
 let pruneInterval: ReturnType<typeof setInterval> | null = null;
 let pollSessionStatesInterval: ReturnType<typeof setInterval> | null = null;
+const agentBridges: HookBridge[] = [codexHookBridge, geminiHookBridge, copilotHookBridge];
 
 function setupCSP(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -225,40 +227,18 @@ async function initializeHookSystem(): Promise<void> {
         };
       }
 
-      // Codex hook bridge: write bridge script + reconcile ~/.codex/hooks.json
-      try {
-        writeBridgeScript();
-        reconcileCodexHooks();
-        sessionManager.hookBridgeReady['codex'] = true;
-        logger.info('app', 'Codex hook bridge configured');
-      } catch (err) {
-        logger.warn('app', 'Codex hook bridge setup failed — Codex sessions will use fallback mode', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-
-      // Gemini hook bridge: write bridge script + reconcile ~/.gemini/settings.json
-      try {
-        writeGeminiBridgeScript();
-        reconcileGeminiHooks();
-        sessionManager.hookBridgeReady['gemini'] = true;
-        logger.info('app', 'Gemini hook bridge configured');
-      } catch (err) {
-        logger.warn('app', 'Gemini hook bridge setup failed — Gemini sessions will use fallback mode', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-
-      // Copilot hook bridge: write bridge script + reconcile ~/.copilot/hooks/hooks.json
-      try {
-        writeCopilotBridgeScript();
-        reconcileCopilotHooks();
-        sessionManager.hookBridgeReady['copilot'] = true;
-        logger.info('app', 'Copilot hook bridge configured');
-      } catch (err) {
-        logger.warn('app', 'Copilot hook bridge setup failed — Copilot sessions will use fallback mode', {
-          error: err instanceof Error ? err.message : String(err),
-        });
+      // Bridge-script agents: write bridge script + reconcile config
+      for (const bridge of agentBridges) {
+        try {
+          bridge.writeBridgeScript();
+          bridge.reconcile();
+          sessionManager.hookBridgeReady[bridge.agentName] = true;
+          logger.info('app', `${bridge.agentName} hook bridge configured`);
+        } catch (err) {
+          logger.warn('app', `${bridge.agentName} hook bridge setup failed — sessions will use fallback mode`, {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     } else {
       hookRuntimeInfo = result;
@@ -533,9 +513,9 @@ app.on('before-quit', (e) => {
     if (hookRuntimeInfo.port) {
       cleanupOnQuit(hookRuntimeInfo.port, accountManager.getAllSettingsPaths().slice(1));
     }
-    cleanupCodexHooks();
-    cleanupGeminiHooks();
-    cleanupCopilotHooks();
+    for (const bridge of agentBridges) {
+      bridge.cleanup();
+    }
     stopHookServer();
 
     // Kill terminal sessions immediately (no value running headless)

@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { logger } from '../logger';
+import { readJsonConfig, backupJsonConfig, writeJsonConfig, cleanupJsonConfig } from './hook-config-io';
 import { CLAUDE_HOOK_EVENTS } from '../../shared/constants';
 
 const MCODE_HOOK_MARKER = 'X-Mcode-Hook';
@@ -177,38 +177,12 @@ function getSettingsPath(): string {
   return join(homedir(), '.claude', 'settings.json');
 }
 
-
 function reconcileSettingsFile(settingsPath: string, port: number): void {
-  // Read existing settings (treat missing file as empty)
-  let settings: ClaudeSettings;
-  try {
-    if (!existsSync(settingsPath)) {
-      settings = {};
-    } else {
-      const raw = readFileSync(settingsPath, 'utf-8');
-      settings = JSON.parse(raw) as ClaudeSettings;
-    }
-  } catch (err) {
-    if (existsSync(settingsPath)) {
-      throw new Error(
-        `Invalid JSON in ${settingsPath}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    settings = {};
-  }
-
-  // One-time backup before first mutation
-  const backupPath = settingsPath + '.mcode.bak';
-  if (existsSync(settingsPath) && !existsSync(backupPath)) {
-    copyFileSync(settingsPath, backupPath);
-    logger.info('hook-config', 'Created backup', { path: backupPath });
-  }
-
-  // Clean up hooks from dead instances, then add ours
-  settings = removeStaleHooks(settings);
-  const updated = mergeMcodeHooks(settings, port);
-  mkdirSync(dirname(settingsPath), { recursive: true });
-  writeFileSync(settingsPath, JSON.stringify(updated, null, 2) + '\n', 'utf-8');
+  const settings = readJsonConfig<ClaudeSettings>(settingsPath);
+  backupJsonConfig(settingsPath, 'hook-config');
+  const cleaned = removeStaleHooks(settings);
+  const updated = mergeMcodeHooks(cleaned, port);
+  writeJsonConfig(settingsPath, updated);
 }
 
 /** Reconcile ~/.claude/settings.json on app startup. */
@@ -238,19 +212,11 @@ export function reconcileOnStartup(port: number, extraSettingsPaths: string[] = 
 export function cleanupOnQuit(port: number, extraSettingsPaths: string[] = []): void {
   const allPaths = [getSettingsPath(), ...extraSettingsPaths];
   for (const settingsPath of allPaths) {
-    try {
-      if (!existsSync(settingsPath)) continue;
-      const raw = readFileSync(settingsPath, 'utf-8');
-      const settings = JSON.parse(raw) as ClaudeSettings;
-      const cleaned = removeMcodeHooksForPort(settings, port);
-      writeFileSync(settingsPath, JSON.stringify(cleaned, null, 2) + '\n', 'utf-8');
-    } catch (err) {
-      // Best-effort cleanup — don't crash on quit
-      logger.warn('hook-config', 'Failed to clean up hook config', {
-        path: settingsPath,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+    cleanupJsonConfig<ClaudeSettings>(
+      settingsPath,
+      'hook-config',
+      (settings) => removeMcodeHooksForPort(settings, port),
+    );
   }
   logger.info('hook-config', 'Cleaned up hook config', { port });
 }
