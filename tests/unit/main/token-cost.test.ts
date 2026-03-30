@@ -43,9 +43,14 @@ describe('normalizeModelFamily', () => {
     expect(normalizeModelFamily('claude-haiku-3-5')).toBe('haiku');
   });
 
+  it('detects gpt', () => {
+    expect(normalizeModelFamily('gpt-4')).toBe('gpt');
+    expect(normalizeModelFamily('gpt-5.4')).toBe('gpt');
+  });
+
   it('returns unknown for unrecognized models', () => {
-    expect(normalizeModelFamily('gpt-4')).toBe('unknown');
     expect(normalizeModelFamily('')).toBe('unknown');
+    expect(normalizeModelFamily('llama-3')).toBe('unknown');
   });
 });
 

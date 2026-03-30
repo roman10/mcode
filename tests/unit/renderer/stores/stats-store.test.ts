@@ -63,7 +63,12 @@ const inputMock = {
   getCadence: vi.fn().mockResolvedValue(mockInputCadence),
 };
 
-vi.stubGlobal('window', { mcode: { tokens: tokensMock, commits: commitsMock, input: inputMock } });
+const preferencesMock = {
+  get: vi.fn().mockResolvedValue(null),
+  set: vi.fn().mockResolvedValue(undefined),
+};
+
+vi.stubGlobal('window', { mcode: { tokens: tokensMock, commits: commitsMock, input: inputMock, preferences: preferencesMock } });
 
 const { useStatsStore } = await import('../../../../src/renderer/stores/stats-store');
 
@@ -87,6 +92,7 @@ describe('stats-store', () => {
       inputCadence: null,
       loading: false,
       selectedDate: null,
+      providerFilter: null,
     });
   });
 
@@ -107,6 +113,7 @@ describe('stats-store', () => {
       expect(state.inputCadence).toBeNull();
       expect(state.loading).toBe(false);
       expect(state.selectedDate).toBeNull();
+      expect(state.providerFilter).toBeNull();
     });
   });
 
@@ -114,18 +121,18 @@ describe('stats-store', () => {
     it('fetches all 12 IPC calls and populates state', async () => {
       await useStatsStore.getState().refreshAll();
 
-      expect(tokensMock.getDailyUsage).toHaveBeenCalledWith(undefined);
-      expect(tokensMock.getHeatmap).toHaveBeenCalledWith(90);
-      expect(tokensMock.getWeeklyTrend).toHaveBeenCalledOnce();
+      expect(tokensMock.getDailyUsage).toHaveBeenCalledWith(undefined, undefined);
+      expect(tokensMock.getHeatmap).toHaveBeenCalledWith(90, undefined);
+      expect(tokensMock.getWeeklyTrend).toHaveBeenCalledWith(undefined);
       expect(commitsMock.getDailyStats).toHaveBeenCalledWith(undefined);
       expect(commitsMock.getHeatmap).toHaveBeenCalledWith(90);
       expect(commitsMock.getStreaks).toHaveBeenCalledOnce();
       expect(commitsMock.getCadence).toHaveBeenCalledWith(undefined);
       expect(commitsMock.getWeeklyTrend).toHaveBeenCalledOnce();
-      expect(inputMock.getDailyStats).toHaveBeenCalledWith(undefined);
-      expect(inputMock.getHeatmap).toHaveBeenCalledWith(90);
-      expect(inputMock.getWeeklyTrend).toHaveBeenCalledOnce();
-      expect(inputMock.getCadence).toHaveBeenCalledWith(undefined);
+      expect(inputMock.getDailyStats).toHaveBeenCalledWith(undefined, undefined);
+      expect(inputMock.getHeatmap).toHaveBeenCalledWith(90, undefined);
+      expect(inputMock.getWeeklyTrend).toHaveBeenCalledWith(undefined);
+      expect(inputMock.getCadence).toHaveBeenCalledWith(undefined, undefined);
 
       const state = useStatsStore.getState();
       expect(state.dailyUsage).toEqual(mockDailyUsage);
@@ -147,11 +154,11 @@ describe('stats-store', () => {
       useStatsStore.setState({ selectedDate: '2025-03-20' });
       await useStatsStore.getState().refreshAll();
 
-      expect(tokensMock.getDailyUsage).toHaveBeenCalledWith('2025-03-20');
+      expect(tokensMock.getDailyUsage).toHaveBeenCalledWith('2025-03-20', undefined);
       expect(commitsMock.getDailyStats).toHaveBeenCalledWith('2025-03-20');
       expect(commitsMock.getCadence).toHaveBeenCalledWith('2025-03-20');
-      expect(inputMock.getDailyStats).toHaveBeenCalledWith('2025-03-20');
-      expect(inputMock.getCadence).toHaveBeenCalledWith('2025-03-20');
+      expect(inputMock.getDailyStats).toHaveBeenCalledWith('2025-03-20', undefined);
+      expect(inputMock.getCadence).toHaveBeenCalledWith('2025-03-20', undefined);
     });
 
     it('sets loading: false on error and does not crash', async () => {
@@ -168,9 +175,9 @@ describe('stats-store', () => {
       await useStatsStore.getState().setSelectedDate('2025-03-10');
 
       expect(useStatsStore.getState().selectedDate).toBe('2025-03-10');
-      expect(tokensMock.getDailyUsage).toHaveBeenCalledWith('2025-03-10');
+      expect(tokensMock.getDailyUsage).toHaveBeenCalledWith('2025-03-10', undefined);
       expect(commitsMock.getDailyStats).toHaveBeenCalledWith('2025-03-10');
-      expect(inputMock.getDailyStats).toHaveBeenCalledWith('2025-03-10');
+      expect(inputMock.getDailyStats).toHaveBeenCalledWith('2025-03-10', undefined);
     });
 
     it('accepts null (= today) and passes undefined to date-specific calls', async () => {
@@ -178,7 +185,7 @@ describe('stats-store', () => {
       await useStatsStore.getState().setSelectedDate(null);
 
       expect(useStatsStore.getState().selectedDate).toBeNull();
-      expect(tokensMock.getDailyUsage).toHaveBeenCalledWith(undefined);
+      expect(tokensMock.getDailyUsage).toHaveBeenCalledWith(undefined, undefined);
     });
   });
 });

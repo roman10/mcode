@@ -1,5 +1,13 @@
 // --- Human Input Tracking ---
 
+import type { AgentSessionType } from './session-agents';
+
+export interface ProviderInputSummary {
+  provider: AgentSessionType;
+  messageCount: number;
+  totalCharacters: number;
+}
+
 export interface DailyInputStats {
   date: string;
   messageCount: number;
@@ -7,6 +15,7 @@ export interface DailyInputStats {
   totalWords: number;
   activeSessionCount: number;
   messagesPerCommit: number | null;
+  byProvider: ProviderInputSummary[];
 }
 
 export interface InputHeatmapEntry {

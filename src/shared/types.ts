@@ -421,20 +421,20 @@ export interface MCodeAPI {
   };
 
   tokens: {
-    getSessionUsage(claudeSessionId: string): Promise<SessionTokenUsage>;
-    getDailyUsage(date?: string): Promise<DailyTokenUsage>;
-    getModelBreakdown(days?: number): Promise<ModelTokenBreakdown[]>;
-    getWeeklyTrend(): Promise<TokenWeeklyTrend>;
-    getHeatmap(days?: number): Promise<TokenHeatmapEntry[]>;
+    getSessionUsage(sessionId: string): Promise<SessionTokenUsage>;
+    getDailyUsage(date?: string, provider?: string): Promise<DailyTokenUsage>;
+    getModelBreakdown(days?: number, provider?: string): Promise<ModelTokenBreakdown[]>;
+    getWeeklyTrend(provider?: string): Promise<TokenWeeklyTrend>;
+    getHeatmap(days?: number, provider?: string): Promise<TokenHeatmapEntry[]>;
     refresh(): Promise<void>;
     onUpdated(callback: () => void): () => void;
   };
 
   input: {
-    getDailyStats(date?: string): Promise<DailyInputStats>;
-    getHeatmap(days?: number): Promise<InputHeatmapEntry[]>;
-    getWeeklyTrend(): Promise<InputWeeklyTrend>;
-    getCadence(date?: string): Promise<InputCadenceInfo>;
+    getDailyStats(date?: string, provider?: string): Promise<DailyInputStats>;
+    getHeatmap(days?: number, provider?: string): Promise<InputHeatmapEntry[]>;
+    getWeeklyTrend(provider?: string): Promise<InputWeeklyTrend>;
+    getCadence(date?: string, provider?: string): Promise<InputCadenceInfo>;
   };
 
   git: {

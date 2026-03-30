@@ -7,6 +7,8 @@ import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date
 import OutputSection from './OutputSection';
 import CostSection from './CostSection';
 import InputSection from './InputSection';
+import type { AgentSessionType } from '@shared/session-agents';
+import { AGENT_SESSION_TYPES, getAgentDefinition } from '@shared/session-agents';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 const RETENTION_DAYS = 90;
@@ -31,6 +33,8 @@ function StatsPanel(): React.JSX.Element {
     refreshAll,
     selectedDate,
     setSelectedDate,
+    providerFilter,
+    setProviderFilter,
   } = useStatsStore();
 
   const { accounts, subscriptionByAccount, refreshSubscriptionUsage } = useAccountsStore();
@@ -41,9 +45,12 @@ function StatsPanel(): React.JSX.Element {
   const [inputCollapsed, setInputCollapsed] = useState(false);
   const [collapsedRestored, setCollapsedRestored] = useState(false);
 
-  // Restore collapsed state from preferences on mount
+  // Restore collapsed state and provider filter from preferences on mount
   useEffect(() => {
-    window.mcode.preferences.get('statsCollapsed').then((raw) => {
+    Promise.all([
+      window.mcode.preferences.get('statsCollapsed'),
+      window.mcode.preferences.get('statsProviderFilter'),
+    ]).then(([raw, providerRaw]) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -52,9 +59,13 @@ function StatsPanel(): React.JSX.Element {
           if (parsed.input) setInputCollapsed(true);
         } catch { /* ignore malformed */ }
       }
+      if (providerRaw && AGENT_SESSION_TYPES.includes(providerRaw as AgentSessionType)) {
+        // Set state directly without triggering refresh — the refreshAll() useEffect handles it
+        useStatsStore.setState({ providerFilter: providerRaw as AgentSessionType });
+      }
       setCollapsedRestored(true);
     }).catch(() => setCollapsedRestored(true));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist whenever collapse state changes (skip the initial restore)
   useEffect(() => {
@@ -65,10 +76,11 @@ function StatsPanel(): React.JSX.Element {
     ).catch(() => {});
   }, [outputCollapsed, costCollapsed, inputCollapsed, collapsedRestored]);
 
-  // Load data on mount. Live-update subscriptions live in SidebarPanel (always mounted).
+  // Load data after preferences are restored (so providerFilter is applied).
   useEffect(() => {
+    if (!collapsedRestored) return;
     refreshAll();
-  }, [refreshAll]);
+  }, [collapsedRestored, refreshAll]);
 
   // Fetch subscription quotas once on mount — independent of date changes.
   useEffect(() => {
@@ -153,6 +165,20 @@ function StatsPanel(): React.JSX.Element {
           >
             <ChevronRight size={12} strokeWidth={2} />
           </button>
+        </Tooltip>
+        <Tooltip content="Filter by CLI" side="bottom">
+          <select
+            className="text-[10px] px-1 py-0.5 rounded bg-bg-elevated text-text-secondary border border-border-default cursor-pointer outline-none hover:text-text-primary transition-colors appearance-none"
+            value={providerFilter ?? ''}
+            onChange={(e) => setProviderFilter((e.target.value || null) as AgentSessionType | null)}
+          >
+            <option value="">All</option>
+            {AGENT_SESSION_TYPES
+              .filter((t) => getAgentDefinition(t)?.supportsTokenTracking || getAgentDefinition(t)?.supportsInputTracking)
+              .map((t) => (
+                <option key={t} value={t}>{getAgentDefinition(t)!.displayName}</option>
+              ))}
+          </select>
         </Tooltip>
         <Tooltip content="Refresh (⌘R, ⇧ for full 90-day backfill)" side="bottom">
           <button className={btnClass} onClick={(e) => e.shiftKey ? handleForceRefresh() : handleRefresh()}>

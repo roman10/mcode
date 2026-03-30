@@ -21,18 +21,18 @@ import type {
 
 export interface TrackersInvokeContract {
   // --- Tokens ---
-  'tokens:get-session-usage':           { params: [claudeSessionId: string]; result: SessionTokenUsage };
-  'tokens:get-daily-usage':             { params: [date?: string]; result: DailyTokenUsage };
-  'tokens:get-model-breakdown':         { params: [days?: number]; result: ModelTokenBreakdown[] };
-  'tokens:get-weekly-trend':            { params: []; result: TokenWeeklyTrend };
-  'tokens:get-heatmap':                 { params: [days?: number]; result: TokenHeatmapEntry[] };
+  'tokens:get-session-usage':           { params: [sessionId: string]; result: SessionTokenUsage };
+  'tokens:get-daily-usage':             { params: [date?: string, provider?: string]; result: DailyTokenUsage };
+  'tokens:get-model-breakdown':         { params: [days?: number, provider?: string]; result: ModelTokenBreakdown[] };
+  'tokens:get-weekly-trend':            { params: [provider?: string]; result: TokenWeeklyTrend };
+  'tokens:get-heatmap':                 { params: [days?: number, provider?: string]; result: TokenHeatmapEntry[] };
   'tokens:refresh':                     { params: []; result: void };
 
   // --- Input ---
-  'input:get-daily-stats':              { params: [date?: string]; result: DailyInputStats };
-  'input:get-heatmap':                  { params: [days?: number]; result: InputHeatmapEntry[] };
-  'input:get-weekly-trend':             { params: []; result: InputWeeklyTrend };
-  'input:get-cadence':                  { params: [date?: string]; result: InputCadenceInfo };
+  'input:get-daily-stats':              { params: [date?: string, provider?: string]; result: DailyInputStats };
+  'input:get-heatmap':                  { params: [days?: number, provider?: string]; result: InputHeatmapEntry[] };
+  'input:get-weekly-trend':             { params: [provider?: string]; result: InputWeeklyTrend };
+  'input:get-cadence':                  { params: [date?: string, provider?: string]; result: InputCadenceInfo };
 
   // --- Commits ---
   'commits:get-daily-stats':            { params: [date?: string]; result: DailyCommitStats };

@@ -348,20 +348,20 @@ contextBridge.exposeInMainWorld('mcode', {
   },
 
   tokens: {
-    getSessionUsage: (claudeSessionId: string): Promise<SessionTokenUsage> =>
-      typedInvoke('tokens:get-session-usage', claudeSessionId),
+    getSessionUsage: (sessionId: string): Promise<SessionTokenUsage> =>
+      typedInvoke('tokens:get-session-usage', sessionId),
 
-    getDailyUsage: (date?: string): Promise<DailyTokenUsage> =>
-      typedInvoke('tokens:get-daily-usage', date),
+    getDailyUsage: (date?: string, provider?: string): Promise<DailyTokenUsage> =>
+      typedInvoke('tokens:get-daily-usage', date, provider),
 
-    getModelBreakdown: (days?: number): Promise<ModelTokenBreakdown[]> =>
-      typedInvoke('tokens:get-model-breakdown', days),
+    getModelBreakdown: (days?: number, provider?: string): Promise<ModelTokenBreakdown[]> =>
+      typedInvoke('tokens:get-model-breakdown', days, provider),
 
-    getWeeklyTrend: (): Promise<TokenWeeklyTrend> =>
-      typedInvoke('tokens:get-weekly-trend'),
+    getWeeklyTrend: (provider?: string): Promise<TokenWeeklyTrend> =>
+      typedInvoke('tokens:get-weekly-trend', provider),
 
-    getHeatmap: (days?: number): Promise<TokenHeatmapEntry[]> =>
-      typedInvoke('tokens:get-heatmap', days),
+    getHeatmap: (days?: number, provider?: string): Promise<TokenHeatmapEntry[]> =>
+      typedInvoke('tokens:get-heatmap', days, provider),
 
     refresh: (): Promise<void> =>
       typedInvoke('tokens:refresh'),
@@ -371,17 +371,17 @@ contextBridge.exposeInMainWorld('mcode', {
   },
 
   input: {
-    getDailyStats: (date?: string): Promise<DailyInputStats> =>
-      typedInvoke('input:get-daily-stats', date),
+    getDailyStats: (date?: string, provider?: string): Promise<DailyInputStats> =>
+      typedInvoke('input:get-daily-stats', date, provider),
 
-    getHeatmap: (days?: number): Promise<InputHeatmapEntry[]> =>
-      typedInvoke('input:get-heatmap', days),
+    getHeatmap: (days?: number, provider?: string): Promise<InputHeatmapEntry[]> =>
+      typedInvoke('input:get-heatmap', days, provider),
 
-    getWeeklyTrend: (): Promise<InputWeeklyTrend> =>
-      typedInvoke('input:get-weekly-trend'),
+    getWeeklyTrend: (provider?: string): Promise<InputWeeklyTrend> =>
+      typedInvoke('input:get-weekly-trend', provider),
 
-    getCadence: (date?: string): Promise<InputCadenceInfo> =>
-      typedInvoke('input:get-cadence', date),
+    getCadence: (date?: string, provider?: string): Promise<InputCadenceInfo> =>
+      typedInvoke('input:get-cadence', date, provider),
   },
 
   git: {

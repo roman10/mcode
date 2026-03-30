@@ -67,12 +67,13 @@ export function normalizeGeminiModel(model: string): string {
   return name;
 }
 
-/** Normalize to family name: "opus", "sonnet", "haiku", or "unknown". */
+/** Normalize to family name: "opus", "sonnet", "haiku", "gpt", or "unknown". */
 export function normalizeModelFamily(model: string): string {
   const lower = model.toLowerCase();
   if (lower.includes('opus')) return 'opus';
   if (lower.includes('sonnet')) return 'sonnet';
   if (lower.includes('haiku')) return 'haiku';
+  if (lower.includes('gpt')) return 'gpt';
   return 'unknown';
 }
 

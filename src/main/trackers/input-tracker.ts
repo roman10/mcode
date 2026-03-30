@@ -7,7 +7,13 @@ import type {
   InputWeeklyTrend,
   InputCadenceInfo,
 } from '../../shared/types';
+import type { AgentSessionType } from '../../shared/session-agents';
 import type { ParsedHumanEntry } from './jsonl-usage-parser';
+
+/** Build optional provider WHERE clause fragment. */
+function inputProviderFilter(provider?: string): { clause: string; params: unknown[] } {
+  return provider ? { clause: ' AND provider = ?', params: [provider] } : { clause: '', params: [] };
+}
 
 interface DailyAggRow {
   message_count: number;
@@ -40,16 +46,17 @@ export class InputTracker {
   /** Batch-insert parsed human entries. Called by TokenTracker during JSONL scan. */
   insertBatch(
     entries: ParsedHumanEntry[],
-    claudeSessionId: string,
+    agentSessionId: string,
     projectDir: string,
+    provider: string = 'claude',
   ): number {
     if (entries.length === 0) return 0;
 
     const db = getDb();
     const stmt = db.prepare(`
       INSERT OR IGNORE INTO human_input
-        (message_id, claude_session_id, project_dir, text_length, word_count, message_timestamp, date)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+        (message_id, agent_session_id, project_dir, text_length, word_count, message_timestamp, date, provider)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     let newCount = 0;
@@ -58,12 +65,13 @@ export class InputTracker {
         const date = localDateStr(new Date(entry.timestamp));
         const result = stmt.run(
           entry.messageId,
-          claudeSessionId,
+          agentSessionId,
           projectDir,
           entry.textLength,
           entry.wordCount,
           entry.timestamp,
           date,
+          provider,
         );
         if (result.changes > 0) newCount++;
       }
@@ -75,18 +83,19 @@ export class InputTracker {
 
   // --- Query methods ---
 
-  getDailyInputStats(date?: string): DailyInputStats {
+  getDailyInputStats(date?: string, provider?: string): DailyInputStats {
     const db = getDb();
     const targetDate = date ?? localDateStr(new Date());
+    const pf = inputProviderFilter(provider);
 
     const row = db.prepare(`
       SELECT COUNT(*) as message_count,
              COALESCE(SUM(text_length), 0) as total_chars,
              COALESCE(SUM(word_count), 0) as total_words,
-             COUNT(DISTINCT claude_session_id) as session_count
+             COUNT(DISTINCT agent_session_id) as session_count
       FROM human_input
-      WHERE date = ?
-    `).get(targetDate) as DailyAggRow;
+      WHERE date = ?${pf.clause}
+    `).get(targetDate, ...pf.params) as DailyAggRow;
 
     // Cross-query commits for messages-per-commit ratio
     let messagesPerCommit: number | null = null;
@@ -100,6 +109,22 @@ export class InputTracker {
       }
     }
 
+    // Per-provider breakdown
+    const providerRows = db.prepare(`
+      SELECT provider,
+             COUNT(*) as message_count,
+             COALESCE(SUM(text_length), 0) as total_chars
+      FROM human_input
+      WHERE date = ?${pf.clause}
+      GROUP BY provider
+    `).all(targetDate, ...pf.params) as { provider: string; message_count: number; total_chars: number }[];
+
+    const byProvider = providerRows.map((pr) => ({
+      provider: pr.provider as AgentSessionType,
+      messageCount: pr.message_count,
+      totalCharacters: pr.total_chars,
+    }));
+
     return {
       date: targetDate,
       messageCount: row.message_count,
@@ -107,24 +132,26 @@ export class InputTracker {
       totalWords: row.total_words,
       activeSessionCount: row.session_count,
       messagesPerCommit,
+      byProvider,
     };
   }
 
-  getInputHeatmap(days = 7): InputHeatmapEntry[] {
+  getInputHeatmap(days = 7, provider?: string): InputHeatmapEntry[] {
     const db = getDb();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - (days - 1));
     const startDateStr = localDateStr(startDate);
+    const pf = inputProviderFilter(provider);
 
     const rows = db.prepare(`
       SELECT date,
              COUNT(*) as message_count,
              COALESCE(SUM(text_length), 0) as total_chars
       FROM human_input
-      WHERE date >= ?
+      WHERE date >= ?${pf.clause}
       GROUP BY date
       ORDER BY date ASC
-    `).all(startDateStr) as HeatmapRow[];
+    `).all(startDateStr, ...pf.params) as HeatmapRow[];
 
     const rowMap = new Map(rows.map((r) => [r.date, r]));
 
@@ -146,23 +173,24 @@ export class InputTracker {
     return result;
   }
 
-  getInputWeeklyTrend(): InputWeeklyTrend {
+  getInputWeeklyTrend(provider?: string): InputWeeklyTrend {
     const db = getDb();
+    const pf = inputProviderFilter(provider);
 
     const thisWeekRow = db.prepare(`
       SELECT COUNT(*) as message_count,
              COALESCE(SUM(text_length), 0) as total_chars
       FROM human_input
-      WHERE date >= date('now', 'localtime', 'weekday 0', '-6 days')
-    `).get() as WeekRow;
+      WHERE date >= date('now', 'localtime', 'weekday 0', '-6 days')${pf.clause}
+    `).get(...pf.params) as WeekRow;
 
     const lastWeekRow = db.prepare(`
       SELECT COUNT(*) as message_count,
              COALESCE(SUM(text_length), 0) as total_chars
       FROM human_input
       WHERE date >= date('now', 'localtime', 'weekday 0', '-13 days')
-        AND date < date('now', 'localtime', 'weekday 0', '-6 days')
-    `).get() as WeekRow;
+        AND date < date('now', 'localtime', 'weekday 0', '-6 days')${pf.clause}
+    `).get(...pf.params) as WeekRow;
 
     const pctChange = lastWeekRow.message_count > 0
       ? Math.round(((thisWeekRow.message_count - lastWeekRow.message_count) / lastWeekRow.message_count) * 100)
@@ -181,19 +209,20 @@ export class InputTracker {
     };
   }
 
-  getInputCadence(date?: string): InputCadenceInfo {
+  getInputCadence(date?: string, provider?: string): InputCadenceInfo {
     const db = getDb();
     const targetDate = date ?? localDateStr(new Date());
+    const pf = inputProviderFilter(provider);
 
     // Peak interaction hour
     const hourRows = db.prepare(`
       SELECT strftime('%H', message_timestamp, 'localtime') as hour,
              COUNT(*) as cnt
       FROM human_input
-      WHERE date = ?
+      WHERE date = ?${pf.clause}
       GROUP BY hour
       ORDER BY cnt DESC
-    `).all(targetDate) as HourRow[];
+    `).all(targetDate, ...pf.params) as HourRow[];
 
     const peakHour = hourRows.length > 0 ? hourRows[0].hour : null;
 
@@ -207,15 +236,15 @@ export class InputTracker {
         SELECT
           (julianday(h.message_timestamp) - julianday(
             (SELECT MAX(t.message_timestamp) FROM token_usage t
-             WHERE t.claude_session_id = h.claude_session_id
+             WHERE t.agent_session_id = h.agent_session_id
                AND t.message_timestamp < h.message_timestamp)
           )) * 86400 as think_seconds
         FROM human_input h
-        WHERE h.date = ?
+        WHERE h.date = ?${pf.clause}
       ) WHERE think_seconds IS NOT NULL
         AND think_seconds > 0
         AND think_seconds < 3600
-    `).all(targetDate) as ThinkTimeRow[];
+    `).all(targetDate, ...pf.params) as ThinkTimeRow[];
 
     if (thinkRows.length > 0) {
       const total = thinkRows.reduce((acc, r) => acc + r.think_seconds, 0);
@@ -225,11 +254,11 @@ export class InputTracker {
     // Leverage ratio: AI output tokens per human input character for this day
     let leverageRatio: number | null = null;
     const charRow = db.prepare(
-      'SELECT COALESCE(SUM(text_length), 0) as chars FROM human_input WHERE date = ?',
-    ).get(targetDate) as { chars: number };
+      `SELECT COALESCE(SUM(text_length), 0) as chars FROM human_input WHERE date = ?${pf.clause}`,
+    ).get(targetDate, ...pf.params) as { chars: number };
     const tokenRow = db.prepare(
-      'SELECT COALESCE(SUM(output_tokens), 0) as tokens FROM token_usage WHERE date = ?',
-    ).get(targetDate) as { tokens: number };
+      `SELECT COALESCE(SUM(output_tokens), 0) as tokens FROM token_usage WHERE date = ?${pf.clause}`,
+    ).get(targetDate, ...pf.params) as { tokens: number };
 
     if (charRow.chars > 0 && tokenRow.tokens > 0) {
       leverageRatio = Math.round(tokenRow.tokens / charRow.chars);
@@ -244,19 +273,19 @@ export class InputTracker {
 }
 
 export function registerInputIpc(inputTracker: InputTracker): void {
-  typedHandle('input:get-daily-stats', (date) => {
-    return inputTracker.getDailyInputStats(date);
+  typedHandle('input:get-daily-stats', (date, provider) => {
+    return inputTracker.getDailyInputStats(date, provider);
   });
 
-  typedHandle('input:get-heatmap', (days) => {
-    return inputTracker.getInputHeatmap(days);
+  typedHandle('input:get-heatmap', (days, provider) => {
+    return inputTracker.getInputHeatmap(days, provider);
   });
 
-  typedHandle('input:get-weekly-trend', () => {
-    return inputTracker.getInputWeeklyTrend();
+  typedHandle('input:get-weekly-trend', (provider) => {
+    return inputTracker.getInputWeeklyTrend(provider);
   });
 
-  typedHandle('input:get-cadence', (date) => {
-    return inputTracker.getInputCadence(date);
+  typedHandle('input:get-cadence', (date, provider) => {
+    return inputTracker.getInputCadence(date, provider);
   });
 }

@@ -1,5 +1,7 @@
 // --- Token Usage ---
 
+import type { AgentSessionType } from './session-agents';
+
 export interface TokenTotals {
   inputTokens: number;
   outputTokens: number;
@@ -17,7 +19,7 @@ export interface ModelUsageSummary {
 }
 
 export interface SessionTokenUsage {
-  claudeSessionId: string;
+  sessionId: string;
   models: ModelUsageSummary[];
   totals: TokenTotals;
   estimatedCostUsd: number;
@@ -26,14 +28,25 @@ export interface SessionTokenUsage {
   lastMessageAt: string | null;
 }
 
+export interface ProviderUsageSummary {
+  provider: AgentSessionType;
+  totals: TokenTotals;
+  estimatedCostUsd: number;
+  messageCount: number;
+  premiumRequests: number;
+}
+
 export interface DailyTokenUsage {
   date: string;
   totals: TokenTotals;
   estimatedCostUsd: number;
   messageCount: number;
+  premiumRequests: number;
   byModel: ModelUsageSummary[];
+  byProvider: ProviderUsageSummary[];
   topSessions: Array<{
-    claudeSessionId: string;
+    sessionId: string;
+    provider: AgentSessionType;
     label: string | null;
     estimatedCostUsd: number;
     outputTokens: number;

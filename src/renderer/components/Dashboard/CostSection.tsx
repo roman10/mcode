@@ -39,6 +39,7 @@ const modelFamilyColors: Record<string, string> = {
   opus: 'bg-purple-900/80 text-purple-300',
   sonnet: 'bg-blue-900/80 text-blue-300',
   haiku: 'bg-green-900/80 text-green-300',
+  gpt: 'bg-teal-900/80 text-teal-300',
   unknown: 'bg-gray-700/80 text-gray-300',
 };
 
@@ -132,6 +133,7 @@ function CostSection({
 }: CostSectionProps): React.JSX.Element {
   const cost = dailyUsage?.estimatedCostUsd ?? 0;
   const messageCount = dailyUsage?.messageCount ?? 0;
+  const premiumRequests = dailyUsage?.premiumRequests ?? 0;
   const topSessions = dailyUsage?.topSessions ?? [];
   const byModel = dailyUsage?.byModel ?? [];
   const totals = dailyUsage?.totals;
@@ -143,6 +145,8 @@ function CostSection({
     (totals?.cacheWrite1hTokens ?? 0);
   const cacheHitRate = totalInputTokens > 0 ? cacheReadTokens / totalInputTokens : 0;
   const costPerMsg = messageCount > 0 ? cost / messageCount : 0;
+  // Show cost-based headline when cost > 0, otherwise show token-based headline
+  const hasCost = cost > 0;
 
   return (
     <>
@@ -150,21 +154,38 @@ function CostSection({
         label="AI Cost"
         collapsed={collapsed}
         onToggle={onToggle}
-        summary={`${formatCost(cost)} · ${messageCount} msg${messageCount !== 1 ? 's' : ''}`}
+        summary={
+          hasCost
+            ? `${formatCost(cost)} · ${messageCount} msg${messageCount !== 1 ? 's' : ''}`
+            : premiumRequests > 0
+              ? `${premiumRequests} premium req · ${messageCount} msg${messageCount !== 1 ? 's' : ''}`
+              : `${messageCount} msg${messageCount !== 1 ? 's' : ''}`
+        }
       />
 
       {!collapsed && (
         <>
           {/* Headline */}
           <div>
-            <span className="text-2xl font-semibold text-text-primary">{formatCost(cost)}</span>
-            <span className="text-sm text-text-muted ml-1.5">estimated {dateLabel}</span>
+            {hasCost ? (
+              <>
+                <span className="text-2xl font-semibold text-text-primary">{formatCost(cost)}</span>
+                <span className="text-sm text-text-muted ml-1.5">estimated {dateLabel}</span>
+              </>
+            ) : premiumRequests > 0 ? (
+              <>
+                <span className="text-2xl font-semibold text-text-primary">{premiumRequests}</span>
+                <span className="text-sm text-text-muted ml-1.5">premium requests {dateLabel}</span>
+              </>
+            ) : (
+              <span className="text-sm text-text-muted">{dateLabel}</span>
+            )}
             {messageCount > 0 && (
               <span className="text-sm text-text-muted ml-1">
                 · {messageCount} message{messageCount !== 1 ? 's' : ''}
               </span>
             )}
-            {messageCount > 0 && (
+            {hasCost && messageCount > 0 && (
               <span className="text-sm text-text-muted ml-1">· {formatCost(costPerMsg)}/msg</span>
             )}
             {totals && (totalInputTokens > 0 || totals.outputTokens > 0) && (
@@ -206,11 +227,13 @@ function CostSection({
             <div className="space-y-1.5">
               <div className="text-xs text-text-muted font-medium">Top sessions {dateLabel}</div>
               {topSessions.map((s) => (
-                <div key={s.claudeSessionId} className="flex items-center text-xs">
+                <div key={s.sessionId} className="flex items-center text-xs">
                   <span className="text-text-secondary truncate flex-1">
-                    {s.label ?? s.claudeSessionId.slice(0, 8)}
+                    {s.label ?? s.sessionId.slice(0, 8)}
                   </span>
-                  <span className="text-text-muted shrink-0 ml-2">{formatCost(s.estimatedCostUsd)}</span>
+                  <span className="text-text-muted shrink-0 ml-2">
+                    {s.estimatedCostUsd > 0 ? formatCost(s.estimatedCostUsd) : formatTokens(s.outputTokens) + ' out'}
+                  </span>
                 </div>
               ))}
             </div>

@@ -7,13 +7,13 @@ export function registerTokenTools(
   ctx: McpServerContext,
 ): void {
   server.registerTool('tokens_get_session_usage', {
-    description: 'Get token usage and estimated cost for a specific Claude session ID. Returns per-model breakdown with input/output/cache tokens and USD cost estimate.',
+    description: 'Get token usage and estimated cost for a specific agent session ID. Returns per-model breakdown with input/output/cache tokens and USD cost estimate.',
     inputSchema: {
-      claudeSessionId: z.string().describe('The Claude session ID (UUID from the JSONL filename)'),
+      sessionId: z.string().describe('The agent session ID (e.g. Claude UUID from JSONL filename, or Copilot session UUID)'),
     },
     annotations: { readOnlyHint: true },
-  }, async ({ claudeSessionId }) => {
-    const usage = ctx.tokenTracker.getSessionUsage(claudeSessionId);
+  }, async ({ sessionId }) => {
+    const usage = ctx.tokenTracker.getSessionUsage(sessionId);
     return {
       content: [{ type: 'text', text: JSON.stringify(usage, null, 2) }],
     };

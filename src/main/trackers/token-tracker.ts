@@ -19,6 +19,8 @@ import type {
   TokenTotals,
   ModelUsageSummary,
 } from '../../shared/types';
+import type { AgentSessionType } from '../../shared/session-agents';
+import { CopilotScanner } from './copilot-scanner';
 import { typedHandle } from '../ipc-helpers';
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
@@ -27,7 +29,7 @@ const HOOK_SCAN_DELAY_MS = 500;
 
 interface TrackedFileRecord {
   file_path: string;
-  claude_session_id: string;
+  agent_session_id: string;
   project_dir: string;
   last_scanned_offset: number;
   file_size: number;
@@ -72,6 +74,7 @@ interface WeekRow {
 export class TokenTracker {
   private getWebContents: () => WebContents | null;
   private inputTracker: InputTracker;
+  private copilotScanner = new CopilotScanner();
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
   private scanning = false;
 
@@ -160,8 +163,15 @@ export class TokenTracker {
         }
       }
 
+      // Scan Copilot event files
+      try {
+        totalNew += await this.copilotScanner.scanAll(this.inputTracker);
+      } catch (err) {
+        logger.warn('tokens', 'Copilot scan failed', { error: String(err) });
+      }
+
       if (totalNew > 0) {
-        logger.info('tokens', `Scan complete, ${totalNew} new entries from ${allFiles.length} files`);
+        logger.info('tokens', `Scan complete, ${totalNew} new entries from ${allFiles.length} Claude files + Copilot`);
         this.broadcastUpdate();
       }
     } finally {
@@ -214,10 +224,10 @@ export class TokenTracker {
 
       const insertStmt = db.prepare(`
         INSERT OR IGNORE INTO token_usage
-          (message_id, claude_session_id, project_dir, model,
+          (message_id, agent_session_id, project_dir, model,
            input_tokens, output_tokens, cache_write_5m_tokens, cache_write_1h_tokens,
-           cache_read_tokens, is_fast_mode, message_timestamp, date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           cache_read_tokens, is_fast_mode, message_timestamp, date, provider)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'claude')
       `);
 
       let newCount = 0;
@@ -260,7 +270,7 @@ export class TokenTracker {
 
   // --- Query methods ---
 
-  getSessionUsage(claudeSessionId: string): SessionTokenUsage {
+  getSessionUsage(sessionId: string): SessionTokenUsage {
     const db = getDb();
 
     const rows = db.prepare(`
@@ -275,9 +285,9 @@ export class TokenTracker {
              MIN(message_timestamp) as first_ts,
              MAX(message_timestamp) as last_ts
       FROM token_usage
-      WHERE claude_session_id = ?
+      WHERE agent_session_id = ?
       GROUP BY model, is_fast_mode
-    `).all(claudeSessionId) as UsageRow[];
+    `).all(sessionId) as UsageRow[];
 
     const models = buildModelSummaries(rows);
 
@@ -293,7 +303,7 @@ export class TokenTracker {
     }
 
     return {
-      claudeSessionId,
+      sessionId,
       models,
       totals,
       estimatedCostUsd: totalCost,
@@ -303,9 +313,10 @@ export class TokenTracker {
     };
   }
 
-  getDailyUsage(date?: string): DailyTokenUsage {
+  getDailyUsage(date?: string, provider?: string): DailyTokenUsage {
     const db = getDb();
     const targetDate = date ?? localDateStr(new Date());
+    const pf = providerFilter(provider);
 
     const rows = db.prepare(`
       SELECT model,
@@ -317,27 +328,28 @@ export class TokenTracker {
              is_fast_mode,
              COUNT(*) as message_count
       FROM token_usage
-      WHERE date = ?
+      WHERE date = ?${pf.clause}
       GROUP BY model, is_fast_mode
-    `).all(targetDate) as TokenAggRow[];
+    `).all(targetDate, ...pf.params) as TokenAggRow[];
 
     const byModel = buildModelSummaries(rows);
 
     // Top sessions by output tokens
     const topSessionIds = db.prepare(`
-      SELECT claude_session_id,
+      SELECT agent_session_id,
+             provider,
              SUM(output_tokens) as output_tokens
       FROM token_usage
-      WHERE date = ?
-      GROUP BY claude_session_id
+      WHERE date = ?${pf.clause}
+      GROUP BY agent_session_id
       ORDER BY output_tokens DESC
       LIMIT 5
-    `).all(targetDate) as { claude_session_id: string; output_tokens: number }[];
+    `).all(targetDate, ...pf.params) as { agent_session_id: string; provider: string; output_tokens: number }[];
 
-    // Compute accurate per-session cost across all models used in each session
-    const getLabel = db.prepare(
-      'SELECT label FROM sessions WHERE claude_session_id = ?',
-    );
+    // Compute accurate per-session cost across all models used in each session.
+    // Label lookup is provider-aware: sessions table has provider-specific ID columns.
+    const getLabelClaude = db.prepare('SELECT label FROM sessions WHERE claude_session_id = ?');
+    const getLabelCopilot = db.prepare('SELECT label FROM sessions WHERE copilot_session_id = ?');
     const getSessionModels = db.prepare(`
       SELECT model,
              SUM(input_tokens) as input_tokens,
@@ -348,19 +360,21 @@ export class TokenTracker {
              is_fast_mode,
              COUNT(*) as message_count
       FROM token_usage
-      WHERE date = ? AND claude_session_id = ?
+      WHERE date = ? AND agent_session_id = ?
       GROUP BY model, is_fast_mode
     `);
 
     const topSessions = topSessionIds.map((r) => {
-      const labelRow = getLabel.get(r.claude_session_id) as { label: string } | undefined;
-      const modelRows = getSessionModels.all(targetDate, r.claude_session_id) as TokenAggRow[];
+      const getLabelStmt = r.provider === 'copilot' ? getLabelCopilot : getLabelClaude;
+      const labelRow = getLabelStmt.get(r.agent_session_id) as { label: string } | undefined;
+      const modelRows = getSessionModels.all(targetDate, r.agent_session_id) as TokenAggRow[];
       let sessionCost = 0;
       for (const m of modelRows) {
         sessionCost += estimateCostForTotals(m.model, rowToTotals(m), m.is_fast_mode === 1);
       }
       return {
-        claudeSessionId: r.claude_session_id,
+        sessionId: r.agent_session_id,
+        provider: r.provider as AgentSessionType,
         label: labelRow?.label ?? null,
         estimatedCostUsd: sessionCost,
         outputTokens: r.output_tokens,
@@ -371,21 +385,70 @@ export class TokenTracker {
     const totalCost = byModel.reduce((acc, m) => acc + m.estimatedCostUsd, 0);
     const totalMessages = byModel.reduce((acc, m) => acc + m.messageCount, 0);
 
+    // Premium requests (Copilot subscription units)
+    const premRow = db.prepare(`
+      SELECT COALESCE(SUM(premium_requests), 0) as total
+      FROM token_usage WHERE date = ?${pf.clause}
+    `).get(targetDate, ...pf.params) as { total: number };
+
+    // Per-provider breakdown
+    const providerRows = db.prepare(`
+      SELECT provider,
+             SUM(input_tokens) as input_tokens,
+             SUM(output_tokens) as output_tokens,
+             SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
+             SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
+             SUM(cache_read_tokens) as cache_read_tokens,
+             COUNT(*) as message_count,
+             COALESCE(SUM(premium_requests), 0) as premium_requests
+      FROM token_usage
+      WHERE date = ?${pf.clause}
+      GROUP BY provider
+    `).all(targetDate, ...pf.params) as (TokenAggRow & { provider: string; premium_requests: number })[];
+
+    const byProvider = providerRows.map((pr) => {
+      const prTotals = rowToTotals(pr);
+      // Estimate cost using per-model breakdown for this provider
+      const prModelRows = db.prepare(`
+        SELECT model, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens,
+               SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
+               SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
+               SUM(cache_read_tokens) as cache_read_tokens, is_fast_mode,
+               COUNT(*) as message_count
+        FROM token_usage WHERE date = ? AND provider = ?
+        GROUP BY model, is_fast_mode
+      `).all(targetDate, pr.provider) as TokenAggRow[];
+      let prCost = 0;
+      for (const m of prModelRows) {
+        prCost += estimateCostForTotals(m.model, rowToTotals(m), m.is_fast_mode === 1);
+      }
+      return {
+        provider: pr.provider as AgentSessionType,
+        totals: prTotals,
+        estimatedCostUsd: prCost,
+        messageCount: pr.message_count,
+        premiumRequests: pr.premium_requests,
+      };
+    });
+
     return {
       date: targetDate,
       totals,
       estimatedCostUsd: totalCost,
       messageCount: totalMessages,
+      premiumRequests: premRow.total,
       byModel,
+      byProvider,
       topSessions,
     };
   }
 
-  getModelBreakdown(days = 30): ModelTokenBreakdown[] {
+  getModelBreakdown(days = 30, provider?: string): ModelTokenBreakdown[] {
     const db = getDb();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - (days - 1));
     const startDateStr = localDateStr(startDate);
+    const pf = providerFilter(provider);
 
     const rows = db.prepare(`
       SELECT model,
@@ -397,10 +460,10 @@ export class TokenTracker {
              is_fast_mode,
              COUNT(*) as message_count
       FROM token_usage
-      WHERE date >= ?
+      WHERE date >= ?${pf.clause}
       GROUP BY model, is_fast_mode
       ORDER BY output_tokens DESC
-    `).all(startDateStr) as TokenAggRow[];
+    `).all(startDateStr, ...pf.params) as TokenAggRow[];
 
     const summaries = buildModelSummaries(rows);
     const items: ModelTokenBreakdown[] = summaries.map((s) => ({
@@ -418,8 +481,9 @@ export class TokenTracker {
     return items;
   }
 
-  getWeeklyTrend(): TokenWeeklyTrend {
+  getWeeklyTrend(provider?: string): TokenWeeklyTrend {
     const db = getDb();
+    const pf = providerFilter(provider);
 
     const thisWeekRow = db.prepare(`
       SELECT COALESCE(SUM(output_tokens), 0) as output_tokens,
@@ -429,8 +493,8 @@ export class TokenTracker {
              COALESCE(SUM(cache_write_1h_tokens), 0) as cache_write_1h_tokens,
              COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
       FROM token_usage
-      WHERE date >= date('now', 'localtime', 'weekday 0', '-6 days')
-    `).get() as WeekRow;
+      WHERE date >= date('now', 'localtime', 'weekday 0', '-6 days')${pf.clause}
+    `).get(...pf.params) as WeekRow;
 
     const lastWeekRow = db.prepare(`
       SELECT COALESCE(SUM(output_tokens), 0) as output_tokens,
@@ -441,12 +505,14 @@ export class TokenTracker {
              COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
       FROM token_usage
       WHERE date >= date('now', 'localtime', 'weekday 0', '-13 days')
-        AND date < date('now', 'localtime', 'weekday 0', '-6 days')
-    `).get() as WeekRow;
+        AND date < date('now', 'localtime', 'weekday 0', '-6 days')${pf.clause}
+    `).get(...pf.params) as WeekRow;
 
-    // Estimate cost for each week (rough — uses average model pricing)
-    const thisWeekCost = estimateWeekCost(db, "date >= date('now', 'localtime', 'weekday 0', '-6 days')");
-    const lastWeekCost = estimateWeekCost(db, "date >= date('now', 'localtime', 'weekday 0', '-13 days') AND date < date('now', 'localtime', 'weekday 0', '-6 days')");
+    // Estimate cost for each week
+    const thisWeekWhere = `date >= date('now', 'localtime', 'weekday 0', '-6 days')${pf.clause}`;
+    const lastWeekWhere = `date >= date('now', 'localtime', 'weekday 0', '-13 days') AND date < date('now', 'localtime', 'weekday 0', '-6 days')${pf.clause}`;
+    const thisWeekCost = estimateWeekCost(db, thisWeekWhere, pf.params);
+    const lastWeekCost = estimateWeekCost(db, lastWeekWhere, pf.params);
 
     const pctChange = lastWeekRow.output_tokens > 0
       ? Math.round(((thisWeekRow.output_tokens - lastWeekRow.output_tokens) / lastWeekRow.output_tokens) * 100)
@@ -467,11 +533,12 @@ export class TokenTracker {
     };
   }
 
-  getHeatmap(days = 7): TokenHeatmapEntry[] {
+  getHeatmap(days = 7, provider?: string): TokenHeatmapEntry[] {
     const db = getDb();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - (days - 1));
     const startDateStr = localDateStr(startDate);
+    const pf = providerFilter(provider);
 
     const rows = db.prepare(`
       SELECT date,
@@ -482,10 +549,10 @@ export class TokenTracker {
              COALESCE(SUM(cache_write_1h_tokens), 0) as cache_write_1h_tokens,
              COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
       FROM token_usage
-      WHERE date >= ?
+      WHERE date >= ?${pf.clause}
       GROUP BY date
       ORDER BY date ASC
-    `).all(startDateStr) as HeatmapRow[];
+    `).all(startDateStr, ...pf.params) as HeatmapRow[];
 
     // Compute per-day costs by querying model breakdown per day
     const dayCosts = new Map<string, number>();
@@ -499,8 +566,8 @@ export class TokenTracker {
                SUM(cache_read_tokens) as cache_read_tokens,
                is_fast_mode,
                COUNT(*) as message_count
-        FROM token_usage WHERE date = ? GROUP BY model, is_fast_mode
-      `).all(row.date) as TokenAggRow[];
+        FROM token_usage WHERE date = ?${pf.clause} GROUP BY model, is_fast_mode
+      `).all(row.date, ...pf.params) as TokenAggRow[];
 
       let cost = 0;
       for (const m of dayModels) {
@@ -546,11 +613,12 @@ export class TokenTracker {
   private updateWatermark(
     filePath: string,
     fileSize: number,
-    claudeSessionId?: string,
+    agentSessionId?: string,
     projectDir?: string,
+    provider: string = 'claude',
   ): void {
     const db = getDb();
-    let sessionId = claudeSessionId;
+    let sessionId = agentSessionId;
     let projDir = projectDir;
     if (!sessionId || !projDir) {
       const projectsDir = join(homedir(), '.claude', 'projects');
@@ -561,13 +629,13 @@ export class TokenTracker {
     const now = new Date().toISOString();
 
     db.prepare(`
-      INSERT INTO tracked_jsonl_files (file_path, claude_session_id, project_dir, last_scanned_offset, file_size, last_scanned_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO tracked_jsonl_files (file_path, agent_session_id, project_dir, last_scanned_offset, file_size, last_scanned_at, provider)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(file_path) DO UPDATE SET
         last_scanned_offset = excluded.last_scanned_offset,
         file_size = excluded.file_size,
         last_scanned_at = excluded.last_scanned_at
-    `).run(filePath, sessionId, projDir, fileSize, fileSize, now);
+    `).run(filePath, sessionId, projDir, fileSize, fileSize, now, provider);
   }
 
   private broadcastUpdate(): void {
@@ -672,7 +740,7 @@ function estimateCostForTotals(model: string, totals: TokenTotals, isFastMode: b
   );
 }
 
-function estimateWeekCost(db: ReturnType<typeof getDb>, whereClause: string): number {
+function estimateWeekCost(db: ReturnType<typeof getDb>, whereClause: string, extraParams: unknown[] = []): number {
   const rows = db.prepare(`
     SELECT model,
            SUM(input_tokens) as input_tokens,
@@ -685,7 +753,7 @@ function estimateWeekCost(db: ReturnType<typeof getDb>, whereClause: string): nu
     FROM token_usage
     WHERE ${whereClause}
     GROUP BY model, is_fast_mode
-  `).all() as TokenAggRow[];
+  `).all(...extraParams) as TokenAggRow[];
 
   let cost = 0;
   for (const r of rows) {
@@ -694,25 +762,30 @@ function estimateWeekCost(db: ReturnType<typeof getDb>, whereClause: string): nu
   return cost;
 }
 
+/** Build optional provider WHERE clause fragment. */
+function providerFilter(provider?: string): { clause: string; params: unknown[] } {
+  return provider ? { clause: ' AND provider = ?', params: [provider] } : { clause: '', params: [] };
+}
+
 export function registerTokenIpc(tokenTracker: TokenTracker): void {
-  typedHandle('tokens:get-session-usage', (claudeSessionId) => {
-    return tokenTracker.getSessionUsage(claudeSessionId);
+  typedHandle('tokens:get-session-usage', (sessionId) => {
+    return tokenTracker.getSessionUsage(sessionId);
   });
 
-  typedHandle('tokens:get-daily-usage', (date) => {
-    return tokenTracker.getDailyUsage(date);
+  typedHandle('tokens:get-daily-usage', (date, provider) => {
+    return tokenTracker.getDailyUsage(date, provider);
   });
 
-  typedHandle('tokens:get-model-breakdown', (days) => {
-    return tokenTracker.getModelBreakdown(days);
+  typedHandle('tokens:get-model-breakdown', (days, provider) => {
+    return tokenTracker.getModelBreakdown(days, provider);
   });
 
-  typedHandle('tokens:get-weekly-trend', () => {
-    return tokenTracker.getWeeklyTrend();
+  typedHandle('tokens:get-weekly-trend', (provider) => {
+    return tokenTracker.getWeeklyTrend(provider);
   });
 
-  typedHandle('tokens:get-heatmap', (days) => {
-    return tokenTracker.getHeatmap(days);
+  typedHandle('tokens:get-heatmap', (days, provider) => {
+    return tokenTracker.getHeatmap(days, provider);
   });
 
   typedHandle('tokens:refresh', async () => {

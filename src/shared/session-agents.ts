@@ -16,6 +16,9 @@ export interface AgentDefinition {
   dialogMode: AgentDialogMode;
   supportsAccountProfiles: boolean;
   supportsModelDisplay: boolean;
+  supportsTokenTracking: boolean;
+  supportsCostEstimation: boolean;
+  supportsInputTracking: boolean;
   installHelpUrl?: string;
   resumeIdentityKind: AgentResumeIdentityKind;
 }
@@ -32,6 +35,9 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     dialogMode: 'full',
     supportsAccountProfiles: true,
     supportsModelDisplay: true,
+    supportsTokenTracking: true,
+    supportsCostEstimation: true,
+    supportsInputTracking: true,
     installHelpUrl: 'https://docs.anthropic.com/en/docs/claude-code/overview',
     resumeIdentityKind: 'claudeSessionId',
   },
@@ -46,6 +52,9 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     dialogMode: 'minimal',
     supportsAccountProfiles: false,
     supportsModelDisplay: false,
+    supportsTokenTracking: false,
+    supportsCostEstimation: false,
+    supportsInputTracking: false,
     resumeIdentityKind: 'codexThreadId',
   },
   gemini: {
@@ -59,6 +68,9 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     dialogMode: 'minimal',
     supportsAccountProfiles: false,
     supportsModelDisplay: true,
+    supportsTokenTracking: false,
+    supportsCostEstimation: false,
+    supportsInputTracking: false,
     resumeIdentityKind: 'geminiSessionId',
   },
   copilot: {
@@ -72,6 +84,9 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     dialogMode: 'minimal',
     supportsAccountProfiles: false,
     supportsModelDisplay: true,
+    supportsTokenTracking: true,
+    supportsCostEstimation: false,
+    supportsInputTracking: true,
     installHelpUrl: 'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started',
     resumeIdentityKind: 'copilotSessionId',
   },
