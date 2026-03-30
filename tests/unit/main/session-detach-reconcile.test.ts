@@ -6,16 +6,16 @@ import { createTestDb } from './test-db';
  * Tests for the detach/reconcile cycle that runs on app close/reopen.
  * Verifies that pre-detach status is preserved and restored correctly.
  *
- * Uses the same SQL statements as session-manager.ts to ensure parity.
+ * Uses the same SQL statements as session-repository.ts to ensure parity.
  */
 
-// SQL mirroring session-manager.ts detachAllActive()
+// SQL mirroring session-repository.ts markAllDetached()
 const DETACH_ALL_SQL = `UPDATE sessions SET pre_detach_status = status, status = 'detached' WHERE status NOT IN ('ended', 'detached')`;
 
-// SQL mirroring session-manager.ts killAllTerminalSessions()
+// SQL mirroring session-repository.ts markTerminalSessionsEnded()
 const KILL_TERMINALS_SQL = `UPDATE sessions SET status = 'ended' WHERE session_type = 'terminal' AND status NOT IN ('ended', 'detached')`;
 
-// SQL mirroring session-manager.ts activeSessionCounts()
+// SQL mirroring session-repository.ts countActiveSessions()
 const ACTIVE_SESSION_COUNTS_SQL = `
   SELECT
     SUM(CASE WHEN session_type != 'terminal' THEN 1 ELSE 0 END) as agent,
@@ -24,13 +24,13 @@ const ACTIVE_SESSION_COUNTS_SQL = `
   WHERE status IN ('starting', 'active', 'idle', 'waiting')
 `;
 
-// SQL mirroring session-manager.ts reconcileDetachedSessions() — select detached
+// SQL mirroring session-repository.ts getDetachedSessions()
 const SELECT_DETACHED_SQL = `SELECT session_id, pre_detach_status FROM sessions WHERE status = 'detached'`;
 
-// SQL mirroring session-manager.ts reconcileDetachedSessions() — restore status
+// SQL mirroring reconcileDetachedSessions() — restore status via updateSession()
 const RESTORE_STATUS_SQL = `UPDATE sessions SET status = ?, pre_detach_status = NULL WHERE session_id = ?`;
 
-// SQL mirroring session-manager.ts updateStatus() — mark ended
+// SQL mirroring updateStatus() — mark ended via updateSession()
 const MARK_ENDED_SQL = `UPDATE sessions SET status = 'ended', ended_at = datetime('now'), attention_level = 'none', attention_reason = NULL WHERE session_id = ?`;
 
 function insertSession(db: Database, id: string, status: string, attentionLevel = 'none', attentionReason: string | null = null, sessionType = 'claude'): void {

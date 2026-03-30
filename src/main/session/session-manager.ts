@@ -6,8 +6,37 @@ import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
 import type { IPtyManager } from '../../shared/pty-manager-interface';
 import type { AccountManager } from '../account-manager';
-import { getDb } from '../db';
 import { logger } from '../logger';
+import {
+  type SessionUpdate,
+  getSession as repoGetSession,
+  getSessionRecord,
+  listSessions as repoListSessions,
+  getSessionStatus,
+  getSessionHookState,
+  getActiveAgentStates,
+  getDetachedSessions,
+  countActiveSessions as repoCountActiveSessions,
+  hasActiveAgentSessions as repoHasActiveAgentSessions,
+  getLastClaudeDefaults,
+  lookupByClaudeSessionId as repoLookupByClaudeSessionId,
+  getDistinctCwds,
+  findConflictingLabels,
+  getTrackedClaudeSessionIds,
+  getEndedSessionIds,
+  getEmptyEndedSessionIds,
+  hasPendingTasksForSession,
+  insertSession,
+  updateSession,
+  updateAutoLabel,
+  setAgentIdIfNull,
+  deleteSessionWithEvents,
+  deleteSessionsWithEvents,
+  markAllEnded,
+  markAllDetached,
+  markTerminalSessionsEnded,
+  clearAllAttention as repoClearAllAttention,
+} from './session-repository';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
 import { normalizeModelVersion, normalizeGeminiModel } from '../trackers/token-cost';
 import { isAgentSession } from '../../shared/session-agents';
@@ -45,83 +74,21 @@ import {
   DEFAULT_COLS,
   DEFAULT_ROWS,
   HOOK_TOOL_INPUT_MAX_BYTES,
-  type EffortLevel,
-  type PermissionMode,
 } from '../../shared/constants';
 import { SessionEventStore } from './session-event-store';
 import { LayoutRepository } from './layout-repository';
 import type {
   SessionInfo,
-  SessionType,
   SessionStatus,
   SessionAttentionLevel,
   SessionCreateInput,
   ExternalSessionInfo,
   HookEvent,
   HookRuntimeInfo,
-  SessionDefaults,
   TerminalConfig,
 } from '../../shared/types';
 import { typedHandle } from '../ipc-helpers';
 
-interface SessionRecord {
-  session_id: string;
-  label: string;
-  cwd: string;
-  permission_mode: string | null;
-  status: string;
-  started_at: string;
-  ended_at: string | null;
-  command: string | null;
-  claude_session_id: string | null;
-  codex_thread_id: string | null;
-  gemini_session_id: string | null;
-  copilot_session_id: string | null;
-  last_tool: string | null;
-  last_event_at: string | null;
-  attention_level: string;
-  attention_reason: string | null;
-  hook_mode: string;
-  session_type: string;
-  terminal_config: string;
-  effort: string | null;
-  enable_auto_mode: number | null;
-  allow_bypass_permissions: number | null;
-  worktree: string | null;
-  account_id: string | null;
-  auto_close: number;
-  model: string | null;
-}
-
-function toSessionInfo(row: SessionRecord): SessionInfo {
-  return {
-    sessionId: row.session_id,
-    label: row.label,
-    cwd: row.cwd,
-    status: row.status as SessionStatus,
-    permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
-    effort: (row.effort as EffortLevel) ?? undefined,
-    enableAutoMode: row.enable_auto_mode === 1 ? true : undefined,
-    allowBypassPermissions: row.allow_bypass_permissions === 1 ? true : undefined,
-    worktree: row.worktree,
-    startedAt: row.started_at,
-    endedAt: row.ended_at,
-    codexThreadId: row.codex_thread_id,
-    claudeSessionId: row.claude_session_id,
-    geminiSessionId: row.gemini_session_id,
-    copilotSessionId: row.copilot_session_id,
-    lastTool: row.last_tool,
-    lastEventAt: row.last_event_at,
-    attentionLevel: row.attention_level as SessionAttentionLevel,
-    attentionReason: row.attention_reason,
-    hookMode: row.hook_mode as 'live' | 'fallback',
-    sessionType: row.session_type as SessionType,
-    terminalConfig: JSON.parse(row.terminal_config || '{}'),
-    accountId: row.account_id,
-    autoClose: row.auto_close === 1,
-    model: row.model,
-  };
-}
 
 /**
  * Extract the last `customTitle` from a Claude Code JSONL file.
@@ -227,14 +194,10 @@ export class SessionManager {
 
   private nextDisambiguatedLabel(cwd: string): string {
     const base = basename(cwd);
-    const db = getDb();
-    const rows = db.prepare(
-      `SELECT label FROM sessions WHERE label = ? OR label LIKE ? || ' (%)'`,
-    ).all(base, base) as { label: string }[];
-    if (rows.length === 0) return base;
-    // Find highest counter in use
-    let max = 1; // base without suffix counts as 1
-    for (const { label } of rows) {
+    const labels = findConflictingLabels(base);
+    if (labels.length === 0) return base;
+    let max = 1;
+    for (const label of labels) {
       if (label === base) continue;
       const match = label.match(/\((\d+)\)$/);
       if (match) max = Math.max(max, parseInt(match[1], 10));
@@ -289,13 +252,25 @@ export class SessionManager {
 
     // Insert DB row FIRST so that onFirstData/onExit callbacks can UPDATE it.
     // If spawn fails, we delete the row.
-    const db = getDb();
     const accountId = input.accountId ?? null;
-    const autoClose = input.autoClose === true ? 1 : 0;
-    db.prepare(
-      `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, status, started_at, ended_at, command, hook_mode, session_type, terminal_config, effort, enable_auto_mode, allow_bypass_permissions, worktree, account_id, auto_close, model)
-       VALUES (?, ?, ?, ?, ?, 'starting', ?, NULL, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(sessionId, label, labelSource, cwd, dbFields.permissionMode ?? null, startedAt, command, hookMode, sessionType, dbFields.effort ?? null, dbFields.enableAutoMode ?? null, dbFields.allowBypassPermissions ?? null, dbFields.worktree ?? null, accountId, autoClose, dbFields.model ?? null);
+    insertSession({
+      sessionId,
+      label,
+      labelSource,
+      cwd,
+      permissionMode: dbFields.permissionMode ?? null,
+      startedAt,
+      command,
+      hookMode,
+      sessionType,
+      effort: dbFields.effort ?? null,
+      enableAutoMode: dbFields.enableAutoMode ?? null,
+      allowBypassPermissions: dbFields.allowBypassPermissions ?? null,
+      worktree: dbFields.worktree ?? null,
+      accountId,
+      autoClose: input.autoClose === true ? 1 : 0,
+      model: dbFields.model ?? null,
+    });
 
     // Track account usage
     if (accountId) {
@@ -336,7 +311,7 @@ export class SessionManager {
       });
     } catch (err) {
       // Spawn failed — remove the row we just inserted
-      db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId);
+      deleteSessionWithEvents(sessionId);
       throw err;
     }
 
@@ -371,10 +346,7 @@ export class SessionManager {
 
   /** Resume an ended agent session in place. */
   resume(sessionId: string, accountId?: string): SessionInfo {
-    const db = getDb();
-    const row = db
-      .prepare('SELECT * FROM sessions WHERE session_id = ?')
-      .get(sessionId) as SessionRecord | undefined;
+    const row = getSessionRecord(sessionId);
 
     if (!row) throw new Error(`Session not found: ${sessionId}`);
     if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status})`);
@@ -406,7 +378,7 @@ export class SessionManager {
     // Account handling (generic for all agents)
     const effectiveAccountId = accountId ?? row.account_id ?? undefined;
     if (accountId && accountId !== row.account_id) {
-      db.prepare('UPDATE sessions SET account_id = ? WHERE session_id = ?').run(accountId, sessionId);
+      updateSession(sessionId, { accountId });
     }
     const accountEnv = this.accountManager.getSessionEnv(effectiveAccountId);
     prepared.env = { ...prepared.env, ...accountEnv };
@@ -415,19 +387,16 @@ export class SessionManager {
   }
 
   private resumeWithPreparedPlan(sessionId: string, prepared: PreparedResume): SessionInfo {
-    const db = getDb();
-    db.prepare(
-      `UPDATE sessions
-         SET status = 'starting',
-             ended_at = NULL,
-             hook_mode = ?,
-             auto_close = 0,
-             last_tool = NULL,
-             last_event_at = NULL,
-             attention_level = 'none',
-             attention_reason = NULL
-       WHERE session_id = ?`,
-    ).run(prepared.hookMode, sessionId);
+    updateSession(sessionId, {
+      status: 'starting',
+      endedAt: null,
+      hookMode: prepared.hookMode,
+      autoClose: 0,
+      lastTool: null,
+      lastEventAt: null,
+      attentionLevel: 'none',
+      attentionReason: null,
+    });
 
     try {
       this.ptyManager.spawn({
@@ -449,9 +418,7 @@ export class SessionManager {
         },
       });
     } catch (err) {
-      db.prepare(
-        `UPDATE sessions SET status = 'ended', ended_at = ? WHERE session_id = ?`,
-      ).run(new Date().toISOString(), sessionId);
+      updateSession(sessionId, { status: 'ended', endedAt: new Date().toISOString() });
       throw err;
     }
 
@@ -482,11 +449,15 @@ export class SessionManager {
     const hookRuntime = this.hookRuntimeGetter();
     const hookMode = hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
-    const db = getDb();
-    db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, permission_mode, status, started_at, claude_session_id, hook_mode, session_type)
-       VALUES (?, ?, ?, NULL, 'starting', ?, ?, ?, 'claude')`,
-    ).run(sessionId, label, cwd, startedAt, claudeSessionId, hookMode);
+    insertSession({
+      sessionId,
+      label,
+      cwd,
+      startedAt,
+      claudeSessionId,
+      hookMode,
+      sessionType: 'claude',
+    });
 
     const args = ['--resume', claudeSessionId];
 
@@ -508,7 +479,7 @@ export class SessionManager {
         },
       });
     } catch (err) {
-      db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId);
+      deleteSessionWithEvents(sessionId);
       throw err;
     }
 
@@ -546,11 +517,7 @@ export class SessionManager {
     }
 
     // Get all claude_session_ids already tracked by mcode
-    const db = getDb();
-    const tracked = new Set(
-      (db.prepare('SELECT claude_session_id FROM sessions WHERE claude_session_id IS NOT NULL').all() as { claude_session_id: string }[])
-        .map((r) => r.claude_session_id),
-    );
+    const tracked = getTrackedClaudeSessionIds();
 
     const results: ExternalSessionInfo[] = [];
     for (const file of files) {
@@ -589,26 +556,23 @@ export class SessionManager {
   }
 
   updateStatus(sessionId: string, status: SessionStatus): void {
-    const db = getDb();
-
     // Idempotency guard — skip if already in target state
-    const current = db
-      .prepare('SELECT status FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string } | undefined;
-    if (!current || current.status === status) return;
+    const currentStatus = getSessionStatus(sessionId);
+    if (!currentStatus || currentStatus === status) return;
     // Don't transition away from ended or detached→ended (both terminal-ish, but detached can recover)
-    if (current.status === 'ended') return;
+    if (currentStatus === 'ended') return;
 
-    const previousStatus = current.status as SessionStatus;
+    const previousStatus = currentStatus as SessionStatus;
 
     if (status === 'ended') {
-      db.prepare(
-        `UPDATE sessions SET status = ?, ended_at = ?, attention_level = 'none', attention_reason = NULL WHERE session_id = ?`,
-      ).run(status, new Date().toISOString(), sessionId);
+      updateSession(sessionId, {
+        status,
+        endedAt: new Date().toISOString(),
+        attentionLevel: 'none',
+        attentionReason: null,
+      });
     } else {
-      db.prepare(
-        `UPDATE sessions SET status = ? WHERE session_id = ?`,
-      ).run(status, sessionId);
+      updateSession(sessionId, { status });
     }
 
     logger.info('session', 'Status changed', { sessionId, status });
@@ -632,12 +596,8 @@ export class SessionManager {
 
   /** Handle a hook event from the hook server or injected via MCP. */
   handleHookEvent(sessionId: string, event: HookEvent): boolean {
-    const db = getDb();
-
     // Verify session exists
-    let row = db
-      .prepare('SELECT status, attention_level, cwd, worktree, last_tool, model, claude_session_id, session_type, gemini_session_id, copilot_session_id FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string; attention_level: string; cwd: string; worktree: string | null; last_tool: string | null; model: string | null; claude_session_id: string | null; session_type: string; gemini_session_id: string | null; copilot_session_id: string | null } | undefined;
+    let row = getSessionHookState(sessionId);
     if (!row) {
       logger.warn('session', 'Hook event for unknown session', { sessionId, event: event.hookEventName });
       return false;
@@ -649,13 +609,9 @@ export class SessionManager {
     // Persist agent-native session ID if present (route to correct column by session type)
     if (event.claudeSessionId) {
       if (row.session_type === 'claude') {
-        db.prepare(
-          'UPDATE sessions SET claude_session_id = ? WHERE session_id = ?',
-        ).run(event.claudeSessionId, sessionId);
+        updateSession(sessionId, { claudeSessionId: event.claudeSessionId });
       } else if (row.session_type === 'gemini' && !row.gemini_session_id) {
-        db.prepare(
-          'UPDATE sessions SET gemini_session_id = ? WHERE session_id = ? AND gemini_session_id IS NULL',
-        ).run(event.claudeSessionId, sessionId);
+        setAgentIdIfNull(sessionId, 'gemini_session_id', event.claudeSessionId);
       }
     }
 
@@ -663,10 +619,7 @@ export class SessionManager {
     if (row.session_type === 'copilot' && !row.copilot_session_id && event.hookEventName === 'SessionStart') {
       const copilotSessionId = event.payload?.sessionId as string | undefined;
       if (copilotSessionId) {
-        const result = db.prepare(
-          'UPDATE sessions SET copilot_session_id = ? WHERE session_id = ? AND copilot_session_id IS NULL',
-        ).run(copilotSessionId, sessionId);
-        if (result.changes > 0) {
+        if (setAgentIdIfNull(sessionId, 'copilot_session_id', copilotSessionId)) {
           logger.info('session', 'Captured Copilot session ID from hook', {
             sessionId,
             copilotSessionId,
@@ -682,8 +635,7 @@ export class SessionManager {
         const rest = event.payload.cwd.slice(worktreePrefix.length);
         const name = rest.split('/')[0];
         if (name) {
-          db.prepare('UPDATE sessions SET worktree = ? WHERE session_id = ?')
-            .run(name, sessionId);
+          updateSession(sessionId, { worktree: name });
           row = { ...row, worktree: name };
         }
       }
@@ -708,7 +660,7 @@ export class SessionManager {
 
     // Resolve attention (may need DB query for pending tasks)
     const hasPendingTasks = result.attention.type === 'set-action-if-active-no-pending'
-      ? !!db.prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1").get(sessionId)
+      ? hasPendingTasksForSession(sessionId)
       : false;
     const { level: newAttention, reason: attentionReason } = resolveAttention(
       result.attention,
@@ -726,45 +678,30 @@ export class SessionManager {
     // Persist event with computed status
     this.eventStore.persistEvent(sessionId, event, newStatus);
 
-    // Build update
-    const updates: string[] = [];
-    const params: unknown[] = [];
+    // Build update as typed fields instead of raw SQL
+    const fields: SessionUpdate = { lastEventAt: event.createdAt };
 
     if (newStatus !== currentStatus) {
-      updates.push('status = ?');
-      params.push(newStatus);
+      fields.status = newStatus;
       if (newStatus === 'ended') {
-        updates.push('ended_at = ?');
-        params.push(new Date().toISOString());
+        fields.endedAt = new Date().toISOString();
       }
     }
 
     if (newAttention !== currentAttention) {
-      updates.push('attention_level = ?');
-      params.push(newAttention);
-      updates.push('attention_reason = ?');
-      params.push(attentionReason);
+      fields.attentionLevel = newAttention;
+      fields.attentionReason = attentionReason;
     } else if (attentionReason !== null) {
-      updates.push('attention_reason = ?');
-      params.push(attentionReason);
+      fields.attentionReason = attentionReason;
     }
 
     if (result.lastTool.type === 'set') {
-      updates.push('last_tool = ?');
-      params.push(result.lastTool.toolName);
+      fields.lastTool = result.lastTool.toolName;
     } else if (result.lastTool.type === 'clear') {
-      updates.push('last_tool = NULL');
+      fields.lastTool = null;
     }
 
-    updates.push('last_event_at = ?');
-    params.push(event.createdAt);
-
-    if (updates.length > 0) {
-      params.push(sessionId);
-      db.prepare(
-        `UPDATE sessions SET ${updates.join(', ')} WHERE session_id = ?`,
-      ).run(...params);
-    }
+    updateSession(sessionId, fields);
 
     this.broadcastSessionUpdate(sessionId);
     this.broadcastHookEvent({ ...event, sessionStatus: newStatus });
@@ -820,18 +757,11 @@ export class SessionManager {
   }
 
   delete(sessionId: string): void {
-    const db = getDb();
-    const row = db
-      .prepare('SELECT status FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string } | undefined;
+    const status = getSessionStatus(sessionId);
+    if (status === null) throw new Error(`Session not found: ${sessionId}`);
+    if (status !== 'ended') throw new Error(`Session is not ended (status: ${status}). Kill it first.`);
 
-    if (!row) throw new Error(`Session not found: ${sessionId}`);
-    if (row.status !== 'ended') throw new Error(`Session is not ended (status: ${row.status}). Kill it first.`);
-
-    db.transaction(() => {
-      db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId);
-      db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId);
-    })();
+    deleteSessionWithEvents(sessionId);
 
     logger.info('session', 'Deleted session', { sessionId });
 
@@ -842,21 +772,10 @@ export class SessionManager {
   }
 
   deleteAllEnded(): string[] {
-    const db = getDb();
-    const rows = db
-      .prepare("SELECT session_id FROM sessions WHERE status = 'ended'")
-      .all() as { session_id: string }[];
-    const ids = rows.map((r) => r.session_id);
+    const ids = getEndedSessionIds();
     if (ids.length === 0) return [];
 
-    const deleteEvents = db.prepare('DELETE FROM events WHERE session_id = ?');
-    const deleteSession = db.prepare('DELETE FROM sessions WHERE session_id = ?');
-    db.transaction(() => {
-      for (const id of ids) {
-        deleteEvents.run(id);
-        deleteSession.run(id);
-      }
-    })();
+    deleteSessionsWithEvents(ids);
 
     logger.info('session', 'Deleted all ended sessions', { count: ids.length });
 
@@ -869,23 +788,10 @@ export class SessionManager {
 
   /** Delete all ended Claude sessions that never received a claude_session_id. */
   deleteEmptyEnded(): number {
-    const db = getDb();
-    const rows = db
-      .prepare(
-        "SELECT session_id FROM sessions WHERE status = 'ended' AND session_type = 'claude' AND claude_session_id IS NULL",
-      )
-      .all() as { session_id: string }[];
-    if (rows.length === 0) return 0;
+    const ids = getEmptyEndedSessionIds();
+    if (ids.length === 0) return 0;
 
-    const ids = rows.map((r) => r.session_id);
-    const deleteEvents = db.prepare('DELETE FROM events WHERE session_id = ?');
-    const deleteSession = db.prepare('DELETE FROM sessions WHERE session_id = ?');
-    db.transaction(() => {
-      for (const id of ids) {
-        deleteEvents.run(id);
-        deleteSession.run(id);
-      }
-    })();
+    deleteSessionsWithEvents(ids);
 
     logger.info('session', 'Deleted empty Claude sessions', { count: ids.length });
 
@@ -897,28 +803,15 @@ export class SessionManager {
   }
 
   deleteBatch(sessionIds: string[]): string[] {
-    const db = getDb();
     const validIds: string[] = [];
-
     for (const id of sessionIds) {
-      const row = db
-        .prepare('SELECT status FROM sessions WHERE session_id = ?')
-        .get(id) as { status: string } | undefined;
-      if (row && row.status === 'ended') {
+      if (getSessionStatus(id) === 'ended') {
         validIds.push(id);
       }
     }
-
     if (validIds.length === 0) return [];
 
-    const deleteEvents = db.prepare('DELETE FROM events WHERE session_id = ?');
-    const deleteSession = db.prepare('DELETE FROM sessions WHERE session_id = ?');
-    db.transaction(() => {
-      for (const id of validIds) {
-        deleteEvents.run(id);
-        deleteSession.run(id);
-      }
-    })();
+    deleteSessionsWithEvents(validIds);
 
     logger.info('session', 'Deleted batch of sessions', { count: validIds.length });
 
@@ -931,20 +824,12 @@ export class SessionManager {
 
   /** Kill all plain terminal sessions on app close (fire-and-forget to broker). */
   killAllTerminalSessions(): void {
-    const db = getDb();
-    const rows = db
-      .prepare(
-        `SELECT session_id FROM sessions WHERE session_type = 'terminal' AND status NOT IN ('ended', 'detached')`,
-      )
-      .all() as { session_id: string }[];
-    if (rows.length === 0) return;
-    db.prepare(
-      `UPDATE sessions SET status = 'ended' WHERE session_type = 'terminal' AND status NOT IN ('ended', 'detached')`,
-    ).run();
-    for (const row of rows) {
-      this.ptyManager.kill(row.session_id).catch(() => { });
+    const ids = markTerminalSessionsEnded();
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      this.ptyManager.kill(id).catch(() => { });
     }
-    logger.info('session', 'Killed all terminal sessions on close', { count: rows.length });
+    logger.info('session', 'Killed all terminal sessions on close', { count: ids.length });
   }
 
   async kill(sessionId: string): Promise<void> {
@@ -957,78 +842,34 @@ export class SessionManager {
   }
 
   get(sessionId: string): SessionInfo | null {
-    const db = getDb();
-    const row = db
-      .prepare('SELECT * FROM sessions WHERE session_id = ?')
-      .get(sessionId) as SessionRecord | undefined;
-    return row ? toSessionInfo(row) : null;
+    return repoGetSession(sessionId);
   }
 
   list(): SessionInfo[] {
-    const db = getDb();
-    const rows = db.prepare('SELECT * FROM sessions ORDER BY started_at DESC').all() as SessionRecord[];
-    return rows.map(toSessionInfo);
+    return repoListSessions();
   }
 
   /** Return distinct cwds from Claude sessions (lightweight alternative to list()). */
   getDistinctClaudeCwds(): string[] {
-    const db = getDb();
-    return (
-      db.prepare('SELECT DISTINCT cwd FROM sessions WHERE session_type = ?').all('claude') as { cwd: string }[]
-    ).map((r) => r.cwd);
+    return getDistinctCwds('claude');
   }
 
   /** Check if any agent (non-terminal) session is in an active-like state. */
   hasActiveAgentSessions(): boolean {
-    const db = getDb();
-    return !!db
-      .prepare(
-        "SELECT 1 FROM sessions WHERE session_type != 'terminal' AND status IN ('starting', 'active', 'idle', 'waiting') LIMIT 1",
-      )
-      .get();
+    return repoHasActiveAgentSessions();
   }
 
   /** Count active sessions broken down by type (single query). */
   activeSessionCounts(): { agent: number; terminal: number } {
-    const db = getDb();
-    const row = db
-      .prepare(
-        `SELECT
-          SUM(CASE WHEN session_type != 'terminal' THEN 1 ELSE 0 END) as agent,
-          SUM(CASE WHEN session_type  = 'terminal' THEN 1 ELSE 0 END) as terminal
-         FROM sessions
-         WHERE status IN ('starting', 'active', 'idle', 'waiting')`,
-      )
-      .get() as { agent: number | null; terminal: number | null };
-    return { agent: row.agent ?? 0, terminal: row.terminal ?? 0 };
+    return repoCountActiveSessions();
   }
 
-  getLastDefaults(): SessionDefaults | null {
-    const db = getDb();
-    const row = db
-      .prepare(
-        `SELECT cwd, permission_mode, effort, enable_auto_mode, account_id FROM sessions
-         WHERE session_type = 'claude'
-         ORDER BY started_at DESC LIMIT 1`,
-      )
-      .get() as { cwd: string; permission_mode: string | null; effort: string | null; enable_auto_mode: number | null; account_id: string | null } | undefined;
-    if (!row) return null;
-    return {
-      cwd: row.cwd,
-      permissionMode: (row.permission_mode as PermissionMode) ?? undefined,
-      effort: (row.effort as EffortLevel) ?? undefined,
-      enableAutoMode: row.enable_auto_mode === 1 ? true : row.enable_auto_mode === 0 ? false : undefined,
-      accountId: row.account_id ?? undefined,
-    };
+  getLastDefaults() {
+    return getLastClaudeDefaults();
   }
 
   setLabel(sessionId: string, label: string): void {
-    const db = getDb();
-    db.prepare('UPDATE sessions SET label = ?, label_source = ? WHERE session_id = ?').run(
-      label,
-      'user',
-      sessionId,
-    );
+    updateSession(sessionId, { label, labelSource: 'user' });
     this.broadcastSessionUpdate(sessionId);
   }
 
@@ -1037,60 +878,47 @@ export class SessionManager {
    * Used for auto-generated titles (e.g. terminal OSC title from Claude Code).
    */
   setAutoLabel(sessionId: string, label: string): void {
-    const db = getDb();
-    const result = db.prepare(
-      `UPDATE sessions SET label = ? WHERE session_id = ? AND label_source = 'auto'`,
-    ).run(label, sessionId);
-    if (result.changes > 0) {
+    if (updateAutoLabel(sessionId, label)) {
       this.broadcastSessionUpdate(sessionId);
     }
   }
 
   setAutoClose(sessionId: string, value: boolean): void {
-    const db = getDb();
-    db.prepare('UPDATE sessions SET auto_close = ? WHERE session_id = ?').run(value ? 1 : 0, sessionId);
+    updateSession(sessionId, { autoClose: value ? 1 : 0 });
     this.broadcastSessionUpdate(sessionId);
   }
 
   setModel(sessionId: string, normalizedModel: string): void {
-    const db = getDb();
-    const row = db.prepare('SELECT model FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { model: string | null } | undefined;
-    if (!row || row.model === normalizedModel) return;
-    db.prepare('UPDATE sessions SET model = ? WHERE session_id = ?').run(normalizedModel, sessionId);
+    const record = getSessionRecord(sessionId);
+    if (!record || record.model === normalizedModel) return;
+    updateSession(sessionId, { model: normalizedModel });
     this.broadcastSessionUpdate(sessionId);
   }
 
   setCodexThreadId(sessionId: string, codexThreadId: string): void {
-    const db = getDb();
-    const row = db.prepare('SELECT session_type, codex_thread_id FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { session_type: string; codex_thread_id: string | null } | undefined;
-    if (!row) throw new Error(`Session not found: ${sessionId}`);
-    if (row.session_type !== 'codex') throw new Error('Only Codex sessions can store a Codex thread ID');
-    if (row.codex_thread_id === codexThreadId) return;
-    db.prepare('UPDATE sessions SET codex_thread_id = ? WHERE session_id = ?').run(codexThreadId, sessionId);
+    const record = getSessionRecord(sessionId);
+    if (!record) throw new Error(`Session not found: ${sessionId}`);
+    if (record.session_type !== 'codex') throw new Error('Only Codex sessions can store a Codex thread ID');
+    if (record.codex_thread_id === codexThreadId) return;
+    updateSession(sessionId, { codexThreadId });
     this.broadcastSessionUpdate(sessionId);
   }
 
   setGeminiSessionId(sessionId: string, geminiSessionId: string): void {
-    const db = getDb();
-    const row = db.prepare('SELECT session_type, gemini_session_id FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { session_type: string; gemini_session_id: string | null } | undefined;
-    if (!row) throw new Error(`Session not found: ${sessionId}`);
-    if (row.session_type !== 'gemini') throw new Error('Only Gemini sessions can store a Gemini session ID');
-    if (row.gemini_session_id === geminiSessionId) return;
-    db.prepare('UPDATE sessions SET gemini_session_id = ? WHERE session_id = ?').run(geminiSessionId, sessionId);
+    const record = getSessionRecord(sessionId);
+    if (!record) throw new Error(`Session not found: ${sessionId}`);
+    if (record.session_type !== 'gemini') throw new Error('Only Gemini sessions can store a Gemini session ID');
+    if (record.gemini_session_id === geminiSessionId) return;
+    updateSession(sessionId, { geminiSessionId });
     this.broadcastSessionUpdate(sessionId);
   }
 
   setCopilotSessionId(sessionId: string, copilotSessionId: string): void {
-    const db = getDb();
-    const row = db.prepare('SELECT session_type, copilot_session_id FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { session_type: string; copilot_session_id: string | null } | undefined;
-    if (!row) throw new Error(`Session not found: ${sessionId}`);
-    if (row.session_type !== 'copilot') throw new Error('Only Copilot sessions can store a Copilot session ID');
-    if (row.copilot_session_id === copilotSessionId) return;
-    db.prepare('UPDATE sessions SET copilot_session_id = ? WHERE session_id = ?').run(copilotSessionId, sessionId);
+    const record = getSessionRecord(sessionId);
+    if (!record) throw new Error(`Session not found: ${sessionId}`);
+    if (record.session_type !== 'copilot') throw new Error('Only Copilot sessions can store a Copilot session ID');
+    if (record.copilot_session_id === copilotSessionId) return;
+    updateSession(sessionId, { copilotSessionId });
     this.broadcastSessionUpdate(sessionId);
   }
 
@@ -1122,43 +950,22 @@ export class SessionManager {
   }
 
   setTerminalConfig(sessionId: string, partial: Partial<TerminalConfig>): void {
-    const db = getDb();
-    const row = db
-      .prepare('SELECT terminal_config FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { terminal_config: string } | undefined;
-    const existing: TerminalConfig = JSON.parse(row?.terminal_config || '{}');
+    const record = getSessionRecord(sessionId);
+    const existing: TerminalConfig = JSON.parse(record?.terminal_config || '{}');
     const merged = { ...existing, ...partial };
-    db.prepare('UPDATE sessions SET terminal_config = ? WHERE session_id = ?').run(
-      JSON.stringify(merged),
-      sessionId,
-    );
+    updateSession(sessionId, { terminalConfig: JSON.stringify(merged) });
     this.broadcastSessionUpdate(sessionId);
   }
 
   clearAttention(sessionId: string): void {
-    const db = getDb();
-    db.prepare(
-      `UPDATE sessions SET attention_level = 'none', attention_reason = NULL WHERE session_id = ?`,
-    ).run(sessionId);
+    updateSession(sessionId, { attentionLevel: 'none', attentionReason: null });
     this.broadcastSessionUpdate(sessionId);
   }
 
   clearAllAttention(): void {
-    const db = getDb();
-    const changed = db
-      .prepare(
-        `SELECT session_id FROM sessions WHERE attention_level != 'none'`,
-      )
-      .all() as { session_id: string }[];
-
-    if (changed.length === 0) return;
-
-    db.prepare(
-      `UPDATE sessions SET attention_level = 'none', attention_reason = NULL WHERE attention_level != 'none'`,
-    ).run();
-
-    for (const row of changed) {
-      this.broadcastSessionUpdate(row.session_id);
+    const changedIds = repoClearAllAttention();
+    for (const id of changedIds) {
+      this.broadcastSessionUpdate(id);
     }
   }
 
@@ -1169,23 +976,16 @@ export class SessionManager {
     attention: SessionAttentionLevel,
     reason: string | null,
   ): void {
-    const db = getDb();
-    const current = db
-      .prepare('SELECT status FROM sessions WHERE session_id = ?')
-      .get(sessionId) as { status: string } | undefined;
-    if (!current || current.status === status || current.status === 'ended') return;
+    const currentStatus = getSessionStatus(sessionId);
+    if (!currentStatus || currentStatus === status || currentStatus === 'ended') return;
 
-    const previousStatus = current.status as SessionStatus;
+    const previousStatus = currentStatus as SessionStatus;
 
+    const fields: SessionUpdate = { status, attentionLevel: attention, attentionReason: reason };
     if (status === 'ended') {
-      db.prepare(
-        `UPDATE sessions SET status = ?, ended_at = ?, attention_level = ?, attention_reason = ? WHERE session_id = ?`,
-      ).run(status, new Date().toISOString(), attention, reason, sessionId);
-    } else {
-      db.prepare(
-        `UPDATE sessions SET status = ?, attention_level = ?, attention_reason = ? WHERE session_id = ?`,
-      ).run(status, attention, reason, sessionId);
+      fields.endedAt = new Date().toISOString();
     }
+    updateSession(sessionId, fields);
 
     logger.info('session', 'Status+attention changed', { sessionId, status, attention });
     this.broadcastSessionUpdate(sessionId);
@@ -1200,14 +1000,7 @@ export class SessionManager {
 
   /** Poll active agent sessions and delegate state detection to runtime adapters. */
   pollSessionStates(): void {
-    const db = getDb();
-    const rows = db
-      .prepare(
-        `SELECT session_id, status, attention_level, last_tool, session_type FROM sessions
-         WHERE status IN ('active', 'idle', 'waiting') AND session_type != 'terminal'`,
-      )
-      .all() as { session_id: string; status: string; attention_level: string; last_tool: string | null; session_type: string }[];
-
+    const rows = getActiveAgentStates();
     const now = Date.now();
 
     for (const row of rows) {
@@ -1220,9 +1013,7 @@ export class SessionManager {
       const lastDataAt = this.ptyManager.getLastDataAt(row.session_id);
       const isQuiescent = lastDataAt > 0 && now - lastDataAt > SessionManager.PTY_QUIESCENCE_MS;
 
-      const hasPendingTasks = !!db
-        .prepare("SELECT 1 FROM task_queue WHERE target_session_id = ? AND status = 'pending' LIMIT 1")
-        .get(row.session_id);
+      const hasPendingTasks = hasPendingTasksForSession(row.session_id);
 
       const update = adapter.pollState({
         sessionId: row.session_id,
@@ -1247,11 +1038,7 @@ export class SessionManager {
 
   /** Look up an mcode session ID by Claude's session_id. */
   lookupByClaudeSessionId(claudeSessionId: string): string | null {
-    const db = getDb();
-    const row = db
-      .prepare('SELECT session_id FROM sessions WHERE claude_session_id = ?')
-      .get(claudeSessionId) as { session_id: string } | undefined;
-    return row?.session_id ?? null;
+    return repoLookupByClaudeSessionId(claudeSessionId);
   }
 
   /** Get recent events for a session. */
@@ -1266,20 +1053,13 @@ export class SessionManager {
 
   /** Mark all non-ended sessions as ended. Called on app quit. */
   endAllActive(): void {
-    const db = getDb();
-    const now = new Date().toISOString();
-    db.prepare(
-      `UPDATE sessions SET status = 'ended', ended_at = ?, attention_level = 'none', attention_reason = NULL WHERE status NOT IN ('ended', 'detached')`,
-    ).run(now);
+    markAllEnded(new Date().toISOString());
     logger.info('session', 'Marked all active sessions as ended');
   }
 
   /** Mark all running sessions as detached (PTY broker is keeping them alive). Called on normal quit. */
   detachAllActive(): void {
-    const db = getDb();
-    db.prepare(
-      `UPDATE sessions SET pre_detach_status = status, status = 'detached' WHERE status NOT IN ('ended', 'detached')`,
-    ).run();
+    markAllDetached();
     logger.info('session', 'Marked agent sessions as detached');
   }
 
@@ -1288,22 +1068,18 @@ export class SessionManager {
    * Called on app open after connecting to the broker.
    */
   reconcileDetachedSessions(aliveSessionIds: string[]): void {
-    const db = getDb();
     const aliveSet = new Set(aliveSessionIds);
-
-    const detached = db
-      .prepare(`SELECT session_id, pre_detach_status FROM sessions WHERE status = 'detached'`)
-      .all() as Array<{ session_id: string; pre_detach_status: string | null }>;
+    const detached = getDetachedSessions();
 
     for (const { session_id, pre_detach_status } of detached) {
       if (aliveSet.has(session_id)) {
         const restoreStatus = (pre_detach_status || 'active') as SessionStatus;
         this.updateStatus(session_id, restoreStatus);
-        db.prepare('UPDATE sessions SET pre_detach_status = NULL WHERE session_id = ?').run(session_id);
+        updateSession(session_id, { preDetachStatus: null });
         logger.info('session', 'Reconnected to running session', { sessionId: session_id, restoredStatus: restoreStatus });
       } else {
         this.updateStatus(session_id, 'ended');
-        db.prepare('UPDATE sessions SET pre_detach_status = NULL WHERE session_id = ?').run(session_id);
+        updateSession(session_id, { preDetachStatus: null });
         logger.info('session', 'Detached session no longer running', { sessionId: session_id });
       }
     }
