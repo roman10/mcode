@@ -36,9 +36,9 @@ function CommitFileRow({
   const addDiffViewer = useLayoutStore((s) => s.addDiffViewer);
   const persist = useLayoutStore((s) => s.persist);
 
-  const filename = file.path.includes('/')
-    ? file.path.slice(file.path.lastIndexOf('/') + 1)
-    : file.path;
+  const lastSlash = file.path.lastIndexOf('/');
+  const filename = lastSlash >= 0 ? file.path.slice(lastSlash + 1) : file.path;
+  const dirPath = lastSlash >= 0 ? file.path.slice(0, lastSlash) : '';
 
   const handleClick = (): void => {
     const absolutePath = `${repoRoot}/${file.path}`;
@@ -54,7 +54,12 @@ function CommitFileRow({
       <span className={`text-xs font-mono w-3 shrink-0 ${FILE_STATUS_COLORS[file.status] ?? 'text-text-muted'}`}>
         {file.status}
       </span>
-      <span className="text-xs text-text-primary truncate">{filename}</span>
+      <span className="flex items-center min-w-0 flex-1 gap-1.5 overflow-hidden">
+        <span className="text-xs text-text-primary shrink-0">{filename}</span>
+        {dirPath && (
+          <span className="text-xs text-text-muted truncate">{dirPath}</span>
+        )}
+      </span>
       {file.insertions > 0 && (
         <span className="text-xs text-green-400 shrink-0">+{file.insertions}</span>
       )}
