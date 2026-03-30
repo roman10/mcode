@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
+import { ErrorBoundary, ErrorFallback } from '../shared/ErrorBoundary';
 import KanbanColumn from './KanbanColumn';
 import KanbanExpandedContent from './KanbanExpandedContent';
 import { KANBAN_COLUMNS, groupSessionsByColumn } from './kanban-utils';
@@ -82,9 +83,11 @@ function KanbanLayout(): React.JSX.Element {
   const hasOpenFiles = kanbanOpenFiles.length > 0;
   if (hasExpandedSession || hasOpenFiles) {
     return (
-      <KanbanExpandedContent
-        sessionId={hasExpandedSession ? kanbanExpandedSessionId : null}
-      />
+      <ErrorBoundary fallback={(props) => <ErrorFallback {...props} />}>
+        <KanbanExpandedContent
+          sessionId={hasExpandedSession ? kanbanExpandedSessionId : null}
+        />
+      </ErrorBoundary>
     );
   }
 

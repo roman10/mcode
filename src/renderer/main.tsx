@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { ErrorBoundary, ErrorFallback } from './components/shared/ErrorBoundary';
 import type { MCodeAPI } from '@shared/types';
 import './styles/global.css';
 
@@ -66,7 +67,12 @@ if (!hasMcodeApi(runtimeApi)) {
 
   createRoot(rootElement).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary
+        fallback={(props) => <ErrorFallback {...props} variant="page" />}
+        onError={(error, errorInfo) => console.error('Root error boundary:', error, errorInfo)}
+      >
+        <App />
+      </ErrorBoundary>
     </StrictMode>,
   );
 }

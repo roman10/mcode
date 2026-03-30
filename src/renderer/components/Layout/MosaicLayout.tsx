@@ -1,6 +1,7 @@
 import { Mosaic, MosaicWindow } from 'react-mosaic-component';
 import type { MosaicNode } from 'react-mosaic-component';
 import { useLayoutStore } from '../../stores/layout-store';
+import { ErrorBoundary, ErrorFallback } from '../shared/ErrorBoundary';
 import TileFactory from './TileFactory';
 import 'react-mosaic-component/react-mosaic-component.css';
 
@@ -31,7 +32,12 @@ function MosaicLayout(): React.JSX.Element {
           toolbarControls={<></>}
           createNode={() => ''}
         >
-          <TileFactory tileId={id} />
+          <ErrorBoundary
+            fallback={(props) => <ErrorFallback {...props} />}
+            onError={(error) => console.error(`Tile ${id} error:`, error)}
+          >
+            <TileFactory tileId={id} />
+          </ErrorBoundary>
         </MosaicWindow>
       )}
       value={mosaicTree}

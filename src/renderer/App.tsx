@@ -18,6 +18,7 @@ import { useTaskStore } from './stores/task-store';
 import { useChangesStore } from './stores/changes-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
+import { ErrorBoundary, ErrorFallback } from './components/shared/ErrorBoundary';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
 import { useAppInitialization } from './hooks/useAppInitialization';
 import { useSessionSubscriptions } from './hooks/useSessionSubscriptions';
@@ -192,12 +193,18 @@ function App(): React.JSX.Element {
             showActivityTab={showActivityTab}
             updateBadge={updateBadge}
           />
-          {!sidebarCollapsed && <SidebarPanel />}
+          {!sidebarCollapsed && (
+            <ErrorBoundary fallback={(props) => <ErrorFallback {...props} />}>
+              <SidebarPanel />
+            </ErrorBoundary>
+          )}
           <div className="flex-1 min-w-0 flex flex-col">
             <div className="flex-1 min-h-0">
               {viewMode === 'kanban' ? <KanbanLayout /> : <MosaicLayout />}
             </div>
-            <TerminalPanel />
+            <ErrorBoundary fallback={(props) => <ErrorFallback {...props} />}>
+              <TerminalPanel />
+            </ErrorBoundary>
           </div>
         </div>
         {/* StatusBar lives outside the editor/panel split so it can never be clipped */}
