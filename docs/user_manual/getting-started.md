@@ -1,23 +1,23 @@
 # Getting Started with mcode
 
-mcode is a desktop IDE for managing multiple autonomous coding-agent sessions simultaneously. It currently supports Claude Code, Codex CLI, Gemini CLI, Copilot CLI, and plain terminal sessions. This guide walks you through installation, launching the app, and core workflows.
+mcode is a desktop IDE for managing multiple autonomous coding-agent sessions simultaneously. It currently supports Claude Code, Codex CLI, Gemini CLI, Copilot CLI, and plain terminal sessions. This guide focuses on first-run usage and core workflows.
+
+For downloads, Homebrew installation, and source-build instructions, see the top-level [README](../../README.md). For a topic-by-topic guide, browse the [User Manual](README.md).
 
 ## Prerequisites
 
 - **macOS** (primary supported platform)
-- **Node.js** (v20+) and **npm**
-- **Claude Code CLI** installed and authenticated (`claude` command available)
-- **Codex CLI** installed and authenticated (`codex` command available)
-- **Gemini CLI** installed and authenticated (`gemini` command available)
-- **Copilot CLI** installed and authenticated (`copilot` command available)
+- **Node.js** 22+ and **npm**
+- **Agent CLIs**, installed only for the session types you want to use:
+  - **Claude Code CLI** (`claude` command available)
+  - **Codex CLI** (`codex` command available)
+  - **Gemini CLI** (`gemini` command available)
+  - **Copilot CLI** (`copilot` command available)
+- **No agent CLI required** for plain terminal sessions
 
 ## Installation
 
-```bash
-git clone <repo-url>
-cd mcode
-npm install
-```
+See the [README installation section](../../README.md#installation) for download options, Homebrew, and building from source.
 
 ## Launching the App
 
@@ -98,7 +98,7 @@ Double-click the title in the toolbar to rename the session inline.
 
 A new terminal tile opens in the main area and the selected agent starts in your chosen directory. Last-used Claude defaults (directory, permission mode, effort) are remembered.
 
-You can also open a plain terminal with `Cmd+T` (the terminal icon in the sidebar header).
+You can also open a plain terminal with `Cmd+T` (the terminal icon in the sidebar header) when you want a shell without launching an agent CLI.
 
 ## Working with Sessions
 
@@ -188,7 +188,7 @@ Press `Cmd+/` to see the full shortcut reference. A few essentials:
 | `Cmd+,` | Settings |
 | `Cmd+\` | Toggle sidebar |
 
-See [Keyboard Shortcuts](keyboard-shortcuts.md) for the full list.
+See [Keyboard Shortcuts](keyboard-shortcuts.md) for the full list, or return to the [User Manual](README.md) to jump to a specific workflow.
 
 ## Tips
 

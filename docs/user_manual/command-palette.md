@@ -15,13 +15,13 @@ Opens the same dialog in command mode (input prefilled with `>`). You can also o
 
 Commands are grouped into three categories:
 
-- **General** — New Session, New Codex Session, New Gemini Session, New Terminal, New Task, Settings, Keyboard Shortcuts
-- **Layout** — Toggle Sidebar, Show Sessions/Stats/Activity, Switch to Kanban/Tiles, Close All Tiles, Close Tile, Split Horizontal/Vertical
+- **General** — New Session, New Codex Session, New Gemini Session, New Copilot Session, New Terminal, New Task, Run Shell Command, Search in Files, Settings, Keyboard Shortcuts, and Snippets: Insert
+- **Layout** — terminal-panel actions (toggle panel, split terminal, close terminal, cycle tabs), Toggle Sidebar, Show Sessions/Changes/Stats/Activity, Switch to Kanban/Tiles, Close All Tiles, Close Tile, Split Horizontal/Vertical
 - **Session** — Clear All Attention, Kill Session, Delete Session, plus a dynamic entry per open session for quick-jumping
 
 Each command shows its keyboard shortcut (if one exists). Commands are context-aware — for example, "Kill Session" is disabled when no active session is selected.
 
-`New Gemini Session` opens the regular new-session dialog with Gemini preselected, so you can create a Gemini session without first switching the agent selector manually.
+`New Gemini Session` and `New Copilot Session` open the regular new-session dialog with that agent preselected, so you can launch those flows without manually changing the agent selector first.
 
 ## Snippet Palette (`@` mode)
 
@@ -59,6 +59,7 @@ If no `variables` are defined in the frontmatter, `{{placeholder}}` patterns are
 |---|---|
 | `Cmd+P` | Open Quick Open (file search) |
 | `Cmd+Shift+P` | Open Command Palette (commands) |
+| `Cmd+Shift+S` | Open snippets |
 | `@` (in Quick Open) | Switch to snippet search |
 | Arrow keys | Navigate results |
 | `Enter` | Select result |

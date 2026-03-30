@@ -5,7 +5,9 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/roman10/mcode/ci.yml?label=CI)](https://github.com/roman10/mcode/actions)
 
-mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-agent sessions simultaneously. It currently supports Claude Code, Gemini CLI, Codex CLI, and plain terminal sessions. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring for Claude sessions, and 105 MCP tools make it highly automatable.
+mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-agent sessions simultaneously. It currently supports Claude Code, Gemini CLI, Codex CLI, Copilot CLI, and plain terminal sessions. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring for Claude sessions, and 105 MCP tools make it highly automatable.
+
+Looking for setup and usage docs? Start with the [user manual](docs/user_manual/README.md) for guided walkthroughs, feature guides, and shortcut reference.
 
 ![Tiling layout with multiple active sessions](docs/screenshots/tiling-layout.png)
 
@@ -60,9 +62,12 @@ brew install --cask roman10/tap/mcode
 
 - **macOS** (primary platform)
 - **Node.js** 22 or later
-- **Claude Code CLI** installed and authenticated for Claude sessions (`npm install -g @anthropic-ai/claude-code`)
-- **Gemini CLI** installed and authenticated for Gemini sessions (`npm install -g @google/gemini-cli`)
-- **Codex CLI** installed and authenticated for Codex sessions
+- **Agent CLIs** installed and authenticated only for the session types you want to run:
+  - **Claude Code CLI** for Claude sessions (`npm install -g @anthropic-ai/claude-code`)
+  - **Gemini CLI** for Gemini sessions (`npm install -g @google/gemini-cli`)
+  - **Codex CLI** for Codex sessions
+  - **Copilot CLI** for Copilot sessions
+- **No agent CLI required** for plain terminal sessions
 
 ### Build from source
 
@@ -83,11 +88,22 @@ This produces a DMG in the `dist/` directory.
 
 ## Quick Start
 
-1. **Create a session** — press <kbd>Cmd+N</kbd>, choose Claude Code, Gemini CLI, or Codex CLI, then pick a working directory and optional prompt.
+1. **Create a session** — press <kbd>Cmd+N</kbd>, choose Claude Code, Gemini CLI, Codex CLI, or Copilot CLI, then pick a working directory and optional prompt. Use <kbd>Cmd+T</kbd> for a plain terminal.
 2. **Split the view** — <kbd>Cmd+D</kbd> splits horizontally, <kbd>Cmd+Shift+D</kbd> splits vertically. <kbd>Cmd+Enter</kbd> maximizes a tile.
 3. **Navigate** — <kbd>Cmd+Shift+P</kbd> opens the command palette. <kbd>Cmd+P</kbd> opens Quick Open for file search.
 4. **Queue work** — <kbd>Cmd+Shift+T</kbd> creates a task. Tasks dispatch to sessions automatically or can target a specific session.
 5. **Switch views** — <kbd>Cmd+Shift+L</kbd> toggles between tiling layout and kanban board.
+
+For the full first-run walkthrough, see [Getting Started](docs/user_manual/getting-started.md).
+
+## Documentation
+
+- [User Manual](docs/user_manual/README.md) — start here for setup and feature guides
+- [Getting Started](docs/user_manual/getting-started.md) — first-run walkthrough and core workflows
+- [Attention & Tasks](docs/user_manual/attention-and-tasks.md) — understand attention levels and the task queue
+- [Command Palette & Quick Open](docs/user_manual/command-palette.md) — fuzzy navigation, commands, and snippets
+- [Git Changes & Diff Viewer](docs/user_manual/git-changes.md) — review, stage, and inspect changes
+- [Keyboard Shortcuts](docs/user_manual/keyboard-shortcuts.md) — full shortcut reference
 
 ## Keyboard Shortcuts
 
@@ -106,7 +122,7 @@ This produces a DMG in the `dist/` directory.
 | <kbd>Cmd+\\</kbd> | Toggle sidebar |
 | <kbd>Cmd+,</kbd> | Settings |
 
-See [keyboard shortcuts](docs/user_manual/keyboard-shortcuts.md) for the full list.
+See [Keyboard Shortcuts](docs/user_manual/keyboard-shortcuts.md) for the full list, or browse the [User Manual](docs/user_manual/README.md) for feature guides.
 
 ## MCP Automation
 

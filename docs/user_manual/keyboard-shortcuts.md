@@ -52,6 +52,7 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+D` | Split horizontal |
 | `Cmd+Shift+D` | Split vertical |
 | `Cmd+Enter` | Toggle maximize |
+| `Cmd+Shift+Q` | Toggle auto-close |
 | `Cmd+=` | Zoom in |
 | `Cmd+-` | Zoom out |
 | `Cmd+0` | Reset zoom |
