@@ -347,9 +347,14 @@ export class TokenTracker {
     `).all(targetDate, ...pf.params) as { agent_session_id: string; provider: string; output_tokens: number }[];
 
     // Compute accurate per-session cost across all models used in each session.
-    // Label lookup is provider-aware: sessions table has provider-specific ID columns.
-    const getLabelClaude = db.prepare('SELECT label FROM sessions WHERE claude_session_id = ?');
-    const getLabelCopilot = db.prepare('SELECT label FROM sessions WHERE copilot_session_id = ?');
+    // Label lookup: try live session first, fall back to session_labels (survives deletion).
+    const getLabelLive = db.prepare(`
+      SELECT label FROM sessions
+      WHERE CASE ? WHEN 'copilot' THEN copilot_session_id WHEN 'gemini' THEN gemini_session_id ELSE claude_session_id END = ?
+    `);
+    const getLabelArchived = db.prepare(
+      'SELECT label FROM session_labels WHERE agent_session_id = ? AND provider = ?',
+    );
     const getSessionModels = db.prepare(`
       SELECT model,
              SUM(input_tokens) as input_tokens,
@@ -365,8 +370,8 @@ export class TokenTracker {
     `);
 
     const topSessions = topSessionIds.map((r) => {
-      const getLabelStmt = r.provider === 'copilot' ? getLabelCopilot : getLabelClaude;
-      const labelRow = getLabelStmt.get(r.agent_session_id) as { label: string } | undefined;
+      const labelRow = (getLabelLive.get(r.provider, r.agent_session_id) ??
+        getLabelArchived.get(r.agent_session_id, r.provider)) as { label: string } | undefined;
       const modelRows = getSessionModels.all(targetDate, r.agent_session_id) as TokenAggRow[];
       let sessionCost = 0;
       for (const m of modelRows) {

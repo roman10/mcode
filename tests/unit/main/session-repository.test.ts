@@ -65,6 +65,7 @@ describe('session-repository', () => {
     const db = getDb();
     db.prepare('DELETE FROM events').run();
     db.prepare('DELETE FROM task_queue').run();
+    db.prepare('DELETE FROM session_labels').run();
     db.prepare('DELETE FROM sessions').run();
   });
 
@@ -466,6 +467,57 @@ describe('session-repository', () => {
       insertTestSession('s1');
       deleteSessionsWithEvents([]);
       expect(getSession('s1')).not.toBeNull();
+    });
+  });
+
+  describe('session label persistence on deletion', () => {
+    it('snapshots claude label into session_labels on single delete', () => {
+      insertTestSession('s1', { label: 'My Claude Session', claude_session_id: 'claude-abc' });
+      deleteSessionWithEvents('s1');
+      expect(getSession('s1')).toBeNull();
+      const row = getDb()
+        .prepare('SELECT label FROM session_labels WHERE agent_session_id = ? AND provider = ?')
+        .get('claude-abc', 'claude') as { label: string } | undefined;
+      expect(row).toBeDefined();
+      expect(row!.label).toBe('My Claude Session');
+    });
+
+    it('snapshots copilot label into session_labels on single delete', () => {
+      insertTestSession('s1', { label: 'My Copilot Session', copilot_session_id: 'copilot-xyz', session_type: 'copilot' });
+      deleteSessionWithEvents('s1');
+      const row = getDb()
+        .prepare('SELECT label FROM session_labels WHERE agent_session_id = ? AND provider = ?')
+        .get('copilot-xyz', 'copilot') as { label: string } | undefined;
+      expect(row).toBeDefined();
+      expect(row!.label).toBe('My Copilot Session');
+    });
+
+    it('snapshots labels for batch delete', () => {
+      insertTestSession('s1', { label: 'Session A', claude_session_id: 'claude-a' });
+      insertTestSession('s2', { label: 'Session B', claude_session_id: 'claude-b' });
+      deleteSessionsWithEvents(['s1', 's2']);
+      const rowA = getDb()
+        .prepare('SELECT label FROM session_labels WHERE agent_session_id = ? AND provider = ?')
+        .get('claude-a', 'claude') as { label: string } | undefined;
+      const rowB = getDb()
+        .prepare('SELECT label FROM session_labels WHERE agent_session_id = ? AND provider = ?')
+        .get('claude-b', 'claude') as { label: string } | undefined;
+      expect(rowA!.label).toBe('Session A');
+      expect(rowB!.label).toBe('Session B');
+    });
+
+    it('does not create label entry when claude_session_id is null', () => {
+      insertTestSession('s1', { label: 'No Agent ID' });
+      deleteSessionWithEvents('s1');
+      const rows = getDb().prepare('SELECT * FROM session_labels').all();
+      expect(rows).toHaveLength(0);
+    });
+
+    it('does not create label entry when label is null', () => {
+      insertTestSession('s1', { label: null, claude_session_id: 'claude-nolabel' });
+      deleteSessionWithEvents('s1');
+      const rows = getDb().prepare('SELECT * FROM session_labels').all();
+      expect(rows).toHaveLength(0);
     });
   });
 

@@ -415,9 +415,23 @@ export function getClaimedAgentIds(
   );
 }
 
+/** Snapshot session labels into session_labels before deletion so token-usage can still display them. */
+const SNAPSHOT_LABELS_SQL = `
+  INSERT OR REPLACE INTO session_labels (agent_session_id, provider, label)
+  SELECT claude_session_id, 'claude', label FROM sessions
+    WHERE session_id = ? AND claude_session_id IS NOT NULL AND label IS NOT NULL
+  UNION ALL
+  SELECT copilot_session_id, 'copilot', label FROM sessions
+    WHERE session_id = ? AND copilot_session_id IS NOT NULL AND label IS NOT NULL
+  UNION ALL
+  SELECT gemini_session_id, 'gemini', label FROM sessions
+    WHERE session_id = ? AND gemini_session_id IS NOT NULL AND label IS NOT NULL
+`;
+
 export function deleteSessionWithEvents(id: string): void {
   const db = getDb();
   db.transaction(() => {
+    db.prepare(SNAPSHOT_LABELS_SQL).run(id, id, id);
     db.prepare('DELETE FROM events WHERE session_id = ?').run(id);
     db.prepare('DELETE FROM sessions WHERE session_id = ?').run(id);
   })();
@@ -426,10 +440,12 @@ export function deleteSessionWithEvents(id: string): void {
 export function deleteSessionsWithEvents(ids: string[]): void {
   if (ids.length === 0) return;
   const db = getDb();
+  const snapshotLabels = db.prepare(SNAPSHOT_LABELS_SQL);
   const deleteEvents = db.prepare('DELETE FROM events WHERE session_id = ?');
   const deleteSession = db.prepare('DELETE FROM sessions WHERE session_id = ?');
   db.transaction(() => {
     for (const id of ids) {
+      snapshotLabels.run(id, id, id);
       deleteEvents.run(id);
       deleteSession.run(id);
     }
