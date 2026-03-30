@@ -4,6 +4,7 @@ import { useSessionStore } from '../../stores/session-store';
 import { useTaskStore } from '../../stores/task-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
+import AgentIcon from '../shared/AgentIcon';
 import Tooltip from '../shared/Tooltip';
 import CreateTaskDialog from '../shared/CreateTaskDialog';
 import ModelPill from './ModelPill';
@@ -129,7 +130,7 @@ function TerminalToolbar({
           {lastTool}
         </span>
       )}
-      {labelIcon && <span className="text-xs mr-1 text-text-secondary">{labelIcon}</span>}
+      {labelIcon && <AgentIcon icon={labelIcon} className="text-xs mr-1 text-text-secondary" />}
       {isEditing ? (
         <input
           ref={inputRef}

@@ -5,6 +5,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
 import { canResumeSession } from '../../utils/session-resume';
 import Tooltip from '../shared/Tooltip';
+import AgentIcon from '../shared/AgentIcon';
 import StatusBadge from './StatusBadge';
 import ContextMenu from '../shared/ContextMenu';
 import type { MenuItem } from '../shared/ContextMenu';
@@ -136,7 +137,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
         <div className="flex-1 min-w-0">
           {isEditing ? (
             <div className="flex items-center gap-1">
-              {labelIcon && <span className="text-sm shrink-0">{labelIcon}</span>}
+              {labelIcon && <AgentIcon icon={labelIcon} className="text-sm shrink-0" />}
               <input
                 ref={inputRef}
                 className="flex-1 min-w-0 bg-bg-primary text-text-primary text-sm px-1 py-0 border border-border-focus rounded outline-none"
@@ -160,7 +161,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
               {session.sessionType === 'terminal' && (
                 <span className="text-text-muted font-mono text-xs mr-1">&gt;_</span>
               )}
-              {labelIcon && <span className="mr-1">{labelIcon}</span>}
+              {labelIcon && <AgentIcon icon={labelIcon} className="mr-1" />}
               {labelText}
               {accountName && (
                 <span className="text-xs text-text-muted ml-1.5">{accountName}</span>

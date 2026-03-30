@@ -2,6 +2,7 @@ import type { SessionInfo } from '@shared/types';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
+import AgentIcon from '../shared/AgentIcon';
 import StatusBadge from '../Sidebar/StatusBadge';
 import Tooltip from '../shared/Tooltip';
 
@@ -60,7 +61,7 @@ function KanbanCard({
             {session.sessionType === 'terminal' && (
               <span className="text-text-muted font-mono text-xs mr-1">&gt;_</span>
             )}
-            {labelIcon && <span className="mr-1">{labelIcon}</span>}
+            {labelIcon && <AgentIcon icon={labelIcon} className="mr-1" />}
             {labelText}
             {accountName && (
               <span className="text-xs text-text-muted ml-1.5">{accountName}</span>
