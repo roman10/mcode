@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from '../../../src/main/session/prompt-detect';
+import {
+  hasPermissionPrompt,
+  isAtClaudePrompt,
+  isAtUserChoice,
+  parseUserChoices,
+} from '../../../src/main/session/prompt-detect';
 
 describe('isAtClaudePrompt', () => {
   it('detects a clean prompt', () => {
@@ -92,6 +97,20 @@ describe('isAtUserChoice', () => {
     const oldMenu = '❯ 1. Option one\n  2. Option two\n';
     const postEsc = 'Plan mode cancelled.\n❯ ';
     expect(isAtUserChoice(oldMenu + postEsc)).toBe(false);
+  });
+});
+
+describe('hasPermissionPrompt', () => {
+  it('detects the known permission prompt copy', () => {
+    expect(hasPermissionPrompt('Allow once\nDeny once\nAllow always\n')).toBe(true);
+  });
+
+  it('handles ANSI sequences in the prompt', () => {
+    expect(hasPermissionPrompt('\x1b[32mAllow once\x1b[0m\nDeny once')).toBe(true);
+  });
+
+  it('returns false for unrelated output', () => {
+    expect(hasPermissionPrompt('regular model output\nno permission prompt here')).toBe(false);
   });
 });
 

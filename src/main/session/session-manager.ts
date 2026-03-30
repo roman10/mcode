@@ -417,7 +417,16 @@ export class SessionManager {
   private resumeWithPreparedPlan(sessionId: string, prepared: PreparedResume): SessionInfo {
     const db = getDb();
     db.prepare(
-      `UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = ?, auto_close = 0 WHERE session_id = ?`,
+      `UPDATE sessions
+         SET status = 'starting',
+             ended_at = NULL,
+             hook_mode = ?,
+             auto_close = 0,
+             last_tool = NULL,
+             last_event_at = NULL,
+             attention_level = 'none',
+             attention_reason = NULL
+       WHERE session_id = ?`,
     ).run(prepared.hookMode, sessionId);
 
     try {
@@ -1400,4 +1409,3 @@ export function registerSessionIpc(sessionManager: SessionManager): void {
     return sessionManager.importExternal(claudeSessionId, cwd, label);
   });
 }
-

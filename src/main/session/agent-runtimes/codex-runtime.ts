@@ -2,6 +2,7 @@ import { basename } from 'node:path';
 import { getDb } from '../../db';
 import { logger } from '../../logger';
 import { findCodexThreadMatch } from '../codex-session-store';
+import { hasPermissionPrompt } from '../prompt-detect';
 import type {
   AgentCreateContext,
   AgentPostCreateContext,
@@ -140,6 +141,18 @@ export function buildCodexResumePlan(ctx: AgentPrepareResumeContext): PreparedRe
  * this polling is just a safety net.
  */
 export function codexPollState(ctx: PtyPollContext): StateUpdate | null {
+  if (
+    (ctx.status === 'active' || ctx.status === 'idle') &&
+    ctx.attentionLevel !== 'action' &&
+    ctx.isQuiescent &&
+    hasPermissionPrompt(ctx.buffer)
+  ) {
+    return {
+      status: 'waiting',
+      attention: { level: 'action', reason: 'Permission prompt detected' },
+    };
+  }
+
   if (ctx.status === 'active' && ctx.isQuiescent) {
     return {
       status: 'idle',

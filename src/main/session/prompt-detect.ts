@@ -1,5 +1,11 @@
 import { stripAnsi } from '../../shared/strip-ansi';
 
+const PERMISSION_PATTERNS = [
+  /Allow\s+once/i,
+  /Deny\s+once/i,
+  /Allow\s+always/i,
+] as const;
+
 /**
  * Check if the terminal buffer tail shows Claude Code's idle prompt (❯).
  * The raw ring buffer is a linear stream — cursor-repositioned content
@@ -17,6 +23,17 @@ export function isAtClaudePrompt(rawBufferTail: string): boolean {
   // chars / 5 newlines to tolerate accumulation while still rejecting
   // real Claude output (which is multi-line and much longer).
   return after.length < 800 && (after.match(/\n/g) || []).length <= 5;
+}
+
+/**
+ * Check whether the terminal buffer tail contains a known permission prompt.
+ *
+ * These prompts can surface when hook transport is unavailable, so PTY polling
+ * needs a text-based fallback to put the session into `waiting`.
+ */
+export function hasPermissionPrompt(rawBufferTail: string): boolean {
+  const clean = stripAnsi(rawBufferTail.slice(-2000));
+  return PERMISSION_PATTERNS.some((re) => re.test(clean));
 }
 
 /**

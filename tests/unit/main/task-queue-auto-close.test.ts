@@ -221,8 +221,16 @@ describe('auto-close: resume clears auto_close flag', () => {
 
   // SQL mirroring the updated session-manager.ts resume() method
   const RESUME_SQL = `
-    UPDATE sessions SET status = 'starting', ended_at = NULL, hook_mode = 'live', auto_close = 0
-    WHERE session_id = ?
+    UPDATE sessions
+       SET status = 'starting',
+           ended_at = NULL,
+           hook_mode = 'live',
+           auto_close = 0,
+           last_tool = NULL,
+           last_event_at = NULL,
+           attention_level = 'none',
+           attention_reason = NULL
+     WHERE session_id = ?
   `;
 
   it('resume clears auto_close so the session is not immediately re-killed', () => {
@@ -249,6 +257,31 @@ describe('auto-close: resume clears auto_close flag', () => {
     const [status, autoClose] = result.values[0];
     expect(status).toBe('starting');
     expect(autoClose).toBe(0);
+  });
+
+  it('resume clears stale last tool and attention state', () => {
+    db.run(
+      `INSERT INTO sessions (
+         session_id, label, cwd, status, started_at, session_type, auto_close,
+         claude_session_id, last_tool, last_event_at, attention_level, attention_reason
+       )
+       VALUES (
+         'resume-cleanup', 'test', '/tmp', 'ended', datetime('now'), 'claude', 1,
+         'abc789', 'ExitPlanMode', '2026-01-01T00:00:00.000Z', 'action', 'Waiting for your response'
+       )`,
+    );
+
+    db.run(RESUME_SQL, ['resume-cleanup']);
+
+    const [result] = db.exec(
+      `SELECT last_tool, last_event_at, attention_level, attention_reason
+         FROM sessions WHERE session_id = 'resume-cleanup'`,
+    );
+    const [lastTool, lastEventAt, attentionLevel, attentionReason] = result.values[0];
+    expect(lastTool).toBeNull();
+    expect(lastEventAt).toBeNull();
+    expect(attentionLevel).toBe('none');
+    expect(attentionReason).toBeNull();
   });
 });
 

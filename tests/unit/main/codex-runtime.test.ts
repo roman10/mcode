@@ -222,6 +222,29 @@ describe('codexPollState', () => {
     });
   });
 
+  it('detects permission prompts before idle fallback', () => {
+    expect(codexPollState(ctx({
+      status: 'active',
+      buffer: 'Allow once\nDeny once\nAllow always\n',
+      isQuiescent: true,
+    }))).toEqual({
+      status: 'waiting',
+      attention: { level: 'action', reason: 'Permission prompt detected' },
+    });
+  });
+
+  it('does not re-trigger permission detection when action attention is already set', () => {
+    expect(codexPollState(ctx({
+      status: 'active',
+      attentionLevel: 'action',
+      buffer: 'Allow once\nDeny once\nAllow always\n',
+      isQuiescent: true,
+    }))).toEqual({
+      status: 'idle',
+      attention: { level: 'action', reason: 'Codex finished — awaiting input' },
+    });
+  });
+
   it('returns null when active but not quiescent', () => {
     expect(codexPollState(ctx({ status: 'active', isQuiescent: false }))).toBeNull();
   });

@@ -1,7 +1,6 @@
 import { basename, join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { stripAnsi } from '../../../shared/strip-ansi';
-import { isAtClaudePrompt, isAtUserChoice } from '../prompt-detect';
+import { isAtClaudePrompt, isAtUserChoice, hasPermissionPrompt } from '../prompt-detect';
 import { USER_CHOICE_TOOLS } from '../session-state-machine';
 import type {
   AgentCreateContext,
@@ -13,12 +12,6 @@ import type {
   StateUpdate,
 } from '../agent-runtime';
 
-const PERMISSION_PATTERNS = [
-  /Allow\s+once/,
-  /Deny\s+once/,
-  /Allow\s+always/,
-];
-
 /**
  * Poll-based state detection for Claude Code sessions.
  *
@@ -27,15 +20,13 @@ const PERMISSION_PATTERNS = [
  * unavailable) this is the only detection mechanism.
  */
 export function claudePollState(ctx: PtyPollContext): StateUpdate | null {
-  const tail = stripAnsi(ctx.buffer.slice(-2000));
   const rawTail = ctx.buffer.slice(-2000);
-  const hasPermissionPrompt = PERMISSION_PATTERNS.some((re) => re.test(tail));
 
   if (
     (ctx.status === 'active' || ctx.status === 'idle') &&
     ctx.attentionLevel !== 'action' &&
-    hasPermissionPrompt &&
-    ctx.isQuiescent
+    ctx.isQuiescent &&
+    hasPermissionPrompt(rawTail)
   ) {
     // Permission prompt detected: quiescent + pattern visible
     return {
