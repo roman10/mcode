@@ -1,72 +1,32 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
-import type { Database } from 'sql.js';
-import { createTestDb } from './test-db';
+import { getDb, resetDbForTest } from '../../../src/main/db';
 import { SessionEventStore } from '../../../src/main/session/session-event-store';
 import type { HookEvent } from '../../../src/shared/types';
-
-let testDb: Database;
-
-/**
- * Minimal wrapper to make sql.js Database look like better-sqlite3 for SessionEventStore tests.
- */
-function wrapDatabase(sqlDb: Database) {
-  return {
-    prepare: (sql: string) => {
-      const stmt = sqlDb.prepare(sql);
-      return {
-        run: (...args: any[]) => {
-          // better-sqlite3 supports .run(arg1, arg2, ...) OR .run([arg1, arg2, ...])
-          const params = (args.length === 1 && Array.isArray(args[0]) ? args[0] : args).map((v: any) => v === undefined ? null : v);
-          stmt.bind(params);
-          stmt.step();
-          const changes = sqlDb.getRowsModified();
-          stmt.reset();
-          stmt.free();
-          return { changes };
-        },
-        all: (...args: any[]) => {
-          const params = (args.length === 1 && Array.isArray(args[0]) ? args[0] : args).map((v: any) => v === undefined ? null : v);
-          stmt.bind(params);
-          const rows = [];
-          while (stmt.step()) {
-            rows.push(stmt.getAsObject());
-          }
-          stmt.reset();
-          stmt.free();
-          return rows;
-        },
-      };
-    },
-  };
-}
-
-vi.mock('../../../src/main/db', () => ({
-  getDb: vi.fn(() => wrapDatabase(testDb)),
-}));
 
 describe('SessionEventStore', () => {
   let store: SessionEventStore;
   const MAX_BYTES = 100;
 
-  beforeAll(async () => {
-    testDb = await createTestDb();
+  beforeAll(() => {
+    resetDbForTest();
   });
 
   afterAll(() => {
-    testDb.close();
+    resetDbForTest();
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
-    testDb.run('DELETE FROM events');
-    testDb.run('DELETE FROM sessions');
+    const db = getDb();
+    db.prepare('DELETE FROM events').run();
+    db.prepare('DELETE FROM sessions').run();
     
     // Insert a test session for foreign key constraint
-    testDb.run(
+    db.prepare(
       `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode)
        VALUES ('s1', 'test', '/tmp', 'active', datetime('now'), 'claude', 'live')`,
-    );
+    ).run();
     
     store = new SessionEventStore(MAX_BYTES);
   });
@@ -129,10 +89,10 @@ describe('SessionEventStore', () => {
   });
 
   it('getRecentAllEvents returns events across all sessions', () => {
-    testDb.run(
+    getDb().prepare(
       `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode)
        VALUES ('s2', 'test2', '/tmp', 'active', datetime('now'), 'claude', 'live')`,
-    );
+    ).run();
 
     store.persistEvent('s1', { sessionId: 's1', hookEventName: 'E1', createdAt: 'T1', payload: {} }, 'active');
     store.persistEvent('s2', { sessionId: 's2', hookEventName: 'E2', createdAt: 'T2', payload: {} }, 'active');

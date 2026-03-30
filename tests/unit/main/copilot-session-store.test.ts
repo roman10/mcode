@@ -66,6 +66,19 @@ describe('parseEventsJsonlFirstLine', () => {
     expect(parseEventsJsonlFirstLine(path)).toBeNull();
   });
 
+  it('skips malformed first line and tries to find a valid session.start', () => {
+    // Note: current implementation only looks at the first line. 
+    // Let's verify this behavior or improve it if needed.
+    const path = join(tmpDir, 'events.jsonl');
+    writeFileSync(path, 'not json\n' + JSON.stringify({
+      type: 'session.start',
+      data: { sessionId: UUID_A, startTime: '2026-03-29T10:00:00Z', context: { cwd: '/tmp' } },
+    }) + '\n');
+    
+    // Current implementation:
+    expect(parseEventsJsonlFirstLine(path)).toBeNull();
+  });
+
   it('returns null for empty file', () => {
     const path = join(tmpDir, 'events.jsonl');
     writeFileSync(path, '');

@@ -1,71 +1,5 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
-import type { Database } from 'sql.js';
-import { createTestDb } from './test-db';
-
-let testDb: Database;
-
-function normalizeParams(args: any[]): any[] {
-  return (args.length === 1 && Array.isArray(args[0]) ? args[0] : args)
-    .map((v: any) => v === undefined ? null : v);
-}
-
-function wrapDatabase(sqlDb: Database) {
-  const self = {
-    prepare: (sql: string) => {
-      // Return a reusable handle — each run/get/all creates a fresh sql.js
-      // statement so the handle can be called multiple times (e.g. inside
-      // transactions with prepared-statement reuse).
-      return {
-        run: (...args: any[]) => {
-          const stmt = sqlDb.prepare(sql);
-          const params = normalizeParams(args);
-          stmt.bind(params);
-          stmt.step();
-          const changes = sqlDb.getRowsModified();
-          stmt.free();
-          return { changes };
-        },
-        get: (...args: any[]) => {
-          const stmt = sqlDb.prepare(sql);
-          const params = normalizeParams(args);
-          stmt.bind(params);
-          const result = stmt.step() ? stmt.getAsObject() : undefined;
-          stmt.free();
-          return result;
-        },
-        all: (...args: any[]) => {
-          const stmt = sqlDb.prepare(sql);
-          const params = normalizeParams(args);
-          stmt.bind(params);
-          const rows = [];
-          while (stmt.step()) {
-            rows.push(stmt.getAsObject());
-          }
-          stmt.free();
-          return rows;
-        },
-      };
-    },
-    transaction: <T>(fn: () => T) => {
-      return () => {
-        sqlDb.run('BEGIN');
-        try {
-          const result = fn();
-          sqlDb.run('COMMIT');
-          return result;
-        } catch (e) {
-          sqlDb.run('ROLLBACK');
-          throw e;
-        }
-      };
-    },
-  };
-  return self;
-}
-
-vi.mock('../../../src/main/db', () => ({
-  getDb: vi.fn(() => wrapDatabase(testDb)),
-}));
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { getDb, resetDbForTest } from '../../../src/main/db';
 
 import {
   getSession,
@@ -115,22 +49,23 @@ function insertTestSession(id: string, overrides: Record<string, any> = {}) {
   const cols = ['session_id', ...Object.keys(merged)];
   const vals = [id, ...Object.values(merged)];
   const placeholders = cols.map(() => '?').join(', ');
-  testDb.run(`INSERT INTO sessions (${cols.join(', ')}) VALUES (${placeholders})`, vals);
+  getDb().prepare(`INSERT INTO sessions (${cols.join(', ')}) VALUES (${placeholders})`).run(vals);
 }
 
 describe('session-repository', () => {
-  beforeAll(async () => {
-    testDb = await createTestDb();
+  beforeAll(() => {
+    resetDbForTest();
   });
 
   afterAll(() => {
-    testDb.close();
+    resetDbForTest();
   });
 
   beforeEach(() => {
-    testDb.run('DELETE FROM events');
-    testDb.run('DELETE FROM task_queue');
-    testDb.run('DELETE FROM sessions');
+    const db = getDb();
+    db.prepare('DELETE FROM events').run();
+    db.prepare('DELETE FROM task_queue').run();
+    db.prepare('DELETE FROM sessions').run();
   });
 
   // -----------------------------------------------------------------
@@ -378,10 +313,10 @@ describe('session-repository', () => {
 
     it('returns true when pending tasks exist', () => {
       insertTestSession('s1');
-      testDb.run(
+      getDb().prepare(
         `INSERT INTO task_queue (prompt, cwd, status, target_session_id, created_at)
          VALUES ('do stuff', '/tmp', 'pending', 's1', datetime('now'))`,
-      );
+      ).run();
       expect(hasPendingTasksForSession('s1')).toBe(true);
     });
   });
@@ -505,13 +440,13 @@ describe('session-repository', () => {
   describe('deleteSessionWithEvents', () => {
     it('deletes session and its events transactionally', () => {
       insertTestSession('s1');
-      testDb.run(
+      getDb().prepare(
         `INSERT INTO events (session_id, hook_event_name, session_status, payload, created_at)
          VALUES ('s1', 'SessionStart', 'active', '{}', datetime('now'))`,
-      );
+      ).run();
       deleteSessionWithEvents('s1');
       expect(getSession('s1')).toBeNull();
-      const events = testDb.exec("SELECT * FROM events WHERE session_id = 's1'");
+      const events = getDb().prepare("SELECT * FROM events WHERE session_id = 's1'").all();
       expect(events).toHaveLength(0);
     });
   });

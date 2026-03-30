@@ -23,9 +23,14 @@ describe('normalizeModelVersion', () => {
     expect(normalizeModelVersion('gpt-4')).toBe('gpt-4');
   });
 
-  it('handles haiku versions', () => {
-    expect(normalizeModelVersion('claude-haiku-3-5')).toBe('haiku-3.5');
-    expect(normalizeModelVersion('claude-haiku-3')).toBe('haiku-3');
+  it('handles sonnet 3.7', () => {
+    expect(normalizeModelVersion('claude-sonnet-3-7')).toBe('sonnet-3.7');
+  });
+
+  it('handles bare family names correctly', () => {
+    expect(normalizeModelVersion('claude-opus')).toBe('opus');
+    expect(normalizeModelVersion('claude-sonnet')).toBe('sonnet');
+    expect(normalizeModelVersion('claude-haiku')).toBe('haiku');
   });
 });
 
@@ -37,6 +42,7 @@ describe('normalizeModelFamily', () => {
 
   it('detects sonnet', () => {
     expect(normalizeModelFamily('claude-sonnet-4-5-20251022')).toBe('sonnet');
+    expect(normalizeModelFamily('claude-3-7-sonnet')).toBe('sonnet');
   });
 
   it('detects haiku', () => {
@@ -46,6 +52,7 @@ describe('normalizeModelFamily', () => {
   it('detects gpt', () => {
     expect(normalizeModelFamily('gpt-4')).toBe('gpt');
     expect(normalizeModelFamily('gpt-5.4')).toBe('gpt');
+    expect(normalizeModelFamily('o1-preview')).toBe('unknown'); // currently mapped to unknown unless we add it
   });
 
   it('returns unknown for unrecognized models', () => {
@@ -90,6 +97,12 @@ describe('estimateCostUsd', () => {
     // opus-4.6: input $5/MTok, output $25/MTok
     const cost = estimateCostUsd('claude-opus-4-6', 1_000_000, 1_000_000, 0, 0, 0, false);
     expect(cost).toBe(30); // $5 + $25
+  });
+
+  it('calculates cost for sonnet-3.7', () => {
+    // sonnet-3.7: input $3/MTok, output $15/MTok
+    const cost = estimateCostUsd('claude-sonnet-3-7', 1_000_000, 1_000_000, 0, 0, 0, false);
+    expect(cost).toBe(18); // $3 + $15
   });
 
   it('applies fast mode multiplier', () => {

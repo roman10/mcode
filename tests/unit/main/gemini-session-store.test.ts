@@ -69,6 +69,8 @@ describe('gemini-session-store', () => {
       '  not a session line',
       '  0. bad index (just now) [invalid-zero]',
       '  3. Valid title (moments ago) [valid-id]',
+      '  4. Another title [no-age] [valid-id-2]',
+      '  5. Missing bracket age (just now valid-id-3',
       'Loaded cached credentials.',
     ].join('\n'))).toEqual([
       {
@@ -78,6 +80,30 @@ describe('gemini-session-store', () => {
         geminiSessionId: 'valid-id',
       },
     ]);
+  });
+
+  it('handles titles with special characters', () => {
+    const output = `Available sessions for this project (1):
+  1. Title with (parens) and [brackets] (1 hour ago) [uuid-123]`;
+    expect(parseGeminiSessionList(output)).toEqual([
+      {
+        index: 1,
+        title: 'Title with (parens) and [brackets]',
+        relativeAgeText: '1 hour ago',
+        geminiSessionId: 'uuid-123',
+      },
+    ]);
+  });
+
+  it('handles very long session lists', () => {
+    const lines = ['Available sessions for this project (100):'];
+    for (let i = 1; i <= 100; i++) {
+      lines.push(`  ${i}. Session ${i} (day ago) [uuid-${i}]`);
+    }
+    const result = parseGeminiSessionList(lines.join('\n'));
+    expect(result).toHaveLength(100);
+    expect(result[99].index).toBe(100);
+    expect(result[99].geminiSessionId).toBe('uuid-100');
   });
 
   it('returns null when every listed Gemini session is already claimed', () => {

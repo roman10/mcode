@@ -60,8 +60,12 @@ function applyMigrations(database: Database.Database): void {
 export function getDb(): Database.Database {
   if (db) return db;
 
-  const dbPath = join(app.getPath('userData'), 'mcode.db');
-  logger.info('db', 'Opening database', { path: dbPath });
+  const isTest = process.env.NODE_ENV === 'test';
+  const dbPath = isTest ? ':memory:' : join(app.getPath('userData'), 'mcode.db');
+
+  if (!isTest) {
+    logger.info('db', 'Opening database', { path: dbPath });
+  }
 
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
@@ -77,4 +81,15 @@ export function closeDb(): void {
     db.close();
     db = null;
   }
+}
+
+/**
+ * ONLY FOR TESTING: Force closes the database and clears the singleton.
+ * Next call to getDb() will return a fresh instance.
+ */
+export function resetDbForTest(): void {
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error('resetDbForTest can only be called in test environment');
+  }
+  closeDb();
 }

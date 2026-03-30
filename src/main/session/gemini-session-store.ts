@@ -26,7 +26,7 @@ export function parseGeminiSessionList(output: string): GeminiListedSession[] {
     if (!trimmed) continue;
     nonEmptyLines++;
 
-    const match = line.match(/^\s*(\d+)\.\s+(.*?)\s+\((.*?)\)\s+\[([^\]]+)\]\s*$/);
+    const match = line.match(/^\s*(\d+)\.\s+(.*)\s+\(([^)]+)\)\s+\[([^\]]+)\]\s*$/);
     if (!match) continue;
 
     const [, indexText, title, relativeAgeText, geminiSessionId] = match;

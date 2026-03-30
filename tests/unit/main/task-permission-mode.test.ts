@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import type { Database } from 'sql.js';
-import { createTestDb } from './test-db';
+import { getDb, resetDbForTest } from '../../../src/main/db';
 import { buildModeCycle, calcShiftTabPresses } from '../../../src/main/task-queue';
 import type { SessionInfo } from '../../../src/shared/types';
 
@@ -22,6 +21,9 @@ function makeSession(opts: {
     startedAt: new Date().toISOString(),
     endedAt: null,
     claudeSessionId: null,
+    codexThreadId: null,
+    geminiSessionId: null,
+    copilotSessionId: null,
     lastTool: null,
     lastEventAt: null,
     attentionLevel: 'none',
@@ -31,6 +33,7 @@ function makeSession(opts: {
     terminalConfig: {},
     accountId: null,
     autoClose: false,
+    model: null,
   };
 }
 
@@ -113,71 +116,72 @@ describe('calcShiftTabPresses', () => {
 });
 
 describe('task_queue permission_mode column', () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = await createTestDb();
+  beforeAll(() => {
+    resetDbForTest();
   });
 
-  afterAll(() => db.close());
+  afterAll(() => resetDbForTest());
 
   beforeEach(() => {
-    db.run('DELETE FROM task_queue');
-    db.run('DELETE FROM sessions');
+    const db = getDb();
+    db.prepare('DELETE FROM task_queue').run();
+    db.prepare('DELETE FROM sessions').run();
     // Insert a test session
-    db.run(
+    db.prepare(
       `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode)
        VALUES ('s1', 'test', '/tmp', 'idle', datetime('now'), 'claude', 'live')`,
-    );
+    ).run();
   });
 
   it('stores and retrieves permission_mode on tasks', () => {
-    db.run(
+    const db = getDb();
+    db.prepare(
       `INSERT INTO task_queue (prompt, cwd, target_session_id, status, priority, retry_count, max_retries, created_at, permission_mode)
        VALUES ('test', '/tmp', 's1', 'pending', 0, 0, 3, datetime('now'), 'plan')`,
-    );
-    const row = db.exec('SELECT permission_mode FROM task_queue ORDER BY id DESC LIMIT 1')[0];
-    expect(row.values[0][0]).toBe('plan');
+    ).run();
+    const row = db.prepare('SELECT permission_mode FROM task_queue ORDER BY id DESC LIMIT 1').get() as { permission_mode: string };
+    expect(row.permission_mode).toBe('plan');
   });
 
   it('allows NULL permission_mode (default behavior)', () => {
-    db.run(
+    const db = getDb();
+    db.prepare(
       `INSERT INTO task_queue (prompt, cwd, target_session_id, status, priority, retry_count, max_retries, created_at)
        VALUES ('test', '/tmp', 's1', 'pending', 0, 0, 3, datetime('now'))`,
-    );
-    const row = db.exec('SELECT permission_mode FROM task_queue ORDER BY id DESC LIMIT 1')[0];
-    expect(row.values[0][0]).toBeNull();
+    ).run();
+    const row = db.prepare('SELECT permission_mode FROM task_queue ORDER BY id DESC LIMIT 1').get() as { permission_mode: string | null };
+    expect(row.permission_mode).toBeNull();
   });
 });
 
 describe('sessions allow_bypass_permissions column', () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = await createTestDb();
+  beforeAll(() => {
+    resetDbForTest();
   });
 
-  afterAll(() => db.close());
+  afterAll(() => resetDbForTest());
 
   beforeEach(() => {
-    db.run('DELETE FROM sessions');
+    getDb().prepare('DELETE FROM sessions').run();
   });
 
   it('stores allow_bypass_permissions flag', () => {
-    db.run(
+    const db = getDb();
+    db.prepare(
       `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, allow_bypass_permissions)
        VALUES ('s-bp', 'test', '/tmp', 'idle', datetime('now'), 'claude', 1)`,
-    );
-    const row = db.exec('SELECT allow_bypass_permissions FROM sessions WHERE session_id = ?', ['s-bp'])[0];
-    expect(row.values[0][0]).toBe(1);
+    ).run();
+    const row = db.prepare('SELECT allow_bypass_permissions FROM sessions WHERE session_id = ?').get('s-bp') as { allow_bypass_permissions: number };
+    expect(row.allow_bypass_permissions).toBe(1);
   });
 
   it('defaults to NULL when not set', () => {
-    db.run(
+    const db = getDb();
+    db.prepare(
       `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type)
        VALUES ('s-no-bp', 'test', '/tmp', 'idle', datetime('now'), 'claude')`,
-    );
-    const row = db.exec('SELECT allow_bypass_permissions FROM sessions WHERE session_id = ?', ['s-no-bp'])[0];
-    expect(row.values[0][0]).toBeNull();
+    ).run();
+    const row = db.prepare('SELECT allow_bypass_permissions FROM sessions WHERE session_id = ?').get('s-no-bp') as { allow_bypass_permissions: number | null };
+    expect(row.allow_bypass_permissions).toBeNull();
   });
 });
