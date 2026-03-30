@@ -3,6 +3,7 @@ import type { WebContents } from 'electron';
 import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from './session/session-manager';
 import { getDb } from './db';
+import { updateSession } from './session/session-repository';
 import { logger } from './logger';
 import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from './session/prompt-detect';
 import { getTranscriptPath } from './session/transcript-path';
@@ -599,8 +600,7 @@ export class TaskQueue {
           // Update DB permission_mode so future tasks have accurate state
           if (task.permissionMode) {
             const modeForDb = task.permissionMode === 'default' ? null : task.permissionMode;
-            getDb().prepare('UPDATE sessions SET permission_mode = ? WHERE session_id = ?')
-              .run(modeForDb, task.targetSessionId);
+            updateSession(task.targetSessionId!, { permissionMode: modeForDb });
           }
 
           logger.info('task', 'Dispatched task after permission mode cycling', {

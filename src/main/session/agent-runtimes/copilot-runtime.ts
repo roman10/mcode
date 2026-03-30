@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { getDb } from '../../db';
+import { getSessionRecord, getClaimedAgentIds, setAgentIdIfNull } from '../session-repository';
 import { logger } from '../../logger';
 import { findCopilotSessionId } from '../copilot-session-store';
 import { hasPermissionPrompt } from '../prompt-detect';
@@ -80,19 +80,10 @@ export function scheduleCopilotSessionCapture(
   const deadline = Date.now() + 15_000;
 
   const poll = async (): Promise<void> => {
-    const db = getDb();
-    const row = db.prepare(
-      'SELECT session_type, copilot_session_id FROM sessions WHERE session_id = ?',
-    ).get(input.sessionId) as { session_type: string; copilot_session_id: string | null } | undefined;
-    if (!row || row.session_type !== 'copilot' || row.copilot_session_id) return;
+    const record = getSessionRecord(input.sessionId);
+    if (!record || record.session_type !== 'copilot' || record.copilot_session_id) return;
 
-    const claimedSessionIds = new Set(
-      (
-        db.prepare(
-          'SELECT copilot_session_id FROM sessions WHERE copilot_session_id IS NOT NULL AND session_id != ?',
-        ).all(input.sessionId) as { copilot_session_id: string }[]
-      ).map((entry) => entry.copilot_session_id),
-    );
+    const claimedSessionIds = getClaimedAgentIds('copilot_session_id', input.sessionId);
 
     const match = findCopilotSessionId({
       cwd: input.cwd,
@@ -102,10 +93,8 @@ export function scheduleCopilotSessionCapture(
     });
 
     if (match) {
-      const result = db.prepare(
-        'UPDATE sessions SET copilot_session_id = ? WHERE session_id = ? AND copilot_session_id IS NULL',
-      ).run(match, input.sessionId);
-      if (result.changes > 0) {
+      const claimed = setAgentIdIfNull(input.sessionId, 'copilot_session_id', match);
+      if (claimed) {
         logger.info('session', 'Captured Copilot session ID', {
           sessionId: input.sessionId,
           copilotSessionId: match,

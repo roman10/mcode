@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { basename } from 'node:path';
-import { getDb } from '../../db';
+import { getSessionRecord, getClaimedAgentIds, setAgentIdIfNull } from '../session-repository';
 import { logger } from '../../logger';
 import {
   parseGeminiSessionList,
@@ -45,20 +45,11 @@ export function scheduleGeminiSessionCapture(
 ): void {
   const deadline = Date.now() + 15_000;
   const poll = async (): Promise<void> => {
-    const db = getDb();
-    const row = db.prepare(
-      'SELECT session_type, gemini_session_id FROM sessions WHERE session_id = ?',
-    ).get(input.sessionId) as { session_type: string; gemini_session_id: string | null } | undefined;
-    if (!row || row.session_type !== 'gemini' || row.gemini_session_id) return;
+    const record = getSessionRecord(input.sessionId);
+    if (!record || record.session_type !== 'gemini' || record.gemini_session_id) return;
 
     try {
-      const claimedSessionIds = new Set(
-        (
-          db.prepare(
-            'SELECT gemini_session_id FROM sessions WHERE gemini_session_id IS NOT NULL AND session_id != ?',
-          ).all(input.sessionId) as { gemini_session_id: string }[]
-        ).map((entry) => entry.gemini_session_id),
-      );
+      const claimedSessionIds = getClaimedAgentIds('gemini_session_id', input.sessionId);
 
       const entries = listGeminiSessions(input.command, input.cwd);
       const match = selectGeminiSessionCandidate(entries, {
@@ -67,10 +58,8 @@ export function scheduleGeminiSessionCapture(
       });
 
       if (match) {
-        const result = db.prepare(
-          'UPDATE sessions SET gemini_session_id = ? WHERE session_id = ? AND gemini_session_id IS NULL',
-        ).run(match.geminiSessionId, input.sessionId);
-        if (result.changes > 0) {
+        const claimed = setAgentIdIfNull(input.sessionId, 'gemini_session_id', match.geminiSessionId);
+        if (claimed) {
           logger.info('session', 'Captured Gemini session ID', {
             sessionId: input.sessionId,
             geminiSessionId: match.geminiSessionId,

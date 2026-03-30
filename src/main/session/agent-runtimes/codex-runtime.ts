@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { getDb } from '../../db';
+import { getSessionRecord, getClaimedAgentIds, setAgentIdIfNull } from '../session-repository';
 import { logger } from '../../logger';
 import { findCodexThreadMatch } from '../codex-session-store';
 import { hasPermissionPrompt } from '../prompt-detect';
@@ -30,19 +30,10 @@ export function scheduleCodexThreadCapture(
 
   const deadline = Date.now() + 15_000;
   const poll = async (): Promise<void> => {
-    const db = getDb();
-    const row = db.prepare(
-      'SELECT session_type, codex_thread_id FROM sessions WHERE session_id = ?',
-    ).get(input.sessionId) as { session_type: string; codex_thread_id: string | null } | undefined;
-    if (!row || row.session_type !== 'codex' || row.codex_thread_id) return;
+    const record = getSessionRecord(input.sessionId);
+    if (!record || record.session_type !== 'codex' || record.codex_thread_id) return;
 
-    const claimedThreadIds = new Set(
-      (
-        db.prepare(
-          'SELECT codex_thread_id FROM sessions WHERE codex_thread_id IS NOT NULL AND session_id != ?',
-        ).all(input.sessionId) as { codex_thread_id: string }[]
-      ).map((entry) => entry.codex_thread_id),
-    );
+    const claimedThreadIds = getClaimedAgentIds('codex_thread_id', input.sessionId);
 
     const match = findCodexThreadMatch({
       cwd: input.cwd,
@@ -52,10 +43,8 @@ export function scheduleCodexThreadCapture(
       claimedThreadIds,
     });
     if (match) {
-      const result = db.prepare(
-        'UPDATE sessions SET codex_thread_id = ? WHERE session_id = ? AND codex_thread_id IS NULL',
-      ).run(match.id, input.sessionId);
-      if (result.changes > 0) {
+      const claimed = setAgentIdIfNull(input.sessionId, 'codex_thread_id', match.id);
+      if (claimed) {
         logger.info('session', 'Captured Codex thread ID', {
           sessionId: input.sessionId,
           codexThreadId: match.id,

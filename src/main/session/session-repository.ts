@@ -395,12 +395,24 @@ export function updateAutoLabel(id: string, label: string): boolean {
 
 export function setAgentIdIfNull(
   id: string,
-  column: 'claude_session_id' | 'gemini_session_id' | 'copilot_session_id',
+  column: 'codex_thread_id' | 'gemini_session_id' | 'copilot_session_id',
   value: string,
 ): boolean {
   return getDb()
     .prepare(`UPDATE sessions SET ${column} = ? WHERE session_id = ? AND ${column} IS NULL`)
     .run(value, id).changes > 0;
+}
+
+export function getClaimedAgentIds(
+  column: 'codex_thread_id' | 'gemini_session_id' | 'copilot_session_id',
+  excludeSessionId: string,
+): Set<string> {
+  return new Set(
+    (getDb()
+      .prepare(`SELECT ${column} FROM sessions WHERE ${column} IS NOT NULL AND session_id != ?`)
+      .all(excludeSessionId) as Record<string, string>[])
+      .map((r) => r[column]),
+  );
 }
 
 export function deleteSessionWithEvents(id: string): void {
