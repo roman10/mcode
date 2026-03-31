@@ -77,6 +77,7 @@ function toTask(row: TaskRecord): Task {
 
 const DISPATCH_INTERVAL_MS = 2000;
 const SHIFT_TAB_DELAY_MS = 150;
+const SUBMIT_DELAY_MS = 100;
 
 // --- Permission mode cycling helpers (exported for testing) ---
 
@@ -619,7 +620,18 @@ export class TaskQueue {
     const db = getDb();
 
     // Write prompt to PTY
-    this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
+    const session = this.sessionManager.get(task.targetSessionId!);
+    if (session?.sessionType === 'gemini') {
+      // Gemini CLI interprets \r as a newline within pasted text if it
+      // arrives in the same read buffer as the prompt. Split into two
+      // writes so the Enter arrives as a separate input event.
+      this.ptyManager.write(task.targetSessionId!, task.prompt);
+      setTimeout(() => {
+        this.ptyManager.write(task.targetSessionId!, '\r');
+      }, SUBMIT_DELAY_MS);
+    } else {
+      this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
+    }
 
     // Mark dispatched
     const dispatchedAt = new Date().toISOString();
