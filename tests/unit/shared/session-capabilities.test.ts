@@ -74,7 +74,7 @@ describe('session-capabilities', () => {
 
   it('exposes correct supportsTaskQueue flags per agent', () => {
     expect(getAgentDefinition('claude')?.supportsTaskQueue).toBe(true);
-    expect(getAgentDefinition('codex')?.supportsTaskQueue).toBe(false);
+    expect(getAgentDefinition('codex')?.supportsTaskQueue).toBe(true);
     expect(getAgentDefinition('gemini')?.supportsTaskQueue).toBe(true);
     expect(getAgentDefinition('copilot')?.supportsTaskQueue).toBe(true);
   });

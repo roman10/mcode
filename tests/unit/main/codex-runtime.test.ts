@@ -222,6 +222,11 @@ describe('codexPollState', () => {
     });
   });
 
+  it('returns idle without attention when pending tasks exist', () => {
+    expect(codexPollState(ctx({ status: 'active', isQuiescent: true, hasPendingTasks: true })))
+      .toEqual({ status: 'idle' });
+  });
+
   it('detects permission prompts before idle fallback', () => {
     expect(codexPollState(ctx({
       status: 'active',

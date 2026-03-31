@@ -222,7 +222,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     displayName: 'Codex CLI',
     icon: CODEX_ICON,
     defaultCommand: 'codex',
-    supportsTaskQueue: false,
+    supportsTaskQueue: true,
     supportsPlanMode: false,
     hidesTerminalCursor: true,
     dialogMode: 'minimal',

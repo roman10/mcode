@@ -143,6 +143,9 @@ export function codexPollState(ctx: PtyPollContext): StateUpdate | null {
   }
 
   if (ctx.status === 'active' && ctx.isQuiescent) {
+    if (ctx.hasPendingTasks) {
+      return { status: 'idle' };
+    }
     return {
       status: 'idle',
       attention: { level: 'action', reason: 'Codex finished — awaiting input' },

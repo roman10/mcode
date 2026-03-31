@@ -136,6 +136,9 @@ export function copilotPollState(ctx: PtyPollContext): StateUpdate | null {
   }
 
   if (ctx.status === 'active' && ctx.isQuiescent) {
+    if (ctx.hasPendingTasks) {
+      return { status: 'idle' };
+    }
     return {
       status: 'idle',
       attention: { level: 'action', reason: 'Copilot finished — awaiting input' },

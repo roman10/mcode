@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import type { McpTestClient } from './mcp-client';
+import { beforeAll, afterAll, it, expect } from 'vitest';
+import { McpTestClient } from './mcp-client';
 
 const TEST_CLAUDE_PATH = join(process.cwd(), 'tests', 'fixtures', 'claude');
 const TEST_CODEX_PATH = join(process.cwd(), 'tests', 'fixtures', 'codex');
@@ -602,4 +603,169 @@ export async function reorderTask(
   direction: 'up' | 'down',
 ): Promise<TaskInfo> {
   return client.callToolJson<TaskInfo>('task_reorder', { taskId, direction });
+}
+
+// --- Shared agent task queue test suite ---
+
+/**
+ * Create a live agent session and transition it to idle via hook injection.
+ *
+ * Note: 'Stop' is a synthetic test event injected via the canonical mcode event
+ * name. In production, some agents reach idle via quiescence polling rather than
+ * a Stop hook event. Using 'Stop' here is correct for testing because
+ * injectHookEvent sends directly to the session-manager state machine.
+ */
+export async function createIdleLiveAgentSession(
+  client: McpTestClient,
+  createSession: (client: McpTestClient, overrides?: Record<string, unknown>) => Promise<SessionInfo>,
+  agentLabel: string,
+): Promise<SessionInfo> {
+  const session = await createSession(client);
+  if (session.hookMode !== 'live') {
+    throw new Error(
+      `Expected ${agentLabel} session to have hookMode='live', got '${session.hookMode}'. ` +
+      `Ensure the dev instance has the ${agentLabel} hook bridge configured.`,
+    );
+  }
+
+  await injectHookEvent(client, session.sessionId, 'SessionStart');
+  return injectHookEvent(client, session.sessionId, 'Stop');
+}
+
+/**
+ * Generate the standard agent task queue integration test suite.
+ *
+ * Tests the six behaviors common to all non-Claude agents with task queue
+ * support: dispatch, sequential dispatch, permission-mode rejection,
+ * plan-mode rejection, fallback-mode rejection, and session-end failure.
+ */
+export function describeAgentTaskQueue(
+  agentLabel: string,
+  createSession: (client: McpTestClient, overrides?: Record<string, unknown>) => Promise<SessionInfo>,
+): void {
+  const client = new McpTestClient();
+  const sessionIds: string[] = [];
+
+  beforeAll(async () => {
+    await client.connect();
+    await resetTestState(client);
+  });
+
+  afterAll(async () => {
+    await cleanupSessions(client, sessionIds);
+    await client.disconnect();
+  });
+
+  async function createIdleLive(): Promise<SessionInfo> {
+    return createIdleLiveAgentSession(client, createSession, agentLabel);
+  }
+
+  it(`dispatches a task to a live ${agentLabel} session`, async () => {
+    const session = await createIdleLive();
+    sessionIds.push(session.sessionId);
+    expect(session.hookMode).toBe('live');
+    expect(session.status).toBe('idle');
+
+    const task = await createTask(client, {
+      prompt: 'inspect tests',
+      targetSessionId: session.sessionId,
+    });
+
+    const dispatched = await waitForTaskStatus(client, task.id, 'dispatched', 10000);
+    expect(dispatched.sessionId).toBe(session.sessionId);
+
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', { toolName: 'Bash' });
+    await injectHookEvent(client, session.sessionId, 'Stop');
+
+    const completed = await waitForTaskStatus(client, task.id, 'completed', 10000);
+    expect(completed.completedAt).not.toBeNull();
+
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it(`dispatches tasks sequentially on a ${agentLabel} session`, async () => {
+    const session = await createIdleLive();
+    sessionIds.push(session.sessionId);
+
+    const t1 = await createTask(client, { prompt: 'task 1', targetSessionId: session.sessionId });
+    const t2 = await createTask(client, { prompt: 'task 2', targetSessionId: session.sessionId });
+
+    await waitForTaskStatus(client, t1.id, 'dispatched', 10000);
+
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', { toolName: 'Bash' });
+    await injectHookEvent(client, session.sessionId, 'Stop');
+    await waitForTaskStatus(client, t1.id, 'completed', 10000);
+
+    await waitForTaskStatus(client, t2.id, 'dispatched', 10000);
+
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', { toolName: 'Bash' });
+    await injectHookEvent(client, session.sessionId, 'Stop');
+    await waitForTaskStatus(client, t2.id, 'completed', 10000);
+
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it(`rejects permission-mode tasks for ${agentLabel} sessions`, async () => {
+    const session = await createIdleLive();
+    sessionIds.push(session.sessionId);
+
+    await expect(
+      createTask(client, {
+        prompt: 'test',
+        targetSessionId: session.sessionId,
+        permissionMode: 'auto',
+      }),
+    ).rejects.toThrow(/permission mode/i);
+
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it(`rejects plan-mode tasks for ${agentLabel} sessions`, async () => {
+    const session = await createIdleLive();
+    sessionIds.push(session.sessionId);
+
+    await expect(
+      createTask(client, {
+        prompt: 'test',
+        targetSessionId: session.sessionId,
+        planModeAction: { exitPlanMode: false },
+      }),
+    ).rejects.toThrow(/plan mode/i);
+
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it(`rejects task targeting a fallback ${agentLabel} session`, async () => {
+    const session = await createSession(client, { command: 'bash' });
+    sessionIds.push(session.sessionId);
+    await waitForIdle(client, session.sessionId);
+    expect(session.hookMode).toBe('fallback');
+
+    await expect(
+      createTask(client, {
+        prompt: 'test',
+        targetSessionId: session.sessionId,
+      }),
+    ).rejects.toThrow(/live hook mode/i);
+
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it(`fails ${agentLabel} tasks when session ends`, async () => {
+    const session = await createIdleLive();
+    sessionIds.push(session.sessionId);
+
+    const t1 = await createTask(client, { prompt: 'task 1', targetSessionId: session.sessionId });
+    const t2 = await createTask(client, { prompt: 'task 2', targetSessionId: session.sessionId });
+
+    await waitForTaskStatus(client, t1.id, 'dispatched', 10000);
+
+    await killAndWaitEnded(client, session.sessionId);
+
+    const failed1 = await waitForTaskStatus(client, t1.id, 'failed', 10000);
+    expect(failed1.error).toBeTruthy();
+
+    const failed2 = await waitForTaskStatus(client, t2.id, 'failed', 10000);
+    expect(failed2.error).toBeTruthy();
+  });
 }
