@@ -541,8 +541,9 @@ export class TaskQueue {
     }
     if (session.status !== 'idle') return; // Wait for session to become idle
 
-    // Check if we need to cycle permission mode before dispatching
-    if (task.permissionMode) {
+    // Check if we need to cycle permission mode before dispatching.
+    // Shift+Tab cycling only applies to Claude; other agents set modes at session creation.
+    if (task.permissionMode && session.sessionType === 'claude') {
       const currentMode = getCurrentPermissionMode(session);
       const cycle = buildModeCycle(session);
       const presses = calcShiftTabPresses(cycle, currentMode, task.permissionMode);

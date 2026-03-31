@@ -84,6 +84,8 @@ export function buildCodexCreatePlan(ctx: AgentCreateContext): PreparedCreate {
 
   const args: string[] = [];
   if (bridgeReady) args.push('--enable', 'codex_hooks');
+  if (input.permissionMode === 'fullAuto') args.push('--full-auto');
+  if (input.permissionMode === 'bypassAll') args.push('--dangerously-bypass-approvals-and-sandbox');
   if (input.initialPrompt) args.push(input.initialPrompt);
 
   return {
@@ -92,7 +94,7 @@ export function buildCodexCreatePlan(ctx: AgentCreateContext): PreparedCreate {
     env: bridgeReady && hookRuntime.port
       ? { MCODE_HOOK_PORT: String(hookRuntime.port) }
       : {},
-    dbFields: {},
+    dbFields: { permissionMode: input.permissionMode ?? null },
   };
 }
 
@@ -102,14 +104,16 @@ export function buildCodexResumePlan(ctx: AgentPrepareResumeContext): PreparedRe
   const codexBridgeReady = ctx.agentHookBridgeReady && ctx.hookRuntime.state === 'ready';
   const hookMode = codexBridgeReady ? 'live' : 'fallback';
 
+  const args: string[] = [];
+  if (codexBridgeReady) args.push('--enable', 'codex_hooks');
+  if (ctx.row.permissionMode === 'fullAuto') args.push('--full-auto');
+  if (ctx.row.permissionMode === 'bypassAll') args.push('--dangerously-bypass-approvals-and-sandbox');
+  args.push('resume', ctx.row.codexThreadId);
+
   return {
     command: ctx.row.command || 'codex',
     cwd: ctx.row.cwd,
-    args: [
-      ...(codexBridgeReady ? ['--enable', 'codex_hooks'] : []),
-      'resume',
-      ctx.row.codexThreadId,
-    ],
+    args,
     env: codexBridgeReady && ctx.hookRuntime.port
       ? { MCODE_HOOK_PORT: String(ctx.hookRuntime.port) }
       : {},

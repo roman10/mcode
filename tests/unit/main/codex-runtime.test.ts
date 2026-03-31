@@ -31,7 +31,7 @@ describe('buildCodexCreatePlan', () => {
       hookMode: 'live',
       args: ['--enable', 'codex_hooks', 'inspect'],
       env: { MCODE_HOOK_PORT: '4312' },
-      dbFields: {},
+      dbFields: { permissionMode: null },
     });
   });
 
@@ -45,7 +45,7 @@ describe('buildCodexCreatePlan', () => {
       hookMode: 'fallback',
       args: ['inspect'],
       env: {},
-      dbFields: {},
+      dbFields: { permissionMode: null },
     });
   });
 
@@ -69,6 +69,52 @@ describe('buildCodexCreatePlan', () => {
     expect(result.hookMode).toBe('fallback');
     expect(result.args).toEqual(['inspect']);
     expect(result.env).toEqual({});
+  });
+
+  it('passes --full-auto when permissionMode is fullAuto', () => {
+    const result = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex', permissionMode: 'fullAuto' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toContain('--full-auto');
+    expect(result.dbFields.permissionMode).toBe('fullAuto');
+  });
+
+  it('passes --dangerously-bypass-approvals-and-sandbox when permissionMode is bypassAll', () => {
+    const result = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex', permissionMode: 'bypassAll' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toContain('--dangerously-bypass-approvals-and-sandbox');
+    expect(result.dbFields.permissionMode).toBe('bypassAll');
+  });
+
+  it('does not pass permission flags when permissionMode is unset', () => {
+    const result = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).not.toContain('--full-auto');
+    expect(result.args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
+    expect(result.dbFields.permissionMode).toBeNull();
+  });
+
+  it('places permission flags before prompt arg', () => {
+    const result = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex', permissionMode: 'fullAuto', initialPrompt: 'fix bugs' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    const flagIdx = result.args.indexOf('--full-auto');
+    const promptIdx = result.args.indexOf('fix bugs');
+    expect(flagIdx).toBeLessThan(promptIdx);
   });
 
   it('includes MCODE_HOOK_PORT env only when bridge ready and port available', () => {
@@ -171,6 +217,71 @@ describe('codex-runtime', () => {
       },
       agentHookBridgeReady: true,
     })).toThrow('Cannot resume: no Codex thread ID recorded');
+  });
+
+  it('passes --full-auto on resume when stored permissionMode is fullAuto', () => {
+    const result = buildCodexResumePlan({
+      sessionId: 'session-1',
+      row: {
+        command: 'codex',
+        cwd: '/tmp/project',
+        codexThreadId: 'thread-123',
+        geminiSessionId: null,
+        claudeSessionId: null,
+        permissionMode: 'fullAuto',
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
+      },
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toContain('--full-auto');
+    expect(result.args.indexOf('--full-auto')).toBeLessThan(result.args.indexOf('resume'));
+  });
+
+  it('passes --dangerously-bypass-approvals-and-sandbox on resume when stored permissionMode is bypassAll', () => {
+    const result = buildCodexResumePlan({
+      sessionId: 'session-1',
+      row: {
+        command: 'codex',
+        cwd: '/tmp/project',
+        codexThreadId: 'thread-123',
+        geminiSessionId: null,
+        claudeSessionId: null,
+        permissionMode: 'bypassAll',
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
+      },
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toContain('--dangerously-bypass-approvals-and-sandbox');
+  });
+
+  it('does not pass permission flags on resume when stored permissionMode is null', () => {
+    const result = buildCodexResumePlan({
+      sessionId: 'session-1',
+      row: {
+        command: 'codex',
+        cwd: '/tmp/project',
+        codexThreadId: 'thread-123',
+        geminiSessionId: null,
+        claudeSessionId: null,
+        permissionMode: null,
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
+      },
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).not.toContain('--full-auto');
+    expect(result.args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
   });
 
   it('wires pollState into the adapter', () => {

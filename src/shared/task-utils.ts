@@ -1,5 +1,6 @@
 import type { SessionInfo } from './types';
 import type { TaskPermissionMode } from './types-tasks';
+import { PERMISSION_MODE_LABELS } from './constants';
 
 /**
  * Build the Shift+Tab cycle order for a given session.
@@ -19,11 +20,5 @@ export function buildModeCycle(session: SessionInfo): string[] {
 /** Human-readable labels for task permission modes. */
 export const TASK_PERMISSION_MODE_LABELS: Record<TaskPermissionMode, string> = {
   default: 'Default',
-  acceptEdits: 'Accept Edits',
-  plan: 'Plan',
-  bypassPermissions: 'Bypass Permissions',
-  auto: 'Auto',
-  dontAsk: 'Don\'t Ask',
-  autopilot: 'Autopilot',
-  allowAll: 'Allow All',
+  ...PERMISSION_MODE_LABELS,
 };
