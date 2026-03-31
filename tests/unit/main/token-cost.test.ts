@@ -151,6 +151,24 @@ describe('estimateCostUsd', () => {
     expect(cost).toBe(11.25);
   });
 
+  it('calculates OpenAI gpt-5.4 cost', () => {
+    // gpt-5.4: input $2.50/MTok, output $15.00/MTok
+    const cost = estimateCostUsd('gpt-5.4', 1_000_000, 1_000_000, 0, 0, 0, false);
+    expect(cost).toBe(17.5); // $2.50 + $15.00
+  });
+
+  it('calculates OpenAI gpt-5.1-codex-mini cost', () => {
+    // gpt-5.1-codex-mini: input $0.25/MTok, output $2.00/MTok
+    const cost = estimateCostUsd('gpt-5.1-codex-mini', 1_000_000, 1_000_000, 0, 0, 0, false);
+    expect(cost).toBe(2.25); // $0.25 + $2.00
+  });
+
+  it('calculates OpenAI cache read cost (0.1x input)', () => {
+    // gpt-5.4: input $2.50/MTok → cache read = $0.25/MTok
+    const cost = estimateCostUsd('gpt-5.4', 0, 0, 0, 0, 1_000_000, false);
+    expect(cost).toBe(0.25);
+  });
+
   it('returns 0 for unknown models', () => {
     expect(estimateCostUsd('gpt-4', 1_000_000, 1_000_000, 0, 0, 0, false)).toBe(0);
   });

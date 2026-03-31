@@ -48,6 +48,26 @@ const GEMINI_PRICING: Record<string, ModelPricing> = {
   'gemini-2.0-flash':      { input: 0.10,  output: 0.40 },  // deprecated, shutdown June 2026
 };
 
+/**
+ * OpenAI model pricing.
+ * Source: https://developers.openai.com/api/docs/pricing
+ * Last verified: 2026-03-31
+ *
+ * Cached input pricing: 10% of input price (same multiplier as Claude cache reads).
+ * Codex models use the same underlying API pricing.
+ */
+const OPENAI_PRICING: Record<string, ModelPricing> = {
+  'gpt-5.4':            { input: 2.50,  output: 15.00 },
+  'gpt-5.4-mini':       { input: 0.75,  output: 4.50 },
+  'gpt-5.4-nano':       { input: 0.20,  output: 1.25 },
+  'gpt-5.3-codex':      { input: 1.75,  output: 14.00 },
+  'gpt-5.2':            { input: 1.75,  output: 14.00 },
+  'gpt-5.1':            { input: 1.25,  output: 10.00 },
+  'gpt-5.1-codex':      { input: 1.25,  output: 10.00 },
+  'gpt-5.1-codex-mini': { input: 0.25,  output: 2.00 },
+  'gpt-5':              { input: 1.25,  output: 10.00 },
+};
+
 const FAST_MODE_MULTIPLIER = 6;
 
 /**
@@ -112,6 +132,10 @@ export function estimateCostUsd(
   if (!pricing) {
     // Try Gemini pricing with Gemini-specific normalization
     pricing = GEMINI_PRICING[normalizeGeminiModel(model)];
+  }
+  if (!pricing) {
+    // Try OpenAI pricing (Codex models use clean names, no normalization needed)
+    pricing = OPENAI_PRICING[model];
   }
   if (!pricing) return 0;
 

@@ -106,18 +106,28 @@ The Codex integration follows the shared agent runtime adapter pattern.
 - Model updates mid-session when Codex switches models (e.g., rate limit fallback)
 - GPT model family added to ModelPill with teal color (also benefits Copilot sessions)
 
+### Shipped: Token/Cost/Input Tracking (Phase 6)
+
+- `supportsTokenTracking: true`, `supportsCostEstimation: true`, `supportsInputTracking: true`
+- `CodexScanner` in `src/main/trackers/codex-scanner.ts` discovers JSONL transcripts in `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
+- `codex-transcript-parser.ts` — pure parser extracts per-API-call token counts from `token_count` events and human input from `user_message` events
+- Model tracked from `turn_context` events across turns; `token_count` events with `info: null` (rate-limited) are skipped
+- OpenAI model pricing table (`OPENAI_PRICING`) in `token-cost.ts` with 9 models (gpt-5.4 through gpt-5)
+- Full-file scan with INSERT OR IGNORE (per-call entries are immutable) + watermark tracking
+- Hook-triggered scan on Codex `Stop` events via `transcript_path` in payload
+
 ### Explicitly Deferred
 
-- **Token/cost/input tracking** (`supportsTokenTracking: false`, `supportsCostEstimation: false`, `supportsInputTracking: false`) — no `CodexScanner` class; Codex token storage format unexplored
 - **Account profiles** (`supportsAccountProfiles: false`) — Codex uses API key auth; no multi-account use case investigated
 - **Plan mode** (`supportsPlanMode: false`) — Codex has `/plan` slash command but no mcode integration for plan-mode task queue features
 
 ## Verification Status
 
-Codex-specific test coverage spans 7 test files:
+Codex-specific test coverage spans 8 test files:
 
 - `tests/unit/main/codex-runtime.test.ts` — runtime adapter unit tests (create, resume, pollState, hasPendingTasks)
 - `tests/unit/main/codex-session-store.test.ts` — thread-ID capture and matching logic
+- `tests/unit/main/codex-transcript-parser.test.ts` — JSONL transcript parser (tokens, human input, model tracking, edge cases)
 - `tests/unit/main/codex-hook-config.test.ts` — hook config merge/remove pure functions
 - `tests/unit/shared/session-capabilities.test.ts` — capability flags and queries (shared across all agents)
 - `tests/suites/codex-support.test.ts` — integration: create, display, kill Codex sessions
@@ -142,19 +152,7 @@ Codex emits `Stop` events but their reliability for task-completion detection ha
 
 ## Proposed Next Steps
 
-### 1. Codex Token/Input Tracking
-
-**Priority: Medium. Effort: Medium.**
-
-Create a `CodexScanner` class in `src/main/trackers/` following `CopilotScanner`:
-
-1. **Investigate `~/.codex/state_*.sqlite` schema** — the `threads` table is known; look for token/usage tables or columns
-2. **Implement scanner** — Codex uses SQLite (not JSONL like Claude/Copilot), so watermark strategy differs: track by `updated_at` timestamp rather than byte offset. May need a `tracked_sqlite_files` table or adapt `tracked_jsonl_files`.
-3. **Wire into `TokenTracker`** — add `codexScanner` field and call in `scanAll()`
-4. **Set flags** — `supportsTokenTracking: true`, `supportsInputTracking: true`
-5. **Cost estimation** — Codex uses OpenAI API pricing; `supportsCostEstimation` could be enabled if pricing data is available (Copilot omits this because it uses premium-request billing)
-
-### 2. Cross-Agent Architecture Documentation
+### 1. Cross-Agent Architecture Documentation
 
 **Priority: Low. Effort: Small.**
 

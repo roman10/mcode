@@ -19,6 +19,7 @@ import type { AgentSessionType } from '../../shared/session-agents';
 import { ClaudeScanner } from './claude-scanner';
 import { CopilotScanner } from './copilot-scanner';
 import { GeminiScanner } from './gemini-scanner';
+import { CodexScanner } from './codex-scanner';
 import { typedHandle } from '../ipc-helpers';
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
@@ -66,6 +67,7 @@ export class TokenTracker {
   private claudeScanner = new ClaudeScanner();
   private copilotScanner = new CopilotScanner();
   private geminiScanner = new GeminiScanner();
+  private codexScanner = new CodexScanner();
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
   private scanning = false;
 
@@ -104,7 +106,9 @@ export class TokenTracker {
     setTimeout(() => {
       // Copilot uses cumulative shutdown events — handled by background scan only.
       if (provider === 'copilot') return;
-      const scanner = provider === 'gemini' ? this.geminiScanner : this.claudeScanner;
+      const scanner = provider === 'codex' ? this.codexScanner
+        : provider === 'gemini' ? this.geminiScanner
+        : this.claudeScanner;
       scanner.scanFile(transcriptPath, this.inputTracker).then((count) => {
         if (count > 0) this.broadcastUpdate();
       }).catch((err) => {
@@ -137,6 +141,12 @@ export class TokenTracker {
         totalNew += await this.geminiScanner.scanAll(this.inputTracker);
       } catch (err) {
         logger.warn('tokens', 'Gemini scan failed', { error: String(err) });
+      }
+
+      try {
+        totalNew += await this.codexScanner.scanAll(this.inputTracker);
+      } catch (err) {
+        logger.warn('tokens', 'Codex scan failed', { error: String(err) });
       }
 
       if (totalNew > 0) {
