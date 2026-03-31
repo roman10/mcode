@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { groupSessionsByDate } from '../../utils/date-grouping';
+import { splitLabelIcon } from '../../utils/label-utils';
+import AgentIcon from '../shared/AgentIcon';
 import Dialog from '../shared/Dialog';
 import type { SessionInfo } from '@shared/types';
 
@@ -134,7 +136,9 @@ function DeleteSessionsDialog({
               />
 
               {/* Sessions in group */}
-              {!isCollapsed && group.sessions.map((session) => (
+              {!isCollapsed && group.sessions.map((session) => {
+                const [labelIcon, labelText] = splitLabelIcon(session.label);
+                return (
                 <label
                   key={session.sessionId}
                   className="flex items-center gap-3 px-3 pl-8 py-1.5 hover:bg-bg-secondary cursor-pointer transition-colors"
@@ -147,14 +151,16 @@ function DeleteSessionsDialog({
                   />
                   <div className="flex-1 min-w-0">
                     <span className="block text-sm text-text-primary truncate">
-                      {session.label}
+                      {labelIcon && <AgentIcon icon={labelIcon} className="mr-1" />}
+                      {labelText}
                     </span>
                     <span className="text-xs text-text-muted truncate block">
                       {session.cwd}
                     </span>
                   </div>
                 </label>
-              ))}
+                );
+              })}
             </div>
           );
         })}

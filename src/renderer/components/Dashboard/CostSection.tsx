@@ -11,6 +11,8 @@ import type {
 } from '@shared/types';
 import type { AgentSessionType } from '@shared/session-agents';
 import { getAgentDefinition } from '@shared/session-agents';
+import { splitLabelIcon } from '../../utils/label-utils';
+import AgentIcon from '../shared/AgentIcon';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -236,16 +238,20 @@ function CostSection({
           {topSessions.length > 0 && (
             <div className="space-y-1.5">
               <div className="text-xs text-text-muted font-medium">Top sessions {dateLabel}</div>
-              {topSessions.map((s) => (
+              {topSessions.map((s) => {
+                const [labelIcon, labelText] = splitLabelIcon(s.label ?? s.sessionId.slice(0, 8));
+                return (
                 <div key={s.sessionId} className="flex items-center text-xs">
                   <span className="text-text-secondary truncate flex-1">
-                    {s.label ?? s.sessionId.slice(0, 8)}
+                    {labelIcon && <AgentIcon icon={labelIcon} className="mr-1" />}
+                    {labelText}
                   </span>
                   <span className="text-text-muted shrink-0 ml-2">
                     {s.estimatedCostUsd > 0 ? formatCost(s.estimatedCostUsd) : formatTokens(s.outputTokens) + ' out'}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
