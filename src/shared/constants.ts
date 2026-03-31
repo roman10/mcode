@@ -13,14 +13,37 @@ export const MAX_SIDEBAR_WIDTH = 500;
 export const LAYOUT_PERSIST_DEBOUNCE_MS = 500;
 
 // Valid Claude Code --permission-mode values (excluding 'default' which means "no flag")
-export const PERMISSION_MODES = [
+export const CLAUDE_PERMISSION_MODES = [
   'plan',
   'acceptEdits',
   'auto',
   'dontAsk',
   'bypassPermissions',
 ] as const;
+
+// Valid Copilot CLI permission flags
+export const COPILOT_PERMISSION_MODES = ['autopilot', 'allowAll'] as const;
+
+// Union of all agent permission modes
+export const PERMISSION_MODES = [...CLAUDE_PERMISSION_MODES, ...COPILOT_PERMISSION_MODES] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
+/** Which permission modes each agent supports. Absence = no support. */
+export const AGENT_PERMISSION_MODES: Partial<Record<string, readonly PermissionMode[]>> = {
+  claude: [...CLAUDE_PERMISSION_MODES],
+  copilot: [...COPILOT_PERMISSION_MODES],
+};
+
+/** Human-readable labels for all permission modes. */
+export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
+  plan: 'Plan',
+  acceptEdits: 'Accept Edits',
+  auto: 'Auto',
+  dontAsk: "Don't Ask",
+  bypassPermissions: 'Bypass Permissions',
+  autopilot: 'Autopilot',
+  allowAll: 'Allow All',
+};
 
 // Valid Claude Code --effort values (excluding 'default' which means "no flag")
 export const EFFORT_LEVELS = [

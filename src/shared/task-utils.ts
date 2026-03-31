@@ -24,4 +24,6 @@ export const TASK_PERMISSION_MODE_LABELS: Record<TaskPermissionMode, string> = {
   bypassPermissions: 'Bypass Permissions',
   auto: 'Auto',
   dontAsk: 'Don\'t Ask',
+  autopilot: 'Autopilot',
+  allowAll: 'Allow All',
 };

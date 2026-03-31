@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Dialog from '../shared/Dialog';
 import { getAgentDefinition, type AgentSessionType } from '@shared/session-agents';
 import type { AccountProfile, SessionCreateInput } from '@shared/types';
-import { EFFORT_LEVELS, PERMISSION_MODES, type EffortLevel, type PermissionMode } from '@shared/constants';
+import { AGENT_PERMISSION_MODES, EFFORT_LEVELS, PERMISSION_MODE_LABELS, type EffortLevel, type PermissionMode } from '@shared/constants';
 
 const isMac = navigator.userAgent.includes('Mac');
 
@@ -35,6 +35,7 @@ function NewSessionDialog({
   const agentDefinition = getAgentDefinition(sessionType);
   const isClaude = agentDefinition?.dialogMode === 'full';
   const showModelField = agentDefinition?.supportsModelDisplay ?? false;
+  const agentModes = AGENT_PERMISSION_MODES[sessionType] as readonly PermissionMode[] | undefined;
 
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
@@ -62,7 +63,12 @@ function NewSessionDialog({
         }
         if (defaults) {
           setCwd(defaults.cwd);
-          if (defaults.permissionMode) setPermissionMode(defaults.permissionMode);
+          if (defaults.permissionMode) {
+            const validModes = AGENT_PERMISSION_MODES[initialSessionType ?? 'claude'];
+            if (validModes?.includes(defaults.permissionMode as PermissionMode)) {
+              setPermissionMode(defaults.permissionMode);
+            }
+          }
           if (defaults.effort) setEffort(defaults.effort);
           setEnableAutoMode(defaults.enableAutoMode === true);
         }
@@ -70,6 +76,11 @@ function NewSessionDialog({
     }
     prevOpenRef.current = open;
   }, [open, initialSessionType]);
+
+  // Reset permission mode when switching agent types to avoid stale cross-agent values
+  useEffect(() => {
+    setPermissionMode('');
+  }, [sessionType]);
 
   const handleBrowse = async (): Promise<void> => {
     const dir = await window.mcode.app.selectDirectory();
@@ -102,6 +113,7 @@ function NewSessionDialog({
         label: label.trim() || undefined,
         initialPrompt: initialPrompt.trim() || undefined,
         model: showModelField ? (model.trim() || undefined) : undefined,
+        permissionMode: permissionMode || undefined,
         sessionType,
       });
     }
@@ -214,35 +226,37 @@ function NewSessionDialog({
             </div>
           )}
 
+          {/* Permission mode — shown for any agent with permission modes */}
+          {agentModes && agentModes.length > 0 && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">
+                Permission mode
+              </label>
+              <select
+                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                value={permissionMode}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setPermissionMode(
+                    value === '' || agentModes.includes(value as PermissionMode)
+                      ? (value as PermissionMode | '')
+                      : '',
+                  );
+                }}
+              >
+                <option value="">default</option>
+                {agentModes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {PERMISSION_MODE_LABELS[mode] ?? mode}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Claude-specific fields */}
           {isClaude && (
             <>
-              {/* Permission mode */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">
-                  Permission mode
-                </label>
-                <select
-                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                  value={permissionMode}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setPermissionMode(
-                      value === '' || PERMISSION_MODES.includes(value as PermissionMode)
-                        ? (value as PermissionMode | '')
-                        : '',
-                    );
-                  }}
-                >
-                  <option value="">default</option>
-                  {PERMISSION_MODES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {/* Effort */}
               <div>
                 <label className="block text-sm text-text-secondary mb-1">

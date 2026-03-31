@@ -82,6 +82,7 @@ const SUBMIT_DELAY_MS = 100;
 // --- Permission mode cycling helpers (exported for testing) ---
 
 import { buildModeCycle } from '../shared/task-utils';
+import { AGENT_PERMISSION_MODES, type PermissionMode } from '../shared/constants';
 export { buildModeCycle };
 
 /**
@@ -218,10 +219,10 @@ export class TaskQueue {
         throw new Error('Target session does not support task queue (requires live hook mode and a supported agent type)');
       }
 
-      // Hardcoded to claude — permission mode cycling depends on Claude's
-      // Shift+Tab UX and buildModeCycle(); no capability flag needed.
-      if (input.permissionMode && session.sessionType !== 'claude') {
-        throw new Error('Permission mode cycling is only supported for Claude sessions');
+      // Permission mode requires the agent to support it (defined in AGENT_PERMISSION_MODES).
+      // Actual Shift+Tab cycling only applies to Claude; Copilot modes are set at session creation.
+      if (input.permissionMode && !AGENT_PERMISSION_MODES[session.sessionType]) {
+        throw new Error(`Permission mode is not supported for ${session.sessionType} sessions`);
       }
 
       const agentDef = getAgentDefinition(session.sessionType);
@@ -232,16 +233,28 @@ export class TaskQueue {
       // Validate permissionMode reachability BEFORE resuming an ended session
       // so we don't needlessly resume if the mode is invalid.
       if (input.permissionMode) {
-        if (input.permissionMode === 'dontAsk') {
-          throw new Error('dontAsk is never reachable via Shift+Tab cycling');
-        }
-        const cycle = buildModeCycle(session);
-        if (!cycle.includes(input.permissionMode)) {
-          const available = cycle.join(', ');
-          throw new Error(
-            `Permission mode '${input.permissionMode}' is not reachable via Shift+Tab for this session. ` +
-            `Available modes: ${available}`,
-          );
+        if (session.sessionType === 'claude') {
+          // Claude: validate against Shift+Tab cycle
+          if (input.permissionMode === 'dontAsk') {
+            throw new Error('dontAsk is never reachable via Shift+Tab cycling');
+          }
+          const cycle = buildModeCycle(session);
+          if (!cycle.includes(input.permissionMode)) {
+            const available = cycle.join(', ');
+            throw new Error(
+              `Permission mode '${input.permissionMode}' is not reachable via Shift+Tab for this session. ` +
+              `Available modes: ${available}`,
+            );
+          }
+        } else {
+          // Non-Claude agents: validate mode is valid for this agent type
+          const agentModes = AGENT_PERMISSION_MODES[session.sessionType];
+          if (agentModes && !agentModes.includes(input.permissionMode as PermissionMode)) {
+            throw new Error(
+              `Permission mode '${input.permissionMode}' is not valid for ${session.sessionType} sessions. ` +
+              `Available: ${agentModes.join(', ')}`,
+            );
+          }
         }
       }
 
@@ -266,7 +279,7 @@ export class TaskQueue {
     }
 
     if (input.permissionMode && !input.targetSessionId) {
-      throw new Error('permissionMode requires a target session (Shift+Tab cycling only works on existing sessions)');
+      throw new Error('permissionMode requires a target session');
     }
 
     const db = getDb();

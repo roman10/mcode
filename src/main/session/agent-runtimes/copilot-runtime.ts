@@ -34,6 +34,8 @@ export function buildCopilotCreatePlan(ctx: AgentCreateContext): PreparedCreate 
   const args: string[] = [];
   const model = input.model?.trim() || null;
   if (model) args.push('--model', model);
+  if (input.permissionMode === 'autopilot') args.push('--autopilot');
+  if (input.permissionMode === 'allowAll') args.push('--allow-all');
   if (input.initialPrompt) args.push('-i', input.initialPrompt);
 
   return {
@@ -42,7 +44,7 @@ export function buildCopilotCreatePlan(ctx: AgentCreateContext): PreparedCreate 
     env: bridgeReady && hookRuntime.port
       ? { MCODE_HOOK_PORT: String(hookRuntime.port) }
       : {},
-    dbFields: { model },
+    dbFields: { model, permissionMode: input.permissionMode ?? null },
   };
 }
 
@@ -53,10 +55,14 @@ export function buildCopilotResumePlan(ctx: AgentPrepareResumeContext): Prepared
   const bridgeReady = ctx.agentHookBridgeReady && ctx.hookRuntime.state === 'ready';
   const hookMode = bridgeReady ? 'live' : 'fallback';
 
+  const args = ['--resume', ctx.row.copilotSessionId];
+  if (ctx.row.permissionMode === 'autopilot') args.push('--autopilot');
+  if (ctx.row.permissionMode === 'allowAll') args.push('--allow-all');
+
   return {
     command,
     cwd: ctx.row.cwd,
-    args: ['--resume', ctx.row.copilotSessionId],
+    args,
     env: bridgeReady && ctx.hookRuntime.port
       ? { MCODE_HOOK_PORT: String(ctx.hookRuntime.port) }
       : {},

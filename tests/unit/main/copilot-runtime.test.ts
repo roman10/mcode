@@ -110,6 +110,35 @@ describe('buildCopilotCreatePlan', () => {
     expect(plan.args).toEqual([]);
   });
 
+  it('passes --autopilot when permissionMode is autopilot', () => {
+    const plan = buildCopilotCreatePlan(makeCreateCtx({ permissionMode: 'autopilot' }));
+    expect(plan.args).toContain('--autopilot');
+    expect(plan.dbFields.permissionMode).toBe('autopilot');
+  });
+
+  it('passes --allow-all when permissionMode is allowAll', () => {
+    const plan = buildCopilotCreatePlan(makeCreateCtx({ permissionMode: 'allowAll' }));
+    expect(plan.args).toContain('--allow-all');
+    expect(plan.dbFields.permissionMode).toBe('allowAll');
+  });
+
+  it('does not pass permission flags when permissionMode is unset', () => {
+    const plan = buildCopilotCreatePlan(makeCreateCtx());
+    expect(plan.args).not.toContain('--autopilot');
+    expect(plan.args).not.toContain('--allow-all');
+    expect(plan.dbFields.permissionMode).toBeNull();
+  });
+
+  it('places permission flags before -i prompt', () => {
+    const plan = buildCopilotCreatePlan(makeCreateCtx({
+      permissionMode: 'autopilot',
+      initialPrompt: 'fix bugs',
+    }));
+    const autopilotIdx = plan.args.indexOf('--autopilot');
+    const promptIdx = plan.args.indexOf('-i');
+    expect(autopilotIdx).toBeLessThan(promptIdx);
+  });
+
   it('uses hookMode live and sets MCODE_HOOK_PORT when hooks are ready', () => {
     const plan = buildCopilotCreatePlan(makeCreateCtx({ hookReady: true, hookPort: 7779 }));
     expect(plan.hookMode).toBe('live');
@@ -173,6 +202,23 @@ describe('buildCopilotResumePlan', () => {
   it('defaults to copilot when row.command is null', () => {
     const plan = buildCopilotResumePlan(makeResumeCtx({ command: null }));
     expect(plan.command).toBe('copilot');
+  });
+
+  it('passes --autopilot when stored permissionMode is autopilot', () => {
+    const plan = buildCopilotResumePlan(makeResumeCtx({ permissionMode: 'autopilot' }));
+    expect(plan.args).toContain('--autopilot');
+    expect(plan.args.indexOf('--resume')).toBeLessThan(plan.args.indexOf('--autopilot'));
+  });
+
+  it('passes --allow-all when stored permissionMode is allowAll', () => {
+    const plan = buildCopilotResumePlan(makeResumeCtx({ permissionMode: 'allowAll' }));
+    expect(plan.args).toContain('--allow-all');
+  });
+
+  it('does not pass permission flags when stored permissionMode is null', () => {
+    const plan = buildCopilotResumePlan(makeResumeCtx({ permissionMode: null }));
+    expect(plan.args).not.toContain('--autopilot');
+    expect(plan.args).not.toContain('--allow-all');
   });
 });
 
