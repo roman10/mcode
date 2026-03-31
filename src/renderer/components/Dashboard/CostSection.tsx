@@ -9,6 +9,8 @@ import type {
   SubscriptionUsage,
   AccountProfile,
 } from '@shared/types';
+import type { AgentSessionType } from '@shared/session-agents';
+import { getAgentDefinition } from '@shared/session-agents';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -80,13 +82,19 @@ function UsageQuotaBar({
 function UsageQuotaSection({
   usage,
   accountName,
+  accountEmail,
 }: {
   usage: SubscriptionUsage;
   accountName?: string;
+  accountEmail?: string | null;
 }): React.JSX.Element {
   return (
     <div className="space-y-1.5">
-      {accountName && <div className="text-xs text-text-muted font-medium">{accountName}</div>}
+      {accountName && (
+        <div className="text-xs text-text-muted font-medium">
+          {accountName}{accountEmail ? <span className="text-text-muted/70 font-normal"> · {accountEmail}</span> : null}
+        </div>
+      )}
       {usage.fiveHour && (
         <UsageQuotaBar label="5-hour" utilization={usage.fiveHour.utilization} resetsAt={usage.fiveHour.resetsAt} />
       )}
@@ -114,6 +122,7 @@ interface CostSectionProps {
   tokenWeeklyTrend: TokenWeeklyTrend | null;
   accounts: AccountProfile[];
   subscriptionByAccount: Record<string, SubscriptionUsage | null>;
+  providerFilter: AgentSessionType | null;
   viewDate: string;
   onHeatmapSelect: (date: string) => void;
   dateLabel: string;
@@ -127,6 +136,7 @@ function CostSection({
   tokenWeeklyTrend,
   accounts,
   subscriptionByAccount,
+  providerFilter,
   viewDate,
   onHeatmapSelect,
   dateLabel,
@@ -253,24 +263,25 @@ function CostSection({
             </div>
           )}
 
-          {/* Usage Quota */}
+          {/* Usage Quota — Claude-specific (Anthropic API) */}
           {(() => {
+            // Quota comes from the Anthropic API — only relevant for Claude
+            if (providerFilter != null && providerFilter !== 'claude') return null;
             const quotaAccounts = accounts.filter(
               (a) => subscriptionByAccount[a.accountId] != null || a.email != null,
             );
             if (quotaAccounts.length === 0) return null;
             const multiAccount = quotaAccounts.length > 1;
+            const cliName = getAgentDefinition('claude')!.displayName;
             return (
               <div className="space-y-3">
                 <div>
-                  <div className="text-xs text-text-muted font-medium">Usage Quota</div>
-                  {!multiAccount &&
-                    (quotaAccounts[0].email ??
-                      (!quotaAccounts[0].isDefault ? quotaAccounts[0].name : null)) && (
-                      <div className="text-xs text-text-muted/70 mt-0.5">
-                        {quotaAccounts[0].email ?? quotaAccounts[0].name}
-                      </div>
-                    )}
+                  <div className="text-xs text-text-muted font-medium">Usage Quota — {cliName}</div>
+                  {!multiAccount && quotaAccounts[0].email && (
+                    <div className="text-xs text-text-muted/70 mt-0.5">
+                      {quotaAccounts[0].email}
+                    </div>
+                  )}
                 </div>
                 {quotaAccounts.map((a) => {
                   const usage = subscriptionByAccount[a.accountId];
@@ -279,10 +290,15 @@ function CostSection({
                       key={a.accountId}
                       usage={usage}
                       accountName={multiAccount ? a.name : undefined}
+                      accountEmail={multiAccount ? a.email : undefined}
                     />
                   ) : (
                     <div key={a.accountId} className="space-y-1.5">
-                      {multiAccount && <div className="text-xs text-text-muted font-medium">{a.name}</div>}
+                      {multiAccount && (
+                        <div className="text-xs text-text-muted font-medium">
+                          {a.name}{a.email ? <span className="text-text-muted/70 font-normal"> · {a.email}</span> : null}
+                        </div>
+                      )}
                       <div className="text-xs text-text-muted/50">quota unavailable</div>
                     </div>
                   );

@@ -226,6 +226,7 @@ function StatsPanel(): React.JSX.Element {
           tokenWeeklyTrend={tokenWeeklyTrend}
           accounts={accounts}
           subscriptionByAccount={subscriptionByAccount}
+          providerFilter={providerFilter}
           viewDate={viewDate}
           onHeatmapSelect={handleHeatmapSelect}
           dateLabel={dateLabel}
