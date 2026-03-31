@@ -6,6 +6,7 @@ const familyColors: Record<string, string> = {
   sonnet: 'bg-blue-900/80 text-blue-300',
   haiku: 'bg-green-900/80 text-green-300',
   gemini: 'bg-amber-900/80 text-amber-300',
+  gpt: 'bg-teal-900/80 text-teal-300',
   unknown: 'bg-gray-700/80 text-gray-300',
 };
 
@@ -14,6 +15,7 @@ function getFamily(model: string): string {
   if (model.startsWith('sonnet')) return 'sonnet';
   if (model.startsWith('haiku')) return 'haiku';
   if (model.startsWith('gemini')) return 'gemini';
+  if (model.startsWith('gpt')) return 'gpt';
   return 'unknown';
 }
 

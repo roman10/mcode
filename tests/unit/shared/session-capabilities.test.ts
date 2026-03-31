@@ -61,7 +61,7 @@ describe('session-capabilities', () => {
     expect(canDisplaySessionModel(makeSession({ model: 'claude-sonnet-4-5' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ sessionType: 'gemini', model: 'gemini-2.5-pro' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ sessionType: 'copilot', model: 'gpt-4o' }))).toBe(true);
-    expect(canDisplaySessionModel(makeSession({ sessionType: 'codex', model: 'gpt-5' }))).toBe(false);
+    expect(canDisplaySessionModel(makeSession({ sessionType: 'codex', model: 'gpt-5' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ model: null }))).toBe(false);
   });
 

@@ -30,7 +30,7 @@ Detailed resume design lives in [design-codex-resume.md](./design-codex-resume.m
 | Hook events | 7 | `SessionStart`, `SessionEnd`, `PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`, `Notification` |
 | Plan mode | No | No plan-mode concept |
 | Token output | No | No structured token/cost usage output |
-| Model selection | TBD | Not yet investigated |
+| Model selection | Yes | `payload.model` field in all hook events; `/model` slash command in CLI |
 
 ## Architecture
 
@@ -60,6 +60,8 @@ The Codex integration follows the shared agent runtime adapter pattern.
 - Shared capability queries in `src/shared/session-capabilities.ts`:
   - `canSessionQueueTasks(...)`, `canSessionBeTaskTarget(...)`, `canSessionBeDefaultTaskTarget(...)`
   - `canDisplaySessionModel(...)`, `getSessionInstallHelp(...)`
+  - `supportsSessionSlashCommands(...)`, `getSessionSlashCommandSupport(...)`, `getSessionSlashCommandHelp(...)`
+- Per-agent slash command definitions (`slashCommands` in `AgentDefinition`): builtin commands, custom command file sources, description parsing rules
 - Renderer call sites use these shared helpers instead of agent-specific checks
 
 ## Current Implementation Status
@@ -89,23 +91,38 @@ The Codex integration follows the shared agent runtime adapter pattern.
 - Ended Codex sessions auto-resume for task dispatch when `codexThreadId` is present
 - Shared `describeAgentTaskQueue()` test factory in `tests/helpers.ts` — DRY integration tests for all non-Claude agents
 
+### Shipped: Slash Command Support (Phase 4)
+
+- `slashCommands` field in `AgentDefinition` with Codex-specific builtin commands (`/plan`, `/help`, etc.)
+- `supportsSessionSlashCommands()`, `getSessionSlashCommandSupport()` capability queries
+- Inline unsupported-command warnings in autocomplete panel
+- Toolbar badge with auto-dismiss for invalid slash command attempts
+
+### Shipped: Model Display (Phase 5)
+
+- `supportsModelDisplay: true` — Codex sessions show a model pill in tiles, sidebar, and kanban
+- Model extracted from `payload.model` on every Codex hook event (present in `SessionStart`, `UserPromptSubmit`, etc.)
+- No normalization needed — Codex model strings are clean (e.g., `gpt-5.4`, `gpt-5.1-codex-mini`)
+- Model updates mid-session when Codex switches models (e.g., rate limit fallback)
+- GPT model family added to ModelPill with teal color (also benefits Copilot sessions)
+
 ### Explicitly Deferred
 
 - **Token/cost/input tracking** (`supportsTokenTracking: false`, `supportsCostEstimation: false`, `supportsInputTracking: false`) — no `CodexScanner` class; Codex token storage format unexplored
-- **Model display** (`supportsModelDisplay: false`) — Codex hook payloads and state DB may contain model info but this is unverified
 - **Account profiles** (`supportsAccountProfiles: false`) — Codex uses API key auth; no multi-account use case investigated
 - **Plan mode** (`supportsPlanMode: false`) — Codex has `/plan` slash command but no mcode integration for plan-mode task queue features
 
 ## Verification Status
 
-Codex-specific test coverage spans 6 test files:
+Codex-specific test coverage spans 7 test files:
 
 - `tests/unit/main/codex-runtime.test.ts` — runtime adapter unit tests (create, resume, pollState, hasPendingTasks)
 - `tests/unit/main/codex-session-store.test.ts` — thread-ID capture and matching logic
 - `tests/unit/main/codex-hook-config.test.ts` — hook config merge/remove pure functions
+- `tests/unit/shared/session-capabilities.test.ts` — capability flags and queries (shared across all agents)
 - `tests/suites/codex-support.test.ts` — integration: create, display, kill Codex sessions
 - `tests/suites/codex-resume.test.ts` — integration: resume with thread ID, failure paths
-- `tests/suites/codex-task-queue.test.ts` — integration: task dispatch, sequential, rejections, session-end failure
+- `tests/suites/codex-task-queue.test.ts` — integration: task dispatch, sequential, rejections, session-end failure (shared factory `describeAgentTaskQueue`)
 
 Fixture data in `tests/fixtures/codex`.
 
@@ -129,31 +146,23 @@ Codex emits `Stop` events but their reliability for task-completion detection ha
 
 **Priority: Medium. Effort: Medium.**
 
-Create a `CodexScanner` class in `src/main/trackers/` following the `CopilotScanner` pattern:
+Create a `CodexScanner` class in `src/main/trackers/` following `CopilotScanner`:
 
-1. Investigate `~/.codex/state_*.sqlite` schema for token usage data
-2. Implement incremental scanning with watermark tracking
-3. Set `supportsTokenTracking: true` and `supportsInputTracking: true` in agent definition
-4. Wire data into StatsPanel for Codex sessions
+1. **Investigate `~/.codex/state_*.sqlite` schema** — the `threads` table is known; look for token/usage tables or columns
+2. **Implement scanner** — Codex uses SQLite (not JSONL like Claude/Copilot), so watermark strategy differs: track by `updated_at` timestamp rather than byte offset. May need a `tracked_sqlite_files` table or adapt `tracked_jsonl_files`.
+3. **Wire into `TokenTracker`** — add `codexScanner` field and call in `scanAll()`
+4. **Set flags** — `supportsTokenTracking: true`, `supportsInputTracking: true`
+5. **Cost estimation** — Codex uses OpenAI API pricing; `supportsCostEstimation` could be enabled if pricing data is available (Copilot omits this because it uses premium-request billing)
 
-### 2. Codex Model Display
-
-**Priority: Low. Effort: Small.**
-
-Verify whether Codex hook payloads or `state_*.sqlite` contain model information. If so:
-- Extract model from hook events or session state
-- Set `supportsModelDisplay: true`
-- Model pill display is already generic via `canDisplaySessionModel()`
-
-### 3. Cross-Agent Architecture Documentation
+### 2. Cross-Agent Architecture Documentation
 
 **Priority: Low. Effort: Small.**
 
-Consider creating a `design-multi-agent-architecture.md` that provides a single-page overview of:
+Create `design-multi-agent-architecture.md` providing a single-page overview of:
 - The `AgentRuntimeAdapter` interface and adapter map
-- The `AgentDefinition` capability matrix
-- The hook bridge factory pattern
-- The event normalization layer
+- The `AgentDefinition` capability matrix (all flags)
+- The hook bridge factory pattern and event normalization layer
+- The scanner/tracker system for each agent
 - How to add a new agent
 
 Each per-agent doc would link to it as the architectural reference.

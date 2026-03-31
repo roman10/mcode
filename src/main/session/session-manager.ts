@@ -740,6 +740,16 @@ export class SessionManager {
       }
     }
 
+    // Codex model detection from hook payload (model field present in all Codex events)
+    if (row.session_type === 'codex') {
+      const rawModel = typeof (event.payload as { model?: unknown }).model === 'string'
+        ? (event.payload as { model: string }).model
+        : null;
+      if (rawModel) {
+        this.setModel(sessionId, rawModel);
+      }
+    }
+
     return sessionType;
   }
 

@@ -227,7 +227,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     hidesTerminalCursor: true,
     dialogMode: 'minimal',
     supportsAccountProfiles: false,
-    supportsModelDisplay: false,
+    supportsModelDisplay: true,
     supportsTokenTracking: false,
     supportsCostEstimation: false,
     supportsInputTracking: false,
