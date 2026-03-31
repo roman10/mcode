@@ -42,7 +42,7 @@ describe('copilot resume', () => {
     });
 
     // Kill the session
-    await client.callToolJson('session_kill', { sessionId: session.sessionId });
+    await client.callToolText('session_kill', { sessionId: session.sessionId });
     const ended = await client.callToolJson<SessionInfo>('session_get_status', {
       sessionId: session.sessionId,
     });
@@ -68,7 +68,7 @@ describe('copilot resume', () => {
     await waitForIdle(client, session.sessionId);
 
     // Kill without setting copilotSessionId
-    await client.callToolJson('session_kill', { sessionId: session.sessionId });
+    await client.callToolText('session_kill', { sessionId: session.sessionId });
 
     // Resume should fail
     const result = await client.callTool('session_resume', {

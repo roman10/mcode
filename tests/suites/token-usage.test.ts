@@ -93,7 +93,7 @@ describe('token usage', () => {
   it('get_session_usage returns valid shape', async () => {
     const usage = await client.callToolJson<SessionTokenUsage>(
       'tokens_get_session_usage',
-      { claudeSessionId: 'nonexistent-test-uuid' },
+      { sessionId: 'nonexistent-test-uuid' },
     );
     expect(typeof usage.claudeSessionId).toBe('string');
     expect(Array.isArray(usage.models)).toBe(true);
@@ -105,7 +105,7 @@ describe('token usage', () => {
   it('get_session_usage returns zeros for unknown session', async () => {
     const usage = await client.callToolJson<SessionTokenUsage>(
       'tokens_get_session_usage',
-      { claudeSessionId: 'nonexistent-test-uuid' },
+      { sessionId: 'nonexistent-test-uuid' },
     );
     expect(usage.messageCount).toBe(0);
   });
