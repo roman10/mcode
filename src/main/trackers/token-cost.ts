@@ -30,21 +30,22 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 };
 
 /**
- * Gemini model pricing.
- * Source: https://ai.google.dev/pricing
+ * Gemini model pricing (Developer API, ≤200k context tier).
+ * Source: https://ai.google.dev/gemini-api/docs/pricing
  * Last verified: 2026-03-31
  *
  * Keyed by normalized Gemini model name (output of normalizeGeminiModel).
  * Thinking tokens are billed at the output rate.
+ * Models with tiered pricing (≤200k / >200k) use the lower tier.
  */
 const GEMINI_PRICING: Record<string, ModelPricing> = {
-  'gemini-3-flash':       { input: 0.10,  output: 0.40 },
-  'gemini-3-pro':         { input: 1.25,  output: 10.00 },
-  'gemini-2.5-flash':     { input: 0.15,  output: 0.60 },
-  'gemini-2.5-flash-lite': { input: 0.02, output: 0.10 },
-  'gemini-2.5-pro':       { input: 1.25,  output: 10.00 },
-  'gemini-2.0-flash':     { input: 0.10,  output: 0.40 },
-  'gemini-2.0-flash-lite': { input: 0.02, output: 0.10 },
+  'gemini-3.1-pro':        { input: 2.00,  output: 12.00 },
+  'gemini-3.1-flash-lite': { input: 0.25,  output: 1.50 },
+  'gemini-3-flash':        { input: 0.50,  output: 3.00 },
+  'gemini-2.5-pro':        { input: 1.25,  output: 10.00 },
+  'gemini-2.5-flash':      { input: 0.30,  output: 2.50 },
+  'gemini-2.5-flash-lite': { input: 0.10,  output: 0.40 },
+  'gemini-2.0-flash':      { input: 0.10,  output: 0.40 },  // deprecated, shutdown June 2026
 };
 
 const FAST_MODE_MULTIPLIER = 6;

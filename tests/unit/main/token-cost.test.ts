@@ -134,15 +134,15 @@ describe('estimateCostUsd', () => {
   });
 
   it('calculates Gemini cost via Gemini pricing table', () => {
-    // gemini-3-flash: input $0.10/MTok, output $0.40/MTok
+    // gemini-3-flash: input $0.50/MTok, output $3.00/MTok
     const cost = estimateCostUsd('gemini-3-flash', 1_000_000, 1_000_000, 0, 0, 0, false);
-    expect(cost).toBe(0.5); // $0.10 + $0.40
+    expect(cost).toBe(3.5); // $0.50 + $3.00
   });
 
   it('calculates Gemini cost with preview suffix', () => {
     // gemini-3-flash-preview normalizes to gemini-3-flash
     const cost = estimateCostUsd('gemini-3-flash-preview', 1_000_000, 1_000_000, 0, 0, 0, false);
-    expect(cost).toBe(0.5);
+    expect(cost).toBe(3.5);
   });
 
   it('calculates Gemini pro cost', () => {
