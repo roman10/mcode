@@ -2,10 +2,14 @@
 
 ## Overview
 
-Codex CLI was the first non-Claude agent added to mcode. Support has progressed through two phases of work:
+Codex CLI was the first non-Claude agent added to mcode. Support has progressed through six phases of work:
 
-- **Phase 1** shipped the baseline Codex lifecycle: create, display, kill, commit tracking, and the new-session dialog agent type selector
-- **Phase 2** completed hook integration (bridge script, live state tracking) and full resume support (thread ID capture + `codex resume <threadId>`)
+- **Phase 1** — Session lifecycle: create, display, kill, commit tracking, new-session dialog
+- **Phase 2** — Hook integration (bridge script, live state tracking) and full resume support
+- **Phase 3** — Task queue with `hasPendingTasks` attention suppression
+- **Phase 4** — Slash command support with inline validation warnings
+- **Phase 5** — Model display via hook payload extraction with GPT family color
+- **Phase 6** — Token/cost/input tracking via JSONL transcript scanning with OpenAI pricing
 
 SessionManager delegates all agent-specific logic to runtime adapters. Codex is a first-class adapter alongside Claude, Gemini, and Copilot with no special-case branching in the orchestrator.
 
@@ -29,7 +33,7 @@ Detailed resume design lives in [design-codex-resume.md](./design-codex-resume.m
 | Hook delivery | Shell-exec | JSON via stdin, JSON output on stdout |
 | Hook events | 7 | `SessionStart`, `SessionEnd`, `PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`, `Notification` |
 | Plan mode | No | No plan-mode concept |
-| Token output | No | No structured token/cost usage output |
+| Token output | Yes | Per-API-call `token_count` events in JSONL transcripts (`~/.codex/sessions/`) with `last_token_usage` breakdowns |
 | Model selection | Yes | `payload.model` field in all hook events; `/model` slash command in CLI |
 
 ## Architecture
