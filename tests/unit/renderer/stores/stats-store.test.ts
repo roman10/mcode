@@ -124,11 +124,11 @@ describe('stats-store', () => {
       expect(tokensMock.getDailyUsage).toHaveBeenCalledWith(undefined, undefined);
       expect(tokensMock.getHeatmap).toHaveBeenCalledWith(90, undefined);
       expect(tokensMock.getWeeklyTrend).toHaveBeenCalledWith(undefined);
-      expect(commitsMock.getDailyStats).toHaveBeenCalledWith(undefined);
-      expect(commitsMock.getHeatmap).toHaveBeenCalledWith(90);
-      expect(commitsMock.getStreaks).toHaveBeenCalledOnce();
-      expect(commitsMock.getCadence).toHaveBeenCalledWith(undefined);
-      expect(commitsMock.getWeeklyTrend).toHaveBeenCalledOnce();
+      expect(commitsMock.getDailyStats).toHaveBeenCalledWith(undefined, undefined);
+      expect(commitsMock.getHeatmap).toHaveBeenCalledWith(90, undefined);
+      expect(commitsMock.getStreaks).toHaveBeenCalledWith(undefined);
+      expect(commitsMock.getCadence).toHaveBeenCalledWith(undefined, undefined);
+      expect(commitsMock.getWeeklyTrend).toHaveBeenCalledWith(undefined);
       expect(inputMock.getDailyStats).toHaveBeenCalledWith(undefined, undefined);
       expect(inputMock.getHeatmap).toHaveBeenCalledWith(90, undefined);
       expect(inputMock.getWeeklyTrend).toHaveBeenCalledWith(undefined);
@@ -155,8 +155,8 @@ describe('stats-store', () => {
       await useStatsStore.getState().refreshAll();
 
       expect(tokensMock.getDailyUsage).toHaveBeenCalledWith('2025-03-20', undefined);
-      expect(commitsMock.getDailyStats).toHaveBeenCalledWith('2025-03-20');
-      expect(commitsMock.getCadence).toHaveBeenCalledWith('2025-03-20');
+      expect(commitsMock.getDailyStats).toHaveBeenCalledWith('2025-03-20', undefined);
+      expect(commitsMock.getCadence).toHaveBeenCalledWith('2025-03-20', undefined);
       expect(inputMock.getDailyStats).toHaveBeenCalledWith('2025-03-20', undefined);
       expect(inputMock.getCadence).toHaveBeenCalledWith('2025-03-20', undefined);
     });
@@ -176,7 +176,7 @@ describe('stats-store', () => {
 
       expect(useStatsStore.getState().selectedDate).toBe('2025-03-10');
       expect(tokensMock.getDailyUsage).toHaveBeenCalledWith('2025-03-10', undefined);
-      expect(commitsMock.getDailyStats).toHaveBeenCalledWith('2025-03-10');
+      expect(commitsMock.getDailyStats).toHaveBeenCalledWith('2025-03-10', undefined);
       expect(inputMock.getDailyStats).toHaveBeenCalledWith('2025-03-10', undefined);
     });
 
