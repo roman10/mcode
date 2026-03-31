@@ -24,6 +24,12 @@ describe('file tools', () => {
     await client.disconnect();
   });
 
+  it('file_list includes dotfiles', async () => {
+    const result = await client.callToolJson<{ files: string[] }>('file_list', { cwd });
+    expect(result.files.some((f: string) => f.split('/').pop()!.startsWith('.'))).toBe(true);
+    expect(result.files).toContain('.gitignore');
+  });
+
   it('file_list returns files for git repo', async () => {
     const result = await client.callToolJson<{
       isGitRepo: boolean;

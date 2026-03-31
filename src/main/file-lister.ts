@@ -26,6 +26,8 @@ const DEFAULT_IGNORE = [
   '*.pyc',
   '.venv/**',
   'vendor/**',
+  '.cache/**',
+  '.turbo/**',
 ];
 
 // Map file extension to language identifier for CodeMirror
@@ -128,7 +130,20 @@ export class FileLister {
 
     // Try git ls-files first
     try {
-      const files = await this.gitListFiles(resolved);
+      const [gitFiles, dotFiles] = await Promise.all([
+        this.gitListFiles(resolved),
+        fg(['**/.*'], {
+          cwd: resolved,
+          ignore: DEFAULT_IGNORE,
+          dot: true,
+          onlyFiles: true,
+          followSymbolicLinks: false,
+        }),
+      ]);
+      // Merge: dotFiles adds gitignored dotfiles (e.g. .env.local); dedup tracked dotfiles
+      const fileSet = new Set(gitFiles);
+      for (const f of dotFiles) fileSet.add(f);
+      const files = [...fileSet];
       const capped = files.slice(0, MAX_FILES);
       const dirs = this.extractDirectories(capped);
       const entry: CacheEntry = {
@@ -146,7 +161,7 @@ export class FileLister {
     const files = await fg('**/*', {
       cwd: resolved,
       ignore: DEFAULT_IGNORE,
-      dot: false,
+      dot: true,
       onlyFiles: true,
       followSymbolicLinks: false,
     });
