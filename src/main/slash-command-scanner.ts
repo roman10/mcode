@@ -1,75 +1,98 @@
+import type { Dirent } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { basename, join, relative, sep } from 'node:path';
 import { homedir } from 'node:os';
 import type { SlashCommandEntry } from '../shared/types';
+import type { AgentSessionType, SlashCommandFileSource } from '../shared/session-agents';
+import { getAgentDefinition } from '../shared/session-agents';
 import { typedHandle } from './ipc-helpers';
-
-const BUILTIN_COMMANDS: ReadonlyMap<string, string> = new Map([
-  ['compact', 'Compact conversation history to reduce context'],
-  ['clear', 'Clear conversation and start fresh'],
-  ['help', 'Show available commands and help'],
-  ['init', 'Initialize Claude Code project settings'],
-  ['cost', 'Show token usage and cost for this session'],
-  ['doctor', 'Check Claude Code installation health'],
-  ['login', 'Log in to your Anthropic account'],
-  ['logout', 'Log out of your Anthropic account'],
-  ['bug', 'Report a bug to Anthropic'],
-  ['review', 'Review a pull request'],
-  ['memory', 'Edit CLAUDE.md memory files'],
-  ['model', 'Switch the AI model'],
-  ['config', 'Edit Claude Code configuration'],
-  ['vim', 'Toggle vim mode for the input'],
-  ['terminal-setup', 'Set up terminal integration'],
-  ['permissions', 'Manage tool permissions'],
-]);
 
 async function scanDirectory(
   dir: string,
   source: 'user' | 'project',
+  config: SlashCommandFileSource,
+  rootDir = dir,
 ): Promise<SlashCommandEntry[]> {
-  let entries: string[];
+  let entries: Dirent[];
   try {
-    entries = await readdir(dir);
+    entries = await readdir(dir, { withFileTypes: true });
   } catch {
     return [];
   }
 
   const results: SlashCommandEntry[] = [];
   for (const entry of entries) {
-    if (!entry.endsWith('.md')) continue;
-    const name = basename(entry, '.md');
-    let description = name;
-    try {
-      const content = await readFile(join(dir, entry), 'utf-8');
-      const firstLine = content.split('\n').find((l) => l.trim().length > 0);
-      if (firstLine) {
-        description = firstLine.replace(/^#+\s*/, '').trim();
-        // Truncate long descriptions
-        if (description.length > 80) {
-          description = description.slice(0, 77) + '...';
-        }
+    const entryPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (config.recursive) {
+        results.push(...await scanDirectory(entryPath, source, config, rootDir));
       }
-    } catch {
-      // Use filename as description if read fails
+      continue;
     }
+    if (!entry.isFile() || !entry.name.endsWith(config.extension)) continue;
+
+    const relPath = relative(rootDir, entryPath);
+    const baseName = basename(entry.name, config.extension);
+    const name = config.pathStyle === 'colon'
+      ? relPath.slice(0, -config.extension.length).split(sep).join(':')
+      : baseName;
+    const description = await readCommandDescription(entryPath, name, config);
     results.push({ name, description, source });
   }
   return results;
 }
 
-export async function scanSlashCommands(cwd: string): Promise<SlashCommandEntry[]> {
-  const userDir = join(homedir(), '.claude', 'commands');
-  const projectDir = cwd ? join(cwd, '.claude', 'commands') : '';
+async function readCommandDescription(
+  filePath: string,
+  fallback: string,
+  config: SlashCommandFileSource,
+): Promise<string> {
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    const description = config.descriptionFormat === 'toml-description'
+      ? extractTomlDescription(content) ?? fallback
+      : extractMarkdownDescription(content) ?? fallback;
+    return description.length > 80 ? `${description.slice(0, 77)}...` : description;
+  } catch {
+    return fallback;
+  }
+}
+
+function extractMarkdownDescription(content: string): string | null {
+  const firstLine = content.split('\n').find((line) => line.trim().length > 0);
+  if (!firstLine) return null;
+  return firstLine.replace(/^#+\s*/, '').trim();
+}
+
+function extractTomlDescription(content: string): string | null {
+  const match = content.match(/^\s*description\s*=\s*["']([^"']+)["']/m);
+  return match?.[1]?.trim() || null;
+}
+
+export async function scanSlashCommands(sessionType: AgentSessionType, cwd: string): Promise<SlashCommandEntry[]> {
+  const slashCommands = getAgentDefinition(sessionType)?.slashCommands;
+  if (!slashCommands) return [];
+
+  const userDir = slashCommands.userCommandFiles
+    ? join(homedir(), ...slashCommands.userCommandFiles.dirSegments)
+    : '';
+  const projectDir = slashCommands.projectCommandFiles && cwd
+    ? join(cwd, ...slashCommands.projectCommandFiles.dirSegments)
+    : '';
 
   const [userCommands, projectCommands] = await Promise.all([
-    scanDirectory(userDir, 'user'),
-    projectDir ? scanDirectory(projectDir, 'project') : Promise.resolve([]),
+    userDir && slashCommands.userCommandFiles
+      ? scanDirectory(userDir, 'user', slashCommands.userCommandFiles)
+      : Promise.resolve([]),
+    projectDir && slashCommands.projectCommandFiles
+      ? scanDirectory(projectDir, 'project', slashCommands.projectCommandFiles)
+      : Promise.resolve([]),
   ]);
 
   // Build deduped map: project > user > builtin
   const map = new Map<string, SlashCommandEntry>();
 
-  for (const [name, description] of BUILTIN_COMMANDS) {
+  for (const [name, description] of slashCommands.builtins) {
     map.set(name, { name, description, source: 'builtin' });
   }
   for (const cmd of userCommands) {
@@ -87,7 +110,7 @@ export async function scanSlashCommands(cwd: string): Promise<SlashCommandEntry[
 }
 
 export function registerSlashCommandIpc(): void {
-  typedHandle('slash-commands:scan', (cwd) => {
-    return scanSlashCommands(cwd);
+  typedHandle('slash-commands:scan', (sessionType, cwd) => {
+    return scanSlashCommands(sessionType, cwd);
   });
 }

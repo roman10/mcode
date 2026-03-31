@@ -7,6 +7,7 @@ import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import FileAutocomplete from './FileAutocomplete';
 import { buildModeCycle, TASK_PERMISSION_MODE_LABELS } from '@shared/task-utils';
 import { canSessionBeTaskTarget } from '@shared/session-capabilities';
+import { getAgentDefinition } from '@shared/session-agents';
 import type { CreateTaskInput, TaskPermissionMode } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
@@ -45,6 +46,10 @@ function CreateTaskDialog({
 
   // Available permission modes based on selected target session
   const selectedSession = targetSessionId ? sessions[targetSessionId] : undefined;
+  const selectedAgentName = getAgentDefinition(selectedSession?.sessionType)?.displayName ?? 'Claude Code';
+  const slashSessionType = selectedSession?.sessionType === 'terminal'
+    ? 'claude'
+    : selectedSession?.sessionType ?? 'claude';
   const availableModes = useMemo(
     () => (selectedSession ? buildModeCycle(selectedSession) : []),
     [selectedSession],
@@ -138,12 +143,13 @@ function CreateTaskDialog({
                 }}
                 onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
                 onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-                placeholder="What should Claude work on?"
+                placeholder={`What should ${selectedAgentName} work on?`}
                 autoFocus
               />
               <SlashCommandAutocomplete
                 prompt={prompt}
                 cwd={cwd}
+                sessionType={slashSessionType}
                 textareaRef={textareaRef}
                 onSelect={(text) => { setPrompt(text); setCursorPos(text.length); }}
               />

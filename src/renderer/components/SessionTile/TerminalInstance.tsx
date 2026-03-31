@@ -10,14 +10,20 @@ import {
   DEFAULT_SCROLLBACK_LINES,
   SCROLLBACK_PRESETS,
 } from '@shared/constants';
-import { shouldHideTerminalCursor } from '@shared/session-agents';
+import { getAgentDefinition, shouldHideTerminalCursor } from '@shared/session-agents';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
+import { useSessionStore } from '../../stores/session-store';
+import { useSlashCommandWarningStore } from '../../stores/slash-command-warning-store';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
 import { normalizeAgentLabel } from '../../utils/label-utils';
 import type { SessionType } from '@shared/types';
+import {
+  buildUnsupportedSlashCommandWarning,
+  stripTerminalInputControlSequences,
+} from '../../utils/slash-command-validation';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -34,9 +40,32 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
   const termRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const slashCommandBufferRef = useRef('');
+  const knownSlashCommandsRef = useRef<Set<string>>(new Set());
+  const warningTimeoutRef = useRef<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [currentScrollback, setCurrentScrollback] = useState(scrollbackLines);
   const search = useTerminalSearch();
+  const cwd = useSessionStore((s) => s.sessions[sessionId]?.cwd ?? '');
+  const setSlashWarning = useSlashCommandWarningStore((s) => s.setWarning);
+  const clearSlashWarning = useSlashCommandWarningStore((s) => s.clearWarning);
+
+  useEffect(() => {
+    const agent = getAgentDefinition(sessionType);
+    if (!agent || !cwd) {
+      knownSlashCommandsRef.current = new Set();
+      return;
+    }
+    let stale = false;
+    window.mcode.slashCommands.scan(agent.sessionType, cwd).then((commands) => {
+      if (!stale) {
+        knownSlashCommandsRef.current = new Set(commands.map((cmd) => cmd.name.toLowerCase()));
+      }
+    }).catch(() => {
+      if (!stale) knownSlashCommandsRef.current = new Set();
+    });
+    return () => { stale = true; };
+  }, [cwd, sessionType]);
 
   // Subscribe to terminal panel height changes so that fit() is called even when
   // ResizeObserver doesn't fire (e.g. in background/non-painting Electron windows).
@@ -216,6 +245,40 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
 
     // Terminal input → PTY
     term.onData((data) => {
+      const agent = getAgentDefinition(sessionType);
+      const sanitizedData = stripTerminalInputControlSequences(data);
+      for (const char of sanitizedData) {
+        if (char === '\r' || char === '\n') {
+          if (agent) {
+            const warning = buildUnsupportedSlashCommandWarning(
+              slashCommandBufferRef.current,
+              knownSlashCommandsRef.current,
+              agent.displayName,
+            );
+            if (warning) {
+              setSlashWarning(sessionId, warning);
+              if (warningTimeoutRef.current !== null) clearTimeout(warningTimeoutRef.current);
+              warningTimeoutRef.current = window.setTimeout(() => {
+                clearSlashWarning(sessionId);
+                warningTimeoutRef.current = null;
+              }, 6000);
+            }
+          }
+          slashCommandBufferRef.current = '';
+          continue;
+        }
+        if (char === '\x7f') {
+          slashCommandBufferRef.current = slashCommandBufferRef.current.slice(0, -1);
+          continue;
+        }
+        if (char === '\x15' || char === '\x03') {
+          slashCommandBufferRef.current = '';
+          continue;
+        }
+        if (char >= ' ' && char !== '\x1b') {
+          slashCommandBufferRef.current += char;
+        }
+      }
       window.mcode.pty.write(sessionId, data);
     });
 
@@ -265,6 +328,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       terminalRegistry.delete(sessionId);
       clearTimeout(initialFitTimer);
       clearTimeout(resizeTimer);
+      if (warningTimeoutRef.current !== null) clearTimeout(warningTimeoutRef.current);
+      clearSlashWarning(sessionId);
       unsubResize.dispose();
       unsubTitle.dispose();
       unsubData();
@@ -277,7 +342,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       term.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup must only re-run on identity change
-  }, [sessionId, sessionType]);
+  }, [clearSlashWarning, sessionId, sessionType, setSlashWarning]);
 
   const handleContextAction = useCallback((action: string) => {
     const term = termInstanceRef.current;

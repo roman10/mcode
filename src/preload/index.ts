@@ -44,6 +44,7 @@ import type {
   SearchEvent,
 } from '../shared/types';
 import type { IpcInvokeContract, IpcSendContract, IpcPushContract } from '../shared/ipc-contract';
+import type { AgentSessionType } from '../shared/session-agents';
 
 // Typed IPC wrappers — channel names and types are checked against the contract
 
@@ -332,8 +333,8 @@ contextBridge.exposeInMainWorld('mcode', {
   },
 
   slashCommands: {
-    scan: (cwd: string): Promise<SlashCommandEntry[]> =>
-      typedInvoke('slash-commands:scan', cwd),
+    scan: (sessionType: AgentSessionType, cwd: string): Promise<SlashCommandEntry[]> =>
+      typedInvoke('slash-commands:scan', sessionType, cwd),
   },
 
   snippets: {

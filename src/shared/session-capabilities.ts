@@ -1,4 +1,4 @@
-import { getAgentDefinition } from './session-agents';
+import { getAgentDefinition, type SlashCommandSupport } from './session-agents';
 import type { SessionInfo, SessionType } from './types';
 
 type TaskSessionLike = Pick<SessionInfo, 'sessionType' | 'hookMode' | 'status'> | null | undefined;
@@ -35,5 +35,28 @@ export function getSessionInstallHelp(
     command: agent.defaultCommand,
     displayName: agent.displayName,
     url: agent.installHelpUrl,
+  };
+}
+
+export function supportsSessionSlashCommands(sessionType: SessionType | string | undefined): boolean {
+  return !!getAgentDefinition(sessionType)?.slashCommands;
+}
+
+export function getSessionSlashCommandSupport(
+  sessionType: SessionType | string | undefined,
+): SlashCommandSupport | null {
+  return getAgentDefinition(sessionType)?.slashCommands ?? null;
+}
+
+export function getSessionSlashCommandHelp(
+  sessionType: SessionType | string | undefined,
+): { command: string; displayName: string; supportsCustomCommands: boolean } | null {
+  const agent = getAgentDefinition(sessionType);
+  const slashCommands = agent?.slashCommands;
+  if (!agent || !slashCommands) return null;
+  return {
+    command: slashCommands.helpCommand,
+    displayName: agent.displayName,
+    supportsCustomCommands: !!(slashCommands.userCommandFiles || slashCommands.projectCommandFiles),
   };
 }

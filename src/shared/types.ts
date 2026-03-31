@@ -455,7 +455,7 @@ export interface MCodeAPI {
   };
 
   slashCommands: {
-    scan(cwd: string): Promise<SlashCommandEntry[]>;
+    scan(sessionType: AgentSessionType, cwd: string): Promise<SlashCommandEntry[]>;
   };
 
   snippets: {

@@ -10,6 +10,7 @@ import CreateTaskDialog from '../shared/CreateTaskDialog';
 import ModelPill from './ModelPill';
 import { canSessionQueueTasks } from '@shared/session-capabilities';
 import type { SessionStatus, CreateTaskInput } from '@shared/types';
+import { useSlashCommandWarningStore } from '../../stores/slash-command-warning-store';
 
 interface TerminalToolbarProps {
   sessionId: string;
@@ -49,6 +50,7 @@ function TerminalToolbar({
   const attentionLevel = session?.attentionLevel ?? 'none';
   const lastTool = session?.lastTool;
   const shortTime = useRelativeTime(session?.startedAt ?? '');
+  const slashWarning = useSlashCommandWarningStore((s) => s.warnings[sessionId] ?? null);
 
   const canQueueTasks = canSessionQueueTasks(session);
 
@@ -169,6 +171,13 @@ function TerminalToolbar({
         <span className="text-xs bg-amber-400/20 text-amber-300 px-1.5 rounded ml-1 shrink-0">
           {pendingTaskCount} {pendingTaskCount === 1 ? 'task' : 'tasks'}
         </span>
+      )}
+      {slashWarning && (
+        <Tooltip content={slashWarning} side="bottom">
+          <span className="text-xs bg-amber-400/20 text-amber-300 px-1.5 rounded ml-1 shrink-0 cursor-help">
+            Slash warning
+          </span>
+        </Tooltip>
       )}
 
       {/* Actions */}

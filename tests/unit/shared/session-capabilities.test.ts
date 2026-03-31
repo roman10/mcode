@@ -4,8 +4,11 @@ import {
   canSessionBeDefaultTaskTarget,
   canSessionBeTaskTarget,
   canSessionQueueTasks,
+  getSessionSlashCommandHelp,
+  getSessionSlashCommandSupport,
   getSessionInstallHelp,
   hasLiveTaskQueue,
+  supportsSessionSlashCommands,
 } from '../../../src/shared/session-capabilities';
 import { getAgentDefinition } from '../../../src/shared/session-agents';
 import { makeSession } from '../test-factories';
@@ -89,5 +92,35 @@ describe('session-capabilities', () => {
     });
     expect(getSessionInstallHelp('codex')).toBeNull();
     expect(getSessionInstallHelp('gemini')).toBeNull();
+  });
+
+  it('exposes slash command support for all agent CLIs', () => {
+    expect(supportsSessionSlashCommands('claude')).toBe(true);
+    expect(supportsSessionSlashCommands('codex')).toBe(true);
+    expect(supportsSessionSlashCommands('gemini')).toBe(true);
+    expect(supportsSessionSlashCommands('copilot')).toBe(true);
+    expect(supportsSessionSlashCommands('terminal')).toBe(false);
+  });
+
+  it('returns slash command metadata for discoverability helpers', () => {
+    expect(getSessionSlashCommandHelp('claude')).toEqual({
+      command: '/help',
+      displayName: 'Claude Code',
+      supportsCustomCommands: true,
+    });
+    expect(getSessionSlashCommandHelp('copilot')).toEqual({
+      command: '/help',
+      displayName: 'Copilot CLI',
+      supportsCustomCommands: false,
+    });
+    expect(getSessionSlashCommandHelp('terminal')).toBeNull();
+  });
+
+  it('exposes agent-specific slash command definitions', () => {
+    expect(getSessionSlashCommandSupport('claude')?.builtins.get('compact')).toBeTruthy();
+    expect(getSessionSlashCommandSupport('gemini')?.builtins.get('commands')).toBeTruthy();
+    expect(getSessionSlashCommandSupport('codex')?.builtins.get('plan')).toBeTruthy();
+    expect(getSessionSlashCommandSupport('copilot')?.builtins.get('usage')).toBeTruthy();
+    expect(getSessionSlashCommandSupport('terminal')).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import type {
   SlashCommandEntry,
   SnippetEntry,
 } from './types';
+import type { AgentSessionType } from './session-agents';
 
 // ---------------------------------------------------------------------------
 // Files, Search, Slash Commands, and Snippets IPC channels
@@ -22,7 +23,7 @@ export interface FilesInvokeContract {
   'search:cancel':                      { params: [searchId: string]; result: void };
 
   // --- Slash Commands ---
-  'slash-commands:scan':                { params: [cwd: string]; result: SlashCommandEntry[] };
+  'slash-commands:scan':                { params: [sessionType: AgentSessionType, cwd: string]; result: SlashCommandEntry[] };
 
   // --- Snippets ---
   'snippets:scan':                      { params: [cwd: string]; result: SnippetEntry[] };

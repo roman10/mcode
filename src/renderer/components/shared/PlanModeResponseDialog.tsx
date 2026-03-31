@@ -131,6 +131,7 @@ function PlanModeResponseDialog({
               <SlashCommandAutocomplete
                 prompt={message}
                 cwd={cwd}
+                sessionType="claude"
                 textareaRef={textareaRef}
                 onSelect={(text) => { setMessage(text); setCursorPos(text.length); }}
               />
