@@ -1,11 +1,7 @@
 import { statSync } from 'node:fs';
-import { readdir, stat, open as fsOpen } from 'node:fs/promises';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
 import type { WebContents } from 'electron';
 import { getDb } from '../db';
 import { logger } from '../logger';
-import { parseUsageFromChunk, parseHumanMessagesFromChunk } from './jsonl-usage-parser';
 import type { InputTracker } from './input-tracker';
 import { estimateCostUsd, normalizeModelFamily } from './token-cost';
 import { localDateStr } from './date-utils';
@@ -20,20 +16,13 @@ import type {
   ModelUsageSummary,
 } from '../../shared/types';
 import type { AgentSessionType } from '../../shared/session-agents';
+import { ClaudeScanner } from './claude-scanner';
 import { CopilotScanner } from './copilot-scanner';
+import { GeminiScanner } from './gemini-scanner';
 import { typedHandle } from '../ipc-helpers';
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
-const SCAN_BATCH_SIZE = 20;
 const HOOK_SCAN_DELAY_MS = 500;
-
-interface TrackedFileRecord {
-  file_path: string;
-  agent_session_id: string;
-  project_dir: string;
-  last_scanned_offset: number;
-  file_size: number;
-}
 
 /** Common shape for all token aggregation queries (GROUP BY model, is_fast_mode). */
 interface TokenAggRow {
@@ -74,7 +63,9 @@ interface WeekRow {
 export class TokenTracker {
   private getWebContents: () => WebContents | null;
   private inputTracker: InputTracker;
+  private claudeScanner = new ClaudeScanner();
   private copilotScanner = new CopilotScanner();
+  private geminiScanner = new GeminiScanner();
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
   private scanning = false;
 
@@ -103,7 +94,7 @@ export class TokenTracker {
   }
 
   /** Handle hook events — scan the transcript on Stop events. */
-  async onHookEvent(_sessionId: string, event: HookEvent): Promise<void> {
+  async onHookEvent(_sessionId: string, event: HookEvent, provider?: AgentSessionType): Promise<void> {
     if (event.hookEventName !== 'Stop') return;
 
     const payload = event.payload as { transcript_path?: string } | undefined;
@@ -111,160 +102,49 @@ export class TokenTracker {
     if (!transcriptPath) return;
 
     setTimeout(() => {
-      this.scanFile(transcriptPath).catch((err) => {
+      // Copilot uses cumulative shutdown events — handled by background scan only.
+      if (provider === 'copilot') return;
+      const scanner = provider === 'gemini' ? this.geminiScanner : this.claudeScanner;
+      scanner.scanFile(transcriptPath, this.inputTracker).then((count) => {
+        if (count > 0) this.broadcastUpdate();
+      }).catch((err) => {
         logger.warn('tokens', 'Hook-triggered scan failed', { error: String(err) });
       });
     }, HOOK_SCAN_DELAY_MS);
   }
 
-  /** Scan all ~/.claude/projects/ directories for JSONL files. */
+  /** Scan all provider transcript directories. */
   async scanAll(): Promise<void> {
     if (this.scanning) return;
     this.scanning = true;
 
     try {
-      const projectsDir = join(homedir(), '.claude', 'projects');
-      let projectDirs: string[];
-      try {
-        projectDirs = await readdir(projectsDir);
-      } catch {
-        return; // ~/.claude/projects/ doesn't exist
-      }
-
-      const allFiles: string[] = [];
-      for (const proj of projectDirs) {
-        const projPath = join(projectsDir, proj);
-        try {
-          const entries = await readdir(projPath, { recursive: true });
-          for (const entry of entries) {
-            if (typeof entry === 'string' && entry.endsWith('.jsonl')) {
-              allFiles.push(join(projPath, entry));
-            }
-          }
-        } catch {
-          // Skip unreadable directories
-        }
-      }
-
       let totalNew = 0;
-      for (let i = 0; i < allFiles.length; i += SCAN_BATCH_SIZE) {
-        const batch = allFiles.slice(i, i + SCAN_BATCH_SIZE);
-        for (const filePath of batch) {
-          try {
-            const count = await this.scanFile(filePath);
-            totalNew += count;
-          } catch {
-            // Skip individual file errors
-          }
-        }
-        // Yield event loop between batches
-        if (i + SCAN_BATCH_SIZE < allFiles.length) {
-          await new Promise((resolve) => setImmediate(resolve));
-        }
+
+      try {
+        totalNew += await this.claudeScanner.scanAll(this.inputTracker);
+      } catch (err) {
+        logger.warn('tokens', 'Claude scan failed', { error: String(err) });
       }
 
-      // Scan Copilot event files
       try {
         totalNew += await this.copilotScanner.scanAll(this.inputTracker);
       } catch (err) {
         logger.warn('tokens', 'Copilot scan failed', { error: String(err) });
       }
 
+      try {
+        totalNew += await this.geminiScanner.scanAll(this.inputTracker);
+      } catch (err) {
+        logger.warn('tokens', 'Gemini scan failed', { error: String(err) });
+      }
+
       if (totalNew > 0) {
-        logger.info('tokens', `Scan complete, ${totalNew} new entries from ${allFiles.length} Claude files + Copilot`);
+        logger.info('tokens', `Scan complete, ${totalNew} new entries`);
         this.broadcastUpdate();
       }
     } finally {
       this.scanning = false;
-    }
-  }
-
-  /** Scan a single JSONL file incrementally. Returns count of new entries inserted. */
-  async scanFile(filePath: string): Promise<number> {
-    const db = getDb();
-
-    // Get current file size
-    let fileSize: number;
-    try {
-      const s = await stat(filePath);
-      fileSize = s.size;
-    } catch {
-      return 0; // File doesn't exist or can't be read
-    }
-
-    // Check watermark
-    const tracked = db
-      .prepare('SELECT * FROM tracked_jsonl_files WHERE file_path = ?')
-      .get(filePath) as TrackedFileRecord | undefined;
-
-    const lastOffset = tracked?.last_scanned_offset ?? 0;
-    if (fileSize <= lastOffset) return 0; // No new data
-
-    // Read new bytes
-    const fh = await fsOpen(filePath, 'r');
-    try {
-      const bytesToRead = fileSize - lastOffset;
-      const buf = Buffer.alloc(bytesToRead);
-      await fh.read(buf, 0, bytesToRead, lastOffset);
-      const chunk = buf.toString('utf-8');
-
-      const isPartial = lastOffset > 0;
-      const entries = parseUsageFromChunk(chunk, isPartial);
-      const humanEntries = parseHumanMessagesFromChunk(chunk, isPartial);
-
-      if (entries.length === 0 && humanEntries.length === 0) {
-        // Update watermark even if no entries (file grew but no usage data)
-        this.updateWatermark(filePath, fileSize);
-        return 0;
-      }
-
-      // Derive session ID and project dir from file path
-      const projectsDir = join(homedir(), '.claude', 'projects');
-      const { sessionId: fileName, projectDir } = extractSessionMetadata(filePath, projectsDir);
-
-      const insertStmt = db.prepare(`
-        INSERT OR IGNORE INTO token_usage
-          (message_id, agent_session_id, project_dir, model,
-           input_tokens, output_tokens, cache_write_5m_tokens, cache_write_1h_tokens,
-           cache_read_tokens, is_fast_mode, message_timestamp, date, provider)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'claude')
-      `);
-
-      let newCount = 0;
-      const insertAll = db.transaction(() => {
-        for (const entry of entries) {
-          const date = localDateStr(new Date(entry.timestamp));
-          const result = insertStmt.run(
-            entry.messageId,
-            fileName,
-            projectDir,
-            entry.model,
-            entry.inputTokens,
-            entry.outputTokens,
-            entry.cacheWrite5mTokens,
-            entry.cacheWrite1hTokens,
-            entry.cacheReadTokens,
-            entry.isFastMode ? 1 : 0,
-            entry.timestamp,
-            date,
-          );
-          if (result.changes > 0) newCount++;
-        }
-      });
-      insertAll();
-
-      // Insert human input entries via InputTracker
-      this.inputTracker.insertBatch(humanEntries, fileName, projectDir);
-
-      this.updateWatermark(filePath, fileSize, fileName, projectDir);
-
-      if (newCount > 0) {
-        this.broadcastUpdate();
-      }
-
-      return newCount;
-    } finally {
-      await fh.close();
     }
   }
 
@@ -600,7 +480,7 @@ export class TokenTracker {
     return result;
   }
 
-  /** Remove watermarks for JSONL files that no longer exist on disk. */
+  /** Remove watermarks for tracked files that no longer exist on disk. */
   pruneStaleTrackedFiles(): void {
     const db = getDb();
     const tracked = db.prepare('SELECT file_path FROM tracked_jsonl_files').all() as { file_path: string }[];
@@ -615,34 +495,6 @@ export class TokenTracker {
 
   // --- Private helpers ---
 
-  private updateWatermark(
-    filePath: string,
-    fileSize: number,
-    agentSessionId?: string,
-    projectDir?: string,
-    provider: string = 'claude',
-  ): void {
-    const db = getDb();
-    let sessionId = agentSessionId;
-    let projDir = projectDir;
-    if (!sessionId || !projDir) {
-      const projectsDir = join(homedir(), '.claude', 'projects');
-      const meta = extractSessionMetadata(filePath, projectsDir);
-      sessionId ??= meta.sessionId;
-      projDir ??= meta.projectDir;
-    }
-    const now = new Date().toISOString();
-
-    db.prepare(`
-      INSERT INTO tracked_jsonl_files (file_path, agent_session_id, project_dir, last_scanned_offset, file_size, last_scanned_at, provider)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(file_path) DO UPDATE SET
-        last_scanned_offset = excluded.last_scanned_offset,
-        file_size = excluded.file_size,
-        last_scanned_at = excluded.last_scanned_at
-    `).run(filePath, sessionId, projDir, fileSize, fileSize, now, provider);
-  }
-
   private broadcastUpdate(): void {
     const wc = this.getWebContents();
     if (wc && !wc.isDestroyed()) {
@@ -651,25 +503,10 @@ export class TokenTracker {
   }
 }
 
-// --- Utility functions ---
+// Re-export for backward compatibility
+export { extractSessionMetadata } from './claude-scanner';
 
-/**
- * Extract sessionId and projectDir from any JSONL file path under the projects directory.
- * Works for both top-level session files and nested subagent files:
- *   Main:     <projectsDir>/<projectDir>/<sessionId>.jsonl
- *   Subagent: <projectsDir>/<projectDir>/<sessionId>/subagents/<agentId>.jsonl
- */
-export function extractSessionMetadata(
-  filePath: string,
-  projectsDir: string,
-): { sessionId: string; projectDir: string } {
-  const relative = filePath.slice(projectsDir.length + 1); // strip projectsDir + separator
-  const segments = relative.split('/');
-  const projectDir = segments[0];
-  const raw = segments[1];
-  const sessionId = raw.endsWith('.jsonl') ? raw.slice(0, -6) : raw;
-  return { sessionId, projectDir };
-}
+// --- Utility functions ---
 
 function rowToTotals(r: {
   input_tokens: number;

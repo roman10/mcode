@@ -203,13 +203,13 @@ async function initializeHookSystem(): Promise<void> {
   try {
     const result = await startHookServer(
       (sessionId, event) => {
-        const handled = sessionManager.handleHookEvent(sessionId, event);
-        if (handled) {
+        const sessionType = sessionManager.handleHookEvent(sessionId, event);
+        if (sessionType) {
           commitTracker.onHookEvent(sessionId, event).catch(() => {});
-          tokenTracker.onHookEvent(sessionId, event).catch(() => {});
+          tokenTracker.onHookEvent(sessionId, event, sessionType).catch(() => {});
           gitChangesService.onHookEvent(sessionId, event).catch(() => {});
         }
-        return handled;
+        return !!sessionType;
       },
       (claudeSessionId) => sessionManager.lookupByClaudeSessionId(claudeSessionId),
     );

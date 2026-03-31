@@ -55,6 +55,12 @@ describe('normalizeModelFamily', () => {
     expect(normalizeModelFamily('o1-preview')).toBe('unknown'); // currently mapped to unknown unless we add it
   });
 
+  it('detects gemini', () => {
+    expect(normalizeModelFamily('gemini-3-flash')).toBe('gemini');
+    expect(normalizeModelFamily('gemini-2.5-pro')).toBe('gemini');
+    expect(normalizeModelFamily('models/gemini-2.5-flash-preview')).toBe('gemini');
+  });
+
   it('returns unknown for unrecognized models', () => {
     expect(normalizeModelFamily('')).toBe('unknown');
     expect(normalizeModelFamily('llama-3')).toBe('unknown');
@@ -125,6 +131,24 @@ describe('estimateCostUsd', () => {
   it('accounts for cache read (0.1x input price)', () => {
     const cost = estimateCostUsd('claude-sonnet-4-5', 0, 0, 0, 0, 1_000_000, false);
     expect(cost).toBe(0.3);
+  });
+
+  it('calculates Gemini cost via Gemini pricing table', () => {
+    // gemini-3-flash: input $0.10/MTok, output $0.40/MTok
+    const cost = estimateCostUsd('gemini-3-flash', 1_000_000, 1_000_000, 0, 0, 0, false);
+    expect(cost).toBe(0.5); // $0.10 + $0.40
+  });
+
+  it('calculates Gemini cost with preview suffix', () => {
+    // gemini-3-flash-preview normalizes to gemini-3-flash
+    const cost = estimateCostUsd('gemini-3-flash-preview', 1_000_000, 1_000_000, 0, 0, 0, false);
+    expect(cost).toBe(0.5);
+  });
+
+  it('calculates Gemini pro cost', () => {
+    // gemini-2.5-pro: input $1.25/MTok, output $10.00/MTok
+    const cost = estimateCostUsd('gemini-2.5-pro', 1_000_000, 1_000_000, 0, 0, 0, false);
+    expect(cost).toBe(11.25);
   });
 
   it('returns 0 for unknown models', () => {

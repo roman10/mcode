@@ -39,7 +39,7 @@ import {
 } from './session-repository';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
 import { normalizeModelVersion, normalizeGeminiModel } from '../trackers/token-cost';
-import { isAgentSession } from '../../shared/session-agents';
+import { isAgentSession, type AgentSessionType } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
 import {
   buildSessionLabel,
@@ -594,8 +594,9 @@ export class SessionManager {
     }
   }
 
-  /** Handle a hook event from the hook server or injected via MCP. */
-  handleHookEvent(sessionId: string, event: HookEvent): boolean {
+  /** Handle a hook event from the hook server or injected via MCP.
+   *  Returns the session type on success, or false if the session is unknown. */
+  handleHookEvent(sessionId: string, event: HookEvent): AgentSessionType | false {
     // Verify session exists
     let row = getSessionHookState(sessionId);
     if (!row) {
@@ -603,8 +604,10 @@ export class SessionManager {
       return false;
     }
 
+    const sessionType = row.session_type as AgentSessionType;
+
     // Don't process events for ended sessions
-    if (row.status === 'ended') return true;
+    if (row.status === 'ended') return sessionType;
 
     // Persist agent-native session ID if present (route to correct column by session type)
     if (event.claudeSessionId) {
@@ -650,7 +653,7 @@ export class SessionManager {
       lastTool: row.last_tool,
       toolName: event.toolName,
     });
-    if (!result) return true;
+    if (!result) return sessionType;
 
     if (result.selfHealed) {
       logger.info('session', 'Self-healed starting→active on event', {
@@ -737,7 +740,7 @@ export class SessionManager {
       }
     }
 
-    return true;
+    return sessionType;
   }
 
   broadcastSessionUpdate(sessionId: string): void {

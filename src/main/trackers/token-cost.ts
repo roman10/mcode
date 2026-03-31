@@ -29,6 +29,24 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'haiku-3':    { input: 0.25, output: 1.25 },
 };
 
+/**
+ * Gemini model pricing.
+ * Source: https://ai.google.dev/pricing
+ * Last verified: 2026-03-31
+ *
+ * Keyed by normalized Gemini model name (output of normalizeGeminiModel).
+ * Thinking tokens are billed at the output rate.
+ */
+const GEMINI_PRICING: Record<string, ModelPricing> = {
+  'gemini-3-flash':       { input: 0.10,  output: 0.40 },
+  'gemini-3-pro':         { input: 1.25,  output: 10.00 },
+  'gemini-2.5-flash':     { input: 0.15,  output: 0.60 },
+  'gemini-2.5-flash-lite': { input: 0.02, output: 0.10 },
+  'gemini-2.5-pro':       { input: 1.25,  output: 10.00 },
+  'gemini-2.0-flash':     { input: 0.10,  output: 0.40 },
+  'gemini-2.0-flash-lite': { input: 0.02, output: 0.10 },
+};
+
 const FAST_MODE_MULTIPLIER = 6;
 
 /**
@@ -73,6 +91,7 @@ export function normalizeModelFamily(model: string): string {
   if (lower.includes('opus')) return 'opus';
   if (lower.includes('sonnet')) return 'sonnet';
   if (lower.includes('haiku')) return 'haiku';
+  if (lower.includes('gemini')) return 'gemini';
   if (lower.includes('gpt')) return 'gpt';
   return 'unknown';
 }
@@ -88,7 +107,11 @@ export function estimateCostUsd(
   isFastMode: boolean,
 ): number {
   const version = normalizeModelVersion(model);
-  const pricing = MODEL_PRICING[version];
+  let pricing = MODEL_PRICING[version];
+  if (!pricing) {
+    // Try Gemini pricing with Gemini-specific normalization
+    pricing = GEMINI_PRICING[normalizeGeminiModel(model)];
+  }
   if (!pricing) return 0;
 
   const multiplier = isFastMode ? FAST_MODE_MULTIPLIER : 1;
