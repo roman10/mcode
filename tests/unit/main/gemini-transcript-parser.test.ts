@@ -147,6 +147,7 @@ describe('parseGeminiTranscriptHumanMessages', () => {
       timestamp: '2026-03-31T12:00:01Z',
       textLength: 15,
       wordCount: 3,
+      text: 'say hello world',
     });
 
     expect(entries[1]).toEqual({
@@ -154,6 +155,7 @@ describe('parseGeminiTranscriptHumanMessages', () => {
       timestamp: '2026-03-31T12:00:10Z',
       textLength: 14,
       wordCount: 3,
+      text: 'list the files',
     });
   });
 

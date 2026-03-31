@@ -34,6 +34,7 @@ import type {
   InputHeatmapEntry,
   InputWeeklyTrend,
   InputCadenceInfo,
+  PromptHistoryEntry,
   AccountProfile,
   AuthStatusResult,
   CliAuthStatus,
@@ -383,6 +384,17 @@ contextBridge.exposeInMainWorld('mcode', {
 
     getCadence: (date?: string, provider?: string): Promise<InputCadenceInfo> =>
       typedInvoke('input:get-cadence', date, provider),
+  },
+
+  promptHistory: {
+    search: (query: string, limit?: number): Promise<PromptHistoryEntry[]> =>
+      typedInvoke('prompt-history:search', query, limit),
+
+    recent: (limit?: number): Promise<PromptHistoryEntry[]> =>
+      typedInvoke('prompt-history:recent', limit),
+
+    delete: (id: number): Promise<void> =>
+      typedInvoke('prompt-history:delete', id),
   },
 
   git: {

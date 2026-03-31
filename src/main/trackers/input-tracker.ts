@@ -6,6 +6,7 @@ import type {
   InputHeatmapEntry,
   InputWeeklyTrend,
   InputCadenceInfo,
+  PromptHistoryEntry,
 } from '../../shared/types';
 import type { AgentSessionType } from '../../shared/session-agents';
 import type { ParsedHumanEntry } from './jsonl-usage-parser';
@@ -42,6 +43,28 @@ interface ThinkTimeRow {
   think_seconds: number;
 }
 
+interface PromptHistoryRow {
+  id: number;
+  prompt_text: string;
+  agent_session_id: string;
+  project_dir: string;
+  word_count: number;
+  message_timestamp: string;
+  provider: string;
+}
+
+function toPromptHistoryEntry(row: PromptHistoryRow): PromptHistoryEntry {
+  return {
+    id: row.id,
+    promptText: row.prompt_text,
+    agentSessionId: row.agent_session_id,
+    projectDir: row.project_dir,
+    wordCount: row.word_count,
+    messageTimestamp: row.message_timestamp,
+    provider: row.provider,
+  };
+}
+
 export class InputTracker {
   /** Batch-insert parsed human entries. Called by TokenTracker during JSONL scan. */
   insertBatch(
@@ -54,9 +77,11 @@ export class InputTracker {
 
     const db = getDb();
     const stmt = db.prepare(`
-      INSERT OR IGNORE INTO human_input
-        (message_id, agent_session_id, project_dir, text_length, word_count, message_timestamp, date, provider)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO human_input
+        (message_id, agent_session_id, project_dir, text_length, word_count, message_timestamp, date, provider, prompt_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(message_id) DO UPDATE SET prompt_text = excluded.prompt_text
+        WHERE prompt_text IS NULL
     `);
 
     let newCount = 0;
@@ -72,6 +97,7 @@ export class InputTracker {
           entry.timestamp,
           date,
           provider,
+          entry.text,
         );
         if (result.changes > 0) newCount++;
       }
@@ -209,6 +235,45 @@ export class InputTracker {
     };
   }
 
+  // ── Prompt history queries ──────────────────────────────────────────────
+
+  searchPrompts(query: string, limit = 50): PromptHistoryEntry[] {
+    const db = getDb();
+    // Escape LIKE wildcards in user input
+    const escaped = query.replace(/[%_\\]/g, '\\$&');
+    const rows = db.prepare(`
+      SELECT id, prompt_text, agent_session_id, project_dir,
+             word_count, message_timestamp, provider
+      FROM human_input
+      WHERE prompt_text IS NOT NULL
+        AND prompt_text LIKE ? ESCAPE '\\'
+      ORDER BY message_timestamp DESC
+      LIMIT ?
+    `).all(`%${escaped}%`, limit) as PromptHistoryRow[];
+
+    return rows.map(toPromptHistoryEntry);
+  }
+
+  recentPrompts(limit = 50): PromptHistoryEntry[] {
+    const db = getDb();
+    const rows = db.prepare(`
+      SELECT id, prompt_text, agent_session_id, project_dir,
+             word_count, message_timestamp, provider
+      FROM human_input
+      WHERE prompt_text IS NOT NULL
+      ORDER BY message_timestamp DESC
+      LIMIT ?
+    `).all(limit) as PromptHistoryRow[];
+
+    return rows.map(toPromptHistoryEntry);
+  }
+
+  deletePrompt(id: number): void {
+    const db = getDb();
+    // Null out the text rather than deleting the row — the row still feeds input stats.
+    db.prepare('UPDATE human_input SET prompt_text = NULL WHERE id = ?').run(id);
+  }
+
   getInputCadence(date?: string, provider?: string): InputCadenceInfo {
     const db = getDb();
     const targetDate = date ?? localDateStr(new Date());
@@ -287,5 +352,17 @@ export function registerInputIpc(inputTracker: InputTracker): void {
 
   typedHandle('input:get-cadence', (date, provider) => {
     return inputTracker.getInputCadence(date, provider);
+  });
+
+  typedHandle('prompt-history:search', (query, limit) => {
+    return inputTracker.searchPrompts(query, limit);
+  });
+
+  typedHandle('prompt-history:recent', (limit) => {
+    return inputTracker.recentPrompts(limit);
+  });
+
+  typedHandle('prompt-history:delete', (id) => {
+    inputTracker.deletePrompt(id);
   });
 }

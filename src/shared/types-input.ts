@@ -35,3 +35,13 @@ export interface InputCadenceInfo {
   peakHour: string | null;
   leverageRatio: number | null;
 }
+
+export interface PromptHistoryEntry {
+  id: number;
+  promptText: string;
+  agentSessionId: string;
+  projectDir: string;
+  wordCount: number;
+  messageTimestamp: string;
+  provider: string;
+}

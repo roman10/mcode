@@ -139,6 +139,7 @@ describe('parseCodexTranscript', () => {
       timestamp: '2026-03-27T00:25:03.728Z',
       textLength: 39,
       wordCount: 7,
+      text: 'list the files in the current directory',
     });
   });
 

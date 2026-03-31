@@ -139,6 +139,15 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'open-snippets' }),
     },
     {
+      id: 'prompt-history',
+      label: 'Prompt History: Search',
+      category: 'General',
+      shortcut: shortcuts.get('Prompt History'),
+      keywords: ['history', 'prompt', 'recent', 'past', 'reuse'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'open-prompt-history' }),
+    },
+    {
       id: 'snippets-new',
       label: 'Snippets: New',
       category: 'General',

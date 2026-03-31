@@ -197,6 +197,7 @@ describe('parseHumanMessagesFromChunk', () => {
       messageId: 'human-001',
       textLength: 18,
       wordCount: 4,
+      text: 'Please fix the bug',
     });
   });
 
@@ -218,6 +219,7 @@ describe('parseHumanMessagesFromChunk', () => {
     const entries = parseHumanMessagesFromChunk(chunk, false);
     expect(entries).toHaveLength(1);
     expect(entries[0].textLength).toBe(21);
+    expect(entries[0].text).toBe('check this screenshot');
   });
 
   it('handles multiple human messages', () => {

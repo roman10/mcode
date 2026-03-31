@@ -11,6 +11,7 @@ import type {
 } from './types-tokens';
 import type {
   DailyInputStats, InputHeatmapEntry, InputWeeklyTrend, InputCadenceInfo,
+  PromptHistoryEntry,
 } from './types-input';
 import type {
   GitStatusResult, GitDiffContent, CommitGraphResult, CommitFileEntry,
@@ -170,6 +171,7 @@ export type AppCommand =
   | { command: 'run-shell-command' }
   | { command: 'search-in-files' }
   | { command: 'open-snippets' }
+  | { command: 'open-prompt-history' }
   | { command: 'toggle-terminal-panel' }
   | { command: 'split-terminal-horizontal' }
   | { command: 'split-terminal-vertical' }
@@ -435,6 +437,12 @@ export interface MCodeAPI {
     getHeatmap(days?: number, provider?: string): Promise<InputHeatmapEntry[]>;
     getWeeklyTrend(provider?: string): Promise<InputWeeklyTrend>;
     getCadence(date?: string, provider?: string): Promise<InputCadenceInfo>;
+  };
+
+  promptHistory: {
+    search(query: string, limit?: number): Promise<PromptHistoryEntry[]>;
+    recent(limit?: number): Promise<PromptHistoryEntry[]>;
+    delete(id: number): Promise<void>;
   };
 
   git: {

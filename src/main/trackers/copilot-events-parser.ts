@@ -133,6 +133,7 @@ export function parseCopilotHumanMessages(content: string): ParsedHumanEntry[] {
       timestamp,
       textLength: text.length,
       wordCount: text.split(/\s+/).filter(Boolean).length,
+      text,
     });
   }
 

@@ -147,6 +147,7 @@ export interface ParsedHumanEntry {
   timestamp: string;
   textLength: number;
   wordCount: number;
+  text: string;
 }
 
 /**
@@ -218,6 +219,7 @@ export function parseHumanMessagesFromChunk(
       timestamp,
       textLength: text.length,
       wordCount: text.split(/\s+/).filter(Boolean).length,
+      text,
     });
   }
 

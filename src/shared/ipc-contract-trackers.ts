@@ -10,6 +10,7 @@ import type {
   InputHeatmapEntry,
   InputWeeklyTrend,
   ModelTokenBreakdown,
+  PromptHistoryEntry,
   SessionTokenUsage,
   TokenHeatmapEntry,
   TokenWeeklyTrend,
@@ -33,6 +34,11 @@ export interface TrackersInvokeContract {
   'input:get-heatmap':                  { params: [days?: number, provider?: string]; result: InputHeatmapEntry[] };
   'input:get-weekly-trend':             { params: [provider?: string]; result: InputWeeklyTrend };
   'input:get-cadence':                  { params: [date?: string, provider?: string]; result: InputCadenceInfo };
+
+  // --- Prompt History ---
+  'prompt-history:search':              { params: [query: string, limit?: number]; result: PromptHistoryEntry[] };
+  'prompt-history:recent':              { params: [limit?: number]; result: PromptHistoryEntry[] };
+  'prompt-history:delete':              { params: [id: number]; result: void };
 
   // --- Commits ---
   'commits:get-daily-stats':            { params: [date?: string, provider?: string]; result: DailyCommitStats };

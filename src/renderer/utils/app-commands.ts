@@ -233,6 +233,18 @@ export function executeAppCommand(command: AppCommand): void {
       break;
     }
 
+    case 'open-prompt-history': {
+      const ds = useDialogStore.getState();
+      ds.setShowSettings(false);
+      ds.setShowKeyboardShortcuts(false);
+      if (ds.showCommandPalette) {
+        ds.setShowCommandPalette(false);
+      } else {
+        ds.openQuickOpen('history');
+      }
+      break;
+    }
+
     case 'split-terminal-horizontal': {
       const panel = useTerminalPanelStore.getState();
       if (panel.activeTabGroupId) splitAndCreateTerminal(panel.activeTabGroupId, 'horizontal');

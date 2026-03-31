@@ -144,6 +144,7 @@ export function parseCodexTranscript(content: string): CodexParseResult {
         timestamp,
         textLength: message.length,
         wordCount: message.split(/\s+/).filter(Boolean).length,
+        text: message,
       });
     }
   }

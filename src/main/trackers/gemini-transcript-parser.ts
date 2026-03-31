@@ -128,6 +128,7 @@ export function parseGeminiTranscriptHumanMessages(content: string): ParsedHuman
       timestamp,
       textLength: text.length,
       wordCount: text.split(/\s+/).filter(Boolean).length,
+      text,
     });
   }
 

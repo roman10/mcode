@@ -78,6 +78,11 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             accelerator: 'CmdOrCtrl+Shift+S',
             click: () => sendCommand({ command: 'open-snippets' }),
           },
+          {
+            label: 'Prompt History',
+            accelerator: 'CmdOrCtrl+Shift+H',
+            click: () => sendCommand({ command: 'open-prompt-history' }),
+          },
         ],
       },
       {
