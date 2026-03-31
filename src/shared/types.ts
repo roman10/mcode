@@ -404,11 +404,11 @@ export interface MCodeAPI {
   };
 
   commits: {
-    getDailyStats(date?: string): Promise<DailyCommitStats>;
-    getHeatmap(days?: number): Promise<CommitHeatmapEntry[]>;
-    getStreaks(): Promise<CommitStreakInfo>;
-    getCadence(date?: string): Promise<CommitCadenceInfo>;
-    getWeeklyTrend(): Promise<CommitWeeklyTrend>;
+    getDailyStats(date?: string, provider?: string): Promise<DailyCommitStats>;
+    getHeatmap(days?: number, provider?: string): Promise<CommitHeatmapEntry[]>;
+    getStreaks(provider?: string): Promise<CommitStreakInfo>;
+    getCadence(date?: string, provider?: string): Promise<CommitCadenceInfo>;
+    getWeeklyTrend(provider?: string): Promise<CommitWeeklyTrend>;
     refresh(): Promise<void>;
     forceRescan(): Promise<void>;
     onUpdated(callback: () => void): () => void;

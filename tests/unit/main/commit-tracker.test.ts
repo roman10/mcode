@@ -1,5 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { detectAIAssisted } from '../../../src/main/trackers/commit-tracker';
+import { detectAIAssisted, detectAIProvider } from '../../../src/main/trackers/commit-tracker';
+
+describe('detectAIProvider', () => {
+  it('detects Claude from Claude co-author', () => {
+    expect(detectAIProvider('Co-authored-by: Claude <noreply@anthropic.com>')).toBe('claude');
+  });
+
+  it('detects Claude from Anthropic co-author', () => {
+    expect(detectAIProvider('Co-authored-by: helper <bot@anthropic.com>')).toBe('claude');
+  });
+
+  it('detects Codex from Codex co-author', () => {
+    expect(detectAIProvider('Co-authored-by: Codex <noreply@openai.com>')).toBe('codex');
+  });
+
+  it('detects Codex from OpenAI co-author', () => {
+    expect(detectAIProvider('Co-authored-by: agent <bot@openai.com>')).toBe('codex');
+  });
+
+  it('detects Copilot', () => {
+    expect(detectAIProvider('GitHub Copilot <noreply@github.com>')).toBe('copilot');
+  });
+
+  it('detects Gemini', () => {
+    expect(detectAIProvider('Co-authored-by: Gemini <noreply@google.com>')).toBe('gemini');
+  });
+
+  it('does not match generic Google co-author', () => {
+    expect(detectAIProvider('Co-authored-by: John <john@google.com>')).toBeNull();
+  });
+
+  it('returns null for normal human co-authors', () => {
+    expect(detectAIProvider('Co-authored-by: Jane Doe <jane@example.com>')).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(detectAIProvider('')).toBeNull();
+  });
+});
 
 describe('detectAIAssisted', () => {
   it('detects Claude and Anthropic co-authors', () => {
@@ -15,6 +53,10 @@ describe('detectAIAssisted', () => {
   it('detects Copilot co-authors', () => {
     expect(detectAIAssisted('GitHub Copilot <noreply@github.com>')).toBe(true);
     expect(detectAIAssisted('copilot-bot')).toBe(true);
+  });
+
+  it('detects Gemini co-authors', () => {
+    expect(detectAIAssisted('Co-authored-by: Gemini <noreply@google.com>')).toBe(true);
   });
 
   it('does not flag normal human co-authors', () => {

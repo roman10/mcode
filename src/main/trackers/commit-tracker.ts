@@ -73,13 +73,36 @@ export function classifyCommitType(subject: string): string {
   return 'other';
 }
 
-const AI_COAUTHOR_PATTERNS = ['claude', 'anthropic', 'codex', 'openai', 'copilot'];
+/** Maps co-author trailer keywords to the canonical provider. */
+const AI_COAUTHOR_PROVIDER_MAP: [pattern: string, provider: string][] = [
+  ['claude', 'claude'],
+  ['anthropic', 'claude'],
+  ['codex', 'codex'],
+  ['openai', 'codex'],
+  ['copilot', 'copilot'],
+  ['gemini', 'gemini'],
+];
 
-/** Detect if commit has an AI co-author trailer (Claude, Codex, Copilot, etc.). */
-export function detectAIAssisted(coAuthor: string): boolean {
-  if (!coAuthor) return false;
+/** Detect which AI provider (if any) co-authored this commit. */
+export function detectAIProvider(coAuthor: string): string | null {
+  if (!coAuthor) return null;
   const lower = coAuthor.toLowerCase();
-  return AI_COAUTHOR_PATTERNS.some(p => lower.includes(p));
+  for (const [pattern, provider] of AI_COAUTHOR_PROVIDER_MAP) {
+    if (lower.includes(pattern)) return provider;
+  }
+  return null;
+}
+
+/** Detect if commit has an AI co-author trailer (Claude, Codex, Copilot, Gemini, etc.). */
+export function detectAIAssisted(coAuthor: string): boolean {
+  return detectAIProvider(coAuthor) !== null;
+}
+
+/** Build optional provider WHERE clause fragment for commits. */
+function commitProviderFilter(provider?: string): { clause: string; params: unknown[] } {
+  return provider
+    ? { clause: ' AND detected_provider = ?', params: [provider] }
+    : { clause: '', params: [] };
 }
 
 /** Parse git log output into structured commits. */
@@ -269,8 +292,8 @@ export class CommitTracker {
       INSERT OR IGNORE INTO commits
         (repo_path, commit_hash, commit_message, commit_type, author_name, author_email,
          is_claude_assisted, committed_at, date, files_changed, insertions, deletions,
-         parent_hashes, refs)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         parent_hashes, refs, detected_provider)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     // Backfill parent_hashes/refs for existing commits that lack them
@@ -279,12 +302,19 @@ export class CommitTracker {
       WHERE repo_path = ? AND commit_hash = ? AND parent_hashes IS NULL
     `);
 
+    // Backfill detected_provider for existing commits that lack it
+    const backfillProviderStmt = db.prepare(`
+      UPDATE commits SET detected_provider = ?
+      WHERE repo_path = ? AND commit_hash = ? AND detected_provider IS NULL
+    `);
+
     let newCount = 0;
     const insertAll = db.transaction(() => {
       for (const commit of commits) {
         const date = commit.committedAt.slice(0, 10); // "2026-03-18"
         const commitType = classifyCommitType(commit.subject);
-        const isClaudeAssisted = detectAIAssisted(commit.coAuthor) ? 1 : 0;
+        const detectedProvider = detectAIProvider(commit.coAuthor);
+        const isClaudeAssisted = detectedProvider !== null ? 1 : 0;
 
         const result = insertStmt.run(
           repoPath,
@@ -301,6 +331,7 @@ export class CommitTracker {
           commit.deletions,
           commit.parentHashes || null,
           commit.refs || null,
+          detectedProvider,
         );
         if (result.changes > 0) newCount++;
 
@@ -312,6 +343,11 @@ export class CommitTracker {
             repoPath,
             commit.hash,
           );
+        }
+
+        // Backfill detected_provider for pre-existing commits
+        if (result.changes === 0 && detectedProvider) {
+          backfillProviderStmt.run(detectedProvider, repoPath, commit.hash);
         }
       }
     });
@@ -338,9 +374,10 @@ export class CommitTracker {
 
   // --- Query methods ---
 
-  getDailyStats(date?: string): DailyCommitStats {
+  getDailyStats(date?: string, provider?: string): DailyCommitStats {
     const db = getDb();
     const targetDate = date ?? todayDate();
+    const pf = commitProviderFilter(provider);
 
     // Overall totals
     const totals = db.prepare(`
@@ -348,8 +385,8 @@ export class CommitTracker {
              COALESCE(SUM(insertions), 0) as totalInsertions,
              COALESCE(SUM(deletions), 0) as totalDeletions,
              SUM(CASE WHEN is_claude_assisted = 1 THEN 1 ELSE 0 END) as claudeAssisted
-      FROM commits WHERE date = ?
-    `).get(targetDate) as {
+      FROM commits WHERE date = ?${pf.clause}
+    `).get(targetDate, ...pf.params) as {
       total: number;
       totalInsertions: number;
       totalDeletions: number;
@@ -362,18 +399,18 @@ export class CommitTracker {
              COUNT(*) as count,
              COALESCE(SUM(insertions), 0) as insertions,
              COALESCE(SUM(deletions), 0) as deletions
-      FROM commits WHERE date = ?
+      FROM commits WHERE date = ?${pf.clause}
       GROUP BY repo_path
       ORDER BY count DESC
-    `).all(targetDate) as { repo_path: string; count: number; insertions: number; deletions: number }[];
+    `).all(targetDate, ...pf.params) as { repo_path: string; count: number; insertions: number; deletions: number }[];
 
     // By commit type
     const byType = db.prepare(`
       SELECT commit_type, COUNT(*) as count
-      FROM commits WHERE date = ?
+      FROM commits WHERE date = ?${pf.clause}
       GROUP BY commit_type
       ORDER BY count DESC
-    `).all(targetDate) as { commit_type: string; count: number }[];
+    `).all(targetDate, ...pf.params) as { commit_type: string; count: number }[];
 
     return {
       date: targetDate,
@@ -395,8 +432,9 @@ export class CommitTracker {
     };
   }
 
-  getHeatmap(days = 7): CommitHeatmapEntry[] {
+  getHeatmap(days = 7, provider?: string): CommitHeatmapEntry[] {
     const db = getDb();
+    const pf = commitProviderFilter(provider);
 
     // Compute start date in local time to match how commit dates are stored
     const startDate = new Date();
@@ -407,10 +445,10 @@ export class CommitTracker {
       SELECT date, COUNT(*) as count,
              COALESCE(SUM(insertions), 0) as insertions
       FROM commits
-      WHERE date >= ?
+      WHERE date >= ?${pf.clause}
       GROUP BY date
       ORDER BY date ASC
-    `).all(startDateStr) as { date: string; count: number; insertions: number }[];
+    `).all(startDateStr, ...pf.params) as { date: string; count: number; insertions: number }[];
 
     // Fill in missing days with zero counts
     const result: CommitHeatmapEntry[] = [];
@@ -430,13 +468,14 @@ export class CommitTracker {
     return result;
   }
 
-  getStreaks(): CommitStreakInfo {
+  getStreaks(provider?: string): CommitStreakInfo {
     const db = getDb();
+    const pf = commitProviderFilter(provider);
 
     // Get all distinct dates with commits, ordered
     const dates = db.prepare(`
-      SELECT DISTINCT date FROM commits ORDER BY date ASC
-    `).all() as { date: string }[];
+      SELECT DISTINCT date FROM commits WHERE 1=1${pf.clause} ORDER BY date ASC
+    `).all(...pf.params) as { date: string }[];
 
     if (dates.length === 0) {
       return { current: 0, longest: 0 };
@@ -484,15 +523,16 @@ export class CommitTracker {
     return { current, longest };
   }
 
-  getCadence(date?: string): CommitCadenceInfo {
+  getCadence(date?: string, provider?: string): CommitCadenceInfo {
     const db = getDb();
     const targetDate = date ?? todayDate();
+    const pf = commitProviderFilter(provider);
 
     const commits = db.prepare(`
       SELECT committed_at FROM commits
-      WHERE date = ?
+      WHERE date = ?${pf.clause}
       ORDER BY committed_at ASC
-    `).all(targetDate) as { committed_at: string }[];
+    `).all(targetDate, ...pf.params) as { committed_at: string }[];
 
     if (commits.length < 2) {
       return { avgMinutes: null, peakHour: null, commitsByHour: {} };
@@ -527,19 +567,20 @@ export class CommitTracker {
     return { avgMinutes, peakHour, commitsByHour };
   }
 
-  getWeeklyTrend(): CommitWeeklyTrend {
+  getWeeklyTrend(provider?: string): CommitWeeklyTrend {
     const db = getDb();
+    const pf = commitProviderFilter(provider);
 
     const thisWeek = db.prepare(`
       SELECT COUNT(*) as count FROM commits
-      WHERE date >= date('now', 'weekday 0', '-6 days')
-    `).get() as { count: number };
+      WHERE date >= date('now', 'weekday 0', '-6 days')${pf.clause}
+    `).get(...pf.params) as { count: number };
 
     const lastWeek = db.prepare(`
       SELECT COUNT(*) as count FROM commits
       WHERE date >= date('now', 'weekday 0', '-13 days')
-        AND date < date('now', 'weekday 0', '-6 days')
-    `).get() as { count: number };
+        AND date < date('now', 'weekday 0', '-6 days')${pf.clause}
+    `).get(...pf.params) as { count: number };
 
     const pctChange = lastWeek.count > 0
       ? Math.round(((thisWeek.count - lastWeek.count) / lastWeek.count) * 100)
@@ -707,24 +748,24 @@ export class CommitTracker {
 }
 
 export function registerCommitIpc(commitTracker: CommitTracker): void {
-  typedHandle('commits:get-daily-stats', (date) => {
-    return commitTracker.getDailyStats(date);
+  typedHandle('commits:get-daily-stats', (date, provider) => {
+    return commitTracker.getDailyStats(date, provider);
   });
 
-  typedHandle('commits:get-heatmap', (days) => {
-    return commitTracker.getHeatmap(days);
+  typedHandle('commits:get-heatmap', (days, provider) => {
+    return commitTracker.getHeatmap(days, provider);
   });
 
-  typedHandle('commits:get-streaks', () => {
-    return commitTracker.getStreaks();
+  typedHandle('commits:get-streaks', (provider) => {
+    return commitTracker.getStreaks(provider);
   });
 
-  typedHandle('commits:get-cadence', (date) => {
-    return commitTracker.getCadence(date);
+  typedHandle('commits:get-cadence', (date, provider) => {
+    return commitTracker.getCadence(date, provider);
   });
 
-  typedHandle('commits:get-weekly-trend', () => {
-    return commitTracker.getWeeklyTrend();
+  typedHandle('commits:get-weekly-trend', (provider) => {
+    return commitTracker.getWeeklyTrend(provider);
   });
 
   typedHandle('commits:refresh', async () => {

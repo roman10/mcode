@@ -296,20 +296,20 @@ contextBridge.exposeInMainWorld('mcode', {
   },
 
   commits: {
-    getDailyStats: (date?: string): Promise<DailyCommitStats> =>
-      typedInvoke('commits:get-daily-stats', date),
+    getDailyStats: (date?: string, provider?: string): Promise<DailyCommitStats> =>
+      typedInvoke('commits:get-daily-stats', date, provider),
 
-    getHeatmap: (days?: number): Promise<CommitHeatmapEntry[]> =>
-      typedInvoke('commits:get-heatmap', days),
+    getHeatmap: (days?: number, provider?: string): Promise<CommitHeatmapEntry[]> =>
+      typedInvoke('commits:get-heatmap', days, provider),
 
-    getStreaks: (): Promise<CommitStreakInfo> =>
-      typedInvoke('commits:get-streaks'),
+    getStreaks: (provider?: string): Promise<CommitStreakInfo> =>
+      typedInvoke('commits:get-streaks', provider),
 
-    getCadence: (date?: string): Promise<CommitCadenceInfo> =>
-      typedInvoke('commits:get-cadence', date),
+    getCadence: (date?: string, provider?: string): Promise<CommitCadenceInfo> =>
+      typedInvoke('commits:get-cadence', date, provider),
 
-    getWeeklyTrend: (): Promise<CommitWeeklyTrend> =>
-      typedInvoke('commits:get-weekly-trend'),
+    getWeeklyTrend: (provider?: string): Promise<CommitWeeklyTrend> =>
+      typedInvoke('commits:get-weekly-trend', provider),
 
     refresh: (): Promise<void> =>
       typedInvoke('commits:refresh'),

@@ -35,11 +35,11 @@ export interface TrackersInvokeContract {
   'input:get-cadence':                  { params: [date?: string, provider?: string]; result: InputCadenceInfo };
 
   // --- Commits ---
-  'commits:get-daily-stats':            { params: [date?: string]; result: DailyCommitStats };
-  'commits:get-heatmap':                { params: [days?: number]; result: CommitHeatmapEntry[] };
-  'commits:get-streaks':                { params: []; result: CommitStreakInfo };
-  'commits:get-cadence':                { params: [date?: string]; result: CommitCadenceInfo };
-  'commits:get-weekly-trend':           { params: []; result: CommitWeeklyTrend };
+  'commits:get-daily-stats':            { params: [date?: string, provider?: string]; result: DailyCommitStats };
+  'commits:get-heatmap':                { params: [days?: number, provider?: string]; result: CommitHeatmapEntry[] };
+  'commits:get-streaks':                { params: [provider?: string]; result: CommitStreakInfo };
+  'commits:get-cadence':                { params: [date?: string, provider?: string]; result: CommitCadenceInfo };
+  'commits:get-weekly-trend':           { params: [provider?: string]; result: CommitWeeklyTrend };
   'commits:refresh':                    { params: []; result: void };
   'commits:force-rescan':               { params: []; result: void };
 }
