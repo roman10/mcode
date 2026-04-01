@@ -39,6 +39,7 @@ describe('command-registry', () => {
     const commands = getCommands(emptyCtx);
     const ids = commands.map((c) => c.id);
     expect(ids).toContain('show-stats');
+    expect(ids).toContain('show-todos');
     expect(ids).not.toContain('show-commits');
     expect(ids).not.toContain('show-tokens');
   });

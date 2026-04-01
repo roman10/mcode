@@ -14,6 +14,7 @@ import ChangesPanel from '../Dashboard/ChangesPanel';
 import CommitGraphPanel from '../CommitGraph/CommitGraphPanel';
 import ActivityFeed from '../Dashboard/ActivityFeed';
 import SearchPanel from './SearchPanel';
+import TodosPanel from './TodosPanel';
 import { createTerminalSession, autoExpandInKanban } from '../../utils/session-actions';
 import type { SessionCreateInput, SessionInfo } from '@shared/types';
 import {
@@ -342,6 +343,7 @@ function SidebarPanel(): React.JSX.Element {
             </>
           )}
           {activeSidebarTab === 'activity' && <ActivityFeed />}
+          {activeSidebarTab === 'todos' && <TodosPanel />}
         </div>
 
         {/* Footer — version and cost only */}

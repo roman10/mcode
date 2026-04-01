@@ -43,6 +43,9 @@ import type {
   SnippetEntry,
   FileSearchRequest,
   SearchEvent,
+  TodoItem,
+  CreateTodoInput,
+  UpdateTodoInput,
 } from '../shared/types';
 import type { IpcInvokeContract, IpcSendContract, IpcPushContract } from '../shared/ipc-contract';
 import type { AgentSessionType } from '../shared/session-agents';
@@ -347,6 +350,19 @@ contextBridge.exposeInMainWorld('mcode', {
       typedInvoke('snippets:delete', filePath),
     openFolder: (scope: 'user' | 'project', cwd: string): Promise<void> =>
       typedInvoke('snippets:open-folder', scope, cwd),
+  },
+
+  todos: {
+    scan: (cwd: string): Promise<TodoItem[]> =>
+      typedInvoke('todos:scan', cwd),
+    create: (cwd: string, input: CreateTodoInput): Promise<TodoItem> =>
+      typedInvoke('todos:create', cwd, input),
+    update: (cwd: string, index: number, input: UpdateTodoInput): Promise<TodoItem> =>
+      typedInvoke('todos:update', cwd, index, input),
+    delete: (cwd: string, index: number): Promise<void> =>
+      typedInvoke('todos:delete', cwd, index),
+    reorder: (cwd: string, index: number, direction: 'up' | 'down'): Promise<void> =>
+      typedInvoke('todos:reorder', cwd, index, direction),
   },
 
   tokens: {

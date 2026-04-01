@@ -153,6 +153,11 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'changes' }),
           },
           {
+            label: 'Show Todos',
+            accelerator: 'CmdOrCtrl+Shift+I',
+            click: () => sendCommand({ command: 'switch-sidebar-tab', tab: 'todos' }),
+          },
+          {
             label: 'Quick Open',
             accelerator: 'CmdOrCtrl+P',
             click: () => sendCommand({ command: 'quick-open' }),

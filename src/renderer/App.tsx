@@ -16,6 +16,7 @@ import { useLayoutStore } from './stores/layout-store';
 import { useDialogStore } from './stores/dialog-store';
 import { useTaskStore } from './stores/task-store';
 import { useChangesStore } from './stores/changes-store';
+import { useTodoStore } from './stores/todo-store';
 import { executeAppCommand } from './utils/app-commands';
 import TitleBar from './components/TitleBar';
 import { ErrorBoundary, ErrorFallback } from './components/shared/ErrorBoundary';
@@ -125,6 +126,8 @@ function App(): React.JSX.Element {
     s.statuses.reduce((sum, status) => sum + status.staged.length + status.unstaged.length, 0),
   );
 
+  const todoCount = useTodoStore((s) => s.todos.filter((t) => !t.completed).length);
+
   const updateBadge = useUpdateStore((s) => s.phase !== 'idle' && s.phase !== 'error');
 
   const handleActivityBarTabSelect = (tab: SidebarTab): void => {
@@ -190,6 +193,7 @@ function App(): React.JSX.Element {
             onAccountsClick={() => setShowAccountsDialog(true)}
             attentionCount={attentionCount}
             changesCount={changesCount}
+            todoCount={todoCount}
             showActivityTab={showActivityTab}
             updateBadge={updateBadge}
           />

@@ -1,4 +1,4 @@
-import { LayoutList, Search, BarChart3, FileDiff, Activity, Users, Settings } from 'lucide-react';
+import { LayoutList, Search, BarChart3, FileDiff, Activity, CheckSquare, Users, Settings } from 'lucide-react';
 import Tooltip from '../shared/Tooltip';
 import { formatKeys } from '../../utils/format-shortcut';
 import type { SidebarTab } from '@shared/types';
@@ -34,7 +34,7 @@ function ActivityBarButton({ icon, tab, active, panelCollapsed, onSelect, toolti
   );
 }
 
-function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount, changesCount, showActivityTab, updateBadge }: {
+function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, onAccountsClick, attentionCount, changesCount, todoCount, showActivityTab, updateBadge }: {
   activeTab: SidebarTab;
   panelCollapsed: boolean;
   onTabSelect: (tab: SidebarTab) => void;
@@ -42,6 +42,7 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
   onAccountsClick: () => void;
   attentionCount: number;
   changesCount?: number;
+  todoCount?: number;
   showActivityTab?: boolean;
   updateBadge?: boolean;
 }): React.JSX.Element {
@@ -82,6 +83,15 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
           panelCollapsed={panelCollapsed}
           onSelect={onTabSelect}
           tooltip={`Stats (${formatKeys('Shift+B', true)})`}
+        />
+        <ActivityBarButton
+          icon={<CheckSquare size={20} strokeWidth={1.5} />}
+          tab="todos"
+          active={activeTab}
+          panelCollapsed={panelCollapsed}
+          onSelect={onTabSelect}
+          tooltip={`Todos (${formatKeys('Shift+I', true)})`}
+          badge={todoCount}
         />
         {showActivityTab && (
           <ActivityBarButton

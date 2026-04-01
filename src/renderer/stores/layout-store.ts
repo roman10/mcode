@@ -16,7 +16,7 @@ import { useSessionStore } from './session-store';
 
 /** Validate a persisted sidebar tab value, falling back to 'sessions' for unknown values. Exported for testing. */
 export function migrateTab(tab: string): SidebarTab {
-  const valid: SidebarTab[] = ['sessions', 'search', 'changes', 'stats', 'activity'];
+  const valid: SidebarTab[] = ['sessions', 'search', 'changes', 'stats', 'activity', 'todos'];
   return valid.includes(tab as SidebarTab) ? (tab as SidebarTab) : 'sessions';
 }
 

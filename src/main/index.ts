@@ -17,6 +17,7 @@ import { FileSearch, registerSearchIpc } from './file-search';
 import { AutoUpdater } from './auto-updater';
 import { registerSlashCommandIpc } from './slash-command-scanner';
 import { registerSnippetIpc } from './snippet-scanner';
+import { registerTodoIpc } from './todo-scanner';
 import { getPreference, setPreference, getPreferenceBool } from './preferences';
 import { startHookServer, stopHookServer } from './hooks/hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hooks/hook-config';
@@ -371,6 +372,7 @@ app.whenReady().then(async () => {
   registerSearchIpc(fileSearch);
   registerSlashCommandIpc();
   registerSnippetIpc();
+  registerTodoIpc();
   registerAppIpc();
   registerHookIpc();
   registerAccountIpc(accountManager, sessionManager);

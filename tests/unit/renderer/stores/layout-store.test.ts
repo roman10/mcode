@@ -573,6 +573,7 @@ describe('migrateTab', () => {
     expect(migrateTab('changes')).toBe('changes');
     expect(migrateTab('stats')).toBe('stats');
     expect(migrateTab('activity')).toBe('activity');
+    expect(migrateTab('todos')).toBe('todos');
   });
 
   it("falls back to 'sessions' for unknown values", () => {

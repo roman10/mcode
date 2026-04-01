@@ -19,6 +19,9 @@ import type {
 import type {
   Task, CreateTaskInput, UpdateTaskInput, TaskFilter, TaskChangeEvent,
 } from './types-tasks';
+import type {
+  TodoItem, CreateTodoInput, UpdateTodoInput,
+} from './types-todos';
 
 // Re-export domain type modules so consumers can keep importing from '@shared/types'
 export * from './types-commits';
@@ -26,6 +29,7 @@ export * from './types-tokens';
 export * from './types-input';
 export * from './types-git';
 export * from './types-tasks';
+export * from './types-todos';
 
 // --- Account Profiles ---
 
@@ -138,7 +142,7 @@ export interface ExternalSessionInfo {
   customTitle?: string; // meaningful title from Claude Code, when available
 }
 
-export type SidebarTab = 'sessions' | 'search' | 'changes' | 'stats' | 'activity';
+export type SidebarTab = 'sessions' | 'search' | 'changes' | 'stats' | 'activity' | 'todos';
 export type ViewMode = 'tiles' | 'kanban';
 
 export interface LayoutStateSnapshot {
@@ -172,6 +176,7 @@ export type AppCommand =
   | { command: 'search-in-files' }
   | { command: 'open-snippets' }
   | { command: 'open-prompt-history' }
+  | { command: 'open-todos' }
   | { command: 'toggle-terminal-panel' }
   | { command: 'split-terminal-horizontal' }
   | { command: 'split-terminal-vertical' }
@@ -471,6 +476,14 @@ export interface MCodeAPI {
     create(scope: 'user' | 'project', cwd: string): Promise<string>;
     delete(filePath: string): Promise<void>;
     openFolder(scope: 'user' | 'project', cwd: string): Promise<void>;
+  };
+
+  todos: {
+    scan(cwd: string): Promise<TodoItem[]>;
+    create(cwd: string, input: CreateTodoInput): Promise<TodoItem>;
+    update(cwd: string, index: number, input: UpdateTodoInput): Promise<TodoItem>;
+    delete(cwd: string, index: number): Promise<void>;
+    reorder(cwd: string, index: number, direction: 'up' | 'down'): Promise<void>;
   };
 
   search: {

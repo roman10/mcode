@@ -34,6 +34,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Search in Files', keys: 'Shift+F', mod: true, category: 'general' },
   { label: 'Snippets', keys: 'Shift+S', mod: true, category: 'general' },
   { label: 'Prompt History', keys: 'Shift+H', mod: true, category: 'general' },
+  { label: 'Show Todos', keys: 'Shift+I', mod: true, category: 'general' },
   { label: 'Toggle Terminal Panel', keys: 'Ctrl+`', mod: false, category: 'general' },
   { label: 'Close Tile', keys: 'W', mod: true, category: 'general' },
 

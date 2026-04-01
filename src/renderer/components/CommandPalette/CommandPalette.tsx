@@ -6,9 +6,10 @@ import CommandItems from './CommandItems';
 import ShellModeContent from './ShellModeContent';
 import SnippetItems from './SnippetItems';
 import PromptHistoryItems from './PromptHistoryItems';
+import TodoItems from './TodoItems';
 
 interface CommandPaletteProps {
-  initialMode: 'files' | 'commands' | 'shell' | 'snippets' | 'history';
+  initialMode: 'files' | 'commands' | 'shell' | 'snippets' | 'history' | 'todos';
   onClose(): void;
 }
 
@@ -18,6 +19,7 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
     : initialMode === 'shell' ? '! '
     : initialMode === 'snippets' ? '@ '
     : initialMode === 'history' ? '# '
+    : initialMode === 'todos' ? '+ '
     : '',
   );
 
@@ -30,8 +32,10 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
         ? 'snippets'
         : input.startsWith('#')
           ? 'history'
-          : 'files';
-  const searchQuery = mode === 'commands' || mode === 'shell' || mode === 'snippets' || mode === 'history'
+          : input.startsWith('+')
+            ? 'todos'
+            : 'files';
+  const searchQuery = mode === 'commands' || mode === 'shell' || mode === 'snippets' || mode === 'history' || mode === 'todos'
     ? input.slice(1).trimStart()
     : input;
 
@@ -100,13 +104,17 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
                     ? '@ Search snippets...'
                     : mode === 'history'
                       ? '# Search prompt history...'
-                      : 'Search files by name...'
+                      : mode === 'todos'
+                        ? '+ Add or search TODOs...'
+                        : 'Search files by name...'
             }
             className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
                        outline-none placeholder:text-text-muted"
           />
           <Command.List className="max-h-[50vh] overflow-y-auto py-1 border-t border-border-subtle">
-            {mode === 'snippets' ? (
+            {mode === 'todos' ? (
+              <TodoItems query={searchQuery} onClose={onClose} />
+            ) : mode === 'snippets' ? (
               <SnippetItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
             ) : mode === 'history' ? (
               <PromptHistoryItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
@@ -123,6 +131,8 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
                     Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">@</kbd> to insert a snippet
                     {' · '}
                     Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">#</kbd> to search prompt history
+                    {' · '}
+                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">+</kbd> to add a TODO
                   </div>
                 )}
               </>

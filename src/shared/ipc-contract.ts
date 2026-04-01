@@ -16,6 +16,7 @@ export * from './ipc-contract-trackers';
 export * from './ipc-contract-git';
 export * from './ipc-contract-files';
 export * from './ipc-contract-app';
+export * from './ipc-contract-todos';
 
 import type { PtyInvokeContract, PtySendContract, PtyPushContract } from './ipc-contract-pty';
 import type { SessionInvokeContract, SessionPushContract } from './ipc-contract-session';
@@ -23,6 +24,7 @@ import type { TrackersInvokeContract, TrackersPushContract } from './ipc-contrac
 import type { GitInvokeContract, GitPushContract } from './ipc-contract-git';
 import type { FilesInvokeContract, FilesPushContract } from './ipc-contract-files';
 import type { AppInvokeContract, AppSendContract, AppPushContract } from './ipc-contract-app';
+import type { TodosInvokeContract } from './ipc-contract-todos';
 
 // ---------------------------------------------------------------------------
 // Invoke channels: renderer calls ipcRenderer.invoke, main handles with ipcMain.handle
@@ -34,7 +36,8 @@ export type IpcInvokeContract =
   TrackersInvokeContract &
   GitInvokeContract &
   FilesInvokeContract &
-  AppInvokeContract;
+  AppInvokeContract &
+  TodosInvokeContract;
 
 // ---------------------------------------------------------------------------
 // Send channels: renderer fires ipcRenderer.send, main listens with ipcMain.on

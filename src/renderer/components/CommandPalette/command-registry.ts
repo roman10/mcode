@@ -148,6 +148,14 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'open-prompt-history' }),
     },
     {
+      id: 'add-todo',
+      label: 'Todos: Add / Search',
+      category: 'General',
+      keywords: ['todo', 'task', 'checklist', 'add', 'capture'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'open-todos' }),
+    },
+    {
       id: 'snippets-new',
       label: 'Snippets: New',
       category: 'General',
@@ -267,6 +275,15 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       shortcut: shortcuts.get('Show Activity'),
       enabled: true,
       execute: () => executeAppCommand({ command: 'switch-sidebar-tab', tab: 'activity' }),
+    },
+    {
+      id: 'show-todos',
+      label: 'Show Todos',
+      category: 'Layout',
+      shortcut: shortcuts.get('Show Todos'),
+      keywords: ['todo', 'tasks', 'checklist', 'items'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'switch-sidebar-tab', tab: 'todos' }),
     },
     {
       id: 'switch-to-kanban',
