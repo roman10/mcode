@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useSessionStore } from '../../stores/session-store';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import TerminalInstance from '../SessionTile/TerminalInstance';
@@ -12,6 +13,9 @@ export default function TerminalTabGroup({
   const tabGroup = useTerminalPanelStore((s) => s.tabGroups[tabGroupId]);
   const terminals = useTerminalPanelStore((s) => s.terminals);
   const activeEntry = tabGroup ? terminals[tabGroup.activeTerminalId] : undefined;
+  const activeSessionType = useSessionStore(
+    (s) => activeEntry ? s.sessions[activeEntry.sessionId]?.sessionType : undefined,
+  );
 
   // Auto-focus the xterm terminal when the active terminal changes (new terminal or tab switch).
   const activeSessionId = activeEntry?.sessionId;
@@ -38,7 +42,7 @@ export default function TerminalTabGroup({
           <TerminalInstance
             key={activeEntry.sessionId}
             sessionId={activeEntry.sessionId}
-            sessionType="terminal"
+            sessionType={activeSessionType}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-text-muted text-xs">

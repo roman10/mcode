@@ -85,14 +85,16 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     const container = termRef.current;
     if (!container) return;
 
-    // Agent CLIs draw their own cursor; start with xterm cursor hidden via
-    // escape sequence so it doesn't cause a stray block. The agent CLI's own
-    // \e[?25h will reveal a thin bar cursor in accent color when appropriate.
-    const hideCursor = shouldHideTerminalCursor(sessionType);
+    // All agent CLIs get a non-blinking bar cursor in accent color, hidden
+    // when inactive. Agents that manage their own cursor via DECTCEM escape
+    // sequences (hidesTerminalCursor: true) also get an initial \e[?25l so
+    // xterm's cursor stays out of the way until the CLI sends \e[?25h.
+    const isAgent = !!getAgentDefinition(sessionType);
+    const hideCursorInitially = shouldHideTerminalCursor(sessionType);
     const term = new Terminal({
-      cursorBlink: !hideCursor,
-      cursorStyle: hideCursor ? 'bar' : undefined,
-      cursorInactiveStyle: hideCursor ? 'none' : undefined,
+      cursorBlink: !isAgent,
+      cursorStyle: isAgent ? 'bar' : undefined,
+      cursorInactiveStyle: isAgent ? 'none' : undefined,
       fontSize: TERMINAL_FONT_SIZE,
       fontFamily: TERMINAL_FONT_FAMILY,
       theme: darkTheme,
@@ -110,7 +112,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     search.attach(term);
 
     term.open(container);
-    if (hideCursor) {
+    if (hideCursorInitially) {
       term.write('\x1b[?25l'); // hide cursor initially; agent CLI shows when ready
     }
     terminalRegistry.set(sessionId, term);

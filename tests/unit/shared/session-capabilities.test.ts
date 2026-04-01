@@ -10,7 +10,7 @@ import {
   hasLiveTaskQueue,
   supportsSessionSlashCommands,
 } from '../../../src/shared/session-capabilities';
-import { getAgentDefinition } from '../../../src/shared/session-agents';
+import { getAgentDefinition, shouldHideTerminalCursor } from '../../../src/shared/session-agents';
 import { makeSession } from '../test-factories';
 
 describe('session-capabilities', () => {
@@ -122,5 +122,14 @@ describe('session-capabilities', () => {
     expect(getSessionSlashCommandSupport('codex')?.builtins.get('plan')).toBeTruthy();
     expect(getSessionSlashCommandSupport('copilot')?.builtins.get('usage')).toBeTruthy();
     expect(getSessionSlashCommandSupport('terminal')).toBeNull();
+  });
+
+  it('hides terminal cursor only for agents that manage DECTCEM visibility', () => {
+    expect(shouldHideTerminalCursor('claude')).toBe(true);
+    expect(shouldHideTerminalCursor('codex')).toBe(true);
+    expect(shouldHideTerminalCursor('gemini')).toBe(true);
+    expect(shouldHideTerminalCursor('copilot')).toBe(false);
+    expect(shouldHideTerminalCursor('terminal')).toBe(false);
+    expect(shouldHideTerminalCursor(undefined)).toBe(false);
   });
 });

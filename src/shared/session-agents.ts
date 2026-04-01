@@ -29,6 +29,7 @@ export interface AgentDefinition {
   defaultCommand: string;
   supportsTaskQueue: boolean;
   supportsPlanMode: boolean;
+  /** true = CLI manages cursor via DECTCEM sequences; xterm cursor hidden initially. */
   hidesTerminalCursor: boolean;
   dialogMode: AgentDialogMode;
   supportsAccountProfiles: boolean;
@@ -258,7 +259,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     defaultCommand: 'copilot',
     supportsTaskQueue: true,
     supportsPlanMode: false,
-    hidesTerminalCursor: true,
+    hidesTerminalCursor: false, // Copilot CLI does not send DECTCEM \e[?25h
     dialogMode: 'minimal',
     supportsAccountProfiles: false,
     supportsModelDisplay: true,
