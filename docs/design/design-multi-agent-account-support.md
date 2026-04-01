@@ -721,15 +721,73 @@ Without this step, every new provider will widen a file that is already too cent
 
 ### Work
 
-- convert remaining Claude-only callers to provider-aware APIs
-- stop reading `account_profiles.email` directly in renderer code
-- tighten tests around isolated `.claude` config handling
-- verify subscription usage still works through the adapter
+**Step 1 — Shared types (`src/shared/types.ts`)**
+- Remove `email: string | null` from `AccountProfile`
+- Add `AccountProviderIdentity` interface (shared version of `ProviderIdentityRow`, needed in renderer):
+  ```ts
+  interface AccountProviderIdentity {
+    accountId: string;
+    sessionType: string;
+    authStatus: CliAuthStatus;
+    identity: string | null;
+    displayName: string | null;
+    lastCheckedAt: string | null;
+    lastAuthenticatedAt: string | null;
+  }
+  ```
+- Add `AccountProfileWithProviders`:
+  ```ts
+  interface AccountProfileWithProviders extends AccountProfile {
+    providers: Partial<Record<string, AccountProviderIdentity>>;
+  }
+  ```
+
+**Step 2 — `AccountIdentityRepository`**
+- Add `listAll(): ProviderIdentityRow[]` (unfiltered, for the list-with-providers join)
+
+**Step 3 — `AccountService`**
+- Add `listWithProviders(): AccountProfileWithProviders[]`:
+  - calls `this.repo.list()` + `this.identityRepo.listAll()`
+  - groups identity rows by `account_id` and merges into a `providers` map per account
+
+**Step 4 — IPC layer**
+- `account-ipc.ts`: change `account:list` handler to call `listWithProviders()`
+- `ipc-contract-app.ts`: update `account:list` return type to `AccountProfileWithProviders[]`
+- `src/preload/index.ts`: update `list()` return type
+
+**Step 5 — `accounts-store.ts`**
+- Type `accounts` as `AccountProfileWithProviders[]` (no logic change — store just carries richer data)
+
+**Step 6 — Renderer components (5 files)**
+
+| File | Old | New |
+|------|-----|-----|
+| `AccountsDialog.tsx:31` | `Boolean(account.email)` | `account.providers?.claude?.authStatus === 'ok'` |
+| `AccountsDialog.tsx:37` | `account.email ?? '...'` | `account.providers?.claude?.identity ?? '...'` |
+| `AccountsDialog.tsx:141` | `result.email` → suggestName | `result.identity` → suggestName |
+| `AccountsDialog.tsx:243` | `!defaultAccount.email` | `!defaultAccount.providers?.claude` |
+| `NewSessionDialog.tsx:276` | `account.email` | `account.providers?.claude?.identity` |
+| `SessionEndedPrompt.tsx:103` | `a.email` | `a.providers?.claude?.identity` |
+| `TerminalToolbar.tsx:138` | `email={account.email}` | `email={account.providers?.claude?.identity ?? null}` |
+| `CostSection.tsx:277,286,288,299,305` | `a.email` | `a.providers?.claude?.identity` |
+
+**Step 7 — Tests**
+- Add `AccountIdentityRepository.listAll()` test
+- Add `AccountService.listWithProviders()` unit test
+- Update test fixtures that include `email` on `AccountProfile` objects (3 files: `account-home-manager.test.ts`, `account-profile-repository.test.ts`, `account-service.test.ts`)
+- Remove or update the `setEmail` tests — `service.setEmail()` becomes internal; `repo.setEmail()` stays for DB backward compat
+
+**Known pre-Phase 5 limitation (deferred, fix in Phase 5)**
+- `account-home-manager.ts:55-58`: `.claude/settings.json` copy during `setupAccountDirectory()` is hardcoded to Claude. Should be provider-driven so Copilot/Gemini settings are copied too.
+- `getAllSettingsPaths()` hardcodes `.claude/settings.json`. Should use the provider registry.
 
 ### Deliverables
 
-- Claude fully running on the new abstraction
-- compatibility shims minimized
+- `AccountProfile` no longer carries `email` — renderer reads provider identity from `providers` map
+- `account:list` IPC returns `AccountProfileWithProviders[]`
+- All renderer components use provider-neutral identity display
+- `account_profiles.email` DB column retained for backward compat (dual-write continues) but no longer read by renderer
+- ~~`syncSymlinks()` early-return path covered by test~~ — done (added in pre-Phase 4 audit)
 
 ## Phase 5 — Copilot Account Support
 
