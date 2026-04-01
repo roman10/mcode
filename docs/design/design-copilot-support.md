@@ -279,8 +279,43 @@ Copilot sessions have full analytics (token usage, human input tracking, premium
 | Plan mode | ✅ | ❌ | ❌ | ❌ |
 | Commit tracking | ✅ | ✅ | ✅ | ✅ |
 | Slash commands | ✅ | ✅ | ✅ | ✅ |
+| Auto-label updates | ✅ (OSC title) | ❌ | ❌ | ❌ (E1/E2) |
 
 ---
+
+## Future Enhancements
+
+Potential high-value improvements now that core feature parity is achieved:
+
+### E1: Auto-label enrichment from hook prompts
+
+**Problem:** Copilot sessions created without an `initialPrompt` get generic disambiguated labels ("Copilot 1", "Copilot 2"). Unlike Claude (which auto-updates labels via OSC terminal title sequences), Copilot labels are static after creation.
+
+**Opportunity:** The `userPromptSubmitted` hook event includes a `prompt` field containing the user's message text. On the first `UserPromptSubmit` event for a Copilot session with an auto-generated label, extract the prompt and call `updateAutoLabel()` — the same `label_source='auto'` gate that prevents overwriting user-renamed sessions.
+
+**Scope:** Copilot and Gemini (both are label-static today). Claude already has OSC title updates.
+
+**Effort:** Small — ~15 lines in `session-manager.ts` hook handler + tests. Reuses `truncatePromptToLabel()` and `updateAutoLabel()`.
+
+### E2: Workspace.yaml summary as session label
+
+**Problem:** Copilot writes an AI-generated `summary` field to `workspace.yaml` that describes what the session accomplished. mcode currently ignores this field.
+
+**Opportunity:** After session-ID capture, read `summary` from `workspace.yaml` and call `updateAutoLabel()`. This would give sessions meaningful labels like "Refactored auth middleware" instead of the truncated first prompt.
+
+**Dependency:** Requires investigation of when Copilot writes `summary` — it may only be written at session end, limiting the UX benefit for active sessions.
+
+**Effort:** Small — extend `parseWorkspaceYaml()` + periodic re-read during capture polling.
+
+### E3: Premium request cost estimation
+
+**Problem:** `supportsCostEstimation: false` — Copilot premium request counts are tracked but not mapped to dollar costs.
+
+**Opportunity:** GitHub publishes premium request multipliers per model and plan tier. A lookup table could convert request counts to approximate spend. However, multipliers depend on the user's subscription plan (Individual vs Business vs Enterprise), which mcode doesn't know.
+
+**Risk:** Estimates could be misleading if the plan tier is wrong. Premium request counts alone (already displayed) may be sufficient.
+
+**Effort:** Medium — pricing research + plan-tier detection + calculator + tests.
 
 ## Out of Scope
 

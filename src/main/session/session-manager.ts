@@ -45,6 +45,8 @@ import { getTranscriptPath } from './transcript-path';
 import {
   buildSessionLabel,
   getDefaultSessionCommand,
+  truncatePromptToLabel,
+  prefixSessionLabel,
 } from './session-launch';
 import {
   getAgentRuntimeAdapter,
@@ -137,6 +139,8 @@ export class SessionManager {
   private hookRuntimeGetter: () => HookRuntimeInfo;
   private accountManager: AccountManager;
   private sessionListeners = new Set<SessionUpdateListener>();
+  /** Sessions that have already received a prompt-based auto-label (first UserPromptSubmit only). */
+  private promptLabelledSessions = new Set<string>();
   private eventStore: SessionEventStore;
   readonly layoutRepo: LayoutRepository;
   private agentRuntimeAdapters: AgentRuntimeAdapterMap;
@@ -761,6 +765,25 @@ export class SessionManager {
       }
     }
 
+    // Auto-label from first user prompt for Copilot/Gemini sessions (label-static agents).
+    // Claude sessions use OSC terminal title updates instead.
+    if (
+      event.hookEventName === 'UserPromptSubmit' &&
+      (row.session_type === 'copilot' || row.session_type === 'gemini') &&
+      !this.promptLabelledSessions.has(sessionId)
+    ) {
+      const prompt = typeof (event.payload as { prompt?: unknown }).prompt === 'string'
+        ? (event.payload as { prompt: string }).prompt
+        : null;
+      if (prompt) {
+        const truncated = truncatePromptToLabel(prompt, 50);
+        if (truncated) {
+          this.promptLabelledSessions.add(sessionId);
+          this.setAutoLabel(sessionId, prefixSessionLabel(truncated, row.session_type));
+        }
+      }
+    }
+
     return sessionType;
   }
 
@@ -786,6 +809,7 @@ export class SessionManager {
     if (status !== 'ended') throw new Error(`Session is not ended (status: ${status}). Kill it first.`);
 
     deleteSessionWithEvents(sessionId);
+    this.promptLabelledSessions.delete(sessionId);
 
     logger.info('session', 'Deleted session', { sessionId });
 
@@ -800,6 +824,7 @@ export class SessionManager {
     if (ids.length === 0) return [];
 
     deleteSessionsWithEvents(ids);
+    for (const id of ids) this.promptLabelledSessions.delete(id);
 
     logger.info('session', 'Deleted all ended sessions', { count: ids.length });
 
@@ -816,6 +841,7 @@ export class SessionManager {
     if (ids.length === 0) return 0;
 
     deleteSessionsWithEvents(ids);
+    for (const id of ids) this.promptLabelledSessions.delete(id);
 
     logger.info('session', 'Deleted empty Claude sessions', { count: ids.length });
 
@@ -836,6 +862,7 @@ export class SessionManager {
     if (validIds.length === 0) return [];
 
     deleteSessionsWithEvents(validIds);
+    for (const id of validIds) this.promptLabelledSessions.delete(id);
 
     logger.info('session', 'Deleted batch of sessions', { count: validIds.length });
 

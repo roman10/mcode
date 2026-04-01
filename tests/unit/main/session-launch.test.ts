@@ -3,6 +3,7 @@ import {
   buildSessionLabel,
   getDefaultSessionCommand,
   prefixSessionLabel,
+  truncatePromptToLabel,
 } from '../../../src/main/session/session-launch';
 
 describe('session-launch helpers', () => {
@@ -31,6 +32,24 @@ describe('session-launch helpers', () => {
       label: '\u2742 Investigate flaky test failure',
       labelSource: 'auto',
     });
+  });
+
+  it('truncates prompt to label at word boundary', () => {
+    expect(truncatePromptToLabel('fix the auth bug', 50)).toBe('fix the auth bug');
+    expect(truncatePromptToLabel('short', 50)).toBe('short');
+    expect(truncatePromptToLabel('', 50)).toBe('');
+    expect(truncatePromptToLabel('  \n  ', 50)).toBe('');
+  });
+
+  it('truncates long prompts with ellipsis', () => {
+    const long = 'refactor the authentication middleware to use JWT tokens instead of session cookies';
+    const result = truncatePromptToLabel(long, 50);
+    expect(result.length).toBeLessThanOrEqual(53); // 50 + '...'
+    expect(result).toMatch(/\.\.\.$/);
+  });
+
+  it('uses only first line of multi-line prompt', () => {
+    expect(truncatePromptToLabel('fix the bug\nmore details here', 50)).toBe('fix the bug');
   });
 
   it('resolves default commands by session type', () => {
