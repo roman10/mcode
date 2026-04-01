@@ -35,7 +35,7 @@ export default function TerminalTabGroup({
     <div className="flex-1 min-h-0 flex flex-col">
       <TerminalTabBar tabGroupId={tabGroupId} />
       <div className="flex-1 min-h-0 min-w-0 pl-1">
-        {activeEntry ? (
+        {activeEntry && activeSessionType ? (
           // Lazy mounting: only the active tab gets a TerminalInstance.
           // key={sessionId} ensures React unmounts/remounts on tab switch,
           // and TerminalInstance replays from the PTY ring buffer on mount.

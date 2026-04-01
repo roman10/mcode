@@ -66,6 +66,10 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
 
   const handleFocus = (): void => {
     useLayoutStore.getState().focusTile(`session:${sessionId}`);
+    // Always focus the xterm textarea — the auto-focus useEffect only fires
+    // on isFocused transitions, so re-clicking an already-focused tile needs
+    // this direct call to restore terminal focus after transient focus loss.
+    terminalRegistry.get(sessionId)?.focus();
   };
 
   // Drag-and-drop: paste file paths into terminal.
@@ -199,9 +203,9 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       <div className="flex-1 min-h-0 min-w-0 pl-1">
         {status === 'ended' ? (
           <SessionEndedPrompt sessionId={sessionId} />
-        ) : (
+        ) : sessionType ? (
           <TerminalInstance sessionId={sessionId} sessionType={sessionType} scrollbackLines={scrollbackLines} />
-        )}
+        ) : null}
       </div>
       {isDragOver && (
         <div className="absolute inset-0 border-2 border-accent/60 rounded bg-accent/5 pointer-events-none z-10" />

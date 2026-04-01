@@ -40,6 +40,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
   const termRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const sessionTypeRef = useRef(sessionType);
+  sessionTypeRef.current = sessionType;
   const slashCommandBufferRef = useRef('');
   const knownSlashCommandsRef = useRef<Set<string>>(new Set());
   const warningTimeoutRef = useRef<number | null>(null);
@@ -83,7 +85,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
 
   useEffect(() => {
     const container = termRef.current;
-    if (!container) return;
+    if (!container || sessionType === undefined) return;
 
     // All agent CLIs get a non-blinking bar cursor in accent color, hidden
     // when inactive. Agents that manage their own cursor via DECTCEM escape
@@ -247,7 +249,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
 
     // Terminal input → PTY
     term.onData((data) => {
-      const agent = getAgentDefinition(sessionType);
+      const agent = getAgentDefinition(sessionTypeRef.current);
       const sanitizedData = stripTerminalInputControlSequences(data);
       for (const char of sanitizedData) {
         if (char === '\r' || char === '\n') {
@@ -289,7 +291,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     // Only updates if the user hasn't manually renamed the session (checked server-side).
     const unsubTitle = term.onTitleChange((title) => {
       if (title) {
-        const normalized = sessionType ? normalizeAgentLabel(title, sessionType as SessionType) : title;
+        const normalized = sessionTypeRef.current ? normalizeAgentLabel(title, sessionTypeRef.current as SessionType) : title;
         window.mcode.sessions.setAutoLabel(sessionId, normalized);
       }
     });
@@ -343,8 +345,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       webgl.detach();
       term.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup must only re-run on identity change
-  }, [clearSlashWarning, sessionId, sessionType, setSlashWarning]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup runs once per sessionId; sessionType is read via ref
+  }, [clearSlashWarning, sessionId, setSlashWarning]);
 
   const handleContextAction = useCallback((action: string) => {
     const term = termInstanceRef.current;
