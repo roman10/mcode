@@ -17,7 +17,7 @@ export interface DailyCommitStats {
   total: number;
   totalInsertions: number;
   totalDeletions: number;
-  claudeAssisted: number;
+  aiAssisted: number;
   soloCount: number;
   byRepo: RepoCommitStats[];
   byType: CommitTypeStats[];

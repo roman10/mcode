@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectAIAssisted, detectAIProvider } from '../../../src/main/trackers/commit-tracker';
+import { detectAIAssisted, detectAIProvider, extractCommandString } from '../../../src/main/trackers/commit-tracker';
 
 describe('detectAIProvider', () => {
   it('detects Claude from Claude co-author', () => {
@@ -62,5 +62,31 @@ describe('detectAIAssisted', () => {
   it('does not flag normal human co-authors', () => {
     expect(detectAIAssisted('Co-authored-by: Jane Doe <jane@example.com>')).toBe(false);
     expect(detectAIAssisted('')).toBe(false);
+  });
+});
+
+describe('extractCommandString', () => {
+  it('extracts command from Claude-style input', () => {
+    expect(extractCommandString({ command: 'git commit -m "test"' })).toBe('git commit -m "test"');
+  });
+
+  it('extracts input from alternative field name', () => {
+    expect(extractCommandString({ input: 'git push' })).toBe('git push');
+  });
+
+  it('prefers command over input when both present', () => {
+    expect(extractCommandString({ command: 'git status', input: 'git push' })).toBe('git status');
+  });
+
+  it('returns empty string for null', () => {
+    expect(extractCommandString(null)).toBe('');
+  });
+
+  it('returns empty string for non-command input', () => {
+    expect(extractCommandString({ file: 'test.ts', content: '...' })).toBe('');
+  });
+
+  it('returns empty string for empty object', () => {
+    expect(extractCommandString({})).toBe('');
   });
 });

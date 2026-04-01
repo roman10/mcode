@@ -98,6 +98,49 @@ export function detectAIAssisted(coAuthor: string): boolean {
   return detectAIProvider(coAuthor) !== null;
 }
 
+/** Extract command string from hook tool input, handling different CLI field names. */
+export function extractCommandString(toolInput: Record<string, unknown> | null): string {
+  if (!toolInput) return '';
+  if (typeof toolInput.command === 'string') return toolInput.command;
+  if (typeof toolInput.input === 'string') return toolInput.input;
+  return '';
+}
+
+const AI_SESSION_TYPES = ['claude', 'codex', 'gemini', 'copilot'];
+
+/**
+ * Attempt session-based attribution for a commit that has no Co-Authored-By trailer.
+ * Checks if the commit was made during an active AI session in the same repo.
+ */
+function findSessionAttribution(
+  db: ReturnType<typeof getDb>,
+  repoPath: string,
+  committedAt: string,
+): string | null {
+  const rows = db.prepare(`
+    SELECT session_type, cwd
+    FROM sessions
+    WHERE session_type IN (${AI_SESSION_TYPES.map(() => '?').join(',')})
+      AND started_at <= ?
+      AND (ended_at IS NULL OR ended_at >= ?)
+    ORDER BY started_at DESC
+  `).all(...AI_SESSION_TYPES, committedAt, committedAt) as { session_type: string; cwd: string }[];
+
+  if (rows.length === 0) return null;
+
+  const normalizedRepo = repoPath.endsWith('/') ? repoPath : repoPath + '/';
+  const matching = rows.filter((row) => {
+    const cwd = row.cwd.endsWith('/') ? row.cwd : row.cwd + '/';
+    return cwd.startsWith(normalizedRepo);
+  });
+
+  if (matching.length === 0) return null;
+
+  // Prefer session closest to repo root (shortest cwd), then most recent
+  matching.sort((a, b) => a.cwd.length - b.cwd.length);
+  return matching[0].session_type;
+}
+
 /** Build optional provider WHERE clause fragment for commits. */
 function commitProviderFilter(provider?: string): { clause: string; params: unknown[] } {
   return provider
@@ -180,10 +223,12 @@ export class CommitTracker {
   }
 
   start(): void {
-    // Initial scan on startup
-    this.scanAll().catch((err) => {
-      logger.warn('commits', 'Initial scan failed', { error: String(err) });
-    });
+    // Initial scan on startup, then backfill session attribution
+    this.scanAll()
+      .then(() => this.backfillSessionAttribution())
+      .catch((err) => {
+        logger.warn('commits', 'Initial scan failed', { error: String(err) });
+      });
 
     // Background fallback poll every 5 minutes
     this.backgroundTimer = setInterval(() => {
@@ -200,12 +245,46 @@ export class CommitTracker {
     }
   }
 
+  /** Backfill session-based attribution for commits that have no provider and no attribution source. */
+  private backfillSessionAttribution(): void {
+    const db = getDb();
+    const unattributed = db.prepare(`
+      SELECT id, repo_path, committed_at
+      FROM commits
+      WHERE detected_provider IS NULL AND attribution_source IS NULL
+      ORDER BY committed_at DESC
+      LIMIT 1000
+    `).all() as { id: number; repo_path: string; committed_at: string }[];
+
+    if (unattributed.length === 0) return;
+
+    const updateStmt = db.prepare(`
+      UPDATE commits SET detected_provider = ?, is_claude_assisted = 1, attribution_source = 'session'
+      WHERE id = ?
+    `);
+
+    let count = 0;
+    db.transaction(() => {
+      for (const commit of unattributed) {
+        const provider = findSessionAttribution(db, commit.repo_path, commit.committed_at);
+        if (provider) {
+          updateStmt.run(provider, commit.id);
+          count++;
+        }
+      }
+    })();
+
+    if (count > 0) {
+      logger.info('commits', `Backfilled session attribution for ${count} commits`);
+      this.broadcastUpdate();
+    }
+  }
+
   /** Trigger a scan for a specific session's repo (e.g., on hook event). */
   async onHookEvent(sessionId: string, event: HookEvent): Promise<void> {
-    if (event.hookEventName !== 'PostToolUse' || event.toolName !== 'Bash') return;
+    if (event.hookEventName !== 'PostToolUse') return;
 
-    const toolInput = event.toolInput as { command?: string } | null;
-    const command = toolInput?.command ?? '';
+    const command = extractCommandString(event.toolInput);
     const hasGitKeyword = GIT_COMMIT_KEYWORDS.some((kw) => command.includes(kw));
     if (!hasGitKeyword) return;
 
@@ -292,8 +371,8 @@ export class CommitTracker {
       INSERT OR IGNORE INTO commits
         (repo_path, commit_hash, commit_message, commit_type, author_name, author_email,
          is_claude_assisted, committed_at, date, files_changed, insertions, deletions,
-         parent_hashes, refs, detected_provider)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         parent_hashes, refs, detected_provider, attribution_source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     // Backfill parent_hashes/refs for existing commits that lack them
@@ -304,7 +383,7 @@ export class CommitTracker {
 
     // Backfill detected_provider for existing commits that lack it
     const backfillProviderStmt = db.prepare(`
-      UPDATE commits SET detected_provider = ?
+      UPDATE commits SET detected_provider = ?, attribution_source = ?
       WHERE repo_path = ? AND commit_hash = ? AND detected_provider IS NULL
     `);
 
@@ -313,7 +392,19 @@ export class CommitTracker {
       for (const commit of commits) {
         const date = commit.committedAt.slice(0, 10); // "2026-03-18"
         const commitType = classifyCommitType(commit.subject);
-        const detectedProvider = detectAIProvider(commit.coAuthor);
+        let detectedProvider = detectAIProvider(commit.coAuthor);
+        let attributionSource: string | null = null;
+
+        if (detectedProvider) {
+          attributionSource = 'trailer';
+        } else {
+          const sessionProvider = findSessionAttribution(db, repoPath, commit.committedAt);
+          if (sessionProvider) {
+            detectedProvider = sessionProvider;
+            attributionSource = 'session';
+          }
+        }
+
         const isClaudeAssisted = detectedProvider !== null ? 1 : 0;
 
         const result = insertStmt.run(
@@ -332,6 +423,7 @@ export class CommitTracker {
           commit.parentHashes || null,
           commit.refs || null,
           detectedProvider,
+          attributionSource,
         );
         if (result.changes > 0) newCount++;
 
@@ -347,7 +439,7 @@ export class CommitTracker {
 
         // Backfill detected_provider for pre-existing commits
         if (result.changes === 0 && detectedProvider) {
-          backfillProviderStmt.run(detectedProvider, repoPath, commit.hash);
+          backfillProviderStmt.run(detectedProvider, attributionSource, repoPath, commit.hash);
         }
       }
     });
@@ -384,13 +476,13 @@ export class CommitTracker {
       SELECT COUNT(*) as total,
              COALESCE(SUM(insertions), 0) as totalInsertions,
              COALESCE(SUM(deletions), 0) as totalDeletions,
-             SUM(CASE WHEN is_claude_assisted = 1 THEN 1 ELSE 0 END) as claudeAssisted
+             SUM(CASE WHEN is_claude_assisted = 1 THEN 1 ELSE 0 END) as aiAssisted
       FROM commits WHERE date = ?${pf.clause}
     `).get(targetDate, ...pf.params) as {
       total: number;
       totalInsertions: number;
       totalDeletions: number;
-      claudeAssisted: number;
+      aiAssisted: number;
     };
 
     // Per-repo breakdown
@@ -417,8 +509,8 @@ export class CommitTracker {
       total: totals.total,
       totalInsertions: totals.totalInsertions,
       totalDeletions: totals.totalDeletions,
-      claudeAssisted: totals.claudeAssisted,
-      soloCount: totals.total - totals.claudeAssisted,
+      aiAssisted: totals.aiAssisted,
+      soloCount: totals.total - totals.aiAssisted,
       byRepo: byRepo.map((r) => ({
         repoPath: r.repo_path,
         count: r.count,

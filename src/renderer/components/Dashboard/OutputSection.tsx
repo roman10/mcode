@@ -68,9 +68,9 @@ function OutputSection({
 }: OutputSectionProps): React.JSX.Element {
   const total = dailyStats?.total ?? 0;
   const totalLines = (dailyStats?.totalInsertions ?? 0) + (dailyStats?.totalDeletions ?? 0);
-  const claudeCount = dailyStats?.claudeAssisted ?? 0;
+  const aiCount = dailyStats?.aiAssisted ?? 0;
   const soloCount = dailyStats?.soloCount ?? 0;
-  const claudePct = total >= 3 && claudeCount > 0 ? Math.round((claudeCount / total) * 100) : null;
+  const aiPct = total >= 3 && aiCount > 0 ? Math.round((aiCount / total) * 100) : null;
 
   return (
     <>
@@ -105,9 +105,9 @@ function OutputSection({
           {/* AI-assisted vs solo */}
           {total > 0 && (
             <div className="text-xs text-text-secondary">
-              {claudePct != null ? (
+              {aiPct != null ? (
                 <>
-                  <span className="text-green-400 font-medium">{claudePct}%</span>
+                  <span className="text-green-400 font-medium">{aiPct}%</span>
                   <span> AI-assisted</span>
                   {soloCount > 0 && (
                     <>
@@ -118,8 +118,8 @@ function OutputSection({
                 </>
               ) : (
                 <>
-                  {claudeCount > 0 && <span>{claudeCount} AI-assisted</span>}
-                  {claudeCount > 0 && soloCount > 0 && <span className="text-text-muted"> · </span>}
+                  {aiCount > 0 && <span>{aiCount} AI-assisted</span>}
+                  {aiCount > 0 && soloCount > 0 && <span className="text-text-muted"> · </span>}
                   {soloCount > 0 && <span>{soloCount} solo</span>}
                 </>
               )}

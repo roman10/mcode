@@ -6,6 +6,7 @@ import type { WebContents } from 'electron';
 import type { SessionManager } from './session/session-manager';
 import type { GitChangedFile, GitFileStatus, GitStatusResult, GitDiffContent, CommitGraphNode, CommitGraphResult, CommitFileEntry, HookEvent } from '../shared/types';
 import { typedHandle } from './ipc-helpers';
+import { extractCommandString } from './trackers/commit-tracker';
 
 const execFileAsync = promisify(execFile);
 const GIT_COMMAND_TIMEOUT_MS = 10_000;
@@ -115,10 +116,9 @@ export class GitChangesService {
 
   /** Broadcast git status change to renderer when a hook event indicates a git command ran. */
   async onHookEvent(_sessionId: string, event: HookEvent): Promise<void> {
-    if (event.hookEventName !== 'PostToolUse' || event.toolName !== 'Bash') return;
+    if (event.hookEventName !== 'PostToolUse') return;
 
-    const toolInput = event.toolInput as { command?: string } | null;
-    const command = toolInput?.command ?? '';
+    const command = extractCommandString(event.toolInput);
     if (!command.includes('git')) return;
     const hasGitKeyword = GIT_STATUS_KEYWORDS.some((kw) => command.includes(kw));
     if (!hasGitKeyword) return;

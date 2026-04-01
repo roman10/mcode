@@ -7,7 +7,7 @@ interface DailyStats {
   total: number;
   totalInsertions: number;
   totalDeletions: number;
-  claudeAssisted: number;
+  aiAssisted: number;
   soloCount: number;
   byRepo: Array<{ repoPath: string; count: number; insertions: number; deletions: number }>;
   byType: Array<{ type: string; count: number }>;
@@ -77,7 +77,7 @@ describe('commit tracking', () => {
       'commits_get_daily_stats',
     );
     expect(stats.total).toBeGreaterThanOrEqual(0);
-    expect(stats.claudeAssisted).toBeGreaterThanOrEqual(0);
+    expect(stats.aiAssisted).toBeGreaterThanOrEqual(0);
     expect(stats.soloCount).toBeGreaterThanOrEqual(0);
     expect(Array.isArray(stats.byRepo)).toBe(true);
     expect(Array.isArray(stats.byType)).toBe(true);

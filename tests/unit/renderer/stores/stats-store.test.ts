@@ -19,7 +19,7 @@ const mockDailyStats = {
   total: 5,
   totalInsertions: 120,
   totalDeletions: 30,
-  claudeAssisted: 4,
+  aiAssisted: 4,
   soloCount: 1,
   byRepo: [],
   byType: [],
