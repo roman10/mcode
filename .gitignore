@@ -8,5 +8,6 @@ dist/
 .claude/settings.local.json
 .claude/worktrees/
 .claude/plans/
+.claude/projects/
 docs/marketing/
 .env.signing
