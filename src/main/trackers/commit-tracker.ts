@@ -7,6 +7,8 @@ import { getPreferenceBool } from '../preferences';
 import { logger } from '../logger';
 import { typedHandle } from '../ipc-helpers';
 import { localDateStr, todayDate, nDaysAgoStart } from './date-utils';
+import { AGENT_SESSION_TYPES } from '@shared/session-agents';
+import { extractCommandString } from '../hooks/hook-utils';
 import type {
   HookEvent,
   DailyCommitStats,
@@ -98,15 +100,6 @@ export function detectAIAssisted(coAuthor: string): boolean {
   return detectAIProvider(coAuthor) !== null;
 }
 
-/** Extract command string from hook tool input, handling different CLI field names. */
-export function extractCommandString(toolInput: Record<string, unknown> | null): string {
-  if (!toolInput) return '';
-  if (typeof toolInput.command === 'string') return toolInput.command;
-  if (typeof toolInput.input === 'string') return toolInput.input;
-  return '';
-}
-
-const AI_SESSION_TYPES = ['claude', 'codex', 'gemini', 'copilot'];
 
 /**
  * Attempt session-based attribution for a commit that has no Co-Authored-By trailer.
@@ -120,11 +113,11 @@ function findSessionAttribution(
   const rows = db.prepare(`
     SELECT session_type, cwd
     FROM sessions
-    WHERE session_type IN (${AI_SESSION_TYPES.map(() => '?').join(',')})
+    WHERE session_type IN (${AGENT_SESSION_TYPES.map(() => '?').join(',')})
       AND started_at <= ?
       AND (ended_at IS NULL OR ended_at >= ?)
     ORDER BY started_at DESC
-  `).all(...AI_SESSION_TYPES, committedAt, committedAt) as { session_type: string; cwd: string }[];
+  `).all(...AGENT_SESSION_TYPES, committedAt, committedAt) as { session_type: string; cwd: string }[];
 
   if (rows.length === 0) return null;
 
@@ -259,7 +252,7 @@ export class CommitTracker {
     if (unattributed.length === 0) return;
 
     const updateStmt = db.prepare(`
-      UPDATE commits SET detected_provider = ?, is_claude_assisted = 1, attribution_source = 'session'
+      UPDATE commits SET detected_provider = ?, is_ai_assisted = 1, attribution_source = 'session'
       WHERE id = ?
     `);
 
@@ -370,7 +363,7 @@ export class CommitTracker {
     const insertStmt = db.prepare(`
       INSERT OR IGNORE INTO commits
         (repo_path, commit_hash, commit_message, commit_type, author_name, author_email,
-         is_claude_assisted, committed_at, date, files_changed, insertions, deletions,
+         is_ai_assisted, committed_at, date, files_changed, insertions, deletions,
          parent_hashes, refs, detected_provider, attribution_source)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -476,7 +469,7 @@ export class CommitTracker {
       SELECT COUNT(*) as total,
              COALESCE(SUM(insertions), 0) as totalInsertions,
              COALESCE(SUM(deletions), 0) as totalDeletions,
-             SUM(CASE WHEN is_claude_assisted = 1 THEN 1 ELSE 0 END) as aiAssisted
+             SUM(CASE WHEN is_ai_assisted = 1 THEN 1 ELSE 0 END) as aiAssisted
       FROM commits WHERE date = ?${pf.clause}
     `).get(targetDate, ...pf.params) as {
       total: number;

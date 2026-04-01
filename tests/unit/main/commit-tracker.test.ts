@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { detectAIAssisted, detectAIProvider, extractCommandString } from '../../../src/main/trackers/commit-tracker';
+import { detectAIAssisted, detectAIProvider } from '../../../src/main/trackers/commit-tracker';
+import { extractCommandString } from '../../../src/main/hooks/hook-utils';
 
 describe('detectAIProvider', () => {
   it('detects Claude from Claude co-author', () => {

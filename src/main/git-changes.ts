@@ -6,7 +6,7 @@ import type { WebContents } from 'electron';
 import type { SessionManager } from './session/session-manager';
 import type { GitChangedFile, GitFileStatus, GitStatusResult, GitDiffContent, CommitGraphNode, CommitGraphResult, CommitFileEntry, HookEvent } from '../shared/types';
 import { typedHandle } from './ipc-helpers';
-import { extractCommandString } from './trackers/commit-tracker';
+import { extractCommandString } from './hooks/hook-utils';
 
 const execFileAsync = promisify(execFile);
 const GIT_COMMAND_TIMEOUT_MS = 10_000;
