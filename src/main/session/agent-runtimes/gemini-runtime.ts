@@ -93,6 +93,13 @@ export function isGeminiCommand(command: string): boolean {
   return normalized === 'gemini' || normalized === 'gemini.exe';
 }
 
+/** Maps internal permission mode strings to Gemini CLI --approval-mode values. */
+const GEMINI_APPROVAL_MODE_MAP: Record<string, string> = {
+  plan: 'plan',
+  autoEdit: 'auto_edit',
+  yolo: 'yolo',
+};
+
 export function buildGeminiResumePlan(
   ctx: AgentPrepareResumeContext,
   deps: { listSessions(command: string, cwd: string): GeminiListedSession[] },
@@ -120,10 +127,19 @@ export function buildGeminiResumePlan(
   const bridgeReady = ctx.agentHookBridgeReady && ctx.hookRuntime.state === 'ready';
   const hookMode = bridgeReady ? 'live' : 'fallback';
 
+  const args = ['--resume', String(resumeIndex)];
+  if (ctx.row.permissionMode) {
+    const approvalMode = GEMINI_APPROVAL_MODE_MAP[ctx.row.permissionMode];
+    if (approvalMode) {
+      args.push('--approval-mode', approvalMode);
+      if (ctx.row.permissionMode === 'yolo') args.push('--sandbox');
+    }
+  }
+
   return {
     command,
     cwd: ctx.row.cwd,
-    args: ['--resume', String(resumeIndex)],
+    args,
     env: bridgeReady && ctx.hookRuntime.port
       ? { MCODE_HOOK_PORT: String(ctx.hookRuntime.port) }
       : {},
@@ -145,6 +161,13 @@ export function buildGeminiCreatePlan(ctx: AgentCreateContext): PreparedCreate {
 
   const args: string[] = [];
   if (input.model) args.push('--model', input.model);
+  if (input.permissionMode) {
+    const approvalMode = GEMINI_APPROVAL_MODE_MAP[input.permissionMode];
+    if (approvalMode) {
+      args.push('--approval-mode', approvalMode);
+      if (input.permissionMode === 'yolo') args.push('--sandbox');
+    }
+  }
   if (input.initialPrompt) args.push(input.initialPrompt);
 
   return {
@@ -155,6 +178,7 @@ export function buildGeminiCreatePlan(ctx: AgentCreateContext): PreparedCreate {
       : {},
     dbFields: {
       model: input.model?.trim() || null,
+      permissionMode: input.permissionMode ?? null,
     },
   };
 }

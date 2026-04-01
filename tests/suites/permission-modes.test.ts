@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { execSync } from 'node:child_process';
-import { PERMISSION_MODES } from '../../src/shared/constants';
+import { CLAUDE_PERMISSION_MODES } from '../../src/shared/constants';
 
 let claudeAvailable = false;
 try { execSync('which claude', { timeout: 5000 }); claudeAvailable = true; } catch { /* not installed */ }
@@ -35,20 +35,20 @@ describe('permission modes', () => {
     // 'default' means "no flag passed" — we don't include it in PERMISSION_MODES
     const cliNonDefault = cliModes.filter((m) => m !== 'default');
 
-    const ourModes = new Set(PERMISSION_MODES);
+    const ourModes = new Set(CLAUDE_PERMISSION_MODES);
     const cliSet = new Set(cliNonDefault);
 
     // Check we aren't missing any CLI modes
     for (const mode of cliNonDefault) {
-      expect(ourModes.has(mode as typeof PERMISSION_MODES[number]),
-        `CLI has mode "${mode}" that is missing from PERMISSION_MODES`,
+      expect(ourModes.has(mode as typeof CLAUDE_PERMISSION_MODES[number]),
+        `CLI has mode "${mode}" that is missing from CLAUDE_PERMISSION_MODES`,
       ).toBe(true);
     }
 
     // Check we don't have extra modes the CLI doesn't support
-    for (const mode of PERMISSION_MODES) {
+    for (const mode of CLAUDE_PERMISSION_MODES) {
       expect(cliSet.has(mode),
-        `PERMISSION_MODES has "${mode}" that is not in CLI allowed choices`,
+        `CLAUDE_PERMISSION_MODES has "${mode}" that is not in CLI allowed choices`,
       ).toBe(true);
     }
   });

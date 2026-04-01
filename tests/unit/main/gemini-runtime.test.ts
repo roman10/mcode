@@ -114,6 +114,90 @@ describe('buildGeminiResumePlan', () => {
     });
   });
 
+  it('passes --approval-mode on resume when permission mode is stored', () => {
+    const result = buildGeminiResumePlan({
+      sessionId: 'session-1',
+      row: {
+        command: 'gemini',
+        cwd: '/tmp/project',
+        codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: 'autoEdit',
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
+        geminiSessionId: 'gemini-session-123',
+      },
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: true,
+    }, {
+      listSessions: () => [{
+        index: 7,
+        title: 'Test',
+        relativeAgeText: 'just now',
+        geminiSessionId: 'gemini-session-123',
+      }],
+    });
+    expect(result.args).toEqual(['--resume', '7', '--approval-mode', 'auto_edit']);
+  });
+
+  it('passes --sandbox alongside yolo on resume', () => {
+    const result = buildGeminiResumePlan({
+      sessionId: 'session-1',
+      row: {
+        command: 'gemini',
+        cwd: '/tmp/project',
+        codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: 'yolo',
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
+        geminiSessionId: 'gemini-session-123',
+      },
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: true,
+    }, {
+      listSessions: () => [{
+        index: 7,
+        title: 'Test',
+        relativeAgeText: 'just now',
+        geminiSessionId: 'gemini-session-123',
+      }],
+    });
+    expect(result.args).toEqual(['--resume', '7', '--approval-mode', 'yolo', '--sandbox']);
+  });
+
+  it('passes --approval-mode plan on resume', () => {
+    const result = buildGeminiResumePlan({
+      sessionId: 'session-1',
+      row: {
+        command: 'gemini',
+        cwd: '/tmp/project',
+        codexThreadId: null,
+        claudeSessionId: null,
+        permissionMode: 'plan',
+        effort: null,
+        enableAutoMode: false,
+        allowBypassPermissions: false,
+        worktree: null,
+        geminiSessionId: 'gemini-session-123',
+      },
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: true,
+    }, {
+      listSessions: () => [{
+        index: 7,
+        title: 'Test',
+        relativeAgeText: 'just now',
+        geminiSessionId: 'gemini-session-123',
+      }],
+    });
+    expect(result.args).toEqual(['--resume', '7', '--approval-mode', 'plan']);
+  });
+
   it('requires a stored Gemini session id', () => {
     expect(() => buildGeminiResumePlan({
       sessionId: 'session-1',
@@ -217,7 +301,7 @@ describe('buildGeminiCreatePlan', () => {
       hookMode: 'live',
       args: ['--model', 'gemini-2.5-pro', 'inspect'],
       env: { MCODE_HOOK_PORT: '4312' },
-      dbFields: { model: 'gemini-2.5-pro' },
+      dbFields: { model: 'gemini-2.5-pro', permissionMode: null },
     });
   });
 
@@ -251,7 +335,61 @@ describe('buildGeminiCreatePlan', () => {
       agentHookBridgeReady: false,
     });
     expect(result.args).toEqual([]);
-    expect(result.dbFields).toEqual({ model: null });
+    expect(result.dbFields).toEqual({ model: null, permissionMode: null });
+  });
+
+  it('passes --approval-mode auto_edit for autoEdit permission mode', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini', permissionMode: 'autoEdit', initialPrompt: 'fix bug' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toEqual(['--approval-mode', 'auto_edit', 'fix bug']);
+    expect(result.dbFields).toEqual({ model: null, permissionMode: 'autoEdit' });
+  });
+
+  it('passes --approval-mode yolo --sandbox for yolo permission mode', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini', permissionMode: 'yolo', initialPrompt: 'refactor' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toEqual(['--approval-mode', 'yolo', '--sandbox', 'refactor']);
+    expect(result.dbFields).toEqual({ model: null, permissionMode: 'yolo' });
+  });
+
+  it('passes --approval-mode plan for plan permission mode', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini', permissionMode: 'plan', initialPrompt: 'investigate' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toEqual(['--approval-mode', 'plan', 'investigate']);
+    expect(result.dbFields).toEqual({ model: null, permissionMode: 'plan' });
+  });
+
+  it('does not pass approval-mode flags when permission mode is unset', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini', initialPrompt: 'hello' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toEqual(['hello']);
+    expect(result.dbFields).toEqual({ model: null, permissionMode: null });
+  });
+
+  it('places approval-mode flags between model and prompt', () => {
+    const result = buildGeminiCreatePlan({
+      input: { cwd: '/repo', sessionType: 'gemini', model: 'gemini-2.5-pro', permissionMode: 'autoEdit', initialPrompt: 'go' },
+      command: 'gemini',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(result.args).toEqual(['--model', 'gemini-2.5-pro', '--approval-mode', 'auto_edit', 'go']);
   });
 
   it('includes MCODE_HOOK_PORT env only when bridge ready and port available', () => {

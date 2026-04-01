@@ -27,8 +27,11 @@ export const COPILOT_PERMISSION_MODES = ['autopilot', 'allowAll'] as const;
 // Valid Codex CLI permission presets
 export const CODEX_PERMISSION_MODES = ['fullAuto', 'bypassAll'] as const;
 
+// Gemini-unique approval modes ('plan' is shared with Claude via AGENT_PERMISSION_MODES)
+export const GEMINI_PERMISSION_MODES = ['autoEdit', 'yolo'] as const;
+
 // Union of all agent permission modes
-export const PERMISSION_MODES = [...CLAUDE_PERMISSION_MODES, ...COPILOT_PERMISSION_MODES, ...CODEX_PERMISSION_MODES] as const;
+export const PERMISSION_MODES = [...CLAUDE_PERMISSION_MODES, ...COPILOT_PERMISSION_MODES, ...CODEX_PERMISSION_MODES, ...GEMINI_PERMISSION_MODES] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 /** Which permission modes each agent supports. Absence = no support. */
@@ -36,6 +39,7 @@ export const AGENT_PERMISSION_MODES: Partial<Record<string, readonly PermissionM
   claude: [...CLAUDE_PERMISSION_MODES],
   copilot: [...COPILOT_PERMISSION_MODES],
   codex: [...CODEX_PERMISSION_MODES],
+  gemini: ['plan', ...GEMINI_PERMISSION_MODES],
 };
 
 /** Human-readable labels for all permission modes. */
@@ -49,6 +53,8 @@ export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
   allowAll: 'Allow All',
   fullAuto: 'Full Auto',
   bypassAll: 'Bypass All',
+  autoEdit: 'Auto Edit',
+  yolo: 'YOLO',
 };
 
 // Valid Claude Code --effort values (excluding 'default' which means "no flag")
