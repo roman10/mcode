@@ -322,6 +322,13 @@ export function initDevtoolsBridge(): void {
         };
         break;
       }
+      case 'terminal-activate-terminal': {
+        const { sessionId } = params as { sessionId: string };
+        const { useTerminalPanelStore } = await import('../stores/terminal-panel-store');
+        useTerminalPanelStore.getState().activateTerminal(sessionId);
+        result = { ok: true };
+        break;
+      }
       case 'terminal-action': {
         const { sessionId, action } = params as { sessionId: string; action: string };
         const term = terminalRegistry.get(sessionId);

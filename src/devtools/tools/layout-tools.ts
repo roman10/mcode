@@ -284,6 +284,31 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('terminal_panel_activate_tab', {
+    description: 'Switch the active terminal tab in the bottom panel to the given session',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID to activate'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId }) => {
+    try {
+      await queryRenderer<{ ok: boolean }>(ctx.mainWindow, 'terminal-activate-terminal', { sessionId });
+      return {
+        content: [{ type: 'text', text: `Activated terminal tab: ${sessionId}` }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to activate terminal tab: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_wait_for_tile_count', {
     description: 'Wait until the mosaic layout reaches the expected tile count. Polls every 250ms.',
     inputSchema: {
