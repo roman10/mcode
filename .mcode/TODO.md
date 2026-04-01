@@ -1,1 +1,3 @@
 - [ ] make sure mode specification for task works #medium 2026-04-01
+- [ ] copilot cursor can still get stuck and not working #medium 2026-04-01
+- [ ] claude code the terminal tile could get into state where it cannot scroll to past history. #medium 2026-04-01
