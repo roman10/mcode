@@ -287,7 +287,7 @@ function TodosPanel(): React.JSX.Element {
             <div className="absolute top-full left-0 mt-1 z-50 min-w-40 max-w-64 bg-bg-primary border border-border-default rounded shadow-lg py-1">
               {/* Auto option */}
               <button
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-bg-secondary transition-colors"
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left text-text-primary hover:bg-bg-secondary transition-colors"
                 onClick={() => { setRepoMode('auto'); setDropdownOpen(false); }}
               >
                 {repoMode === 'auto' && <Check size={12} className="text-accent shrink-0" />}
@@ -302,7 +302,7 @@ function TodosPanel(): React.JSX.Element {
                   {uniqueCwds.map((cwd) => (
                     <button
                       key={cwd}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-bg-secondary transition-colors"
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left text-text-primary hover:bg-bg-secondary transition-colors"
                       onClick={() => { setRepoMode(cwd); setDropdownOpen(false); }}
                       title={cwd}
                     >
@@ -317,7 +317,7 @@ function TodosPanel(): React.JSX.Element {
 
               <div className="my-1 border-t border-border-default" />
               <button
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-bg-secondary transition-colors"
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left text-text-primary hover:bg-bg-secondary transition-colors"
                 onClick={() => { setRepoMode('all'); setDropdownOpen(false); }}
               >
                 {repoMode === 'all' && <Check size={12} className="text-accent shrink-0" />}
