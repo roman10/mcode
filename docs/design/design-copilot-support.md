@@ -279,7 +279,7 @@ Copilot sessions have full analytics (token usage, human input tracking, premium
 | Plan mode | ✅ | ❌ | ❌ | ❌ |
 | Commit tracking | ✅ | ✅ | ✅ | ✅ |
 | Slash commands | ✅ | ✅ | ✅ | ✅ |
-| Auto-label updates | ✅ (OSC title) | ❌ | ❌ | ❌ (E1/E2) |
+| Auto-label updates | ✅ (OSC title) | ❌ | ✅ (hook prompt) | ✅ (hook prompt) |
 
 ---
 
@@ -287,15 +287,9 @@ Copilot sessions have full analytics (token usage, human input tracking, premium
 
 Potential high-value improvements now that core feature parity is achieved:
 
-### E1: Auto-label enrichment from hook prompts
+### E1: Auto-label enrichment from hook prompts — **Implemented**
 
-**Problem:** Copilot sessions created without an `initialPrompt` get generic disambiguated labels ("Copilot 1", "Copilot 2"). Unlike Claude (which auto-updates labels via OSC terminal title sequences), Copilot labels are static after creation.
-
-**Opportunity:** The `userPromptSubmitted` hook event includes a `prompt` field containing the user's message text. On the first `UserPromptSubmit` event for a Copilot session with an auto-generated label, extract the prompt and call `updateAutoLabel()` — the same `label_source='auto'` gate that prevents overwriting user-renamed sessions.
-
-**Scope:** Copilot and Gemini (both are label-static today). Claude already has OSC title updates.
-
-**Effort:** Small — ~15 lines in `session-manager.ts` hook handler + tests. Reuses `truncatePromptToLabel()` and `updateAutoLabel()`.
+On the first `UserPromptSubmit` hook event for a Copilot or Gemini session, the `prompt` field is extracted, truncated via `truncatePromptToLabel()`, icon-prefixed, and passed to `updateAutoLabel()`. The `label_source='auto'` gate protects user-renamed sessions. An in-memory `promptLabelledSessions` Set ensures only the first prompt per session is used (preventing short follow-ups like "yes" from overwriting).
 
 ### E2: Workspace.yaml summary as session label
 

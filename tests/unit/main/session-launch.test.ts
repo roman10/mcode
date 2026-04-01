@@ -52,6 +52,19 @@ describe('session-launch helpers', () => {
     expect(truncatePromptToLabel('fix the bug\nmore details here', 50)).toBe('fix the bug');
   });
 
+  it('handles prompt at exact truncation boundary', () => {
+    const exact = 'a'.repeat(50);
+    expect(truncatePromptToLabel(exact, 50)).toBe(exact);
+    expect(truncatePromptToLabel(exact, 50)).not.toMatch(/\.\.\.$/);
+    // One char over triggers truncation
+    expect(truncatePromptToLabel('a'.repeat(51), 50)).toMatch(/\.\.\.$/);
+  });
+
+  it('treats tabs and mixed whitespace as empty', () => {
+    expect(truncatePromptToLabel('\t\t\t', 50)).toBe('');
+    expect(truncatePromptToLabel('  \t  \n  \t  ', 50)).toBe('');
+  });
+
   it('resolves default commands by session type', () => {
     expect(getDefaultSessionCommand('claude', '/bin/zsh')).toBe('claude');
     expect(getDefaultSessionCommand('codex', '/bin/zsh')).toBe('codex');
