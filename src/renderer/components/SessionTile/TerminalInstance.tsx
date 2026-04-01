@@ -90,10 +90,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   // Re-fit the terminal when it becomes visible (display:none → visible).
   // Hidden elements have zero dimensions so fit() must wait until visible.
   useEffect(() => {
-    if (isVisible) {
-      const timer = window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
-      return () => clearTimeout(timer);
-    }
+    if (!isVisible) return;
+    const timer = window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
+    return () => clearTimeout(timer);
   }, [isVisible]);
 
   // Detach WebGL from hidden terminals to free contexts (capped at 6);
