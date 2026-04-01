@@ -13,9 +13,7 @@ export default function TerminalTabGroup({
   const tabGroup = useTerminalPanelStore((s) => s.tabGroups[tabGroupId]);
   const terminals = useTerminalPanelStore((s) => s.terminals);
   const activeEntry = tabGroup ? terminals[tabGroup.activeTerminalId] : undefined;
-  const activeSessionType = useSessionStore(
-    (s) => activeEntry ? s.sessions[activeEntry.sessionId]?.sessionType : undefined,
-  );
+  const sessions = useSessionStore((s) => s.sessions);
 
   // Auto-focus the xterm terminal when the active terminal changes (new terminal or tab switch).
   const activeSessionId = activeEntry?.sessionId;
@@ -35,16 +33,21 @@ export default function TerminalTabGroup({
     <div className="flex-1 min-h-0 flex flex-col">
       <TerminalTabBar tabGroupId={tabGroupId} />
       <div className="flex-1 min-h-0 min-w-0 pl-1">
-        {activeEntry && activeSessionType ? (
-          // Lazy mounting: only the active tab gets a TerminalInstance.
-          // key={sessionId} ensures React unmounts/remounts on tab switch,
-          // and TerminalInstance replays from the PTY ring buffer on mount.
-          <TerminalInstance
-            key={activeEntry.sessionId}
-            sessionId={activeEntry.sessionId}
-            sessionType={activeSessionType}
-          />
-        ) : (
+        {tabGroup.terminalIds.map((tid) => {
+          const entry = terminals[tid];
+          if (!entry) return null;
+          const sessionType = sessions[entry.sessionId]?.sessionType;
+          if (!sessionType) return null;
+          return (
+            <TerminalInstance
+              key={entry.sessionId}
+              sessionId={entry.sessionId}
+              sessionType={sessionType}
+              isVisible={tid === tabGroup.activeTerminalId}
+            />
+          );
+        })}
+        {!activeEntry && (
           <div className="flex-1 flex items-center justify-center text-text-muted text-xs">
             No active terminal
           </div>

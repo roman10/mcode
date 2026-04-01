@@ -29,6 +29,8 @@ interface TerminalInstanceProps {
   sessionId: string;
   sessionType?: string;
   scrollbackLines?: number;
+  /** When false the terminal is hidden via CSS but stays mounted (preserving scrollback). */
+  isVisible?: boolean;
 }
 
 function resolveScrollback(value: number | undefined): number {
@@ -36,10 +38,11 @@ function resolveScrollback(value: number | undefined): number {
   return lines === 0 ? Infinity : lines;
 }
 
-function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalInstanceProps): React.JSX.Element {
+function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible = true }: TerminalInstanceProps): React.JSX.Element {
   const termRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const webglRef = useRef<ReturnType<typeof attachWebgl> | null>(null);
   const sessionTypeRef = useRef(sessionType);
   sessionTypeRef.current = sessionType;
   const slashCommandBufferRef = useRef('');
@@ -83,6 +86,27 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     });
     return unsub;
   }, []);
+
+  // Re-fit the terminal when it becomes visible (display:none → visible).
+  // Hidden elements have zero dimensions so fit() must wait until visible.
+  useEffect(() => {
+    if (isVisible) {
+      const timer = window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible]);
+
+  // Detach WebGL from hidden terminals to free contexts (capped at 6);
+  // re-attach when the terminal becomes visible again.
+  useEffect(() => {
+    const handle = webglRef.current;
+    if (!handle) return;
+    if (isVisible) {
+      if (!handle.active) handle.reattach();
+    } else {
+      if (handle.active) handle.detach();
+    }
+  }, [isVisible]);
 
   useEffect(() => {
     const container = termRef.current;
@@ -197,6 +221,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     // attachWebgl handles context-loss recovery and caps total active contexts
     // to prevent the browser from evicting older terminals' WebGL state.
     const webgl = attachWebgl(term, sessionId);
+    webglRef.current = webgl;
 
     // When the terminal gains focus and WebGL was lost, try to re-attach.
     // This recovers rendering quality after transient context exhaustion.
@@ -344,6 +369,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       mutationObserver?.disconnect();
       container.removeEventListener('focus', focusHandler, true);
       webgl.detach();
+      webglRef.current = null;
       term.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup runs once per sessionId; sessionType is read via ref
@@ -410,7 +436,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
     : [];
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', display: isVisible ? undefined : 'none' }}>
       <div ref={termRef} style={{ width: '100%', height: '100%' }} />
       {search.isOpen && (
         <SearchBar
