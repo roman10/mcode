@@ -19,7 +19,7 @@ export interface ModelUsageSummary {
 }
 
 export interface SessionTokenUsage {
-  sessionId: string;
+  claudeSessionId: string;
   models: ModelUsageSummary[];
   totals: TokenTotals;
   estimatedCostUsd: number;

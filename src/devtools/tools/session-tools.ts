@@ -173,6 +173,13 @@ export function registerSessionTools(
         isError: true,
       };
     }
+    // Strip Claude-only fields for non-Claude session types
+    if (session.sessionType !== 'claude') {
+      delete session.permissionMode;
+      delete session.effort;
+      delete session.enableAutoMode;
+      delete session.allowBypassPermissions;
+    }
     return {
       content: [{ type: 'text', text: JSON.stringify(session, null, 2) }],
     };

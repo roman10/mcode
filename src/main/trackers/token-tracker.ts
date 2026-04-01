@@ -193,7 +193,7 @@ export class TokenTracker {
     }
 
     return {
-      sessionId,
+      claudeSessionId: sessionId,
       models,
       totals,
       estimatedCostUsd: totalCost,

@@ -108,7 +108,7 @@ interface ModelUsageSummary {
 }
 
 interface SessionTokenUsage {
-  sessionId: string;
+  claudeSessionId: string;
   models: ModelUsageSummary[];
   totals: TokenTotals;
   estimatedCostUsd: number;
@@ -156,7 +156,7 @@ describe('gemini token tracking', () => {
       { sessionId: GEMINI_SESSION_ID },
     );
 
-    expect(usage.sessionId).toBe(GEMINI_SESSION_ID);
+    expect(usage.claudeSessionId).toBe(GEMINI_SESSION_ID);
     expect(usage.messageCount).toBe(2);
     expect(usage.totals.inputTokens).toBe(TOTAL_INPUT);
     expect(usage.totals.outputTokens).toBe(TOTAL_OUTPUT);
