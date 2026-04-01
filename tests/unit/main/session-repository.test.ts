@@ -422,6 +422,17 @@ describe('session-repository', () => {
       expect(updateAutoLabel('s1', 'New')).toBe(false);
       expect(getSessionRecord('s1')!.label).toBe('Old');
     });
+
+    it('label promoted to user on resume is protected from auto-overwrite', () => {
+      // Simulate: session had auto-label, then label_source promoted to 'user' on resume
+      insertTestSession('s1', { label: 'fix-auth-bug', label_source: 'auto' });
+      // Promote to 'user' (what resume() now does)
+      updateSession('s1', { labelSource: 'user' });
+      expect(getSessionRecord('s1')!.label_source).toBe('user');
+      // Attempt auto-label update (simulating generic OSC title on resume startup)
+      expect(updateAutoLabel('s1', 'mcode')).toBe(false);
+      expect(getSessionRecord('s1')!.label).toBe('fix-auth-bug');
+    });
   });
 
   describe('setAgentIdIfNull', () => {

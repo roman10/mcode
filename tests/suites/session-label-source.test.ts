@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
@@ -10,6 +11,8 @@ import {
   type SessionInfo,
   resetTestState,
 } from '../helpers';
+
+const TEST_CLAUDE_PATH = join(process.cwd(), 'tests', 'fixtures', 'claude');
 
 describe('session label source', () => {
   const client = new McpTestClient();
@@ -123,5 +126,59 @@ describe('session label source', () => {
     });
 
     expect(updated.label).toBe('\u2605 fix the auth bug');
+  });
+
+  it('auto-label is preserved after session resume', async () => {
+    // Create a Claude session without a user label (label_source='auto')
+    const session = await createTestSession(client, {
+      sessionType: 'claude',
+      command: TEST_CLAUDE_PATH,
+      label: undefined,
+    });
+    sessionIds.push(session.sessionId);
+
+    await waitForIdle(client, session.sessionId);
+
+    // Inject SessionStart with claudeSessionId to make the session resumable
+    // (and prevent auto-delete on end)
+    const hooked = await injectHookEvent(client, session.sessionId, 'SessionStart', {
+      claudeSessionId: 'label-resume-test-123',
+    });
+    expect(hooked.claudeSessionId).toBe('label-resume-test-123');
+
+    // Simulate Claude Code setting a meaningful auto-label via OSC title
+    const meaningfulLabel = `\u2733 fix-authentication-bug-${Date.now()}`;
+    const labelled = await client.callToolJson<SessionInfo>('session_set_auto_label', {
+      sessionId: session.sessionId,
+      label: meaningfulLabel,
+    });
+    expect(labelled.label).toBe(meaningfulLabel);
+
+    // Kill and wait for ended status
+    await client.callTool('session_kill', { sessionId: session.sessionId });
+    await client.callToolJson<SessionInfo>('session_wait_for_status', {
+      sessionId: session.sessionId,
+      status: 'ended',
+      timeout_ms: 5000,
+    });
+
+    // Resume the session
+    const resumed = await client.callToolJson<SessionInfo>('session_resume', {
+      sessionId: session.sessionId,
+    });
+    expect(resumed.status).not.toBe('ended');
+    // Label should still be the meaningful one right after resume
+    expect(resumed.label).toBe(meaningfulLabel);
+
+    await waitForIdle(client, session.sessionId);
+
+    // Simulate generic startup OSC title that would overwrite the label
+    const afterStartup = await client.callToolJson<SessionInfo>('session_set_auto_label', {
+      sessionId: session.sessionId,
+      label: '\u2733 mcode',
+    });
+
+    // The meaningful label should be preserved — not overwritten by the generic title
+    expect(afterStartup.label).toBe(meaningfulLabel);
   });
 });

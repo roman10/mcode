@@ -5,7 +5,7 @@ import { readdir, open as fsOpen } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
 import type { IPtyManager } from '../../shared/pty-manager-interface';
-import type { AccountManager } from '../account-manager';
+import type { AccountService } from '../accounts';
 import { logger } from '../logger';
 import {
   type SessionUpdate,
@@ -137,7 +137,7 @@ export class SessionManager {
   private ptyManager: IPtyManager;
   private getWebContents: () => WebContents | null;
   private hookRuntimeGetter: () => HookRuntimeInfo;
-  private accountManager: AccountManager;
+  private accountManager: AccountService;
   private sessionListeners = new Set<SessionUpdateListener>();
   /** Sessions that have already received a prompt-based auto-label (first UserPromptSubmit only). */
   private promptLabelledSessions = new Set<string>();
@@ -152,7 +152,7 @@ export class SessionManager {
     ptyManager: IPtyManager,
     getWebContents: () => WebContents | null,
     hookRuntimeGetter: () => HookRuntimeInfo,
-    accountManager: AccountManager,
+    accountManager: AccountService,
   ) {
     this.ptyManager = ptyManager;
     this.getWebContents = getWebContents;
@@ -253,7 +253,7 @@ export class SessionManager {
     // Build account-specific environment overrides.
     // Applied for both agent and terminal sessions so that auth terminals
     // (terminal sessions with accountId) also see the correct HOME.
-    const accountEnv = this.accountManager.getSessionEnv(input.accountId);
+    const accountEnv = this.accountManager.getSessionEnv(input.accountId, sessionType);
 
     // Insert DB row FIRST so that onFirstData/onExit callbacks can UPDATE it.
     // If spawn fails, we delete the row.
@@ -385,8 +385,18 @@ export class SessionManager {
     if (accountId && accountId !== row.account_id) {
       updateSession(sessionId, { accountId });
     }
-    const accountEnv = this.accountManager.getSessionEnv(effectiveAccountId);
+    const accountEnv = this.accountManager.getSessionEnv(effectiveAccountId, row.session_type);
     prepared.env = { ...prepared.env, ...accountEnv };
+
+    // Promote auto-labels to 'user' so generic startup OSC titles don't overwrite them
+    if (row.label_source === 'auto') {
+      updateSession(sessionId, { labelSource: 'user' });
+    }
+
+    // Restore prompt-labelled tracking for label-static agents (Copilot/Gemini)
+    if (row.session_type === 'copilot' || row.session_type === 'gemini') {
+      this.promptLabelledSessions.add(sessionId);
+    }
 
     return this.resumeWithPreparedPlan(sessionId, prepared);
   }
