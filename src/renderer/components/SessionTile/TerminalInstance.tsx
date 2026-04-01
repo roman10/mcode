@@ -53,7 +53,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
   const clearSlashWarning = useSlashCommandWarningStore((s) => s.clearWarning);
 
   useEffect(() => {
-    const agent = getAgentDefinition(sessionType);
+    const agent = getAgentDefinition(sessionTypeRef.current);
     if (!agent || !cwd) {
       knownSlashCommandsRef.current = new Set();
       return;
@@ -67,7 +67,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines }: TerminalI
       if (!stale) knownSlashCommandsRef.current = new Set();
     });
     return () => { stale = true; };
-  }, [cwd, sessionType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionType is read via ref
+  }, [cwd]);
 
   // Subscribe to terminal panel height changes so that fit() is called even when
   // ResizeObserver doesn't fire (e.g. in background/non-painting Electron windows).

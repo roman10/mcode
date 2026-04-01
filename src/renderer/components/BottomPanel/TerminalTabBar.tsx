@@ -5,6 +5,7 @@ import {
 } from '../../stores/terminal-panel-store';
 import { useSessionStore } from '../../stores/session-store';
 import { createTerminalSession } from '../../utils/session-actions';
+import { terminalRegistry } from '../../devtools/terminal-registry';
 import Tooltip from '../shared/Tooltip';
 import ContextMenu from '../shared/ContextMenu';
 import type { MenuItem } from '../shared/ContextMenu';
@@ -101,7 +102,10 @@ const TabItem = forwardRef<TabItemHandle, {
         cursor-pointer shrink-0 max-w-[200px] group
         ${isActive ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:bg-bg-secondary'}
       `}
-      onClick={() => activateTerminal(entry.sessionId)}
+      onClick={() => {
+        activateTerminal(entry.sessionId);
+        terminalRegistry.get(entry.sessionId)?.focus();
+      }}
       onDoubleClick={(e) => {
         e.stopPropagation();
         startEditing();
