@@ -26,6 +26,7 @@ export function makeSession(overrides: Partial<SessionInfo> = {}): SessionInfo {
     accountId: null,
     autoClose: false,
     model: null,
+    isTest: false,
     ...overrides,
   };
 }

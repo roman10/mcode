@@ -11,31 +11,30 @@ export function registerTestTools(
 ): void {
   server.registerTool('app_reset_test_state', {
     description:
-      'Reset app to clean state for test isolation. Kills active sessions, deletes all ended sessions, removes all tiles, resets view mode to tiles, clears sidebar selection, clears attention, clears hook events, cancels pending tasks.',
+      'Reset app to clean state for test isolation. Kills active test sessions, deletes all ended test sessions, removes all tiles, resets view mode to tiles, clears sidebar selection, clears attention, clears hook events, cancels pending tasks. Only affects sessions created with isTest=true.',
     annotations: { readOnlyHint: false },
   }, async () => {
     const summary: string[] = [];
 
-    // 1. Kill all active/starting sessions
-    const sessions = ctx.sessionManager.list();
-    const toKill = sessions.filter((s) => s.status !== 'ended');
-    for (const s of toKill) {
+    // 1. Kill all active/starting test sessions (leave real sessions untouched)
+    const testIds = ctx.sessionManager.getActiveTestSessionIds();
+    for (const id of testIds) {
       try {
-        await ctx.sessionManager.kill(s.sessionId);
+        await ctx.sessionManager.kill(id);
       } catch {
         // Best-effort — session may have already exited
       }
     }
-    if (toKill.length > 0) {
-      // Give processes time to exit so deleteAllEnded picks them up
+    if (testIds.length > 0) {
+      // Give processes time to exit so deleteAllEndedTest picks them up
       await new Promise((r) => setTimeout(r, 500));
-      summary.push(`Killed ${toKill.length} session(s)`);
+      summary.push(`Killed ${testIds.length} test session(s)`);
     }
 
-    // 2. Delete all ended sessions from DB
-    const deleted = ctx.sessionManager.deleteAllEnded();
+    // 2. Delete all ended test sessions from DB
+    const deleted = ctx.sessionManager.deleteAllEndedTest();
     if (deleted.length > 0) {
-      summary.push(`Deleted ${deleted.length} ended session(s)`);
+      summary.push(`Deleted ${deleted.length} ended test session(s)`);
     }
 
     // 3. Remove all tiles from layout

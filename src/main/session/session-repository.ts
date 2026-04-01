@@ -41,6 +41,7 @@ export interface SessionRecord {
   auto_close: number;
   model: string | null;
   pre_detach_status: string | null;
+  is_test: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +75,7 @@ export function toSessionInfo(row: SessionRecord): SessionInfo {
     accountId: row.account_id,
     autoClose: row.auto_close === 1,
     model: row.model,
+    isTest: row.is_test === 1,
   };
 }
 
@@ -155,6 +157,7 @@ export interface SessionInsertData {
   autoClose?: number;
   model?: string | null;
   claudeSessionId?: string | null;
+  isTest?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -325,6 +328,22 @@ export function getEmptyEndedSessionIds(): string[] {
   ).map((r) => r.session_id);
 }
 
+export function getEndedTestSessionIds(): string[] {
+  return (
+    getDb()
+      .prepare("SELECT session_id FROM sessions WHERE status = 'ended' AND is_test = 1")
+      .all() as { session_id: string }[]
+  ).map((r) => r.session_id);
+}
+
+export function getActiveTestSessionIds(): string[] {
+  return (
+    getDb()
+      .prepare("SELECT session_id FROM sessions WHERE is_test = 1 AND status != 'ended'")
+      .all() as { session_id: string }[]
+  ).map((r) => r.session_id);
+}
+
 export function getActiveTerminalSessionIds(): string[] {
   return (
     getDb()
@@ -347,8 +366,8 @@ export function hasPendingTasksForSession(id: string): boolean {
 
 export function insertSession(data: SessionInsertData): void {
   getDb().prepare(
-    `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, status, started_at, ended_at, command, hook_mode, session_type, terminal_config, effort, enable_auto_mode, allow_bypass_permissions, worktree, account_id, auto_close, model, claude_session_id)
-     VALUES (?, ?, ?, ?, ?, 'starting', ?, NULL, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sessions (session_id, label, label_source, cwd, permission_mode, status, started_at, ended_at, command, hook_mode, session_type, terminal_config, effort, enable_auto_mode, allow_bypass_permissions, worktree, account_id, auto_close, model, claude_session_id, is_test)
+     VALUES (?, ?, ?, ?, ?, 'starting', ?, NULL, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     data.sessionId,
     data.label,
@@ -367,6 +386,7 @@ export function insertSession(data: SessionInsertData): void {
     data.autoClose ?? 0,
     data.model ?? null,
     data.claudeSessionId ?? null,
+    data.isTest ?? 0,
   );
 }
 

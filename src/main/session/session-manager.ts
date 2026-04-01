@@ -25,6 +25,8 @@ import {
   getTrackedClaudeSessionIds,
   getEndedSessionIds,
   getEmptyEndedSessionIds,
+  getEndedTestSessionIds,
+  getActiveTestSessionIds as repoGetActiveTestSessionIds,
   hasPendingTasksForSession,
   insertSession,
   updateSession,
@@ -275,6 +277,7 @@ export class SessionManager {
       accountId,
       autoClose: input.autoClose === true ? 1 : 0,
       model: dbFields.model ?? null,
+      isTest: input.isTest === true ? 1 : 0,
     });
 
     // Track account usage
@@ -843,6 +846,28 @@ export class SessionManager {
       wc.send('session:deleted-batch', ids);
     }
     return ids;
+  }
+
+  /** Delete all ended sessions that were created with isTest=true. */
+  deleteAllEndedTest(): string[] {
+    const ids = getEndedTestSessionIds();
+    if (ids.length === 0) return [];
+
+    deleteSessionsWithEvents(ids);
+    for (const id of ids) this.promptLabelledSessions.delete(id);
+
+    logger.info('session', 'Deleted all ended test sessions', { count: ids.length });
+
+    const wc = this.getWebContents();
+    if (wc && !wc.isDestroyed()) {
+      wc.send('session:deleted-batch', ids);
+    }
+    return ids;
+  }
+
+  /** Return IDs of active (non-ended) test sessions. */
+  getActiveTestSessionIds(): string[] {
+    return repoGetActiveTestSessionIds();
   }
 
   /** Delete all ended Claude sessions that never received a claude_session_id. */

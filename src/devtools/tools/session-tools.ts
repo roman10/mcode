@@ -36,9 +36,10 @@ export function registerSessionTools(
       worktree: z.string().optional().describe('Run session in an isolated git worktree for Claude sessions. Ignored for other session types.'),
       accountId: z.string().optional().describe('Account profile ID to run this session under'),
       autoClose: z.boolean().optional().describe('If true, automatically kill the session when its task queue empties'),
+      isTest: z.boolean().optional().describe('If true, mark this session as a test session for automatic cleanup'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ cwd, label, initialPrompt, model, permissionMode, effort, enableAutoMode, allowBypassPermissions, command, args, sessionType, worktree, accountId, autoClose }) => {
+  }, async ({ cwd, label, initialPrompt, model, permissionMode, effort, enableAutoMode, allowBypassPermissions, command, args, sessionType, worktree, accountId, autoClose, isTest }) => {
     try {
       const session = ctx.sessionManager.create({
         cwd,
@@ -55,6 +56,7 @@ export function registerSessionTools(
         worktree,
         accountId,
         autoClose,
+        isTest,
       });
       // Sync renderer state for MCP-created sessions so integration tests
       // do not depend on the normal IPC event subscription timing.
@@ -138,6 +140,21 @@ export function registerSessionTools(
         type: 'text', text: ids.length === 0
           ? 'No ended sessions to delete'
           : `Deleted ${ids.length} session(s): ${ids.join(', ')}`
+      }],
+    };
+  });
+
+  server.registerTool('session_delete_all_ended_test', {
+    description: 'Delete all ended test sessions (is_test=1) from mcode. Returns the list of deleted session IDs.',
+    inputSchema: {},
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    const ids = ctx.sessionManager.deleteAllEndedTest();
+    return {
+      content: [{
+        type: 'text', text: ids.length === 0
+          ? 'No ended test sessions to delete'
+          : `Deleted ${ids.length} test session(s): ${ids.join(', ')}`
       }],
     };
   });

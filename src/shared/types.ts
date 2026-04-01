@@ -105,6 +105,7 @@ export interface SessionInfo {
   accountId: string | null;
   autoClose: boolean;
   model: string | null;
+  isTest: boolean;
 }
 
 export interface SessionCreateInput {
@@ -123,6 +124,7 @@ export interface SessionCreateInput {
   accountId?: string;
   initialCommand?: string;
   autoClose?: boolean;
+  isTest?: boolean;
 }
 
 export interface SessionDefaults {

@@ -29,6 +29,7 @@ describe('enable-auto-mode flag', () => {
       command: TEST_CLAUDE_PATH,
       label: `auto-mode-on-${Date.now()}`,
       enableAutoMode: true,
+      isTest: true,
     });
     sessionIds.push(session.sessionId);
 
@@ -45,6 +46,7 @@ describe('enable-auto-mode flag', () => {
       cwd: process.cwd(),
       command: TEST_CLAUDE_PATH,
       label: `auto-mode-off-${Date.now()}`,
+      isTest: true,
     });
     sessionIds.push(session.sessionId);
 
@@ -63,6 +65,7 @@ describe('enable-auto-mode flag', () => {
       label: `auto-mode-terminal-${Date.now()}`,
       sessionType: 'terminal',
       enableAutoMode: true,
+      isTest: true,
     });
     sessionIds.push(session.sessionId);
 

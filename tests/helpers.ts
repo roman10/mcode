@@ -33,6 +33,7 @@ export interface SessionInfo {
   accountId: string | null;
   autoClose?: boolean;
   model: string | null;
+  isTest: boolean;
 }
 
 export interface HookRuntimeInfo {
@@ -115,6 +116,7 @@ export async function createTestSession(
     command: 'bash',
     label: `test-${Date.now()}`,
     sessionType: 'terminal',
+    isTest: true,
     ...overrides,
   });
 }
@@ -127,6 +129,7 @@ export async function createLiveClaudeTestSession(
     cwd: process.cwd(),
     command: TEST_CLAUDE_PATH,
     label: `live-${Date.now()}`,
+    isTest: true,
     ...overrides,
   });
 
@@ -150,6 +153,7 @@ export async function createCodexTestSession(
     command: TEST_CODEX_PATH,
     label: `codex-${Date.now()}`,
     sessionType: 'codex',
+    isTest: true,
     ...overrides,
   });
 }
@@ -163,6 +167,7 @@ export async function createGeminiTestSession(
     command: TEST_GEMINI_PATH,
     label: `gemini-${Date.now()}`,
     sessionType: 'gemini',
+    isTest: true,
     ...overrides,
   });
 }
@@ -176,6 +181,7 @@ export async function createCopilotTestSession(
     command: TEST_COPILOT_PATH,
     label: `copilot-${Date.now()}`,
     sessionType: 'copilot',
+    isTest: true,
     ...overrides,
   });
 }
@@ -252,6 +258,8 @@ export async function cleanupSessions(
       }),
     ),
   );
+  // Delete the ended sessions from DB
+  await client.callTool('session_delete_batch', { sessionIds });
 }
 
 // --- Hook helpers ---
