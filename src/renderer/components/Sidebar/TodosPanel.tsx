@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { Plus, Trash2, ChevronDown, ChevronRight, ArrowUp, ArrowDown, Check } from 'lucide-react';
 import { useTodoStore } from '../../stores/todo-store';
-import { resolveActiveCwd } from '../../utils/session-actions';
+import { useSessionStore } from '../../stores/session-store';
 import type { TodoItem, TodoPriority } from '@shared/types';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -9,6 +9,10 @@ const PRIORITY_COLORS: Record<string, string> = {
   medium: 'bg-yellow-500',
   low: 'bg-blue-500',
 };
+
+function repoName(cwd: string): string {
+  return cwd.split('/').at(-1) ?? cwd;
+}
 
 function PriorityDot({ priority }: { priority: TodoPriority | null }): React.JSX.Element | null {
   if (!priority) return null;
@@ -108,20 +112,121 @@ function TodoItemRow({ item, cwd }: { item: TodoItem; cwd: string }): React.JSX.
   );
 }
 
+function RepoSection({
+  name,
+  cwd,
+  items,
+}: {
+  name: string;
+  cwd: string;
+  items: TodoItem[];
+}): React.JSX.Element {
+  const [expanded, setExpanded] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const pending = items.filter((t) => !t.completed);
+  const completed = items.filter((t) => t.completed);
+
+  return (
+    <div className="border-b border-border-default last:border-b-0">
+      <button
+        className="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-secondary transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        <span className="font-medium truncate">{name}</span>
+        <span className="ml-auto text-text-muted shrink-0">{pending.length} pending</span>
+      </button>
+      {expanded && (
+        <>
+          {pending.length === 0 && completed.length === 0 ? (
+            <div className="px-6 py-2 text-xs text-text-muted">No TODOs</div>
+          ) : (
+            <>
+              {pending.map((item) => (
+                <TodoItemRow key={item.index} item={item} cwd={cwd} />
+              ))}
+              {completed.length > 0 && (
+                <div>
+                  <button
+                    className="flex items-center gap-1 px-6 py-1 text-xs text-text-muted hover:text-text-secondary w-full"
+                    onClick={() => setShowCompleted(!showCompleted)}
+                  >
+                    {showCompleted ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    Completed ({completed.length})
+                  </button>
+                  {showCompleted && completed.map((item) => (
+                    <TodoItemRow key={item.index} item={item} cwd={cwd} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+type RepoMode = 'auto' | 'all' | string; // string = pinned cwd
+
 function TodosPanel(): React.JSX.Element {
-  const { todos, loading, refreshTodos, addTodo } = useTodoStore();
+  const { todosByRepo, loadingByRepo, refreshRepo, refreshAllRepos, addTodo } = useTodoStore();
+  const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
+  const sessions = useSessionStore((s) => s.sessions);
+
+  const [repoMode, setRepoMode] = useState<RepoMode>('auto');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(true);
   const [adding, setAdding] = useState(false);
   const [newText, setNewText] = useState('');
   const addInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const isMac = window.mcode.app.getPlatform() === 'darwin';
   const modKey = isMac ? '⌘' : 'Ctrl+';
 
-  const cwd = resolveActiveCwd();
+  // Reactive cwd from focused session
+  const autoCwd = useMemo(() => {
+    if (selectedSessionId && sessions[selectedSessionId]) {
+      return sessions[selectedSessionId].cwd;
+    }
+    const sorted = Object.values(sessions).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return sorted[0]?.cwd ?? null;
+  }, [selectedSessionId, sessions]);
 
+  // All unique cwds from active sessions
+  const uniqueCwds = useMemo(
+    () => [...new Set(Object.values(sessions).map((s) => s.cwd))],
+    [sessions],
+  );
+
+  // Effective cwd: null when in "all" mode
+  const effectiveCwd = repoMode === 'auto' ? autoCwd : (repoMode === 'all' ? null : repoMode);
+
+  // Load todos when effective cwd changes (single-repo mode)
   useEffect(() => {
-    if (cwd) refreshTodos(cwd);
-  }, [cwd, refreshTodos]);
+    if (effectiveCwd) {
+      refreshRepo(effectiveCwd);
+    }
+  }, [effectiveCwd, refreshRepo]);
+
+  // Load all repos when switching to "all" mode or when uniqueCwds changes
+  useEffect(() => {
+    if (repoMode === 'all' && uniqueCwds.length > 0) {
+      refreshAllRepos(uniqueCwds);
+    }
+  }, [repoMode, uniqueCwds, refreshAllRepos]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = (e: MouseEvent): void => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [dropdownOpen]);
 
   useEffect(() => {
     if (adding) addInputRef.current?.focus();
@@ -129,8 +234,7 @@ function TodosPanel(): React.JSX.Element {
 
   const handleAdd = useCallback((): void => {
     const trimmed = newText.trim();
-    if (!trimmed || !cwd) return;
-    // Parse priority from trailing #tag
+    if (!trimmed || !effectiveCwd) return;
     let priority: TodoPriority | undefined;
     let text = trimmed;
     const tagMatch = text.match(/\s+#(high|medium|low)$/);
@@ -138,10 +242,10 @@ function TodosPanel(): React.JSX.Element {
       priority = tagMatch[1] as TodoPriority;
       text = text.slice(0, tagMatch.index).trim();
     }
-    addTodo(cwd, { text, priority });
+    addTodo(effectiveCwd, { text, priority });
     setNewText('');
     setAdding(false);
-  }, [newText, cwd, addTodo]);
+  }, [newText, effectiveCwd, addTodo]);
 
   const handleAddKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter') handleAdd();
@@ -151,33 +255,92 @@ function TodosPanel(): React.JSX.Element {
     }
   };
 
+  // Label shown in dropdown button
+  const modeLabel = (): string => {
+    if (repoMode === 'all') return 'All repos';
+    const cwd = repoMode === 'auto' ? autoCwd : repoMode;
+    const name = cwd ? repoName(cwd) : '—';
+    return repoMode === 'auto' ? `${name} (auto)` : name;
+  };
+
+  const todos = effectiveCwd ? (todosByRepo[effectiveCwd] ?? []) : [];
+  const isLoading = effectiveCwd ? (loadingByRepo[effectiveCwd] ?? false) : false;
   const pending = todos.filter((t) => !t.completed);
   const completed = todos.filter((t) => t.completed);
-
-  if (!cwd) {
-    return (
-      <div className="flex-1 flex items-center justify-center px-4 text-xs text-text-muted">
-        No active session
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-default shrink-0">
-        <span className="text-xs text-text-secondary uppercase tracking-wide">Todos</span>
-        <button
-          className="p-1 text-text-muted hover:text-text-secondary transition-colors"
-          onClick={() => setAdding(true)}
-          title="Add todo"
-        >
-          <Plus size={14} />
-        </button>
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border-default shrink-0">
+        {/* Repo dropdown */}
+        <div ref={dropdownRef} className="relative flex-1 min-w-0">
+          <button
+            className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors max-w-full"
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            title="Switch repository"
+          >
+            <ChevronDown size={12} className="shrink-0" />
+            <span className="truncate">{modeLabel()}</span>
+          </button>
+
+          {dropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 z-50 min-w-40 max-w-64 bg-bg-primary border border-border-default rounded shadow-lg py-1">
+              {/* Auto option */}
+              <button
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-bg-secondary transition-colors"
+                onClick={() => { setRepoMode('auto'); setDropdownOpen(false); }}
+              >
+                {repoMode === 'auto' && <Check size={12} className="text-accent shrink-0" />}
+                <span className={repoMode === 'auto' ? 'pl-0' : 'pl-4'}>
+                  Auto{autoCwd ? ` — ${repoName(autoCwd)}` : ''}
+                </span>
+              </button>
+
+              {uniqueCwds.length > 0 && (
+                <>
+                  <div className="my-1 border-t border-border-default" />
+                  {uniqueCwds.map((cwd) => (
+                    <button
+                      key={cwd}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-bg-secondary transition-colors"
+                      onClick={() => { setRepoMode(cwd); setDropdownOpen(false); }}
+                      title={cwd}
+                    >
+                      {repoMode === cwd && <Check size={12} className="text-accent shrink-0" />}
+                      <span className={`truncate ${repoMode === cwd ? '' : 'pl-4'}`}>
+                        {repoName(cwd)}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              <div className="my-1 border-t border-border-default" />
+              <button
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-bg-secondary transition-colors"
+                onClick={() => { setRepoMode('all'); setDropdownOpen(false); }}
+              >
+                {repoMode === 'all' && <Check size={12} className="text-accent shrink-0" />}
+                <span className={repoMode === 'all' ? '' : 'pl-4'}>All repos</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Add button — only in single-repo mode */}
+        {repoMode !== 'all' && effectiveCwd && (
+          <button
+            className="p-1 text-text-muted hover:text-text-secondary transition-colors shrink-0"
+            onClick={() => setAdding(true)}
+            title="Add todo"
+          >
+            <Plus size={14} />
+          </button>
+        )}
       </div>
 
       {/* Add input */}
-      {adding && (
+      {adding && effectiveCwd && (
         <div className="px-3 py-1.5 border-b border-border-default">
           <input
             ref={addInputRef}
@@ -193,7 +356,27 @@ function TodosPanel(): React.JSX.Element {
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {loading && todos.length === 0 ? (
+        {repoMode === 'all' ? (
+          /* All repos grouped view */
+          uniqueCwds.length === 0 ? (
+            <div className="flex items-center justify-center py-8 px-4 text-xs text-text-muted text-center">
+              No active sessions
+            </div>
+          ) : (
+            uniqueCwds.map((cwd) => (
+              <RepoSection
+                key={cwd}
+                name={repoName(cwd)}
+                cwd={cwd}
+                items={todosByRepo[cwd] ?? []}
+              />
+            ))
+          )
+        ) : !effectiveCwd ? (
+          <div className="flex-1 flex items-center justify-center px-4 text-xs text-text-muted">
+            No active session
+          </div>
+        ) : isLoading && todos.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-xs text-text-muted">
             Loading...
           </div>
@@ -204,12 +387,9 @@ function TodosPanel(): React.JSX.Element {
           </div>
         ) : (
           <>
-            {/* Pending items */}
             {pending.map((item) => (
-              <TodoItemRow key={item.index} item={item} cwd={cwd} />
+              <TodoItemRow key={item.index} item={item} cwd={effectiveCwd} />
             ))}
-
-            {/* Completed section */}
             {completed.length > 0 && (
               <div className="mt-1">
                 <button
@@ -220,7 +400,7 @@ function TodosPanel(): React.JSX.Element {
                   Completed ({completed.length})
                 </button>
                 {showCompleted && completed.map((item) => (
-                  <TodoItemRow key={item.index} item={item} cwd={cwd} />
+                  <TodoItemRow key={item.index} item={item} cwd={effectiveCwd} />
                 ))}
               </div>
             )}

@@ -126,7 +126,9 @@ function App(): React.JSX.Element {
     s.statuses.reduce((sum, status) => sum + status.staged.length + status.unstaged.length, 0),
   );
 
-  const todoCount = useTodoStore((s) => s.todos.filter((t) => !t.completed).length);
+  const todoCount = useTodoStore((s) =>
+    Object.values(s.todosByRepo).flat().filter((t) => !t.completed).length
+  );
 
   const updateBadge = useUpdateStore((s) => s.phase !== 'idle' && s.phase !== 'error');
 

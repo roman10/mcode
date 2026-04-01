@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Command } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
 import { useSessionStore } from '../../stores/session-store';
+import { useTodoStore } from '../../stores/todo-store';
 import type { TodoItem, TodoPriority } from '@shared/types';
 
 const uf = new uFuzzy({ intraMode: 1 });
@@ -69,6 +70,7 @@ export default function TodoItems({ query, onClose }: TodoItemsProps): React.JSX
     const { text, priority } = parseInput(query.trim());
     if (!text) return;
     window.mcode.todos.create(primaryCwd, { text, priority }).then(() => {
+      useTodoStore.getState().refreshRepo(primaryCwd);
       onClose();
     }).catch(console.error);
   }, [primaryCwd, query, parseInput, onClose]);
@@ -77,6 +79,7 @@ export default function TodoItems({ query, onClose }: TodoItemsProps): React.JSX
     if (!primaryCwd) return;
     window.mcode.todos.update(primaryCwd, item.index, { completed: !item.completed }).then(() => {
       fetchTodos();
+      useTodoStore.getState().refreshRepo(primaryCwd);
     }).catch(console.error);
   }, [primaryCwd, fetchTodos]);
 
