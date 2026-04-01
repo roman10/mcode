@@ -1,0 +1,1 @@
+- [ ] make sure mode specification for task works #medium 2026-04-01
