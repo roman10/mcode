@@ -174,7 +174,7 @@ function TodosPanel(): React.JSX.Element {
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const sessions = useSessionStore((s) => s.sessions);
 
-  const [repoMode, setRepoMode] = useState<RepoMode>('auto');
+  const [repoMode, setRepoMode] = useState<RepoMode>('all');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(true);
   const [adding, setAdding] = useState(false);
