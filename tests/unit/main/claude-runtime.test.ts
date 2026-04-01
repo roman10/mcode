@@ -260,6 +260,7 @@ describe('buildClaudeResumePlan', () => {
       codexThreadId: null,
       geminiSessionId: null,
       claudeSessionId: 'session-abc',
+      copilotSessionId: null,
       permissionMode: null,
       effort: null,
       enableAutoMode: false,

@@ -8,6 +8,7 @@ function makeSession(opts: {
   permissionMode?: string;
   enableAutoMode?: boolean;
   allowBypassPermissions?: boolean;
+  sessionType?: SessionInfo['sessionType'];
 } = {}): SessionInfo {
   return {
     sessionId: 'test-session',
@@ -29,7 +30,7 @@ function makeSession(opts: {
     attentionLevel: 'none',
     attentionReason: null,
     hookMode: 'live',
-    sessionType: 'claude',
+    sessionType: opts.sessionType ?? 'claude',
     terminalConfig: {},
     accountId: null,
     autoClose: false,
@@ -64,6 +65,12 @@ describe('buildModeCycle', () => {
       enableAutoMode: true,
     }));
     expect(cycle).toEqual(['default', 'acceptEdits', 'plan', 'bypassPermissions', 'auto']);
+  });
+
+  it('returns empty cycle for non-Claude session types', () => {
+    expect(buildModeCycle(makeSession({ sessionType: 'gemini' }))).toEqual([]);
+    expect(buildModeCycle(makeSession({ sessionType: 'copilot' }))).toEqual([]);
+    expect(buildModeCycle(makeSession({ sessionType: 'codex' }))).toEqual([]);
   });
 
   it('does not include dontAsk in any configuration', () => {

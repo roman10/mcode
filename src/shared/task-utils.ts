@@ -7,6 +7,9 @@ import { PERMISSION_MODE_LABELS } from './constants';
  * Docs: default → acceptEdits → plan → [bypassPermissions] → [auto] → wrap
  */
 export function buildModeCycle(session: SessionInfo): string[] {
+  // Shift+Tab cycling is Claude-specific; other agents set modes at session creation.
+  if (session.sessionType !== 'claude') return [];
+
   const cycle: string[] = ['default', 'acceptEdits', 'plan'];
   if (session.permissionMode === 'bypassPermissions' || session.allowBypassPermissions) {
     cycle.push('bypassPermissions');

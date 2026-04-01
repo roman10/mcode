@@ -18,7 +18,7 @@ Phase 3 focuses on two goals:
 
 A minor third goal is hook bridge cleanup hardening for crash resilience.
 
-Phase 3 does not add new UI surface for Gemini-specific launch options (sandbox, approval-mode, yolo) or account-profile isolation. Those remain deferred pending product decisions.
+Phase 3 does not add new UI surface for account-profile isolation; that remains deferred pending product decisions. Gemini approval modes (`--approval-mode plan/auto_edit/yolo`) were added post-Phase 3 — see `GEMINI_PERMISSION_MODES` in `src/shared/constants.ts` and the runtime mapping in `gemini-runtime.ts`.
 
 ## Prerequisites
 
@@ -159,15 +159,7 @@ This works for Claude (`claudeSessionId`), Gemini (`geminiSessionId`), and any f
 
 **File:** `src/main/task-queue.ts` (lines 220-234)
 
-Permission-mode cycling relies on Shift+Tab behavior that is Claude-specific. Gemini does not support permission modes. The `permissionMode` field in `CreateTaskInput` should be rejected when targeting a Gemini session:
-
-```typescript
-if (input.permissionMode && session.sessionType !== 'claude') {
-  throw new Error('Permission mode cycling is only supported for Claude sessions');
-}
-```
-
-This goes before the existing `buildModeCycle` validation block (line 220).
+Permission-mode cycling relies on Shift+Tab behavior that is Claude-specific. Gemini supports approval modes (`plan`, `autoEdit`, `yolo`) set at session creation, but does not support per-task mode cycling via Shift+Tab. `buildModeCycle()` returns `[]` for non-Claude sessions, and `AGENT_PERMISSION_MODES['gemini']` validates modes at task creation time.
 
 #### 5. Skip plan-mode completion detection for agents that don't support it
 
