@@ -13,6 +13,30 @@ const PRIORITY_DOTS: Record<string, string> = {
   low: 'bg-blue-500',
 };
 
+const repoName = (cwd: string): string => cwd.split('/').at(-1) ?? cwd;
+
+// Parse priority (#high/medium/low) and repo (@name) suffix tokens from query text.
+// Supports either ordering: "Fix bug #high @mcode" or "Fix bug @mcode #high"
+export function parseInput(raw: string): { text: string; priority?: TodoPriority; repoToken?: string } {
+  let remaining = raw.trim();
+  let priority: TodoPriority | undefined;
+  let repoToken: string | undefined;
+
+  const pm = remaining.match(/\s+#(high|medium|low)$/);
+  if (pm) { priority = pm[1] as TodoPriority; remaining = remaining.slice(0, pm.index!).trim(); }
+
+  const rm = remaining.match(/\s+@(\S+)$/);
+  if (rm) { repoToken = rm[1]; remaining = remaining.slice(0, rm.index!).trim(); }
+
+  // Handle reverse order: @repo appeared before #priority
+  if (!priority) {
+    const pm2 = remaining.match(/\s+#(high|medium|low)$/);
+    if (pm2) { priority = pm2[1] as TodoPriority; remaining = remaining.slice(0, pm2.index!).trim(); }
+  }
+
+  return { text: remaining, priority, repoToken };
+}
+
 interface TodoItemsProps {
   query: string;
   onClose: () => void;
@@ -33,69 +57,75 @@ export default function TodoItems({ query, onClose }: TodoItemsProps): React.JSX
     return sorted[0]?.cwd ?? null;
   }, [sessions, selectedSessionId]);
 
+  const uniqueCwds = useMemo(
+    () => [...new Set(Object.values(sessions).map((s) => s.cwd))],
+    [sessions],
+  );
+
+  const { text: parsedText, priority: parsedPriority, repoToken: parsedRepoToken } = useMemo(
+    () => parseInput(query.trim()),
+    [query],
+  );
+
+  // Resolve the target repo: fuzzy-match @repoToken against known repo names, or fall back to primary
+  const targetCwd = useMemo(() => {
+    if (!parsedRepoToken) return primaryCwd;
+    const names = uniqueCwds.map(repoName);
+    const idxs = uf.filter(names, parsedRepoToken);
+    if (!idxs?.length) return null; // typed @repo but no match
+    const info = uf.info(idxs, names, parsedRepoToken);
+    const order = uf.sort(info, names, parsedRepoToken);
+    return uniqueCwds[info.idx[order[0]]];
+  }, [parsedRepoToken, uniqueCwds, primaryCwd]);
+
   const fetchTodos = useCallback(() => {
-    if (!primaryCwd) {
+    if (!targetCwd) {
       setTodos([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    window.mcode.todos.scan(primaryCwd).then((items) => {
+    window.mcode.todos.scan(targetCwd).then((items) => {
       setTodos(items);
       setLoading(false);
     }).catch(() => {
       setTodos([]);
       setLoading(false);
     });
-  }, [primaryCwd]);
+  }, [targetCwd]);
 
   useEffect(() => {
     fetchTodos();
   }, [fetchTodos]);
 
-  // Parse priority from query text: "Fix bug #high" -> text="Fix bug", priority="high"
-  const parseInput = useCallback((raw: string): { text: string; priority?: TodoPriority } => {
-    const tagMatch = raw.match(/\s+#(high|medium|low)$/);
-    if (tagMatch) {
-      return {
-        text: raw.slice(0, tagMatch.index).trim(),
-        priority: tagMatch[1] as TodoPriority,
-      };
-    }
-    return { text: raw };
-  }, []);
-
   const handleCreate = useCallback(() => {
-    if (!primaryCwd || !query.trim()) return;
-    const { text, priority } = parseInput(query.trim());
-    if (!text) return;
-    window.mcode.todos.create(primaryCwd, { text, priority }).then(() => {
-      useTodoStore.getState().refreshRepo(primaryCwd);
+    if (!targetCwd || !parsedText) return;
+    window.mcode.todos.create(targetCwd, { text: parsedText, priority: parsedPriority }).then(() => {
+      useTodoStore.getState().refreshRepo(targetCwd);
       onClose();
     }).catch(console.error);
-  }, [primaryCwd, query, parseInput, onClose]);
+  }, [targetCwd, parsedText, parsedPriority, onClose]);
 
   const handleToggle = useCallback((item: TodoItem) => {
-    if (!primaryCwd) return;
-    window.mcode.todos.update(primaryCwd, item.index, { completed: !item.completed }).then(() => {
+    if (!targetCwd) return;
+    window.mcode.todos.update(targetCwd, item.index, { completed: !item.completed }).then(() => {
       fetchTodos();
-      useTodoStore.getState().refreshRepo(primaryCwd);
+      useTodoStore.getState().refreshRepo(targetCwd);
     }).catch(console.error);
-  }, [primaryCwd, fetchTodos]);
+  }, [targetCwd, fetchTodos]);
 
-  // Build fuzzy search
+  // Build fuzzy search — use parsed text (modifiers already stripped) as the clean query
   const haystack = useMemo(() => todos.map((t) => t.text), [todos]);
 
   const filtered = useMemo(() => {
-    // Strip trailing #tag from query before fuzzy matching
-    const cleanQuery = query.replace(/\s+#(high|medium|low)$/, '').trim();
+    const cleanQuery = parsedText;
     if (!cleanQuery) return todos;
     const idxs = uf.filter(haystack, cleanQuery);
     if (!idxs || idxs.length === 0) return [];
     const info = uf.info(idxs, haystack, cleanQuery);
     const order = uf.sort(info, haystack, cleanQuery);
     return order.map((sortIdx) => todos[info.idx[sortIdx]]);
-  }, [todos, haystack, query]);
+  }, [todos, haystack, parsedText]);
 
   if (loading) {
     return (
@@ -113,7 +143,7 @@ export default function TodoItems({ query, onClose }: TodoItemsProps): React.JSX
     );
   }
 
-  const { text: parsedText, priority: parsedPriority } = parseInput(query.trim());
+  const multiRepo = uniqueCwds.length > 1;
 
   return (
     <>
@@ -130,7 +160,20 @@ export default function TodoItems({ query, onClose }: TodoItemsProps): React.JSX
           {parsedPriority && (
             <span className={`inline-block w-2 h-2 rounded-full ${PRIORITY_DOTS[parsedPriority] ?? ''}`} />
           )}
+          {multiRepo && (
+            <span className="ml-auto text-text-muted text-xs shrink-0">
+              {targetCwd
+                ? `→ ${repoName(targetCwd)}`
+                : <span className="text-red-400">@{parsedRepoToken ?? '?'} not found</span>}
+            </span>
+          )}
         </Command.Item>
+      )}
+      {/* Hint: visible when multiple repos exist and no @repo override is typed */}
+      {multiRepo && !parsedRepoToken && parsedText && (
+        <div className="px-4 pb-1 text-xs text-text-muted">
+          type @reponame to change repo
+        </div>
       )}
 
       {/* Existing todos */}
