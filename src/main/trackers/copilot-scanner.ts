@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { getDb } from '../db';
 import { logger } from '../logger';
 import { parseCopilotShutdownTokens, parseCopilotHumanMessages } from './copilot-events-parser';
+import { normalizeCopilotModel } from './token-cost';
 import { resolveCopilotStateDir } from '../session/copilot-session-store';
 import { localDateStr } from './date-utils';
 import type { InputTracker } from './input-tracker';
@@ -20,6 +21,9 @@ import type { InputTracker } from './input-tracker';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class CopilotScanner {
+  /** Optional callback fired when a model is detected from shutdown data. */
+  onModelDetected?: (copilotSessionId: string, normalizedModel: string) => void;
+
   /**
    * Scan all Copilot session directories for events.jsonl files.
    * Returns total number of new token_usage entries inserted.
@@ -141,6 +145,12 @@ export class CopilotScanner {
       }
     });
     insertAll();
+
+    // Notify model detection callback with the primary model (highest output tokens)
+    if (tokenEntries.length > 0 && this.onModelDetected) {
+      const primary = tokenEntries.reduce((a, b) => b.outputTokens > a.outputTokens ? b : a);
+      this.onModelDetected(sessionId, normalizeCopilotModel(primary.model));
+    }
 
     // Insert human input entries
     inputTracker.insertBatch(humanEntries, sessionId, projectDir, 'copilot');

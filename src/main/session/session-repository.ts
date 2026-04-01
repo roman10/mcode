@@ -415,6 +415,14 @@ export function getClaimedAgentIds(
   );
 }
 
+/** Look up a session by its Copilot session UUID. Returns the mcode session_id or null. */
+export function getSessionIdByCopilotSessionId(copilotSessionId: string): string | null {
+  const row = getDb()
+    .prepare('SELECT session_id FROM sessions WHERE copilot_session_id = ?')
+    .get(copilotSessionId) as { session_id: string } | undefined;
+  return row?.session_id ?? null;
+}
+
 /** Snapshot session labels into session_labels before deletion so token-usage can still display them. */
 const SNAPSHOT_LABELS_SQL = `
   INSERT OR REPLACE INTO session_labels (agent_session_id, provider, label)

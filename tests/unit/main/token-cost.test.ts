@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeModelVersion, normalizeModelFamily, normalizeGeminiModel, estimateCostUsd } from '../../../src/main/trackers/token-cost';
+import { normalizeModelVersion, normalizeModelFamily, normalizeGeminiModel, normalizeCopilotModel, estimateCostUsd } from '../../../src/main/trackers/token-cost';
 
 describe('normalizeModelVersion', () => {
   it('strips claude- prefix and date suffix', () => {
@@ -95,6 +95,29 @@ describe('normalizeGeminiModel', () => {
   it('handles already clean names', () => {
     expect(normalizeGeminiModel('gemini-2.5-pro')).toBe('gemini-2.5-pro');
     expect(normalizeGeminiModel('gemini-3-flash')).toBe('gemini-3-flash');
+  });
+});
+
+describe('normalizeCopilotModel', () => {
+  it('delegates Claude models to normalizeModelVersion', () => {
+    expect(normalizeCopilotModel('claude-sonnet-4.5')).toBe('sonnet-4.5');
+    expect(normalizeCopilotModel('claude-opus-4-6')).toBe('opus-4.6');
+    expect(normalizeCopilotModel('claude-haiku-4-5')).toBe('haiku-4.5');
+  });
+
+  it('delegates Gemini models to normalizeGeminiModel', () => {
+    expect(normalizeCopilotModel('models/gemini-2.5-pro-preview-05-06')).toBe('gemini-2.5-pro');
+    expect(normalizeCopilotModel('gemini-2.5-flash-lite-preview-04-17')).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('passes through GPT models as-is', () => {
+    expect(normalizeCopilotModel('gpt-5.4')).toBe('gpt-5.4');
+    expect(normalizeCopilotModel('gpt-5.1-codex-mini')).toBe('gpt-5.1-codex-mini');
+  });
+
+  it('passes through unknown models as-is', () => {
+    expect(normalizeCopilotModel('unknown-model')).toBe('unknown-model');
+    expect(normalizeCopilotModel('llama-3')).toBe('llama-3');
   });
 });
 

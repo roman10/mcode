@@ -3,6 +3,7 @@ import { McpTestClient } from '../mcp-client';
 import {
   createTestSession,
   createGeminiTestSession,
+  createCopilotTestSession,
   cleanupSessions,
   resetTestState,
   injectHookEvent,
@@ -104,6 +105,28 @@ describe('session model display', () => {
       },
     });
     expect(updated.model).toBe('gemini-2.5-pro');
+  });
+
+  it('Copilot session with explicit model persists it', async () => {
+    const session = await createCopilotTestSession(client, {
+      model: 'gpt-5.4',
+      initialPrompt: 'inspect repository state',
+    });
+    sessionIds.push(session.sessionId);
+    expect(session.model).toBe('gpt-5.4');
+
+    const status = await client.callToolJson<SessionInfo>('session_get_status', {
+      sessionId: session.sessionId,
+    });
+    expect(status.model).toBe('gpt-5.4');
+  });
+
+  it('Copilot session without model starts with null model', async () => {
+    const session = await createCopilotTestSession(client, {
+      initialPrompt: 'inspect repository state',
+    });
+    sessionIds.push(session.sessionId);
+    expect(session.model).toBeNull();
   });
 
   it('session_set_model returns error for unknown session', async () => {

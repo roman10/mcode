@@ -238,57 +238,58 @@ Copilot sessions can be task targets. Full feature parity with Gemini (task queu
 
 ---
 
+## Phase 4: Analytics + Permission Modes + Polish ✅ COMPLETE
+
+Phase 4 work was delivered incrementally across several commits after Phase 3. It brings Copilot to full analytics parity with Claude/Codex/Gemini and adds permission mode support.
+
+### What shipped
+
+- **4A: Token & input tracking** (6a15539) — Two new modules: `copilot-events-parser.ts` parses `events.jsonl` for `session.shutdown` token aggregates (per-model `inputTokens`, `outputTokens`, `cacheWriteTokens`, `cacheReadTokens`, `premiumRequests`) and `user.message` human input. `copilot-scanner.ts` implements incremental watermark scanning of `~/.copilot/session-state/` directories. Multi-provider DB schema refactoring (`provider` column, `premium_requests` field) supports filtering stats by agent. `supportsTokenTracking: true` and `supportsInputTracking: true` in agent metadata. Unit tests for events parser.
+- **4B: Permission mode support** (525a20e) — `COPILOT_PERMISSION_MODES = ['autopilot', 'allowAll']` in constants. `--autopilot` and `--allow-all` flags passed on create and resume. Decoupled permission mode UI from Claude-only gate; task queue guards refactored from hardcoded `sessionType !== 'claude'` to capability-based `AGENT_PERMISSION_MODES` lookup. 46 new unit tests.
+- **4C: UI polish** — Official GitHub Copilot SVG icon from Primer Octicons (521e33f). "New Copilot Session" command in command palette (9d263df). Copilot repo instructions (4efacc8). Unified agent icons in CostSection and DeleteSessionsDialog (1a102c3).
+- **4D: Shared infrastructure refactors** — Extracted shared hook bridge factory and JSON config utilities (81cacef). Centralized permission prompt detection and resume state cleanup (6adfa8b).
+
+**Deferred:** `supportsCostEstimation: false` — Copilot uses GitHub's premium-request billing model, not per-token pricing. Premium request counts are tracked but dollar-cost estimation is not meaningful.
+
+### Files changed (post-Phase 3)
+
+New: `src/main/trackers/copilot-events-parser.ts`, `src/main/trackers/copilot-scanner.ts`, `tests/unit/main/copilot-events-parser.test.ts`
+Modified: `src/shared/constants.ts`, `src/shared/session-agents.ts`, `src/main/session/agent-runtimes/copilot-runtime.ts`, `src/renderer/components/Sidebar/NewSessionDialog.tsx`, various stats/DB modules for multi-provider support
+
+### Phase 4 deliverable
+
+Copilot sessions have full analytics (token usage, human input tracking, premium request counts), permission mode support, and polished UI. 834 total tests passing. Feature parity with Claude/Codex/Gemini except: no cost estimation (subscription billing), no account profiles (GitHub auth), no plan mode (Claude-specific).
+
+---
+
+## Current Feature Parity Matrix
+
+| Feature | Claude | Codex | Gemini | Copilot |
+|---|---|---|---|---|
+| Session spawn/display/kill | ✅ | ✅ | ✅ | ✅ |
+| Hook-based state tracking | ✅ | ✅ | ✅ | ✅ |
+| Session resume | ✅ | ✅ | ✅ | ✅ |
+| Task queue | ✅ | ✅ | ✅ | ✅ |
+| Model display | ✅ | ✅ | ✅ | ✅ |
+| Token tracking | ✅ | ✅ | ✅ | ✅ |
+| Input tracking | ✅ | ✅ | ✅ | ✅ |
+| Cost estimation | ✅ | ✅ | ✅ | ❌ (subscription) |
+| Permission modes | ✅ (5) | ✅ (2) | ❌ | ✅ (2) |
+| Account profiles | ✅ | ❌ | ❌ | ❌ |
+| Plan mode | ✅ | ❌ | ❌ | ❌ |
+| Commit tracking | ✅ | ✅ | ✅ | ✅ |
+| Slash commands | ✅ | ✅ | ✅ | ✅ |
+
+---
+
 ## Out of Scope
 
-These are explicitly deferred and not planned for any phase:
+These are explicitly deferred:
 
-- **Token/cost tracking** — Copilot pricing is subscription-based, not per-token. The `/usage` command exists but structured cost tracking is not meaningful.
+- **Cost estimation** — Copilot uses GitHub's premium-request billing, not per-token pricing. Premium request counts are tracked in analytics but dollar-cost estimation is not meaningful.
 - **Account profiles** — Copilot uses GitHub auth, not API keys. No multi-account use case identified.
 - **Built-in agent delegation** — Copilot's Explore/Task/Plan/Code-Review sub-agents are internal to the CLI and don't need mcode integration.
 - **Copilot Coding Agent** (async GitHub Actions agent) — This is a separate product that runs on GitHub, not locally. Out of scope for mcode's terminal-based session management.
-
-## File Change Summary
-
-### Phase 1 (new + modified)
-
-| File | Action | Purpose |
-|---|---|---|
-| `src/shared/types.ts` | Modify | Add `'copilot'` to `SessionType`, derive `AppCommand` sessionType from `AgentSessionType`, add `copilotSessionId` to `SessionInfo` |
-| `src/shared/constants.ts` | Modify | Add `COPILOT_ICON` |
-| `src/shared/session-agents.ts` | Modify | Add Copilot to `AgentSessionType`, `AgentDefinition`, `AgentResumeIdentityKind` |
-| `src/shared/session-capabilities.ts` | No change | Already generic |
-| `src/main/session/agent-runtime.ts` | Modify | Add `copilotSessionId` to `AgentResumeRow`, apply R3 refactor |
-| `src/main/session/agent-runtimes/copilot-runtime.ts` | **New** | Copilot runtime adapter |
-| `src/main/session/session-manager.ts` | Modify | Register Copilot adapter in map, add `setCopilotSessionId()` method |
-| `src/main/trackers/commit-tracker.ts` | Modify | Apply R1 refactor |
-| `src/renderer/components/Sidebar/NewSessionDialog.tsx` | Modify | Add Copilot to agent dropdown |
-| `src/renderer/utils/session-resume.ts` | Modify | Add `copilotSessionId` case to `getResumeIdentity()` |
-| `src/devtools/tools/session-tools.ts` | Modify | Add `'copilot'` to Zod enum, add `session_set_copilot_session_id` tool |
-| `db/migrations/033_copilot_support.sql` | **New** | Add `copilot_session_id` column + index |
-| `tests/fixtures/copilot/` | **New** | Test fixture directory |
-
-### Phase 2 (new + modified)
-
-| File | Action | Purpose |
-|---|---|---|
-| `src/main/hooks/copilot-hook-config.ts` | **New** | Hook registration/cleanup for `~/.copilot/hooks/hooks.json` |
-| `src/main/hooks/hook-server.ts` | Modify | Add `COPILOT_EVENT_MAP`, `parseCopilotToolArgs()`, camelCase field fallbacks |
-| `src/main/session/agent-runtimes/copilot-runtime.ts` | Modify | Hook-aware `prepareCreate`, add `prepareResume` + `buildCopilotResumePlan` |
-| `src/main/index.ts` | Modify | Register Copilot hook bridge in `initializeHookSystem()`, cleanup on quit |
-| `tests/unit/main/copilot-hook-config.test.ts` | **New** | Hook config merge/remove purity tests |
-| `tests/unit/main/hook-server.test.ts` | **New** | Event normalization + `parseCopilotToolArgs` tests |
-| `tests/unit/main/copilot-runtime.test.ts` | Modify | Hook-aware create + resume plan tests |
-| `tests/suites/copilot-resume.test.ts` | **New** | Integration tests for resume lifecycle |
-| `~/.mcode/copilot-hook-bridge.sh` | **New** (managed) | Shell bridge script with event name injection |
-| `~/.copilot/hooks/hooks.json` | **New** (managed) | User-scoped hook registration (written by mcode on startup) |
-
-### Phase 3
-
-| File | Action | Purpose |
-|---|---|---|
-| `src/shared/session-agents.ts` | Modify | `supportsTaskQueue: true` |
-| `tests/suites/copilot-task-queue.test.ts` | **New** | Integration tests (6 cases, mirroring Gemini task queue) |
-| `tests/unit/shared/session-capabilities.test.ts` | Modify | Add Copilot cases to capability helper tests |
 
 ## Resolved Questions
 
@@ -300,20 +301,18 @@ These are explicitly deferred and not planned for any phase:
 
 4. **`sessionStart` hook delivers session ID:** The `sessionStart` event includes session context, enabling hook-based session-ID capture without filesystem polling when hooks are live.
 
+## All Resolved Questions
+
+5. **Idle detection:** Phase 1 shipped with standard quiescence-based `pollState` (same as Codex/Gemini). Works correctly in practice.
+6. **Cursor behavior:** Conservative default (`hidesTerminalCursor: true`) is harmless and consistent with all four agents.
+7. **Hook merge behavior with user hooks:** Phase 2 implemented ownership-marker pattern: mcode entries identified by `bash` field containing `copilot-hook-bridge.sh`. Merge preserves user entries; one-time backup before first mutation. Verified with Copilot CLI v1.0.12.
+8. **`--prompt` is headless, use `-i` for interactive:** Verified against v1.0.12 — `-p`/`--prompt` runs non-interactively and exits. `-i`/`--interactive` starts the PTY session and auto-submits the prompt.
+9. **`events.jsonl` format verified:** First line is always `session.start` with `data.sessionId`, `data.context.cwd`, `data.startTime`. Uses camelCase. `workspace.yaml` uses snake_case. Session store uses `events.jsonl` primary with `workspace.yaml` fallback.
+10. **`sessionId` in hook payloads:** Undocumented but verified — all hook payloads include a `sessionId` UUID field. Used for instant session-ID capture from `SessionStart` events.
+11. **`toolArgs` format inconsistency:** In `preToolUse`, `toolArgs` is a JSON string; in `postToolUse`, it's a parsed object. `parseCopilotToolArgs()` handles both.
+12. **Token tracking feasibility:** `events.jsonl` contains `session.shutdown` events with per-model token aggregates including premium request counts. Implemented in Phase 4.
+13. **Permission modes:** `--autopilot` and `--allow-all` are the only supported modes. Verified against v1.0.12.
+
 ## Remaining Open Questions
 
-1. ~~**Idle detection:**~~ RESOLVED — Phase 1 shipped with standard quiescence-based `pollState` (same as Codex/Gemini). Works correctly in practice.
-
-2. ~~**Cursor behavior:**~~ RESOLVED — Conservative default (`hidesTerminalCursor: true`) is harmless and consistent with all four agents. Verification deferred — cosmetic only.
-
-3. ~~**Hook merge behavior with user hooks:**~~ RESOLVED — Phase 2 implemented ownership-marker pattern: mcode entries identified by `bash` field containing `copilot-hook-bridge.sh`. Merge preserves user entries; multiple hooks per event execute in order (arrays). One-time backup before first mutation. Verified with Copilot CLI v1.0.12.
-
-## Recently Resolved Questions
-
-5. **`--prompt` is headless, use `-i` for interactive:** Verified against v1.0.12 — `-p`/`--prompt` runs non-interactively and exits. `-i`/`--interactive` starts the PTY session and auto-submits the prompt. Phase 1 adapter uses `-i`.
-
-6. **`events.jsonl` format verified:** First line is always `session.start` with fields nested under `data`: `data.sessionId`, `data.context.cwd`, `data.startTime`. Uses camelCase. Most short-lived sessions only have `workspace.yaml` (snake_case: `id`, `cwd`, `created_at`). Session store uses `events.jsonl` primary with `workspace.yaml` fallback; no YAML library dependency needed (simple line-based parsing).
-
-7. **`sessionId` in hook payloads:** Undocumented but verified — all Copilot hook payloads include a `sessionId` UUID field. Phase 2C uses this for instant session-ID capture from `SessionStart` events.
-
-8. **`toolArgs` format inconsistency:** In `preToolUse`, `toolArgs` is a JSON string; in `postToolUse`, it's a parsed object. Phase 2A's `parseCopilotToolArgs()` handles both.
+None — all implementation questions have been resolved through the four phases.

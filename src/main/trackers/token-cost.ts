@@ -106,6 +106,19 @@ export function normalizeGeminiModel(model: string): string {
   return name;
 }
 
+/**
+ * Normalize a Copilot model name for display.
+ * Copilot sessions can use models from multiple providers:
+ * "claude-sonnet-4.5" → "sonnet-4.5"   (delegates to normalizeModelVersion)
+ * "models/gemini-2.5-pro" → "gemini-2.5-pro"  (delegates to normalizeGeminiModel)
+ * "gpt-5.4" → "gpt-5.4"               (passthrough)
+ */
+export function normalizeCopilotModel(model: string): string {
+  if (model.startsWith('claude-')) return normalizeModelVersion(model);
+  if (model.startsWith('models/') || model.startsWith('gemini')) return normalizeGeminiModel(model);
+  return model;
+}
+
 /** Normalize to family name: "opus", "sonnet", "haiku", "gpt", or "unknown". */
 export function normalizeModelFamily(model: string): string {
   const lower = model.toLowerCase();

@@ -76,6 +76,11 @@ export class TokenTracker {
     this.inputTracker = inputTracker;
   }
 
+  /** Wire the Copilot scanner's model detection callback to the session manager. */
+  setCopilotModelCallback(cb: (copilotSessionId: string, normalizedModel: string) => void): void {
+    this.copilotScanner.onModelDetected = cb;
+  }
+
   start(): void {
     this.scanAll().catch((err) => {
       logger.warn('tokens', 'Initial scan failed', { error: String(err) });
@@ -95,8 +100,20 @@ export class TokenTracker {
     }
   }
 
-  /** Handle hook events — scan the transcript on Stop events. */
+  /** Handle hook events — scan the transcript on Stop/SessionEnd events. */
   async onHookEvent(_sessionId: string, event: HookEvent, provider?: AgentSessionType): Promise<void> {
+    // Copilot: trigger a full scan on SessionEnd to pick up shutdown data + model
+    if (provider === 'copilot' && event.hookEventName === 'SessionEnd') {
+      setTimeout(() => {
+        this.copilotScanner.scanAll(this.inputTracker).then((count) => {
+          if (count > 0) this.broadcastUpdate();
+        }).catch((err) => {
+          logger.warn('tokens', 'Copilot SessionEnd scan failed', { error: String(err) });
+        });
+      }, HOOK_SCAN_DELAY_MS);
+      return;
+    }
+
     if (event.hookEventName !== 'Stop') return;
 
     const payload = event.payload as { transcript_path?: string } | undefined;
@@ -104,8 +121,6 @@ export class TokenTracker {
     if (!transcriptPath) return;
 
     setTimeout(() => {
-      // Copilot uses cumulative shutdown events — handled by background scan only.
-      if (provider === 'copilot') return;
       const scanner = provider === 'codex' ? this.codexScanner
         : provider === 'gemini' ? this.geminiScanner
         : this.claudeScanner;

@@ -36,9 +36,10 @@ import {
   markAllDetached,
   markTerminalSessionsEnded,
   clearAllAttention as repoClearAllAttention,
+  getSessionIdByCopilotSessionId,
 } from './session-repository';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
-import { normalizeModelVersion, normalizeGeminiModel } from '../trackers/token-cost';
+import { normalizeModelVersion, normalizeGeminiModel, normalizeCopilotModel } from '../trackers/token-cost';
 import { isAgentSession, type AgentSessionType } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
 import {
@@ -750,6 +751,16 @@ export class SessionManager {
       }
     }
 
+    // Copilot model detection from hook payload (speculative — may not be present)
+    if (row.session_type === 'copilot') {
+      const rawModel = typeof (event.payload as { model?: unknown }).model === 'string'
+        ? (event.payload as { model: string }).model
+        : null;
+      if (rawModel) {
+        this.setModel(sessionId, normalizeCopilotModel(rawModel));
+      }
+    }
+
     return sessionType;
   }
 
@@ -906,6 +917,12 @@ export class SessionManager {
     if (!record || record.model === normalizedModel) return;
     updateSession(sessionId, { model: normalizedModel });
     this.broadcastSessionUpdate(sessionId);
+  }
+
+  /** Update model for a session identified by its Copilot session UUID (used by scanner callback). */
+  setModelByCopilotSessionId(copilotSessionId: string, normalizedModel: string): void {
+    const sessionId = getSessionIdByCopilotSessionId(copilotSessionId);
+    if (sessionId) this.setModel(sessionId, normalizedModel);
   }
 
   setCodexThreadId(sessionId: string, codexThreadId: string): void {

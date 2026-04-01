@@ -358,6 +358,9 @@ app.whenReady().then(async () => {
   appUpdater = new AutoUpdater(getWebContents);
   inputTracker = new InputTracker();
   tokenTracker = new TokenTracker(getWebContents, inputTracker);
+  tokenTracker.setCopilotModelCallback((copilotSessionId, model) => {
+    sessionManager.setModelByCopilotSessionId(copilotSessionId, model);
+  });
   sleepBlocker = new SleepBlocker();
   sleepBlocker.attach(sessionManager);
 
