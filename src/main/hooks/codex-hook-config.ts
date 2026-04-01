@@ -92,7 +92,7 @@ export function mergeMcodeBridgeHooks(config: CodexHooksConfig): CodexHooksConfi
 export const codexHookBridge = createHookBridge<CodexHooksConfig>({
   agentName: 'codex',
   agentTag: 'codex-hook-config',
-  configPath: () => join(homedir(), '.codex', 'hooks.json'),
+  configPath: (configDir) => join(configDir ?? join(homedir(), '.codex'), 'hooks.json'),
   bridgeScriptPath: getBridgeScriptPath,
   bridgeScriptContent: () => `#!/bin/sh
 # mcode Codex hook bridge — forwards hook events to mcode's HTTP hook server.

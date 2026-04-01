@@ -86,7 +86,7 @@ export function mergeMcodeBridgeHooks(config: CopilotHooksConfig): CopilotHooksC
 export const copilotHookBridge = createHookBridge<CopilotHooksConfig>({
   agentName: 'copilot',
   agentTag: 'copilot-hook-config',
-  configPath: () => join(homedir(), '.copilot', 'hooks', 'hooks.json'),
+  configPath: (configDir) => join(configDir ?? join(homedir(), '.copilot'), 'hooks', 'hooks.json'),
   bridgeScriptPath: getBridgeScriptPath,
   bridgeScriptContent: () => `#!/bin/sh
 # mcode Copilot hook bridge — forwards hook events to mcode's HTTP hook server.

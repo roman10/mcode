@@ -12,8 +12,8 @@ export interface HookBridgeDescriptor<TConfig> {
   agentName: string;
   /** Logger tag, e.g. 'codex-hook-config' */
   agentTag: string;
-  /** Absolute path to the agent's hook config file */
-  configPath: () => string;
+  /** Absolute path to the agent's hook config file. Optional configDir overrides the default. */
+  configPath: (configDir?: string) => string;
   /** Absolute path to the bridge script */
   bridgeScriptPath: () => string;
   /** Shell script content */
@@ -32,9 +32,9 @@ export interface HookBridge {
   /** Write the bridge shell script to ~/.mcode/<agent>-hook-bridge.sh */
   writeBridgeScript: () => string;
   /** Read config → backup → detect stale → merge → write */
-  reconcile: () => void;
+  reconcile: (configDir?: string) => void;
   /** Read config → remove mcode entries → write (best-effort) */
-  cleanup: () => void;
+  cleanup: (configDir?: string) => void;
   /** Agent name for logging and hookBridgeReady map */
   readonly agentName: string;
 }
@@ -52,14 +52,14 @@ export function createHookBridge<TConfig>(desc: HookBridgeDescriptor<TConfig>): 
       return scriptPath;
     },
 
-    reconcile(): void {
+    reconcile(configDir?: string): void {
       const scriptPath = desc.bridgeScriptPath();
       if (!existsSync(scriptPath)) {
         logger.warn(desc.agentTag, 'Bridge script not found, skipping reconcile', { path: scriptPath });
         return;
       }
 
-      const configPath = desc.configPath();
+      const configPath = desc.configPath(configDir);
       const config = readJsonConfig<TConfig>(configPath);
       backupJsonConfig(configPath, desc.agentTag);
 
@@ -74,8 +74,8 @@ export function createHookBridge<TConfig>(desc: HookBridgeDescriptor<TConfig>): 
       logger.info(desc.agentTag, `Reconciled ${desc.agentName} hooks`, { path: configPath });
     },
 
-    cleanup(): void {
-      cleanupJsonConfig<TConfig>(desc.configPath(), desc.agentTag, desc.removeHooks);
+    cleanup(configDir?: string): void {
+      cleanupJsonConfig<TConfig>(desc.configPath(configDir), desc.agentTag, desc.removeHooks);
     },
   };
 }

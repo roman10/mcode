@@ -95,7 +95,7 @@ export function mergeMcodeBridgeHooks(config: GeminiSettingsConfig): GeminiSetti
 export const geminiHookBridge = createHookBridge<GeminiSettingsConfig>({
   agentName: 'gemini',
   agentTag: 'gemini-hook-config',
-  configPath: () => join(homedir(), '.gemini', 'settings.json'),
+  configPath: (configDir) => join(configDir ?? join(homedir(), '.gemini'), 'settings.json'),
   bridgeScriptPath: getBridgeScriptPath,
   bridgeScriptContent: () => `#!/bin/sh
 # mcode Gemini hook bridge — forwards hook events to mcode's HTTP hook server.

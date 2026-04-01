@@ -5,7 +5,8 @@ import { BrokerClient, registerPtyIpc } from './pty/broker-client';
 import { ensureBroker, BROKER_SOCKET_PATH } from './pty/broker-launcher';
 import { SessionManager, registerSessionIpc } from './session/session-manager';
 import { registerLayoutIpc } from './session/layout-repository';
-import { AccountManager, registerAccountIpc } from './account-manager';
+import { AccountService, AccountProviderRegistry, AccountProfileRepository, AccountHomeManager, registerAccountIpc } from './accounts';
+import { createClaudeAccountProvider } from './accounts/providers/claude-account-provider';
 import { TaskQueue, registerTaskIpc } from './task-queue';
 import { CommitTracker, registerCommitIpc } from './trackers/commit-tracker';
 import { GitChangesService, registerGitChangesIpc } from './git-changes';
@@ -47,7 +48,7 @@ if (app.isPackaged) {
 let mainWindow: BrowserWindow | null = null;
 let brokerClient: BrokerClient;
 let sessionManager: SessionManager;
-let accountManager: AccountManager;
+let accountManager: AccountService;
 let taskQueue: TaskQueue;
 let commitTracker: CommitTracker;
 let gitChangesService: GitChangesService;
@@ -281,7 +282,13 @@ app.whenReady().then(async () => {
   // Initialize database
   getDb();
 
-  accountManager = new AccountManager();
+  const providerRegistry = new AccountProviderRegistry();
+  providerRegistry.register(createClaudeAccountProvider());
+  accountManager = new AccountService(
+    new AccountProfileRepository(),
+    new AccountHomeManager(providerRegistry),
+    providerRegistry,
+  );
   accountManager.ensureDefaultAccount();
 
   // Start (or connect to) PTY broker — holds PTY fds across app restarts

@@ -8,7 +8,7 @@ import type { TokenTracker } from '../main/trackers/token-tracker';
 import type { SleepBlocker } from '../main/sleep-blocker';
 import type { FileLister } from '../main/file-lister';
 import type { FileSearch } from '../main/file-search';
-import type { AccountManager } from '../main/account-manager';
+import type { AccountService } from '../main/accounts';
 import type { HookRuntimeInfo } from '../shared/types';
 
 export type { ConsoleEntry, HmrEvent } from '../shared/types';
@@ -25,6 +25,6 @@ export interface McpServerContext {
   sleepBlocker: SleepBlocker;
   fileLister: FileLister;
   fileSearch: FileSearch;
-  accountManager: AccountManager;
+  accountManager: AccountService;
   mode: 'dev' | 'production';
 }
