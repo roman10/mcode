@@ -132,6 +132,12 @@ describe('AccountService', () => {
     });
   });
 
+  describe('syncSymlinks', () => {
+    it('does nothing for non-existent account', () => {
+      expect(() => service.syncSymlinks('non-existent')).not.toThrow();
+    });
+  });
+
   describe('delete', () => {
     it('cleans up identity rows on delete', () => {
       service.ensureDefaultAccount();
