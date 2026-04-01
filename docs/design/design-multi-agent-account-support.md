@@ -8,16 +8,18 @@
 - account profiles are stored independently from sessions
 - agent metadata already has `supportsAccountProfiles`
 
-But the current implementation is still effectively **Claude-only**:
+Through Phases 0–3, the system has been evolved from a Claude-only implementation into a **provider-aware, capability-driven account architecture**:
 
-- `AccountManager` hardcodes Claude auth and config paths
-- renderer flows show account selection only for Claude sessions
-- account verification and subscription usage are Claude-specific
-- account identity data is stored in a shape that assumes one email per account profile
+- `AccountManager` was deleted and replaced by focused modules under `src/main/accounts/` (Phase 1)
+- Provider adapter registry routes auth, config isolation, and session env through per-provider implementations (Phase 1)
+- Provider-scoped identity persistence via `account_provider_identities` table (Phase 2+3)
+- IPC channels are parameterized by `sessionType` (Phase 2+3)
+- Renderer account selector is gated by `supportsAccountProfiles` capability, not Claude-specific checks (Phase 2+3)
+- Auth terminal launch and CLI status banners are adapter-driven (Phase 2+3)
 
-This document proposes a phased plan to evolve the current system into a **provider-aware, capability-driven account architecture** that can support other CLI coding agents cleanly.
+Adding a new provider adapter now requires **zero IPC or renderer changes** — only implementing the `AccountProviderAdapter` interface and setting `supportsAccountProfiles: true` in agent metadata.
 
-The plan intentionally includes refactoring and cleanup work because the current Claude-only shortcuts will otherwise create compounding branching debt as more providers are added.
+This document records the full design rationale and phased delivery plan.
 
 ## Recommendation
 
@@ -73,19 +75,12 @@ Recommended rollout order:
 
 ### What is still Claude-specific (pre-Phase 1)
 
-> **Note:** `account-manager.ts` was deleted in Phase 1. The issues below are resolved — see Phase 1 completion notes.
+> **Note:** `account-manager.ts` was deleted in Phase 1. Renderer issues below were resolved in Phase 2+3.
 
-- ~~`src/main/account-manager.ts`~~
-  - ~~`claude auth status --json`~~
-  - ~~`CLAUDE_CONFIG_DIR`~~
-  - ~~`.claude` directory assumptions~~
-  - ~~`CLAUDE_SHARED_SUBDIRS`~~
-  - ~~Claude-only subscription usage fetcher~~
-- `src/renderer/components/Sidebar/NewSessionDialog.tsx`
-  - account selection is gated by the Claude dialog path
-- `src/renderer/components/AccountsDialog.tsx`
-  - account verification copy assumes Claude
-  - one-email-per-account assumption does not work well across providers
+- ~~`src/main/account-manager.ts`~~ — deleted in Phase 1, replaced by `src/main/accounts/`
+- ~~`src/renderer/components/Sidebar/NewSessionDialog.tsx`~~ — account selector now gated by `supportsAccountProfiles` (Phase 2+3)
+- ~~`src/renderer/components/AccountsDialog.tsx`~~ — CLI strings now driven by agent metadata (Phase 2+3); per-provider verification rows deferred to Phase 5
+- ~~`src/renderer/components/Sidebar/SidebarPanel.tsx`~~ — CLI status banners now driven by agent metadata (Phase 2+3)
 
 ## Core Design Direction
 
@@ -108,15 +103,17 @@ This keeps the product mental model simple:
 
 ## Architectural Problems To Fix First
 
-### Problem A — `AccountProfile` stores Claude-shaped identity
+### Problem A — `AccountProfile` stores Claude-shaped identity (RESOLVED)
 
-Today `AccountProfile` includes `email`, which is treated as the verified identity for the account. That is workable for Claude-only support, but it becomes wrong once an account may have different authenticated identities per provider.
+> **Resolved in Phase 2+3.** Provider-specific identity now lives in `account_provider_identities` table. `account_profiles.email` is retained as transitional legacy state with dual-write from `AccountService`.
 
-**Plan**
+~~Today `AccountProfile` includes `email`, which is treated as the verified identity for the account. That is workable for Claude-only support, but it becomes wrong once an account may have different authenticated identities per provider.~~
 
-- keep `account_profiles` as the top-level account container
-- move provider-specific identity/auth data into a new table
-- treat `account_profiles.email` as transitional legacy state only during migration
+**Plan** (delivered)
+
+- ~~keep `account_profiles` as the top-level account container~~ — done
+- ~~move provider-specific identity/auth data into a new table~~ — done (`account_provider_identities`, migration 041)
+- ~~treat `account_profiles.email` as transitional legacy state only during migration~~ — done (dual-write in `AccountService`)
 
 ### Problem B — `AccountManager` owns too many responsibilities (RESOLVED)
 
@@ -136,25 +133,26 @@ Today `AccountProfile` includes `email`, which is treated as the verified identi
 - ~~split `AccountManager` into focused modules~~ — done
 - ~~keep one thin orchestration layer if needed~~ — done (`AccountService`)
 
-### Problem C — UI behavior is type-checked instead of capability-driven
+### Problem C — UI behavior is type-checked instead of capability-driven (PARTIALLY RESOLVED)
 
-The new-session flow and account UI still rely on Claude-specific assumptions instead of asking what the selected provider supports.
+> **Partially resolved in Phase 2+3.** NewSessionDialog account selector is now gated by `supportsAccountProfiles`. SidebarPanel and AccountsDialog use agent metadata for CLI strings. AccountsDialog per-provider verification rows remain deferred to Phase 5.
 
-**Plan**
+**Plan** (mostly delivered)
 
-- move account-related UI decisions behind shared capability helpers
-- stop using `Claude` as the implicit proxy for `supports accounts`
+- ~~move account-related UI decisions behind shared capability helpers~~ — done (NewSessionDialog, SidebarPanel)
+- ~~stop using `Claude` as the implicit proxy for `supports accounts`~~ — done
+- AccountsDialog per-provider verification rows — deferred to Phase 5
 
-### Problem D — provider-specific operational logic is not isolated
+### Problem D — provider-specific operational logic is not isolated (RESOLVED)
 
-Auth commands, config paths, shared directories, install help, and quota support should be declared in one provider-owned place, not scattered across renderer and main process code.
+> **Resolved in Phase 1 + Phase 2+3.** Provider adapter registry is in place. Auth, config, install help, and session env all route through adapters. IPC channels accept `sessionType` and delegate to the registry.
 
-**Plan**
+**Plan** (delivered)
 
-- introduce a provider account adapter/registry
-- make the rest of the system depend on that registry
+- ~~introduce a provider account adapter/registry~~ — done (Phase 1)
+- ~~make the rest of the system depend on that registry~~ — done (Phase 2+3: IPC, auth terminal, CLI check all adapter-driven)
 
-## Proposed Architecture
+## Architecture
 
 ### 1. Introduce a provider account adapter
 
@@ -181,19 +179,13 @@ See **Phase 0 — Revised Adapter Interface (Post-Discovery)** below for the fin
 
 Suggested module split:
 
-- `AccountProfileRepository`
-  - CRUD for `account_profiles`
-- `AccountHomeManager`
-  - create/sync/delete isolated homes
-  - generic symlink policy
-- `AccountIdentityRepository`
-  - provider-specific auth/identity state
-- `AccountService`
-  - orchestration layer used by IPC and session manager
-- `AccountProviderRegistry`
-  - maps agent type to provider adapter
+- `AccountProfileRepository` — CRUD for `account_profiles` ✓
+- `AccountHomeManager` — create/sync/delete isolated homes, generic symlink policy ✓
+- `AccountIdentityRepository` — provider-specific auth/identity state ✓ (Phase 2+3)
+- `AccountService` — orchestration layer used by IPC and session manager ✓
+- `AccountProviderRegistry` — maps agent type to provider adapter ✓
 
-This decomposition makes future providers much easier to add and test independently.
+All modules are implemented and tested. This decomposition makes future providers much easier to add and test independently.
 
 ### 3. Move from profile-level identity to provider-level identity
 
@@ -270,7 +262,7 @@ That implies:
 - account rows should show status by provider, not a single global email
 - verification/help text should use provider metadata, not hardcoded Claude strings
 
-## Proposed Shared-Type Changes
+## Shared-Type Changes
 
 ### `AccountProfile`
 
@@ -291,17 +283,20 @@ Remove or deprecate:
 
 - `email`
 
-### Align `AuthStatusResult` for multi-provider use
+### Align `AuthStatusResult` for multi-provider use (DELIVERED)
 
-The current `AuthStatusResult` has `email?: string`, which is Claude-centric. For Copilot the identity is a GitHub username (`waterdrop86`), for Codex it may be "ChatGPT" (OAuth mode) or masked API key. Rename to be provider-neutral:
+Delivered in Phase 2+3. `AuthStatusResult` was extended (not renamed) to preserve backward compatibility:
 
 ```ts
 interface AuthStatusResult {
   status: CliAuthStatus;
-  identity?: string;      // was `email` — now holds whatever the provider reports (email, username, mode)
-  displayName?: string;    // optional human-friendly label
+  email?: string;         // kept — renderer reads this for Claude
+  identity?: string;      // provider-neutral: email, username, auth mode
+  displayName?: string;   // optional human-friendly label
 }
 ```
+
+The `email` field is retained for backward compatibility. `identity` is the provider-neutral equivalent. Claude adapter sets both `email` and `identity` to the same value.
 
 ### Add provider-scoped identity types
 
@@ -325,9 +320,7 @@ interface AccountProfileWithProviders extends AccountProfile {
 }
 ```
 
-## Proposed IPC And API Changes
-
-Current IPC shape is too Claude-specific because account operations are not parameterized by provider.
+## IPC And API Changes
 
 ### Profile-level calls (unchanged)
 
@@ -336,20 +329,19 @@ Current IPC shape is too Claude-specific because account operations are not para
 - `account:rename`
 - `account:delete`
 
-### Provider-aware calls (replace existing Claude-specific calls in-place)
+### Provider-aware calls (delivered in Phase 2+3)
 
-Since this is an internal Electron IPC contract (not a public API), both main and renderer are updated in the same commit. No deprecation period is needed.
+Rather than renaming channels, the existing channels gained an optional `sessionType?` parameter defaulting to `'claude'`. This preserves backward compatibility — all existing callers work unchanged.
 
-- `account:get-auth-status(accountId)` → `account:get-provider-auth-status(accountId, sessionType)`
-- `account:open-auth-terminal(accountId)` → `account:open-auth-terminal(accountId, sessionType)`
-- `account:get-subscription-usage(accountId, force)` → `account:get-provider-usage(accountId, sessionType, force)`
-- `account:check-cli-installed()` → `account:check-provider-installed(sessionType)`
+- `account:get-auth-status(accountId, sessionType?)` — routes through provider adapter
+- `account:open-auth-terminal(accountId, sessionType?)` — uses `adapter.buildAuthTerminalInput()`
+- `account:check-cli-installed(sessionType?)` — uses `adapter.checkCliInstalled()`
 
-### New calls
+Subscription usage remains Claude-specific for now (`account:get-subscription-usage(accountId, force)`).
 
-- `account:list-provider-identities(accountId?)`
+### Deferred calls
 
-Update the renderer, preload, IPC contract, and main handlers together in Phase 3. No compatibility wrappers needed.
+- `account:list-provider-identities(accountId?)` — not needed until Phase 5 (renderer reads identity table directly when a second provider ships)
 
 ## Refactoring And Cleanup Plan
 
@@ -366,17 +358,13 @@ Extend `AgentDefinition` or add a nearby capability helper so renderer and main 
 
 This avoids duplicating provider checks in UI components.
 
-### R2 — Replace `isClaude` account gating in `NewSessionDialog`
+### R2 — Replace `isClaude` account gating in `NewSessionDialog` (COMPLETED)
 
-Current issue:
+> **Delivered in Phase 2+3.** Account selector extracted from `{isClaude && ...}` block and gated by `supportsAccountProfiles` capability flag.
 
-- account selection is only shown in the Claude path
-
-Refactor:
-
-- use `supportsAccountProfiles`
-- show account selection for any eligible provider
-- keep Claude-only fields such as effort/worktree separate from account support
+- ~~use `supportsAccountProfiles`~~ — done
+- ~~show account selection for any eligible provider~~ — done (zero visual change now, automatic support when a provider sets `supportsAccountProfiles: true`)
+- ~~keep Claude-only fields such as effort/worktree separate from account support~~ — done
 
 ### R3 — Split `AccountManager` (COMPLETED)
 
@@ -389,7 +377,7 @@ Delivered in Phase 1. Final shape:
 - `src/main/accounts/account-provider.ts` — adapter interface + registry
 - `src/main/accounts/providers/claude-account-provider.ts` — Claude adapter
 - `src/main/accounts/index.ts` — barrel exports
-- `account-identity-repository.ts` deferred to Phase 2
+- `account-identity-repository.ts` — delivered in Phase 2+3
 
 ### R4 — Extract filesystem sync policy (COMPLETED)
 
@@ -412,20 +400,17 @@ Refactor:
 - classify parse failures, unsupported CLI output, and command execution failures separately in logs
 - keep user-facing status simple if desired, but improve diagnostics
 
-### R6 — Remove provider-shaped data from generic UI store state
+### R6 — Remove provider-shaped data from generic UI store state (PARTIALLY RESOLVED)
 
-Current issue:
+> **Partially resolved in Phase 2+3.** IPC is parameterized by `sessionType`. Identity table is provider-scoped. Renderer store still reads legacy `account_profiles.email` — will switch to identity table in Phase 5.
 
-- account store and account dialogs assume one auth status and one email per account
+Remaining:
 
-Refactor:
+- make account store provider-aware (cache keyed by `(accountId, sessionType)`) — defer to Phase 5
 
-- make account store provider-aware
-- keep provider status caches keyed by `(accountId, sessionType)`
+### R7 — Unify provider help and auth-launch behavior (COMPLETED)
 
-### R7 — Unify provider help and auth-launch behavior
-
-Install/help links and auth-launch behavior should come from provider metadata/adapters, not hand-written strings in `AccountsDialog`.
+> **Delivered in Phase 2+3.** Auth terminal launch is adapter-driven via `buildAuthTerminalInput()`. SidebarPanel and AccountsDialog use `getAgentDefinition()` for CLI display names and install help URLs instead of hardcoded strings.
 
 ### R8 — Consolidate account-related tests
 
@@ -668,7 +653,7 @@ No data migration needed for Claude accounts:
 
 Without this step, every new provider will widen a file that is already too central and too Claude-shaped.
 
-## Phase 2 — Data Model Migration
+## Phase 2 — Data Model Migration (COMPLETED — combined with Phase 3)
 
 ### Goals
 
@@ -677,22 +662,18 @@ Without this step, every new provider will widen a file that is already too cent
 
 ### Work
 
-- add `account_provider_identities`
-- defer `account_provider_usage_cache` — current in-memory caching with 5-minute TTL in `claude-subscription-fetcher.ts` is sufficient. Only add the table if a concrete need arises (e.g., offline quota display, multiple processes needing shared cache)
-- migrate current Claude email state from `account_profiles.email` into provider-scoped identity rows
-- keep `account_profiles.email` as a fallback during transition if needed
-- add indexes for `(account_id, session_type)`
+- ~~add `account_provider_identities`~~ — done (migration 041)
+- ~~defer `account_provider_usage_cache`~~ — deferred as planned (in-memory TTL cache is sufficient)
+- ~~migrate current Claude email state from `account_profiles.email` into provider-scoped identity rows~~ — done (backfill in migration 041)
+- ~~keep `account_profiles.email` as a fallback during transition~~ — done (dual-write in `AccountService`)
+- ~~add indexes for `(account_id, session_type)`~~ — composite PK covers this
 
 ### Deliverables
 
-- provider-scoped identity model
-- migration and backfill logic
+- ~~provider-scoped identity model~~ — done
+- ~~migration and backfill logic~~ — done
 
-### Exit criteria
-
-- renderer can query provider status without using `account_profiles.email`
-
-## Phase 3 — Renderer And IPC Modernization
+## Phase 3 — Renderer And IPC Modernization (PARTIALLY COMPLETED — combined with Phase 2)
 
 ### Goals
 
@@ -700,13 +681,13 @@ Without this step, every new provider will widen a file that is already too cent
 
 ### Work
 
-- update preload and IPC contracts with provider-aware methods
-- update `accounts-store.ts` to cache provider-specific identity state
-- update `AccountsDialog.tsx` to show provider-aware verification rows
-- update `NewSessionDialog.tsx` to show account selection for all supported providers
-- update ended-session resume prompts to stay capability-driven
+- ~~update preload and IPC contracts with provider-aware methods~~ — done (`sessionType?` on 3 channels)
+- update `accounts-store.ts` to cache provider-specific identity state — deferred to Phase 5
+- update `AccountsDialog.tsx` to show provider-aware verification rows — deferred to Phase 5
+- ~~update `NewSessionDialog.tsx` to show account selection for all supported providers~~ — done
+- update ended-session resume prompts to stay capability-driven — deferred to Phase 5
 
-### UX direction
+### UX direction (planned for Phase 5)
 
 **AccountsDialog layout:**
 
@@ -719,16 +700,17 @@ Without this step, every new provider will widen a file that is already too cent
 - verify/login actions are scoped to the clicked provider row
 - the "Add Account" flow remains the same (creates profile, then user can verify per provider)
 
-**NewSessionDialog:**
+**NewSessionDialog (delivered):**
 
-- account selector dropdown appears for any agent where `supportsAccountProfiles === true` and `accounts.length > 1` (same gating logic as today, just not Claude-specific)
-- each option shows: account name + provider-specific identity (e.g., "Work — waterdrop86" for Copilot, "Work — user@example.com" for Claude)
-- if the selected account has no verified identity for the chosen provider, show a subtle warning but allow session creation
+- ~~account selector dropdown appears for any agent where `supportsAccountProfiles === true` and `accounts.length > 1`~~ — done
+- each option shows: account name + provider-specific identity (e.g., "Work — waterdrop86" for Copilot, "Work — user@example.com" for Claude) — identity display deferred to Phase 5
+- if the selected account has no verified identity for the chosen provider, show a subtle warning but allow session creation — deferred to Phase 5
 
 ### Deliverables
 
-- renderer no longer assumes Claude-only accounts
-- provider-aware IPC contract in place
+- ~~provider-aware IPC contract in place~~ — done
+- ~~renderer account selector is capability-driven~~ — done
+- AccountsDialog per-provider verification rows — deferred to Phase 5
 
 ## Phase 4 — Claude Migration Hardening
 
@@ -936,12 +918,12 @@ Recommendation:
 
 1. ~~split the current account system into cleaner modules~~ — done (Phase 1)
 2. ~~add provider adapter registry~~ — done (Phase 1)
-3. add provider-scoped identity persistence
-4. migrate Claude to the new foundation
+3. ~~add provider-scoped identity persistence~~ — done (Phase 2+3)
+4. ~~migrate Claude to the new foundation~~ — done (Phase 2+3, hardening in Phase 4)
 
 ### Then do
 
-5. modernize IPC and renderer account flows
+5. ~~modernize IPC and renderer account flows~~ — done (Phase 2+3; AccountsDialog per-provider rows in Phase 5)
 6. ship Copilot account support
 7. ship Gemini account support if CLI verification is clean
 
@@ -968,19 +950,31 @@ Phase 1 touch points (completed):
 - ~~`src/main/accounts/*`~~ — created
 - ~~`tests/unit/main/accounts/*`~~ — created
 
-Remaining touch points (Phase 2+):
+Phase 2+3 touch points (completed):
 
-- `src/shared/types.ts`
-- `src/shared/session-agents.ts`
-- `src/shared/ipc-contract-app.ts`
-- `src/preload/index.ts`
-- `src/renderer/stores/accounts-store.ts`
-- `src/renderer/components/AccountsDialog.tsx`
-- `src/renderer/components/Sidebar/NewSessionDialog.tsx`
-- `src/renderer/components/SessionTile/SessionEndedPrompt.tsx`
-- `db/migrations/*`
-- `tests/unit/renderer/*account*`
-- provider-specific account adapter tests
+- ~~`src/shared/types.ts`~~ — `AuthStatusResult` extended with `identity`, `displayName`; `sessionType?` on 3 API methods
+- ~~`src/shared/ipc-contract-app.ts`~~ — `sessionType?` on 3 IPC channels
+- ~~`src/preload/index.ts`~~ — pass `sessionType?` through preload bridge
+- ~~`src/renderer/components/AccountsDialog.tsx`~~ — agent metadata for CLI strings
+- ~~`src/renderer/components/Sidebar/NewSessionDialog.tsx`~~ — `supportsAccountProfiles` gating
+- ~~`src/renderer/components/Sidebar/SidebarPanel.tsx`~~ — agent metadata for CLI strings
+- ~~`src/main/accounts/account-identity-repository.ts`~~ — new, provider-scoped identity CRUD
+- ~~`src/main/accounts/account-service.ts`~~ — provider-parameterized auth, dual-write
+- ~~`src/main/accounts/account-ipc.ts`~~ — adapter-driven auth terminal
+- ~~`src/main/accounts/providers/claude-account-provider.ts`~~ — `identity` in auth result
+- ~~`src/main/index.ts`~~ — wire identity repo + registry
+- ~~`db/migrations/041_account_provider_identities.sql`~~ — identity table + backfill
+- ~~`tests/unit/main/accounts/account-identity-repository.test.ts`~~ — 12 tests
+- ~~`tests/unit/main/accounts/account-service.test.ts`~~ — extended with provider tests
+
+Remaining touch points (Phase 4+):
+
+- `src/shared/session-agents.ts` — flip `supportsAccountProfiles` for Copilot/Gemini (Phase 5/6)
+- `src/renderer/stores/accounts-store.ts` — provider-aware identity caching (Phase 5)
+- `src/renderer/components/AccountsDialog.tsx` — per-provider verification rows (Phase 5)
+- `src/renderer/components/SessionTile/SessionEndedPrompt.tsx` — capability-driven resume (Phase 5)
+- `tests/unit/renderer/*account*` — renderer account tests (Phase 5)
+- provider-specific account adapter tests for Copilot/Gemini/Codex (Phase 5/6/7)
 
 ## Final Recommendation
 
