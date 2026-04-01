@@ -5,6 +5,7 @@ import { useDialogStore } from '../../stores/dialog-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useStatsStore } from '../../stores/stats-store';
+import { getAgentDefinition } from '@shared/session-agents';
 import SessionList from './SessionList';
 import NewSessionDialog from './NewSessionDialog';
 import Tooltip from '../shared/Tooltip';
@@ -17,6 +18,8 @@ import SearchPanel from './SearchPanel';
 import TodosPanel from './TodosPanel';
 import { createTerminalSession, autoExpandInKanban } from '../../utils/session-actions';
 import type { SessionCreateInput, SessionInfo } from '@shared/types';
+
+const claudeDef = getAgentDefinition('claude')!;
 import {
   MIN_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
@@ -303,10 +306,10 @@ function SidebarPanel(): React.JSX.Element {
               {cliStatus === 'cli-not-found' && !cliStatusDismissed && (
                 <div className="px-3 py-1.5 bg-red-900/30 text-red-300 text-xs shrink-0 flex items-center justify-between gap-2">
                   <span>
-                    Claude Code CLI not found.{' '}
+                    {claudeDef.displayName} CLI not found.{' '}
                     <button
                       className="underline hover:text-red-200 transition-colors"
-                      onClick={() => window.open('https://docs.anthropic.com/en/docs/claude-code/overview', '_blank')}
+                      onClick={() => window.open(claudeDef.installHelpUrl ?? 'https://docs.anthropic.com/en/docs/claude-code/overview', '_blank')}
                     >
                       Install
                     </button>
@@ -319,7 +322,7 @@ function SidebarPanel(): React.JSX.Element {
               {cliStatus === 'not-authenticated' && !cliStatusDismissed && (
                 <div className="px-3 py-1.5 bg-amber-900/30 text-amber-300 text-xs shrink-0 flex items-center justify-between gap-2">
                   <span>
-                    Not signed in to Claude Code.{' '}
+                    Not signed in to {claudeDef.displayName}.{' '}
                     <button
                       className="underline hover:text-amber-200 transition-colors"
                       onClick={handleSignIn}

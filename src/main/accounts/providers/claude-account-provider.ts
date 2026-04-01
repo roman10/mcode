@@ -47,7 +47,7 @@ class ClaudeAccountProvider implements AccountProviderAdapter {
       const { stdout } = await execFileAsync('claude', ['auth', 'status', '--json'], { env });
       const status = JSON.parse(stdout) as { loggedIn?: boolean; email?: string };
       if (status.loggedIn) {
-        return { status: 'ok', email: status.email };
+        return { status: 'ok', email: status.email, identity: status.email };
       }
       return { status: 'not-authenticated' };
     } catch (err) {

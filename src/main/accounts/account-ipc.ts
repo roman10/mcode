@@ -1,14 +1,15 @@
 import { typedHandle } from '../ipc-helpers';
-import { fetchSubscriptionUsage } from '../claude-subscription-fetcher';
 import type { AccountService } from './account-service';
+import type { AccountProviderRegistry } from './account-provider';
 
 /**
  * Register IPC handlers for account operations.
- * All channel names and behavior are identical to the original registerAccountIpc.
+ * Provider-aware: auth/CLI/terminal calls accept an optional sessionType parameter.
  */
 export function registerAccountIpc(
   accountService: AccountService,
   sessionManager: Pick<import('../session/session-manager').SessionManager, 'create'>,
+  registry: AccountProviderRegistry,
 ): void {
   typedHandle('account:list', () => {
     return accountService.list();
@@ -26,33 +27,37 @@ export function registerAccountIpc(
     accountService.delete(accountId);
   });
 
-  typedHandle('account:get-auth-status', async (accountId) => {
-    const result = await accountService.getAuthStatus(accountId);
-    if (result.email) {
-      accountService.setEmail(accountId, result.email);
-    }
-    return result;
+  typedHandle('account:get-auth-status', async (accountId, sessionType) => {
+    return accountService.getAuthStatus(accountId, sessionType);
   });
 
-  typedHandle('account:check-cli-installed', async () => {
-    return accountService.checkCliInstalled();
+  typedHandle('account:check-cli-installed', async (sessionType) => {
+    return accountService.checkCliInstalled(sessionType);
   });
 
-  typedHandle('account:open-auth-terminal', (accountId) => {
+  typedHandle('account:open-auth-terminal', (accountId, sessionType) => {
     const account = accountService.get(accountId);
     if (!account) throw new Error(`Account not found: ${accountId}`);
     if (account.isDefault) throw new Error('Default account uses standard auth');
     if (!account.homeDir) throw new Error('Account has no home directory');
 
-    const session = sessionManager.create(
-      { cwd: account.homeDir, label: `Auth: ${account.name}`, sessionType: 'terminal', accountId, initialCommand: 'claude auth login' },
-    );
+    const type = sessionType ?? 'claude';
+    const adapter = registry.get(type);
+    if (!adapter) throw new Error(`No provider adapter for: ${type}`);
+
+    const input = adapter.buildAuthTerminalInput(account);
+    if (!input) throw new Error(`Provider ${type} does not support terminal-based auth`);
+
+    const session = sessionManager.create(input);
     return session.sessionId;
   });
 
   typedHandle('account:get-subscription-usage', async (accountId, forceRefresh) => {
     const account = accountService.get(accountId);
     if (!account) return null;
-    return fetchSubscriptionUsage(account, forceRefresh);
+    // Route through adapter — only Claude supports subscription usage currently
+    const adapter = registry.get('claude');
+    if (!adapter || !adapter.supportsSubscriptionUsage()) return null;
+    return adapter.getSubscriptionUsage(account, forceRefresh);
   });
 }

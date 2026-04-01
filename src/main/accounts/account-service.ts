@@ -3,16 +3,18 @@ import type { AccountProfile, AuthStatusResult } from '../../shared/types';
 import type { AccountProviderRegistry } from './account-provider';
 import type { AccountProfileRepository } from './account-profile-repository';
 import type { AccountHomeManager } from './account-home-manager';
+import type { AccountIdentityRepository } from './account-identity-repository';
 
 /**
  * Orchestration layer for account operations.
- * Delegates to repository (DB), home manager (filesystem), and provider registry (adapters).
+ * Delegates to repository (DB), home manager (filesystem), identity repo, and provider registry (adapters).
  */
 export class AccountService {
   constructor(
     private repo: AccountProfileRepository,
     private homeManager: AccountHomeManager,
     private registry: AccountProviderRegistry,
+    private identityRepo: AccountIdentityRepository,
   ) {}
 
   // --- Profile operations (delegate to repository) ---
@@ -62,9 +64,10 @@ export class AccountService {
 
   /**
    * Delete a secondary account profile.
-   * Removes the DB record and cleans up the home directory.
+   * Removes identity rows, the DB record, and the home directory.
    */
   delete(accountId: string): void {
+    this.identityRepo.deleteAll(accountId);
     const homeDir = this.repo.delete(accountId);
     if (homeDir) {
       this.homeManager.removeAccountHome(homeDir);
@@ -113,7 +116,6 @@ export class AccountService {
 
     // No specific adapter (terminal sessions, undefined type):
     // merge env from all registered adapters so auth terminals get correct env.
-    // Phase 1: only Claude registered → produces { HOME, CLAUDE_CONFIG_DIR } = identical to today.
     const env: Record<string, string> = {};
     for (const a of this.registry.getRegistered()) {
       Object.assign(env, a.getConfigEnv(account.homeDir));
@@ -124,28 +126,44 @@ export class AccountService {
   // --- Auth operations (delegate to provider adapter) ---
 
   /**
-   * Check auth status for an account by delegating to the Claude provider adapter.
-   * Currently only supports Claude (the only provider with supportsAccountProfiles).
+   * Check auth status for an account by delegating to the appropriate provider adapter.
+   * Writes result to both the provider identity table and (for Claude) the legacy email column.
    */
-  async getAuthStatus(accountId: string): Promise<AuthStatusResult> {
+  async getAuthStatus(accountId: string, sessionType?: string): Promise<AuthStatusResult> {
     const account = this.get(accountId);
     if (!account) throw new Error(`Account not found: ${accountId}`);
 
-    // Use the Claude adapter since it's the only one supporting account profiles in Phase 1.
-    // In Phase 3+, this will be parameterized by provider type.
-    const adapter = this.registry.get('claude');
-    if (!adapter) throw new Error('No Claude provider adapter registered');
+    const type = sessionType ?? 'claude';
+    const adapter = this.registry.get(type);
+    if (!adapter) throw new Error(`No provider adapter for: ${type}`);
 
-    return adapter.checkAuthStatus(account);
+    const result = await adapter.checkAuthStatus(account);
+
+    // Write to provider identity table
+    this.identityRepo.upsert(accountId, type, result.status, result.identity, result.displayName);
+
+    // Backward compat: still write email for Claude so renderer can read account_profiles.email
+    if (type === 'claude' && result.email) {
+      this.repo.setEmail(accountId, result.email);
+    }
+
+    return result;
   }
 
   /**
    * Quick check whether the CLI is installed and the default account is authenticated.
    * Used at startup for the sidebar banner.
    */
-  async checkCliInstalled(): Promise<AuthStatusResult> {
+  async checkCliInstalled(sessionType?: string): Promise<AuthStatusResult> {
+    const type = sessionType ?? 'claude';
+    const adapter = this.registry.get(type);
+    if (!adapter) return { status: 'cli-not-found' };
+
+    const cliStatus = await adapter.checkCliInstalled();
+    if (cliStatus !== 'ok') return { status: cliStatus };
+
     const defaultAcc = this.getDefault();
     if (!defaultAcc) return { status: 'not-authenticated' };
-    return this.getAuthStatus(defaultAcc.accountId);
+    return this.getAuthStatus(defaultAcc.accountId, type);
   }
 }

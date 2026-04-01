@@ -49,9 +49,9 @@ export interface AppInvokeContract {
   'account:create':                     { params: [name?: string]; result: AccountProfile };
   'account:rename':                     { params: [accountId: string, name: string]; result: void };
   'account:delete':                     { params: [accountId: string]; result: void };
-  'account:get-auth-status':            { params: [accountId: string]; result: AuthStatusResult };
-  'account:check-cli-installed':        { params: []; result: AuthStatusResult };
-  'account:open-auth-terminal':         { params: [accountId: string]; result: string };
+  'account:get-auth-status':            { params: [accountId: string, sessionType?: string]; result: AuthStatusResult };
+  'account:check-cli-installed':        { params: [sessionType?: string]; result: AuthStatusResult };
+  'account:open-auth-terminal':         { params: [accountId: string, sessionType?: string]; result: string };
   'account:get-subscription-usage':     { params: [accountId: string, forceRefresh?: boolean]; result: SubscriptionUsage | null };
 }
 

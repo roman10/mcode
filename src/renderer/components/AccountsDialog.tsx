@@ -3,8 +3,11 @@ import { Trash2 } from 'lucide-react';
 import { useAccountsStore } from '../stores/accounts-store';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
+import { getAgentDefinition } from '@shared/session-agents';
 import Dialog from './shared/Dialog';
 import type { AccountProfile, CliAuthStatus } from '@shared/types';
+
+const claudeDef = getAgentDefinition('claude')!;
 
 function suggestNameFromEmail(email: string): string {
   const [localPart, domain] = email.split('@');
@@ -226,18 +229,20 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
             />
             {authStatuses[defaultAccount.accountId] === 'cli-not-found' && (
               <div className="mt-2 px-3 py-2 bg-red-900/20 border border-red-700/30 rounded-md text-xs text-red-300">
-                The <code className="bg-red-900/30 px-1 rounded">claude</code> command was not found in your PATH. Install Claude Code CLI to get started.
-                <button
-                  className="ml-2 underline hover:text-red-200 transition-colors"
-                  onClick={() => window.open('https://docs.anthropic.com/en/docs/claude-code/overview', '_blank')}
-                >
-                  Install Instructions
-                </button>
+                The <code className="bg-red-900/30 px-1 rounded">{claudeDef.defaultCommand}</code> command was not found in your PATH. Install {claudeDef.displayName} CLI to get started.
+                {claudeDef.installHelpUrl && (
+                  <button
+                    className="ml-2 underline hover:text-red-200 transition-colors"
+                    onClick={() => window.open(claudeDef.installHelpUrl, '_blank')}
+                  >
+                    Install Instructions
+                  </button>
+                )}
               </div>
             )}
             {authStatuses[defaultAccount.accountId] === 'not-authenticated' && !defaultAccount.email && (
               <div className="mt-2 px-3 py-2 bg-amber-900/20 border border-amber-700/30 rounded-md text-xs text-amber-300">
-                Run <code className="bg-amber-900/30 px-1 rounded">claude auth login</code> in a terminal to authenticate.
+                Run <code className="bg-amber-900/30 px-1 rounded">{claudeDef.defaultCommand} auth login</code> in a terminal to authenticate.
               </div>
             )}
           </>

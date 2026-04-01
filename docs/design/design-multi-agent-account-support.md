@@ -993,3 +993,59 @@ If we do the cleanup first, the result is a cleaner system that:
 - makes future provider additions materially easier
 
 If we skip the cleanup and add provider support directly into the current account manager and UI, the code will become harder to reason about and more expensive to maintain with each new agent.
+
+---
+
+## Status Update — 2026-04-01
+
+### What's done
+
+| Phase | Status | Date |
+|-------|--------|------|
+| Phase 0 — Discovery & Contract Definition | **COMPLETED** | 2026-03-19 |
+| Phase 1 — Foundation Refactor | **COMPLETED** | 2026-04-01 |
+| Phase 2+3 — Data Model + IPC/Renderer Modernization | **COMPLETED** | 2026-04-01 |
+| Phase 4 — Claude Migration Hardening | Not started | — |
+| Phase 5 — Copilot Account Support | Not started | — |
+| Phase 6 — Gemini Account Support | Not started | — |
+| Phase 7 — Codex Decision Gate | Not started | — |
+
+### Phase 1 recap
+
+Delivered in commit `74aacd5`. The old monolithic `account-manager.ts` (413 lines) was deleted and replaced by a clean module structure:
+
+- `AccountProviderAdapter` interface + `AccountProviderRegistry`
+- `AccountProfileRepository` (DB CRUD)
+- `AccountHomeManager` (filesystem isolation, provider-driven denylist)
+- `AccountService` (orchestration)
+- `account-ipc.ts` (IPC handlers, unchanged channel names)
+- `claudeAccountProvider` (Claude adapter)
+- 49 new tests, 934 total passing
+
+Claude works identically to before. No renderer behavior change. Provider abstraction is in place but only Claude is registered.
+
+### Remaining known limitations
+
+1. `.claude/settings.json` copy in `setupAccountDirectory` is Claude-specific — generalize in Phase 5+
+2. `getAllSettingsPaths` only handles Claude settings paths
+3. `AccountsDialog` still treats all accounts as Claude accounts (per-provider verification rows deferred to Phase 5)
+4. Renderer reads `account_profiles.email` — switch to identity table in Phase 5 when a second provider ships
+
+### Phase 2+3 recap
+
+Delivered as a combined phase. Key changes:
+
+- **Migration 041:** `account_provider_identities` table with Claude email backfill
+- **AccountIdentityRepository:** provider-scoped identity CRUD
+- **IPC/preload/types:** `sessionType?` parameter on `getAuthStatus`, `checkCliInstalled`, `openAuthTerminal`
+- **AccountService:** provider-parameterized auth, dual-write to identity table + legacy email
+- **account-ipc.ts:** adapter-driven auth terminal (removes hardcoded `'claude auth login'`), subscription routed through adapter
+- **NewSessionDialog:** account selector gated by `supportsAccountProfiles` instead of `isClaude`
+- **AccountsDialog + SidebarPanel:** agent metadata for CLI strings instead of hardcoded "Claude Code"
+- 17 new tests (960 total)
+
+### Next steps
+
+1. **Phase 4 (Claude hardening)** — lightweight cleanup: remove compatibility shims, tighten tests
+2. **Phase 5 (Copilot account support)** — implement adapter, flip `supportsAccountProfiles: true`, wire hook reconciliation. Renderer already supports any `supportsAccountProfiles` agent.
+3. **Phase 6 (Gemini)** / **Phase 7 (Codex decision gate)** — as per original plan

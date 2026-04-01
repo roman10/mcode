@@ -34,6 +34,7 @@ describe('database migrations', () => {
 
     const expected = [
       'account_profiles',
+      'account_provider_identities',
       'commits',
       'events',
       'layout_state',

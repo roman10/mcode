@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { getDb, resetDbForTest } from '../../../../src/main/db';
 import { AccountProviderRegistry } from '../../../../src/main/accounts/account-provider';
 import { AccountProfileRepository } from '../../../../src/main/accounts/account-profile-repository';
+import { AccountIdentityRepository } from '../../../../src/main/accounts/account-identity-repository';
 import { AccountHomeManager } from '../../../../src/main/accounts/account-home-manager';
 import { AccountService } from '../../../../src/main/accounts/account-service';
 import { createClaudeAccountProvider } from '../../../../src/main/accounts/providers/claude-account-provider';
@@ -11,7 +12,8 @@ function createService() {
   registry.register(createClaudeAccountProvider());
   const repo = new AccountProfileRepository();
   const homeManager = new AccountHomeManager(registry);
-  return new AccountService(repo, homeManager, registry);
+  const identityRepo = new AccountIdentityRepository();
+  return new AccountService(repo, homeManager, registry, identityRepo);
 }
 
 describe('AccountService', () => {
@@ -27,6 +29,7 @@ describe('AccountService', () => {
 
   beforeEach(() => {
     const db = getDb();
+    db.prepare('DELETE FROM account_provider_identities').run();
     db.prepare('DELETE FROM account_profiles').run();
     service = createService();
   });
@@ -126,6 +129,63 @@ describe('AccountService', () => {
       const def = service.getDefault()!;
       service.setEmail(def.accountId, 'test@example.com');
       expect(service.get(def.accountId)!.email).toBe('test@example.com');
+    });
+  });
+
+  describe('delete', () => {
+    it('cleans up identity rows on delete', () => {
+      service.ensureDefaultAccount();
+      const repo = new AccountProfileRepository();
+      const identityRepo = new AccountIdentityRepository();
+      const account = repo.insert('ToDelete', '/tmp/test-delete');
+
+      identityRepo.upsert(account.accountId, 'claude', 'ok', 'test@example.com');
+      expect(identityRepo.list(account.accountId)).toHaveLength(1);
+
+      service.delete(account.accountId);
+      expect(identityRepo.list(account.accountId)).toHaveLength(0);
+    });
+  });
+
+  describe('getAuthStatus', () => {
+    it('defaults to claude when sessionType is omitted', async () => {
+      service.ensureDefaultAccount();
+      const def = service.getDefault()!;
+      // This will attempt to run `claude auth status --json`, which may fail in test env.
+      // We just verify it doesn't throw "No provider adapter" error.
+      try {
+        await service.getAuthStatus(def.accountId);
+      } catch (e) {
+        // Expected: CLI not found in test env, but not "No provider adapter" error
+        expect(String(e)).not.toContain('No provider adapter');
+      }
+    });
+
+    it('throws for unknown sessionType', async () => {
+      service.ensureDefaultAccount();
+      const def = service.getDefault()!;
+      await expect(service.getAuthStatus(def.accountId, 'unknown')).rejects.toThrow(
+        'No provider adapter for: unknown',
+      );
+    });
+
+    it('throws for non-existent account', async () => {
+      await expect(service.getAuthStatus('missing')).rejects.toThrow('Account not found: missing');
+    });
+  });
+
+  describe('checkCliInstalled', () => {
+    it('defaults to claude when sessionType is omitted', async () => {
+      service.ensureDefaultAccount();
+      const result = await service.checkCliInstalled();
+      // In test env, CLI may or may not be installed — just verify it returns a valid status
+      expect(['ok', 'cli-not-found', 'not-authenticated']).toContain(result.status);
+    });
+
+    it('returns cli-not-found for unregistered provider', async () => {
+      service.ensureDefaultAccount();
+      const result = await service.checkCliInstalled('unknown');
+      expect(result.status).toBe('cli-not-found');
     });
   });
 

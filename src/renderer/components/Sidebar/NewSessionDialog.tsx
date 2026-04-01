@@ -92,9 +92,14 @@ function NewSessionDialog({
     if (!cwd.trim() || isCreating) return;
 
     setIsCreating(true);
+
+    // Compute accountId for any agent with account profile support
+    const defaultAccount = accounts.find((a) => a.isDefault);
+    const isDefaultSelected = !selectedAccountId || selectedAccountId === defaultAccount?.accountId;
+    const accountId = agentDefinition?.supportsAccountProfiles && !isDefaultSelected
+      ? selectedAccountId : undefined;
+
     if (isClaude) {
-      const defaultAccount = accounts.find((a) => a.isDefault);
-      const isDefaultSelected = !selectedAccountId || selectedAccountId === defaultAccount?.accountId;
       onCreate({
         cwd: cwd.trim(),
         label: label.trim() || undefined,
@@ -104,7 +109,7 @@ function NewSessionDialog({
         effort: effort || undefined,
         enableAutoMode: enableAutoMode,
         worktree: useWorktree ? (worktreeName.trim() || '') : undefined,
-        accountId: isDefaultSelected ? undefined : selectedAccountId,
+        accountId,
         sessionType: 'claude',
       });
     } else {
@@ -114,6 +119,7 @@ function NewSessionDialog({
         initialPrompt: initialPrompt.trim() || undefined,
         model: showModelField ? (model.trim() || undefined) : undefined,
         permissionMode: permissionMode || undefined,
+        accountId,
         sessionType,
       });
     }
@@ -254,6 +260,27 @@ function NewSessionDialog({
             </div>
           )}
 
+          {/* Account — shown for any agent with account profile support */}
+          {agentDefinition?.supportsAccountProfiles && accounts.length > 1 && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">
+                Account
+              </label>
+              <select
+                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+              >
+                {accounts.map((account) => (
+                  <option key={account.accountId} value={account.accountId}>
+                    {account.name}{account.email ? ` (${account.email})` : ''}
+                    {account.isDefault ? ' — default' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Claude-specific fields */}
           {isClaude && (
             <>
@@ -295,27 +322,6 @@ function NewSessionDialog({
                   Enable auto mode (unlocks in Shift+Tab cycle)
                 </label>
               </div>
-
-              {/* Account (only shown when multiple accounts exist) */}
-              {accounts.length > 1 && (
-                <div>
-                  <label className="block text-sm text-text-secondary mb-1">
-                    Account
-                  </label>
-                  <select
-                    className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                    value={selectedAccountId}
-                    onChange={(e) => setSelectedAccountId(e.target.value)}
-                  >
-                    {accounts.map((account) => (
-                      <option key={account.accountId} value={account.accountId}>
-                        {account.name}{account.email ? ` (${account.email})` : ''}
-                        {account.isDefault ? ' — default' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               {/* Worktree */}
               <div>

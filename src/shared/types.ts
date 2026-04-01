@@ -49,7 +49,9 @@ export type CliAuthStatus = 'ok' | 'cli-not-found' | 'not-authenticated';
 
 export interface AuthStatusResult {
   status: CliAuthStatus;
-  email?: string;
+  email?: string;         // kept — renderer reads this for Claude
+  identity?: string;      // provider-neutral: email, username, auth mode
+  displayName?: string;   // optional human-friendly label
 }
 
 // --- Subscription Usage ---
@@ -309,9 +311,9 @@ export interface MCodeAPI {
     create(name?: string): Promise<AccountProfile>;
     rename(accountId: string, name: string): Promise<void>;
     delete(accountId: string): Promise<void>;
-    getAuthStatus(accountId: string): Promise<AuthStatusResult>;
-    checkCliInstalled(): Promise<CliAuthStatus>;
-    openAuthTerminal(accountId: string): Promise<string>; // returns sessionId of auth terminal
+    getAuthStatus(accountId: string, sessionType?: string): Promise<AuthStatusResult>;
+    checkCliInstalled(sessionType?: string): Promise<CliAuthStatus>;
+    openAuthTerminal(accountId: string, sessionType?: string): Promise<string>; // returns sessionId of auth terminal
     getSubscriptionUsage(accountId: string, forceRefresh?: boolean): Promise<SubscriptionUsage | null>;
   };
 

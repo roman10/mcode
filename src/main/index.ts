@@ -5,7 +5,7 @@ import { BrokerClient, registerPtyIpc } from './pty/broker-client';
 import { ensureBroker, BROKER_SOCKET_PATH } from './pty/broker-launcher';
 import { SessionManager, registerSessionIpc } from './session/session-manager';
 import { registerLayoutIpc } from './session/layout-repository';
-import { AccountService, AccountProviderRegistry, AccountProfileRepository, AccountHomeManager, registerAccountIpc } from './accounts';
+import { AccountService, AccountProviderRegistry, AccountProfileRepository, AccountIdentityRepository, AccountHomeManager, registerAccountIpc } from './accounts';
 import { createClaudeAccountProvider } from './accounts/providers/claude-account-provider';
 import { TaskQueue, registerTaskIpc } from './task-queue';
 import { CommitTracker, registerCommitIpc } from './trackers/commit-tracker';
@@ -288,6 +288,7 @@ app.whenReady().then(async () => {
     new AccountProfileRepository(),
     new AccountHomeManager(providerRegistry),
     providerRegistry,
+    new AccountIdentityRepository(),
   );
   accountManager.ensureDefaultAccount();
 
@@ -382,7 +383,7 @@ app.whenReady().then(async () => {
   registerTodoIpc();
   registerAppIpc();
   registerHookIpc();
-  registerAccountIpc(accountManager, sessionManager);
+  registerAccountIpc(accountManager, sessionManager, providerRegistry);
   registerTaskIpc(taskQueue);
   registerCommitIpc(commitTracker);
   registerGitChangesIpc(gitChangesService);

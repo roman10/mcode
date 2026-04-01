@@ -93,14 +93,14 @@ contextBridge.exposeInMainWorld('mcode', {
     delete: (accountId: string): Promise<void> =>
       typedInvoke('account:delete', accountId),
 
-    getAuthStatus: (accountId: string): Promise<AuthStatusResult> =>
-      typedInvoke('account:get-auth-status', accountId),
+    getAuthStatus: (accountId: string, sessionType?: string): Promise<AuthStatusResult> =>
+      typedInvoke('account:get-auth-status', accountId, sessionType),
 
-    checkCliInstalled: (): Promise<CliAuthStatus> =>
-      typedInvoke('account:check-cli-installed').then((r) => r.status),
+    checkCliInstalled: (sessionType?: string): Promise<CliAuthStatus> =>
+      typedInvoke('account:check-cli-installed', sessionType).then((r) => r.status),
 
-    openAuthTerminal: (accountId: string): Promise<string> =>
-      typedInvoke('account:open-auth-terminal', accountId),
+    openAuthTerminal: (accountId: string, sessionType?: string): Promise<string> =>
+      typedInvoke('account:open-auth-terminal', accountId, sessionType),
 
     getSubscriptionUsage: (accountId: string, forceRefresh?: boolean): Promise<SubscriptionUsage | null> =>
       typedInvoke('account:get-subscription-usage', accountId, forceRefresh),
