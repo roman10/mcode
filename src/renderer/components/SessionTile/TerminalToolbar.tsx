@@ -2,12 +2,14 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Maximize2, Minimize2, Plus, Square, TimerOff, X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import { useTaskStore } from '../../stores/task-store';
+import { useAccountsStore } from '../../stores/accounts-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
 import AgentIcon from '../shared/AgentIcon';
 import Tooltip from '../shared/Tooltip';
 import CreateTaskDialog from '../shared/CreateTaskDialog';
 import ModelPill from './ModelPill';
+import AccountPill from './AccountPill';
 import { canSessionQueueTasks } from '@shared/session-capabilities';
 import type { SessionStatus, CreateTaskInput } from '@shared/types';
 import { useSlashCommandWarningStore } from '../../stores/slash-command-warning-store';
@@ -51,6 +53,12 @@ function TerminalToolbar({
   const lastTool = session?.lastTool;
   const shortTime = useRelativeTime(session?.startedAt ?? '');
   const slashWarning = useSlashCommandWarningStore((s) => s.warnings[sessionId] ?? null);
+
+  const account = useAccountsStore((s) => {
+    if (!session?.accountId) return null;
+    const a = s.accounts.find((acc) => acc.accountId === session.accountId);
+    return a && !a.isDefault ? a : null;
+  });
 
   const canQueueTasks = canSessionQueueTasks(session);
 
@@ -127,6 +135,7 @@ function TerminalToolbar({
         {statusLabels[status]}
       </span>
       <ModelPill model={session?.model ?? null} sessionType={session?.sessionType ?? 'terminal'} />
+      {account && <AccountPill name={account.name} email={account.email} />}
       {lastTool && status !== 'ended' && (
         <span className="text-xs text-text-muted mr-1.5">
           {lastTool}
