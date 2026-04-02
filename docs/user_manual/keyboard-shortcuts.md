@@ -20,6 +20,8 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+Shift+C` | Show Changes |
 | `Cmd+Shift+E` | Run Shell Command |
 | `Cmd+Shift+F` | Search in Files |
+| `Cmd+Shift+H` | Prompt History |
+| `Cmd+Shift+I` | Show Todos |
 | `Cmd+Shift+L` | Toggle layout mode |
 | `Cmd+Shift+M` | Clear all attention |
 | `Cmd+Shift+S` | Snippets |
@@ -27,6 +29,7 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Ctrl+Backtick` | Toggle [Terminal Panel](terminal-panel.md) |
 | `Cmd+W` | Close tile |
 | `Cmd+Shift+X` | Close all tiles |
+| `Cmd+Shift+Q` | Quit and Kill All Sessions |
 
 ## Sessions
 

@@ -22,10 +22,10 @@ Each card shows:
 - Status badge (colored dot)
 - Session label
 - Account name (if not the default account)
-- Gemini model (for Gemini sessions)
+- AI model (if specified, e.g., `sonnet-3.7`, `gpt-4o`, `gemini-2.0-pro`)
 - Relative time since session started
 - Working directory
-- Last tool used (for running sessions) — the most recent Claude Code tool call (e.g., `Read`, `Edit`, `Bash`), updated live
+- Last tool used (for running sessions) — the most recent tool call (e.g., `Read`, `Edit`, `Bash`), updated live
 - Attention border (red/amber/blue left border matching the [attention system](attention-and-tasks.md))
 
 ### Actions

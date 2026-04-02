@@ -43,15 +43,17 @@ When you launch mcode, you see two main areas:
 
 ### Sidebar
 
-The sidebar has a vertical **activity bar** on its left edge with five icons:
+The sidebar has a vertical **activity bar** on its left edge with six icons:
 
 - **Sessions** — session list grouped by date
 - **Search** — search in files across project directories (`Cmd+Shift+F`)
 - **Changes** — git changes (staged/unstaged) and commit graph (see [Git Changes](git-changes.md) and [Sidebar Panels](sidebar-panels.md#changes))
-- **Stats** — commit output, AI cost, and human input metrics (`Cmd+Shift+B`) (see [Sidebar Panels](sidebar-panels.md#stats))
+- **Stats** — commit output, token costs, and human input metrics (`Cmd+Shift+B`) (see [Sidebar Panels](sidebar-panels.md#stats))
 - **Activity** — live event feed from all sessions (see [Sidebar Panels](sidebar-panels.md#activity-feed))
+- **Todos** — scan for TODO comments and manage manual tasks (`Cmd+Shift+I`) (see [Sidebar Panels](sidebar-panels.md#todos))
 
-Switch panels by clicking the icons or with `Cmd+Shift+F` (Search), `Cmd+Shift+C` (Changes), `Cmd+Shift+B` (Stats), `Cmd+Shift+A` (Activity).
+Switch panels by clicking the icons or with `Cmd+Shift+F` (Search), `Cmd+Shift+C` (Changes), `Cmd+Shift+B` (Stats), `Cmd+Shift+A` (Activity), or `Cmd+Shift+I` (Todos).
+
 
 On the **Sessions tab**, action buttons appear in the sidebar header: Close all tiles, Delete ended sessions, Mark all read, New terminal (`Cmd+T`), and New session (`Cmd+N`).
 

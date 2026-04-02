@@ -1,6 +1,6 @@
 # Sidebar Panels
 
-The sidebar has a vertical activity bar with five panels: **Sessions**, **Search**, **Changes**, **Stats**, and **Activity**. Click the icons in the activity bar to switch, or use the keyboard shortcuts below.
+The sidebar has a vertical activity bar with six panels: **Sessions**, **Search**, **Changes**, **Stats**, **Activity**, and **Todos**. Click the icons in the activity bar to switch, or use the keyboard shortcuts below.
 
 ## Search in Files
 
@@ -22,12 +22,12 @@ A live stream of hook events from all sessions — tool calls, session lifecycle
 |---|---|
 | SessionStart | A session was created |
 | SessionEnd | A session ended |
-| PreToolUse | Claude is about to use a tool |
+| PreToolUse | Agent is about to use a tool |
 | PostToolUse | A tool call completed |
 | PostToolUseFailure | A tool call failed |
-| Stop | Claude finished its turn |
-| PermissionRequest | Claude is waiting for tool approval |
-| Notification | A notification from Claude |
+| Stop | Agent finished its turn |
+| PermissionRequest | Agent is waiting for tool approval |
+| Notification | A notification from the agent |
 
 ### Filters
 
@@ -63,11 +63,15 @@ A visual commit graph for each tracked repo, showing branch topology:
 
 Shows commit output, token costs, and human input metrics across all repos and sessions. The panel has three collapsible sections — click any section header to collapse or expand it. Collapse state persists across restarts.
 
+### CLI Filtering
+
+Use the **Filter by CLI** dropdown in the Stats header to view metrics for all agents or a specific provider (Claude, Codex, Gemini, or Copilot).
+
 ### Output
 
 - **Total commits today** with lines changed (insertions + deletions)
 - **Streak** — consecutive days with at least one commit
-- **AI-assisted vs solo** — how many commits were detected as AI-assisted (currently detects Claude and Codex co-authors)
+- **AI-assisted vs solo** — how many commits were detected as AI-assisted (detects Claude, Codex, Gemini, and Copilot co-authors)
 - **7-day heatmap** — color intensity shows commit volume per day
 - **Commits by type** — breakdown by conventional commit prefix (feat, fix, refactor, docs, test, chore)
 - **Per-repo breakdown** — commit count and line changes per repository
@@ -78,20 +82,16 @@ By default only commits on the main branch are tracked. To include all branches,
 
 ### AI Cost
 
-> **Note**: AI Cost tracking currently only supports Claude Code sessions.
-
 - **Headline stats** — estimated cost for the selected day, message count, cost per message
 - **Token breakdown** — input tokens, output tokens, total tokens
 - **7-day heatmap** — green shading shows cost per day; click a cell to view that day's data
-- **Model breakdown** — pills for each model used (purple for Opus, blue for Sonnet, green for Haiku) with cost and percentage
+- **Model breakdown** — pills for each model used (e.g., Opus, Sonnet, Haiku, GPT-4o, Gemini Pro) with cost and percentage
 - **Cache efficiency** — cache hit rate percentage (shown when cache reads exist)
 - **Top sessions** — the sessions with the highest token usage for the selected day
 - **Weekly trend** — this week's cost vs last week, with percentage change
-- **Usage quotas** — subscription quota utilization per account: 5-hour, 7-day, and 7-day Opus limits shown as color-coded progress bars (blue < 80%, amber 80–94%, red ≥ 95%) with time until reset
+- **Usage quotas** — (Claude only) subscription quota utilization per account: 5-hour, 7-day, and 7-day Opus limits shown as color-coded progress bars
 
 ### Human Input
-
-> **Note**: Human interaction metrics currently only support Claude Code sessions.
 
 Tracks your own interaction activity:
 
@@ -110,3 +110,14 @@ Tracks your own interaction activity:
 - Press `Cmd+R` to refresh manually
 - **Shift+click** the refresh button to force a full 90-day history backfill (useful if commit history appears incomplete)
 - Data is retained indefinitely
+
+## Todos
+
+**Open it:** Click the Checkmark icon in the activity bar, or press `Cmd+Shift+I`.
+
+Scan for TODO comments across project directories with active sessions.
+
+- **Scan**: mcode scans files in session directories for `TODO`, `FIXME`, `HACK`, and `BUG` markers.
+- **Group by file**: Results are grouped by file with line numbers and the task description.
+- **Jump to code**: Click a todo item to open the file in the viewer at the correct line.
+- **Manual Todos**: You can also add manual TODOs that aren't in code by typing `+` in the Command Palette.

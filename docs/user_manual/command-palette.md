@@ -15,43 +15,44 @@ Opens the same dialog in command mode (input prefilled with `>`). You can also o
 
 Commands are grouped into three categories:
 
-- **General** — New Session, New Codex Session, New Gemini Session, New Copilot Session, New Terminal, New Task, Run Shell Command, Search in Files, Settings, Keyboard Shortcuts, and Snippets: Insert
-- **Layout** — terminal-panel actions (toggle panel, split terminal, close terminal, cycle tabs), Toggle Sidebar, Show Sessions/Changes/Stats/Activity, Switch to Kanban/Tiles, Close All Tiles, Close Tile, Split Horizontal/Vertical
+- **General** — New Session, New Codex Session, New Gemini Session, New Copilot Session, New Terminal, New Task, Run Shell Command, Search in Files, Settings, Keyboard Shortcuts, Snippets, Prompt History, and Show Todos
+- **Layout** — terminal-panel actions (toggle panel, split terminal, close terminal, cycle tabs), Toggle Sidebar, Show Sessions/Changes/Stats/Activity/Todos, Switch to Kanban/Tiles, Close All Tiles, Close Tile, Split Horizontal/Vertical
 - **Session** — Clear All Attention, Kill Session, Delete Session, plus a dynamic entry per open session for quick-jumping
 
-Each command shows its keyboard shortcut (if one exists). Commands are context-aware — for example, "Kill Session" is disabled when no active session is selected.
+Each command shows its keyboard shortcut (if one exists).
 
-`New Gemini Session` and `New Copilot Session` open the regular new-session dialog with that agent preselected, so you can launch those flows without manually changing the agent selector first.
+## Specialized Palettes
 
-## Snippet Palette (`@` mode)
+You can switch between specialized search modes by typing a prefix in the palette:
 
-Type `@` in Quick Open to switch to snippet mode. Snippets are reusable prompt templates stored as Markdown files.
+| Prefix | Mode | Shortcut | Description |
+|---|---|---|---|
+| `>` | **Commands** | `Cmd+Shift+P` | Run app commands and actions |
+| `!` | **Shell** | `Cmd+Shift+E` | Run a shell command in the active terminal |
+| `@` | **Snippets** | `Cmd+Shift+S` | Insert reusable prompt templates |
+| `#` | **History** | `Cmd+Shift+H` | Search and reuse previous prompts |
+| `+` | **Todos** | `Cmd+Shift+I` | Add or search TODO items |
+| (none) | **Files** | `Cmd+P` | Fuzzy search files by name |
+
+### Shell Palette (`!`)
+
+Type `!` to quickly run a one-off shell command. The command is sent to the currently focused terminal tile.
+
+### Snippet Palette (`@`)
+
+Snippets are reusable prompt templates stored as Markdown files.
 
 - **Search**: Fuzzy search across snippet name and description
-- **No variables**: Selecting a snippet inserts its body directly into the active terminal
-- **With variables**: A form appears with labeled inputs (pre-filled with defaults). Press Enter or click Insert to render the template and insert it
-- **Escape in form**: Returns to snippet search (does not close the palette)
-- **Source badge**: Each snippet shows "Project" or "User" to indicate where it comes from
+- **Variables**: If a snippet has `{{placeholder}}` variables, a form appears to fill them in before insertion
+- **Source**: Snippets can be project-specific (`<project>/.mcode/snippets/`) or global (`~/.mcode/snippets/`)
 
-### Snippet file format
+### Prompt History Palette (`#`)
 
-Snippets are `.md` files stored in `~/.mcode/snippets/` (user-level) or `<project>/.mcode/snippets/` (project-level). Project snippets override user snippets with the same name.
+Search through your previous prompts across all sessions. Selecting a history item inserts it into the active terminal.
 
-```markdown
----
-name: Review PR
-description: Review a pull request with focus areas
-variables:
-  - name: branch
-    description: Branch to review
-    default: main
-  - name: focus
-    description: Focus area
----
-Review the changes in {{branch}} branch. Focus on {{focus}}.
-```
+### Todo Palette (`+`)
 
-If no `variables` are defined in the frontmatter, `{{placeholder}}` patterns are auto-extracted from the body.
+Search for existing TODOs or add a new manual TODO. Manual TODOs are stored in the mcode database and appear in the **Todos** sidebar tab.
 
 ## Keyboard shortcuts
 
@@ -59,8 +60,10 @@ If no `variables` are defined in the frontmatter, `{{placeholder}}` patterns are
 |---|---|
 | `Cmd+P` | Open Quick Open (file search) |
 | `Cmd+Shift+P` | Open Command Palette (commands) |
-| `Cmd+Shift+S` | Open snippets |
-| `@` (in Quick Open) | Switch to snippet search |
+| `Cmd+Shift+S` | Open snippets (`@` mode) |
+| `Cmd+Shift+H` | Open prompt history (`#` mode) |
+| `Cmd+Shift+E` | Run shell command (`!` mode) |
+| `Cmd+Shift+I` | Show todos (`+` mode) |
 | Arrow keys | Navigate results |
 | `Enter` | Select result |
 | `Escape` | Close |

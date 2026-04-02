@@ -18,7 +18,7 @@ Detailed product documentation for mcode. If you want the project overview, down
 
 ## Navigation and panels
 
-- [Sidebar Panels](sidebar-panels.md) - Sessions, Search, Changes, Stats, and Activity tabs
+- [Sidebar Panels](sidebar-panels.md) - Sessions, Search, Changes, Stats, Activity, and Todos tabs
 - [Settings](settings.md) - general, tracking, editor, sidebar, and advanced settings
 
 ## Accounts and environment setup

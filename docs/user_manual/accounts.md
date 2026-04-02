@@ -1,8 +1,8 @@
 # Account Management
 
-mcode supports multiple Claude accounts. This lets you run sessions under different accounts — for example, to separate personal and work usage, or to stay within usage limits.
+mcode supports multiple AI provider accounts. This lets you run sessions under different accounts — for example, to separate personal and work usage, or to stay within usage limits.
 
-> This page covers the in-app Accounts dialog, which is specifically for Claude Code sessions. Gemini and Codex sessions use the authentication state of their respective CLI tools in your system environment. For setting up multi-account GitHub access over SSH, see [Multi-Account GitHub](multi-account-github.md).
+> This page covers the in-app Accounts dialog, which is specifically for Claude Code and Copilot CLI sessions. Gemini and Codex sessions use the authentication state of their respective CLI tools in your system environment. For setting up multi-account GitHub access over SSH, see [Multi-Account GitHub](multi-account-github.md).
 
 ## Opening the Accounts dialog
 
@@ -10,25 +10,23 @@ Click the **Accounts** button in the sidebar footer (next to the Settings gear i
 
 ## Account list
 
-Each account row shows:
+Each account block shows the account name and its status for each supported provider:
 
-- **Green dot** — verified (authenticated, email shown)
+- **Green dot** — verified (authenticated, identity shown)
 - **Amber dot** — not authenticated
 - **"default" badge** — marks the primary account used when no account is explicitly selected
 
 ## Adding a secondary account
 
-1. Click **+ Add account**
-2. Enter a name for the account
-3. Press `Cmd+Enter` or click **Create**
-
-A terminal tile opens automatically and runs `claude` for authentication. Follow the prompts to log in.
-
-4. Once logged in, click **Verify** next to the account to confirm it authenticated successfully.
+1. Click **+ Add account**. A new account is created.
+2. The app background-verifies all supported providers. If you are already authenticated in your default environment, it might auto-detect your identity.
+3. If not authenticated, click **Login** next to the provider (Claude or Copilot). A terminal tile opens automatically to run the authentication flow. Follow the prompts to log in.
+4. Once logged in, click **Verify** next to the provider to confirm it authenticated successfully.
+5. After the first provider is verified, you will be prompted to name the account (suggested based on your email/username).
 
 ## Verifying an account
 
-Click **Verify** next to any account to check its current authentication status. Use this if an account shows amber (not authenticated) or after re-authenticating in a terminal.
+Click the **refresh icon** next to any provider in an account block to check its current authentication status. Use this after re-authenticating in a terminal or if the status seems stale.
 
 ## Deleting an account
 
@@ -36,6 +34,4 @@ Click the trash icon on any secondary account row to remove it. The default acco
 
 ## Selecting an account for a session
 
-When multiple accounts are configured, an **Account** dropdown appears in the New Session dialog for Claude sessions. Select which account to use and the Claude Code process runs with that account's credentials. Codex sessions do not currently use mcode's account selector.
-
-In the kanban view, session cards show the account name beneath the session label when it's not the default account.
+When multiple accounts are configured, an **Account** dropdown appears in the New Session dialog for supported session types (Claude and Copilot). Select which account to use and the agent process runs with that account's credentials.

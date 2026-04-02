@@ -24,7 +24,7 @@ Open settings with `Cmd+,` or click the gear icon in the sidebar footer.
 
 | Setting | Default | Description |
 |---|---|---|
-| Show Activity tab | Off | Reveals the Activity panel in the sidebar. When off, use `Cmd+Shift+A` to open it directly. |
+| Show Activity tab | Off | Reveals the Activity panel in the sidebar. When off, use `Cmd+Shift+A` to open it directly. Display hook events from all agents. |
 
 ## Advanced
 
