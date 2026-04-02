@@ -43,7 +43,6 @@ describe('AccountProfileRepository', () => {
       expect(account.name).toBe('Work');
       expect(account.isDefault).toBe(false);
       expect(account.homeDir).toBe('/tmp/test-home');
-      expect(account.email).toBeNull();
     });
 
     it('generates default name when empty string given', () => {
@@ -129,10 +128,14 @@ describe('AccountProfileRepository', () => {
   });
 
   describe('setEmail', () => {
-    it('updates email for account', () => {
+    it('updates email for account in DB (backward compat)', () => {
       const account = repo.insert('EmailTest', '/tmp/test-email');
-      repo.setEmail(account.accountId, 'test@example.com');
-      expect(repo.get(account.accountId)!.email).toBe('test@example.com');
+      // setEmail writes the legacy DB column — verify it does not throw
+      expect(() => repo.setEmail(account.accountId, 'test@example.com')).not.toThrow();
+      // Verify via raw DB query that the column was updated
+      const db = getDb();
+      const row = db.prepare('SELECT email FROM account_profiles WHERE account_id = ?').get(account.accountId) as { email: string };
+      expect(row.email).toBe('test@example.com');
     });
   });
 

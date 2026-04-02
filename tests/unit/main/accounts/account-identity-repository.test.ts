@@ -99,6 +99,24 @@ describe('AccountIdentityRepository', () => {
     });
   });
 
+  describe('listAll', () => {
+    it('returns all identities across all accounts', () => {
+      const other = profileRepo.insert('Other', '/tmp/other-listall');
+      repo.upsert(testAccountId, 'claude', 'ok', 'a@example.com');
+      repo.upsert(other.accountId, 'claude', 'ok', 'b@example.com');
+
+      const rows = repo.listAll();
+      expect(rows.length).toBeGreaterThanOrEqual(2);
+      const accountIds = rows.map((r) => r.accountId);
+      expect(accountIds).toContain(testAccountId);
+      expect(accountIds).toContain(other.accountId);
+    });
+
+    it('returns empty array when no identities exist', () => {
+      expect(repo.listAll()).toEqual([]);
+    });
+  });
+
   describe('deleteAll', () => {
     it('removes all identities for an account', () => {
       repo.upsert(testAccountId, 'claude', 'ok', 'test@example.com');

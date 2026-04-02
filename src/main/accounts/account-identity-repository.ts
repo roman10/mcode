@@ -54,6 +54,12 @@ export class AccountIdentityRepository {
     return rows.map(toRow);
   }
 
+  listAll(): ProviderIdentityRow[] {
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM account_provider_identities').all() as IdentityRecord[];
+    return rows.map(toRow);
+  }
+
   upsert(
     accountId: string,
     sessionType: string,

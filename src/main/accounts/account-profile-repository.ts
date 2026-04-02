@@ -17,7 +17,6 @@ function toAccountProfile(row: AccountRecord): AccountProfile {
   return {
     accountId: row.account_id,
     name: row.name,
-    email: row.email,
     isDefault: Boolean(row.is_default),
     homeDir: row.home_dir,
     createdAt: row.created_at,

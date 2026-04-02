@@ -31,21 +31,34 @@ export * from './types-git';
 export * from './types-tasks';
 export * from './types-todos';
 
+// --- CLI / Auth Status ---
+
+export type CliAuthStatus = 'ok' | 'cli-not-found' | 'not-authenticated';
+
 // --- Account Profiles ---
 
 export interface AccountProfile {
   accountId: string;
   name: string;
-  email: string | null;
   isDefault: boolean;
   homeDir: string | null; // null for default account (uses real ~/.claude/)
   createdAt: string;
   lastUsedAt: string | null;
 }
 
-// --- CLI / Auth Status ---
+export interface AccountProviderIdentity {
+  accountId: string;
+  sessionType: string;
+  authStatus: CliAuthStatus;
+  identity: string | null;
+  displayName: string | null;
+  lastCheckedAt: string | null;
+  lastAuthenticatedAt: string | null;
+}
 
-export type CliAuthStatus = 'ok' | 'cli-not-found' | 'not-authenticated';
+export interface AccountProfileWithProviders extends AccountProfile {
+  providers: Partial<Record<string, AccountProviderIdentity>>;
+}
 
 export interface AuthStatusResult {
   status: CliAuthStatus;
@@ -307,7 +320,7 @@ export interface HmrEvent {
 
 export interface MCodeAPI {
   accounts: {
-    list(): Promise<AccountProfile[]>;
+    list(): Promise<AccountProfileWithProviders[]>;
     create(name?: string): Promise<AccountProfile>;
     rename(accountId: string, name: string): Promise<void>;
     delete(accountId: string): Promise<void>;

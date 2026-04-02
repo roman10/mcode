@@ -41,7 +41,6 @@ describe('ClaudeAccountProvider', () => {
     const account = {
       accountId: 'test-id',
       name: 'Test Account',
-      email: null,
       isDefault: false,
       homeDir: '/home/test-account',
       createdAt: '2026-01-01T00:00:00Z',
@@ -62,7 +61,6 @@ describe('ClaudeAccountProvider', () => {
     const account = {
       accountId: 'default-id',
       name: 'Default',
-      email: null,
       isDefault: true,
       homeDir: null,
       createdAt: '2026-01-01T00:00:00Z',

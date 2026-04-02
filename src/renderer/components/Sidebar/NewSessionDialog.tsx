@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Dialog from '../shared/Dialog';
 import { getAgentDefinition, type AgentSessionType } from '@shared/session-agents';
-import type { AccountProfile, SessionCreateInput } from '@shared/types';
+import type { AccountProfileWithProviders, SessionCreateInput } from '@shared/types';
 import { AGENT_PERMISSION_MODES, EFFORT_LEVELS, PERMISSION_MODE_LABELS, type EffortLevel, type PermissionMode } from '@shared/constants';
 
 const isMac = navigator.userAgent.includes('Mac');
@@ -30,7 +30,7 @@ function NewSessionDialog({
   const [useWorktree, setUseWorktree] = useState(false);
   const [worktreeName, setWorktreeName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [accounts, setAccounts] = useState<AccountProfile[]>([]);
+  const [accounts, setAccounts] = useState<AccountProfileWithProviders[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const agentDefinition = getAgentDefinition(sessionType);
   const isClaude = agentDefinition?.dialogMode === 'full';
@@ -273,7 +273,7 @@ function NewSessionDialog({
               >
                 {accounts.map((account) => (
                   <option key={account.accountId} value={account.accountId}>
-                    {account.name}{account.email ? ` (${account.email})` : ''}
+                    {account.name}{account.providers?.claude?.identity ? ` (${account.providers.claude.identity})` : ''}
                     {account.isDefault ? ' — default' : ''}
                   </option>
                 ))}

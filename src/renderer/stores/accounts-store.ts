@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import type { AccountProfile, CliAuthStatus, SubscriptionUsage } from '@shared/types';
+import type { AccountProfileWithProviders, CliAuthStatus, SubscriptionUsage } from '@shared/types';
 
 interface AccountsState {
-  accounts: AccountProfile[];
+  accounts: AccountProfileWithProviders[];
   /** Overall CLI/auth status for the default account. Checked on startup. */
   cliStatus: CliAuthStatus | null;
   /** Whether the CLI status banner has been dismissed this session. */

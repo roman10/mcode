@@ -36,6 +36,7 @@ import type {
   InputCadenceInfo,
   PromptHistoryEntry,
   AccountProfile,
+  AccountProfileWithProviders,
   AuthStatusResult,
   CliAuthStatus,
   SubscriptionUsage,
@@ -81,7 +82,7 @@ const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
 
 contextBridge.exposeInMainWorld('mcode', {
   accounts: {
-    list: (): Promise<AccountProfile[]> =>
+    list: (): Promise<AccountProfileWithProviders[]> =>
       typedInvoke('account:list'),
 
     create: (name?: string): Promise<AccountProfile> =>

@@ -12,7 +12,7 @@ export function registerAccountIpc(
   registry: AccountProviderRegistry,
 ): void {
   typedHandle('account:list', () => {
-    return accountService.list();
+    return accountService.listWithProviders();
   });
 
   typedHandle('account:create', (name) => {

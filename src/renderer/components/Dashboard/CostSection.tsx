@@ -7,7 +7,7 @@ import type {
   TokenWeeklyTrend,
   ModelUsageSummary,
   SubscriptionUsage,
-  AccountProfile,
+  AccountProfileWithProviders,
 } from '@shared/types';
 import type { AgentSessionType } from '@shared/session-agents';
 import { getAgentDefinition } from '@shared/session-agents';
@@ -122,7 +122,7 @@ interface CostSectionProps {
   dailyUsage: DailyTokenUsage | null;
   tokenHeatmap: TokenHeatmapEntry[];
   tokenWeeklyTrend: TokenWeeklyTrend | null;
-  accounts: AccountProfile[];
+  accounts: AccountProfileWithProviders[];
   subscriptionByAccount: Record<string, SubscriptionUsage | null>;
   providerFilter: AgentSessionType | null;
   viewDate: string;
@@ -274,7 +274,7 @@ function CostSection({
             // Quota comes from the Anthropic API — only relevant for Claude
             if (providerFilter != null && providerFilter !== 'claude') return null;
             const quotaAccounts = accounts.filter(
-              (a) => subscriptionByAccount[a.accountId] != null || a.email != null,
+              (a) => subscriptionByAccount[a.accountId] != null || a.providers?.claude != null,
             );
             if (quotaAccounts.length === 0) return null;
             const multiAccount = quotaAccounts.length > 1;
@@ -283,26 +283,27 @@ function CostSection({
               <div className="space-y-3">
                 <div>
                   <div className="text-xs text-text-muted font-medium">Usage Quota — {cliName}</div>
-                  {!multiAccount && quotaAccounts[0].email && (
+                  {!multiAccount && quotaAccounts[0].providers?.claude?.identity && (
                     <div className="text-xs text-text-muted/70 mt-0.5">
-                      {quotaAccounts[0].email}
+                      {quotaAccounts[0].providers.claude.identity}
                     </div>
                   )}
                 </div>
                 {quotaAccounts.map((a) => {
                   const usage = subscriptionByAccount[a.accountId];
+                  const claudeIdentity = a.providers?.claude?.identity;
                   return usage ? (
                     <UsageQuotaSection
                       key={a.accountId}
                       usage={usage}
                       accountName={multiAccount ? a.name : undefined}
-                      accountEmail={multiAccount ? a.email : undefined}
+                      accountEmail={multiAccount ? claudeIdentity : undefined}
                     />
                   ) : (
                     <div key={a.accountId} className="space-y-1.5">
                       {multiAccount && (
                         <div className="text-xs text-text-muted font-medium">
-                          {a.name}{a.email ? <span className="text-text-muted/70 font-normal"> · {a.email}</span> : null}
+                          {a.name}{claudeIdentity ? <span className="text-text-muted/70 font-normal"> · {claudeIdentity}</span> : null}
                         </div>
                       )}
                       <div className="text-xs text-text-muted/50">quota unavailable</div>

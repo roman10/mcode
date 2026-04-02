@@ -1,5 +1,6 @@
 import type {
   AccountProfile,
+  AccountProfileWithProviders,
   AppCommand,
   AuthStatusResult,
   CreateTaskInput,
@@ -45,7 +46,7 @@ export interface AppInvokeContract {
   'hooks:clear-all':                    { params: []; result: void };
 
   // --- Accounts ---
-  'account:list':                       { params: []; result: AccountProfile[] };
+  'account:list':                       { params: []; result: AccountProfileWithProviders[] };
   'account:create':                     { params: [name?: string]; result: AccountProfile };
   'account:rename':                     { params: [accountId: string, name: string]; result: void };
   'account:delete':                     { params: [accountId: string]; result: void };

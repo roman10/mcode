@@ -36,9 +36,9 @@ describe('AccountHomeManager', () => {
       const manager = new AccountHomeManager(registry);
 
       const accounts = [
-        { accountId: 'default', name: 'Default', email: null, isDefault: true, homeDir: null, createdAt: '2026-01-01', lastUsedAt: null },
-        { accountId: 'work', name: 'Work', email: null, isDefault: false, homeDir: '/tmp/work', createdAt: '2026-01-01', lastUsedAt: null },
-        { accountId: 'personal', name: 'Personal', email: null, isDefault: false, homeDir: '/tmp/personal', createdAt: '2026-01-01', lastUsedAt: null },
+        { accountId: 'default', name: 'Default', isDefault: true, homeDir: null, createdAt: '2026-01-01', lastUsedAt: null },
+        { accountId: 'work', name: 'Work', isDefault: false, homeDir: '/tmp/work', createdAt: '2026-01-01', lastUsedAt: null },
+        { accountId: 'personal', name: 'Personal', isDefault: false, homeDir: '/tmp/personal', createdAt: '2026-01-01', lastUsedAt: null },
       ];
 
       const paths = manager.getAllSettingsPaths(accounts);
@@ -53,7 +53,7 @@ describe('AccountHomeManager', () => {
       const manager = new AccountHomeManager(registry);
 
       const accounts = [
-        { accountId: 'default', name: 'Default', email: null, isDefault: true, homeDir: null, createdAt: '2026-01-01', lastUsedAt: null },
+        { accountId: 'default', name: 'Default', isDefault: true, homeDir: null, createdAt: '2026-01-01', lastUsedAt: null },
       ];
 
       const paths = manager.getAllSettingsPaths(accounts);

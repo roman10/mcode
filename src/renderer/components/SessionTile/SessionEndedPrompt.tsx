@@ -100,7 +100,7 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
           >
             {accounts.map((a) => (
               <option key={a.accountId} value={a.accountId}>
-                {a.name}{a.email ? ` (${a.email})` : ''}{a.isDefault ? ' — default' : ''}
+                {a.name}{a.providers?.claude?.identity ? ` (${a.providers.claude.identity})` : ''}{a.isDefault ? ' — default' : ''}
               </option>
             ))}
           </select>

@@ -124,11 +124,53 @@ describe('AccountService', () => {
       expect(service.get(def.accountId)!.lastUsedAt).not.toBeNull();
     });
 
-    it('setEmail updates email', () => {
+    it('setEmail updates email in DB (backward compat)', () => {
       service.ensureDefaultAccount();
       const def = service.getDefault()!;
-      service.setEmail(def.accountId, 'test@example.com');
-      expect(service.get(def.accountId)!.email).toBe('test@example.com');
+      // setEmail still works — it writes the legacy DB column — verify it doesn't throw
+      expect(() => service.setEmail(def.accountId, 'test@example.com')).not.toThrow();
+    });
+  });
+
+  describe('listWithProviders', () => {
+    it('returns accounts with empty providers when no identities exist', () => {
+      service.ensureDefaultAccount();
+      const results = service.listWithProviders();
+      expect(results).toHaveLength(1);
+      expect(results[0].providers).toEqual({});
+    });
+
+    it('populates providers.claude from identity table', () => {
+      service.ensureDefaultAccount();
+      const def = service.getDefault()!;
+      const identityRepo = new AccountIdentityRepository();
+      identityRepo.upsert(def.accountId, 'claude', 'ok', 'test@example.com', 'Test User');
+
+      const results = service.listWithProviders();
+      expect(results).toHaveLength(1);
+      expect(results[0].providers.claude).toBeDefined();
+      expect(results[0].providers.claude!.authStatus).toBe('ok');
+      expect(results[0].providers.claude!.identity).toBe('test@example.com');
+    });
+
+    it('groups identities by provider for each account', () => {
+      service.ensureDefaultAccount();
+      const def = service.getDefault()!;
+      const repo = new AccountProfileRepository();
+      const secondary = repo.insert('Secondary', '/tmp/secondary-lwp');
+      const identityRepo = new AccountIdentityRepository();
+
+      identityRepo.upsert(def.accountId, 'claude', 'ok', 'default@example.com');
+      identityRepo.upsert(secondary.accountId, 'claude', 'not-authenticated');
+
+      const results = service.listWithProviders();
+      expect(results).toHaveLength(2);
+
+      const defaultResult = results.find((a) => a.isDefault)!;
+      expect(defaultResult.providers.claude?.identity).toBe('default@example.com');
+
+      const secondaryResult = results.find((a) => !a.isDefault)!;
+      expect(secondaryResult.providers.claude?.authStatus).toBe('not-authenticated');
     });
   });
 

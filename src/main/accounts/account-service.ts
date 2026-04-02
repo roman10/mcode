@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AccountProfile, AuthStatusResult } from '../../shared/types';
+import type { AccountProfile, AccountProfileWithProviders, AccountProviderIdentity, AuthStatusResult, CliAuthStatus } from '../../shared/types';
 import type { AccountProviderRegistry } from './account-provider';
 import type { AccountProfileRepository } from './account-profile-repository';
 import type { AccountHomeManager } from './account-home-manager';
@@ -25,6 +25,35 @@ export class AccountService {
 
   list(): AccountProfile[] {
     return this.repo.list();
+  }
+
+  listWithProviders(): AccountProfileWithProviders[] {
+    const accounts = this.repo.list();
+    const allIdentities = this.identityRepo.listAll();
+
+    const byAccount = new Map<string, AccountProviderIdentity[]>();
+    for (const row of allIdentities) {
+      const existing = byAccount.get(row.accountId) ?? [];
+      existing.push({
+        accountId: row.accountId,
+        sessionType: row.sessionType,
+        authStatus: row.authStatus as CliAuthStatus,
+        identity: row.identity,
+        displayName: row.displayName,
+        lastCheckedAt: row.lastCheckedAt,
+        lastAuthenticatedAt: row.lastAuthenticatedAt,
+      });
+      byAccount.set(row.accountId, existing);
+    }
+
+    return accounts.map((account) => {
+      const identities = byAccount.get(account.accountId) ?? [];
+      const providers: Partial<Record<string, AccountProviderIdentity>> = {};
+      for (const id of identities) {
+        providers[id.sessionType] = id;
+      }
+      return { ...account, providers };
+    });
   }
 
   get(accountId: string): AccountProfile | null {

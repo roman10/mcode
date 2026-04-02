@@ -5,7 +5,7 @@ import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
 import { getAgentDefinition } from '@shared/session-agents';
 import Dialog from './shared/Dialog';
-import type { AccountProfile, CliAuthStatus } from '@shared/types';
+import type { AccountProfileWithProviders, CliAuthStatus } from '@shared/types';
 
 const claudeDef = getAgentDefinition('claude')!;
 
@@ -20,7 +20,7 @@ function suggestNameFromEmail(email: string): string {
 }
 
 interface AccountRowProps {
-  account: AccountProfile;
+  account: AccountProfileWithProviders;
   authStatus?: CliAuthStatus | null;
   onVerify(): void;
   verifying: boolean;
@@ -28,13 +28,13 @@ interface AccountRowProps {
 }
 
 function AccountRow({ account, authStatus, onVerify, verifying, onDelete }: AccountRowProps): React.JSX.Element {
-  const isVerified = Boolean(account.email);
+  const isVerified = account.providers?.claude?.authStatus === 'ok';
   const isCliMissing = authStatus === 'cli-not-found';
 
   const dotColor = isCliMissing ? 'bg-red-400' : isVerified ? 'bg-green-400' : 'bg-amber-400';
   const statusText = isCliMissing
     ? 'CLI not found'
-    : account.email ?? 'Not authenticated';
+    : account.providers?.claude?.identity ?? 'Not authenticated';
   const statusColor = isCliMissing ? 'text-red-300' : 'text-text-muted';
 
   return (
@@ -136,9 +136,10 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
         if (result.status === 'ok') {
           await refreshRef.current();
           setPendingAccountId(null);
-          if (result.email) {
+          const emailOrIdentity = result.identity ?? result.email;
+          if (emailOrIdentity) {
             setRenameAccountId(pendingAccountId);
-            setRenameName(suggestNameFromEmail(result.email));
+            setRenameName(suggestNameFromEmail(emailOrIdentity));
           }
         }
       } catch {
@@ -240,7 +241,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
                 )}
               </div>
             )}
-            {authStatuses[defaultAccount.accountId] === 'not-authenticated' && !defaultAccount.email && (
+            {authStatuses[defaultAccount.accountId] === 'not-authenticated' && !defaultAccount.providers?.claude && (
               <div className="mt-2 px-3 py-2 bg-amber-900/20 border border-amber-700/30 rounded-md text-xs text-amber-300">
                 Run <code className="bg-amber-900/30 px-1 rounded">{claudeDef.defaultCommand} auth login</code> in a terminal to authenticate.
               </div>
