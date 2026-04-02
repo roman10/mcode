@@ -3,11 +3,16 @@ import { Trash2 } from 'lucide-react';
 import { useAccountsStore } from '../stores/accounts-store';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
-import { getAgentDefinition } from '@shared/session-agents';
+import { getAgentDefinition, AGENT_SESSION_TYPES } from '@shared/session-agents';
+import type { AgentDefinition } from '@shared/session-agents';
 import Dialog from './shared/Dialog';
-import type { AccountProfileWithProviders, CliAuthStatus } from '@shared/types';
+import type { AccountProfileWithProviders, AccountProviderIdentity, CliAuthStatus } from '@shared/types';
 
-const claudeDef = getAgentDefinition('claude')!;
+// Providers that support account profiles — derived from agent metadata.
+// Re-evaluated at module load so it updates automatically when new providers are added.
+const SUPPORTED_PROVIDERS: AgentDefinition[] = AGENT_SESSION_TYPES
+  .map((t) => getAgentDefinition(t)!)
+  .filter((d) => d.supportsAccountProfiles);
 
 function suggestNameFromEmail(email: string): string {
   const [localPart, domain] = email.split('@');
@@ -19,58 +24,149 @@ function suggestNameFromEmail(email: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-interface AccountRowProps {
-  account: AccountProfileWithProviders;
-  authStatus?: CliAuthStatus | null;
+// --- ProviderStatusRow ---
+
+interface ProviderStatusRowProps {
+  provider: AgentDefinition;
+  identity?: AccountProviderIdentity;
+  authStatus: CliAuthStatus | null; // fresh check result from this session
   onVerify(): void;
   verifying: boolean;
-  onDelete?(): void;
+  onLogin?(): void; // undefined for default account
 }
 
-function AccountRow({ account, authStatus, onVerify, verifying, onDelete }: AccountRowProps): React.JSX.Element {
-  const isVerified = account.providers?.claude?.authStatus === 'ok';
+function ProviderStatusRow({
+  provider,
+  identity,
+  authStatus,
+  onVerify,
+  verifying,
+  onLogin,
+}: ProviderStatusRowProps): React.JSX.Element {
+  // Fresh check takes priority over persisted identity status
+  const effectiveStatus = authStatus ?? identity?.authStatus;
+  const isOk = effectiveStatus === 'ok';
   const isCliMissing = authStatus === 'cli-not-found';
 
-  const dotColor = isCliMissing ? 'bg-red-400' : isVerified ? 'bg-green-400' : 'bg-amber-400';
-  const statusText = isCliMissing
+  const dotColor = isCliMissing
+    ? 'bg-red-400'
+    : isOk
+      ? 'bg-green-400'
+      : effectiveStatus != null
+        ? 'bg-amber-400'
+        : 'bg-neutral-500';
+
+  const identityText = isCliMissing
     ? 'CLI not found'
-    : account.providers?.claude?.identity ?? 'Not authenticated';
-  const statusColor = isCliMissing ? 'text-red-300' : 'text-text-muted';
+    : isOk
+      ? (identity?.identity ?? 'Authenticated')
+      : effectiveStatus != null
+        ? 'Not authenticated'
+        : 'Not verified';
+
+  const textColor = isCliMissing
+    ? 'text-red-300'
+    : isOk
+      ? 'text-text-secondary'
+      : 'text-text-muted';
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 bg-bg-primary border border-border-default rounded-md">
-      <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-text-primary">{account.name}</span>
-          {account.isDefault && (
-            <span className="text-xs text-text-muted bg-bg-secondary px-1.5 py-0.5 rounded">
-              default
-            </span>
+    <div>
+      <div className="flex items-center gap-2 text-xs pl-1">
+        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+        <span className="text-text-muted w-20 shrink-0">{provider.displayName}:</span>
+        <span className={`flex-1 min-w-0 truncate ${textColor}`}>{identityText}</span>
+        <div className="flex items-center gap-2 shrink-0">
+          {onLogin && !isOk && (
+            <button
+              className="text-text-muted hover:text-text-secondary transition-colors"
+              onClick={onLogin}
+            >
+              Login
+            </button>
           )}
+          <button
+            className="text-text-muted hover:text-text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={onVerify}
+            disabled={verifying}
+          >
+            {verifying ? 'Checking…' : 'Verify'}
+          </button>
         </div>
-        <span className={`text-xs ${statusColor}`}>
-          {statusText}
-        </span>
       </div>
-      <button
-        className="text-xs text-text-muted hover:text-text-secondary transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-        onClick={onVerify}
-        disabled={verifying}
-      >
-        {verifying ? 'Checking…' : 'Verify'}
-      </button>
-      {onDelete && (
-        <button
-          className="text-text-muted hover:text-red-400 transition-colors shrink-0"
-          onClick={onDelete}
-        >
-          <Trash2 size={13} strokeWidth={1.5} />
-        </button>
+      {isCliMissing && provider.installHelpUrl && (
+        <div className="mt-1 ml-4 text-xs text-red-300">
+          Install {provider.displayName} to get started.{' '}
+          <button
+            className="underline hover:text-red-200 transition-colors"
+            onClick={() => window.open(provider.installHelpUrl, '_blank')}
+          >
+            Instructions
+          </button>
+        </div>
       )}
     </div>
   );
 }
+
+// --- AccountBlock ---
+
+interface AccountBlockProps {
+  account: AccountProfileWithProviders;
+  authStatuses: Record<string, CliAuthStatus>;
+  verifyingId: string | null;
+  onVerify(sessionType: string): void;
+  onLogin(sessionType: string): void;
+  onDelete?(): void;
+}
+
+function AccountBlock({
+  account,
+  authStatuses,
+  verifyingId,
+  onVerify,
+  onLogin,
+  onDelete,
+}: AccountBlockProps): React.JSX.Element {
+  const key = (sessionType: string) => `${account.accountId}:${sessionType}`;
+
+  return (
+    <div className="bg-bg-primary border border-border-default rounded-md px-3 py-2.5 space-y-2">
+      {/* Account header */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-text-primary">{account.name}</span>
+        {account.isDefault && (
+          <span className="text-xs text-text-muted bg-bg-secondary px-1.5 py-0.5 rounded">
+            default
+          </span>
+        )}
+        {onDelete && (
+          <button
+            className="ml-auto text-text-muted hover:text-red-400 transition-colors shrink-0"
+            onClick={onDelete}
+          >
+            <Trash2 size={13} strokeWidth={1.5} />
+          </button>
+        )}
+      </div>
+
+      {/* Per-provider status rows */}
+      {SUPPORTED_PROVIDERS.map((provider) => (
+        <ProviderStatusRow
+          key={provider.sessionType}
+          provider={provider}
+          identity={account.providers?.[provider.sessionType]}
+          authStatus={authStatuses[key(provider.sessionType)] ?? null}
+          onVerify={() => onVerify(provider.sessionType)}
+          verifying={verifyingId === key(provider.sessionType)}
+          onLogin={!account.isDefault ? () => onLogin(provider.sessionType) : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+// --- AccountsDialog ---
 
 interface AccountsDialogProps {
   open: boolean;
@@ -86,12 +182,14 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
 
   const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  // verifyingId is `${accountId}:${sessionType}` while a verify call is in-flight
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // authStatuses keyed by `${accountId}:${sessionType}` for fresh check results
   const [authStatuses, setAuthStatuses] = useState<Record<string, CliAuthStatus>>({});
 
-  // Rename prompt state (shown after auth auto-detected)
+  // Rename prompt state (shown after Claude auth auto-detected in "Add Account" flow)
   const [renameAccountId, setRenameAccountId] = useState<string | null>(null);
   const [renameName, setRenameName] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +197,19 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
   const defaultAccount = accounts.find((a) => a.isDefault);
   const secondaryAccounts = accounts.filter((a) => !a.isDefault);
 
-  // One-click add: create account with placeholder name, open auth terminal
+  // Helper: open a provider auth terminal and focus the new session tile
+  const openAuthTerminal = async (accountId: string, sessionType: string): Promise<void> => {
+    const sessionId = await window.mcode.accounts.openAuthTerminal(accountId, sessionType);
+    const session = await window.mcode.sessions.get(sessionId);
+    if (session) {
+      addSession(session);
+      addTile(session.sessionId);
+      persist();
+      useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
+    }
+  };
+
+  // One-click add: create account with placeholder name, open Claude auth terminal
   const handleAddAccount = async (): Promise<void> => {
     if (isCreating || pendingAccountId) return;
     setIsCreating(true);
@@ -107,15 +217,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     try {
       const account = await window.mcode.accounts.create();
       await refresh();
-
-      const sessionId = await window.mcode.accounts.openAuthTerminal(account.accountId);
-      const session = await window.mcode.sessions.get(sessionId);
-      if (session) {
-        addSession(session);
-        addTile(session.sessionId);
-        persist();
-        useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
-      }
+      await openAuthTerminal(account.accountId, 'claude');
       setPendingAccountId(account.accountId);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -124,7 +226,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     }
   };
 
-  // Auto-poll auth status while a pending account exists
+  // Auto-poll Claude auth status while a pending account exists
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
 
@@ -132,7 +234,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     if (!pendingAccountId) return;
     const intervalId = setInterval(async () => {
       try {
-        const result = await window.mcode.accounts.getAuthStatus(pendingAccountId);
+        const result = await window.mcode.accounts.getAuthStatus(pendingAccountId, 'claude');
         if (result.status === 'ok') {
           await refreshRef.current();
           setPendingAccountId(null);
@@ -173,20 +275,29 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     setRenameName('');
   }, []);
 
-  const handleVerify = async (accountId: string): Promise<void> => {
-    setVerifyingId(accountId);
+  const handleVerify = async (accountId: string, sessionType: string): Promise<void> => {
+    const key = `${accountId}:${sessionType}`;
+    setVerifyingId(key);
     setError(null);
     try {
-      const result = await window.mcode.accounts.getAuthStatus(accountId);
-      setAuthStatuses((prev) => ({ ...prev, [accountId]: result.status }));
+      const result = await window.mcode.accounts.getAuthStatus(accountId, sessionType);
+      setAuthStatuses((prev) => ({ ...prev, [key]: result.status }));
       await refresh();
-      // Also refresh sidebar CLI status
       useAccountsStore.getState().refreshCliStatus().catch(() => {});
       if (pendingAccountId === accountId && result.status === 'ok') setPendingAccountId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setVerifyingId(null);
+    }
+  };
+
+  const handleLogin = async (accountId: string, sessionType: string): Promise<void> => {
+    setError(null);
+    try {
+      await openAuthTerminal(accountId, sessionType);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -221,32 +332,15 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       <div className="mb-4">
         <p className="text-xs text-text-muted uppercase tracking-wide mb-2">Default Account</p>
         {defaultAccount && (
-          <>
-            <AccountRow
-              account={defaultAccount}
-              authStatus={authStatuses[defaultAccount.accountId]}
-              onVerify={() => handleVerify(defaultAccount.accountId)}
-              verifying={verifyingId === defaultAccount.accountId}
-            />
-            {authStatuses[defaultAccount.accountId] === 'cli-not-found' && (
-              <div className="mt-2 px-3 py-2 bg-red-900/20 border border-red-700/30 rounded-md text-xs text-red-300">
-                The <code className="bg-red-900/30 px-1 rounded">{claudeDef.defaultCommand}</code> command was not found in your PATH. Install {claudeDef.displayName} CLI to get started.
-                {claudeDef.installHelpUrl && (
-                  <button
-                    className="ml-2 underline hover:text-red-200 transition-colors"
-                    onClick={() => window.open(claudeDef.installHelpUrl, '_blank')}
-                  >
-                    Install Instructions
-                  </button>
-                )}
-              </div>
-            )}
-            {authStatuses[defaultAccount.accountId] === 'not-authenticated' && !defaultAccount.providers?.claude && (
-              <div className="mt-2 px-3 py-2 bg-amber-900/20 border border-amber-700/30 rounded-md text-xs text-amber-300">
-                Run <code className="bg-amber-900/30 px-1 rounded">{claudeDef.defaultCommand} auth login</code> in a terminal to authenticate.
-              </div>
-            )}
-          </>
+          <AccountBlock
+            account={defaultAccount}
+            authStatuses={authStatuses}
+            verifyingId={verifyingId}
+            onVerify={(sessionType) => handleVerify(defaultAccount.accountId, sessionType)}
+            onLogin={() => {
+              /* default account cannot open auth terminals */
+            }}
+          />
         )}
       </div>
 
@@ -256,12 +350,13 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
           <p className="text-xs text-text-muted uppercase tracking-wide mb-2">Secondary Accounts</p>
           <div className="space-y-2">
             {secondaryAccounts.map((account) => (
-              <AccountRow
+              <AccountBlock
                 key={account.accountId}
                 account={account}
-                authStatus={authStatuses[account.accountId]}
-                onVerify={() => handleVerify(account.accountId)}
-                verifying={verifyingId === account.accountId}
+                authStatuses={authStatuses}
+                verifyingId={verifyingId}
+                onVerify={(sessionType) => handleVerify(account.accountId, sessionType)}
+                onLogin={(sessionType) => handleLogin(account.accountId, sessionType)}
                 onDelete={
                   deletingId === account.accountId
                     ? undefined
@@ -280,7 +375,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
         </div>
       )}
 
-      {/* Rename prompt (shown after auth auto-detected) */}
+      {/* Rename prompt (shown after Claude auth auto-detected) */}
       {renameAccountId && (
         <div className="mb-4 space-y-2">
           <p className="text-xs text-text-muted uppercase tracking-wide">Name your account</p>

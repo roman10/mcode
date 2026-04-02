@@ -273,7 +273,7 @@ function NewSessionDialog({
               >
                 {accounts.map((account) => (
                   <option key={account.accountId} value={account.accountId}>
-                    {account.name}{account.providers?.claude?.identity ? ` (${account.providers.claude.identity})` : ''}
+                    {account.name}{account.providers?.[sessionType]?.identity ? ` (${account.providers[sessionType]!.identity})` : ''}
                     {account.isDefault ? ' — default' : ''}
                   </option>
                 ))}

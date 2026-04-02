@@ -135,7 +135,7 @@ function TerminalToolbar({
         {statusLabels[status]}
       </span>
       <ModelPill model={session?.model ?? null} sessionType={session?.sessionType ?? 'terminal'} />
-      {account && <AccountPill name={account.name} email={account.providers?.claude?.identity ?? null} />}
+      {account && <AccountPill name={account.name} email={account.providers?.[session?.sessionType ?? '']?.identity ?? null} />}
       {lastTool && status !== 'ended' && (
         <span className="text-xs text-text-muted mr-1.5">
           {lastTool}

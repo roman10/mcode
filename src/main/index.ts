@@ -7,6 +7,7 @@ import { SessionManager, registerSessionIpc } from './session/session-manager';
 import { registerLayoutIpc } from './session/layout-repository';
 import { AccountService, AccountProviderRegistry, AccountProfileRepository, AccountIdentityRepository, AccountHomeManager, registerAccountIpc } from './accounts';
 import { createClaudeAccountProvider } from './accounts/providers/claude-account-provider';
+import { createCopilotAccountProvider } from './accounts/providers/copilot-account-provider';
 import { TaskQueue, registerTaskIpc } from './task-queue';
 import { CommitTracker, registerCommitIpc } from './trackers/commit-tracker';
 import { GitChangesService, registerGitChangesIpc } from './git-changes';
@@ -242,6 +243,20 @@ async function initializeHookSystem(): Promise<void> {
           });
         }
       }
+
+      // Reconcile copilot hooks for secondary accounts
+      if (sessionManager.hookBridgeReady['copilot']) {
+        for (const account of accountManager.list().filter((a) => !a.isDefault && !!a.homeDir)) {
+          try {
+            copilotHookBridge.reconcile(join(account.homeDir!, '.copilot'));
+          } catch (err) {
+            logger.warn('app', 'Failed to reconcile copilot hooks for secondary account', {
+              accountId: account.accountId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+      }
     } else {
       hookRuntimeInfo = result;
     }
@@ -284,6 +299,7 @@ app.whenReady().then(async () => {
 
   const providerRegistry = new AccountProviderRegistry();
   providerRegistry.register(createClaudeAccountProvider());
+  providerRegistry.register(createCopilotAccountProvider());
   accountManager = new AccountService(
     new AccountProfileRepository(),
     new AccountHomeManager(providerRegistry),
@@ -528,6 +544,10 @@ app.on('before-quit', (e) => {
     }
     for (const bridge of agentBridges) {
       bridge.cleanup();
+    }
+    // Clean up copilot hooks for secondary accounts
+    for (const account of accountManager.list().filter((a) => !a.isDefault && !!a.homeDir)) {
+      copilotHookBridge.cleanup(join(account.homeDir!, '.copilot'));
     }
     stopHookServer();
 

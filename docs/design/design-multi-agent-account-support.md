@@ -743,7 +743,7 @@ Without this step, every new provider will widen a file that is already too cent
 - `getAllSettingsPaths()` hardcodes `.claude/settings.json` — should use the provider registry
 - `AccountsDialog` per-provider verification rows still show Claude-only — multi-provider rows deferred to Phase 5
 
-## Phase 5 — Copilot Account Support
+## Phase 5 — Copilot Account Support (COMPLETED)
 
 ### Why Copilot first
 
@@ -760,27 +760,39 @@ Copilot is the best next candidate because:
 - verify/login Copilot per account
 - isolate Copilot config state per account
 
-### Work
+### Work (all delivered)
 
-- implement `copilot-account-provider.ts` with:
+- ~~implement `copilot-account-provider.ts`~~ — done
   - `getConfigEnv()` → `{ COPILOT_HOME: ‘${accountHome}/.copilot’ }` (**not** HOME override — breaks macOS Keychain)
-  - `checkAuthStatus()` → read `$COPILOT_HOME/config.json`, parse `logged_in_users` array
-  - `buildAuthTerminalInput()` → launch `copilot login --config-dir ${accountHome}/.copilot`
+  - `checkAuthStatus()` → read `$COPILOT_HOME/config.json`, parse `logged_in_users` array (supports both string array and `{github_user}` object array formats)
+  - `buildAuthTerminalInput()` → launch `copilot login --config-dir "${accountHome}/.copilot"`
   - `getSharedConfigSubdirs()` → `[]` (hooks/ is mcode-managed, no user-content subdirs identified)
   - `getConfigDirName()` → `’.copilot’`
-- enable `supportsAccountProfiles` for Copilot only after the adapter is complete
-- wire provider-aware auth verification and auth terminal launch
-- no usage/quota display (Copilot uses GitHub subscription billing, no API)
+- ~~enable `supportsAccountProfiles: true` for Copilot in `session-agents.ts`~~ — done
+- ~~register `CopilotAccountProvider` in `index.ts`~~ — done (provider registry now has both Claude and Copilot)
+- ~~wire hook reconciliation for secondary accounts~~ — done: startup reconciles `$COPILOT_HOME/hooks/hooks.json` for every secondary account; cleanup on quit mirrors this
+- ~~AccountsDialog per-provider verification rows~~ — done: `AccountBlock` shows one row per provider (`ProviderStatusRow`); supports Verify + Login per provider
+- ~~provider-aware identity in account selectors~~ — done: `NewSessionDialog`, `TerminalToolbar`, `SessionEndedPrompt` now use `session.sessionType` to look up the right provider identity
 
 ### Deliverables
 
-- Copilot account-backed sessions
-- renderer support for Copilot account selection and verification
+- Copilot sessions can select account profiles (account selector appears in NewSessionDialog for Copilot)
+- AccountsDialog shows per-provider status rows for Claude and Copilot
+- Per-provider Login (opens auth terminal) and Verify (checks `config.json`) actions
+- Copilot config state isolated via `COPILOT_HOME` per secondary account
+- Hook reconciliation runs for each secondary account’s `.copilot` dir
 
-### Risks
+### Known limitations (deferred)
 
-- ~~auth flow may not mirror Claude closely~~ → **resolved:** `copilot login --config-dir` works for per-account auth
-- Copilot hook bridge (`~/.copilot/hooks/hooks.json`) is currently written to the real `~/.copilot/`. For secondary accounts, it must be written to `$COPILOT_HOME/hooks/hooks.json` instead. The hook reconciliation system needs to be account-aware.
+- `setupAccountDirectory()` still copies `.claude/settings.json` hardcoded — should copy settings for all registered providers with a settings file
+- `getAllSettingsPaths()` still hardcodes `.claude/settings.json` — should use provider registry
+- "Add Account" flow always opens a Claude terminal first — multi-provider onboarding is a future improvement
+- New secondary accounts created mid-session don’t get Copilot hooks until next app restart
+
+### Resolved risks
+
+- ~~auth flow may not mirror Claude closely~~ → `copilot login --config-dir` works for per-account auth
+- ~~Copilot hook bridge written to real `~/.copilot/`~~ → hook reconciliation is now account-aware; secondary accounts get their own `.copilot/hooks/hooks.json`
 
 ## Phase 6 — Gemini Account Support
 

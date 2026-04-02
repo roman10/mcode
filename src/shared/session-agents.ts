@@ -261,7 +261,7 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     supportsPlanMode: false,
     hidesTerminalCursor: false, // Copilot CLI does not send DECTCEM \e[?25h
     dialogMode: 'minimal',
-    supportsAccountProfiles: false,
+    supportsAccountProfiles: true,
     supportsModelDisplay: true,
     supportsTokenTracking: true,
     supportsCostEstimation: false,
