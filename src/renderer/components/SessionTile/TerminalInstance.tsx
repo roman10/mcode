@@ -141,6 +141,14 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     if (hideCursorInitially) {
       term.write('\x1b[?25l'); // hide cursor initially; agent CLI shows when ready
     }
+
+    // Suppress \x1b[3J (Erase Scrollback) to preserve terminal history.
+    // CLI tools (Claude Code, Gemini, Copilot) send this during TUI redraws,
+    // which destroys the xterm.js scrollback buffer. ED 0/1/2 (erase visible
+    // regions) still work normally — only the scrollback-clearing variant is blocked.
+    const edHandler = term.parser.registerCsiHandler({ final: 'J' }, params => params[0] === 3);
+    const edHandlerDec = term.parser.registerCsiHandler({ prefix: '?', final: 'J' }, params => params[0] === 3);
+
     terminalRegistry.set(sessionId, term);
 
     // Intercept OS-level shortcuts before xterm sends them to the PTY
@@ -359,6 +367,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       clearTimeout(resizeTimer);
       if (warningTimeoutRef.current !== null) clearTimeout(warningTimeoutRef.current);
       clearSlashWarning(sessionId);
+      edHandler.dispose();
+      edHandlerDec.dispose();
       unsubResize.dispose();
       unsubTitle.dispose();
       unsubData();
