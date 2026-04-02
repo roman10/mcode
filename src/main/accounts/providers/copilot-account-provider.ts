@@ -38,6 +38,10 @@ class CopilotAccountProvider implements AccountProviderAdapter {
     return [];
   }
 
+  getSharedSettingsKeys(): readonly string[] {
+    return [];
+  }
+
   getSettingsFileName(): null {
     // Copilot hook config is managed via hooks.json through its own bridge, not settings.json.
     return null;

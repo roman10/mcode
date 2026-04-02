@@ -111,6 +111,10 @@ export class AccountService {
     this.homeManager.syncSymlinks(account);
   }
 
+  syncSharedSettings(): void {
+    this.homeManager.syncSharedSettings(this.list());
+  }
+
   /**
    * Get all Claude settings.json paths that need hook reconciliation.
    * Returns the primary path plus all secondary account paths.

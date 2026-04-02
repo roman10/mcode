@@ -27,6 +27,14 @@ export interface AccountProviderAdapter {
   getSharedConfigSubdirs(): readonly string[];
 
   /**
+   * Settings keys that should be synced from the primary account to secondary accounts.
+   * These are settings where the user expects consistent behavior across all accounts
+   * (e.g., enabled plugins, MCP server approvals). Per-account settings like `model`
+   * are NOT included — they remain independently configurable.
+   */
+  getSharedSettingsKeys(): readonly string[];
+
+  /**
    * Return the settings file name (relative to the config dir) that needs to be copied
    * to new account homes and included in hook reconciliation paths.
    * Return null if this provider does not use a settings file for hook config.

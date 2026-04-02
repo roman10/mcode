@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { existsSync, mkdirSync, readdirSync, symlinkSync, copyFileSync, rmSync } from 'node:fs';
 import { logger } from '../logger';
+import { readJsonConfig, writeJsonConfig } from '../hooks/hook-config-io';
 import type { AccountProviderRegistry } from './account-provider';
 import type { AccountProfile } from '../../shared/types';
 
@@ -146,6 +147,48 @@ export class AccountHomeManager {
     }
 
     return paths;
+  }
+
+  /**
+   * Sync shared settings keys from the primary account to all secondary accounts.
+   * Only writes when changes are detected. Preserves per-account settings (e.g., model).
+   */
+  syncSharedSettings(accounts: AccountProfile[]): void {
+    const realHome = homedir();
+
+    for (const adapter of this.registry.getRegistered()) {
+      const fileName = adapter.getSettingsFileName();
+      const sharedKeys = adapter.getSharedSettingsKeys();
+      if (!fileName || sharedKeys.length === 0) continue;
+
+      const primaryPath = join(realHome, adapter.getConfigDirName(), fileName);
+      const primarySettings = readJsonConfig<Record<string, unknown>>(primaryPath);
+
+      for (const account of accounts) {
+        if (account.isDefault || !account.homeDir) continue;
+        const secondaryPath = join(account.homeDir, adapter.getConfigDirName(), fileName);
+        const secondarySettings = readJsonConfig<Record<string, unknown>>(secondaryPath);
+
+        let changed = false;
+        for (const key of sharedKeys) {
+          const primaryVal = primarySettings[key];
+          if (primaryVal !== undefined) {
+            if (JSON.stringify(secondarySettings[key]) !== JSON.stringify(primaryVal)) {
+              secondarySettings[key] = primaryVal;
+              changed = true;
+            }
+          } else if (key in secondarySettings) {
+            delete secondarySettings[key];
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          writeJsonConfig(secondaryPath, secondarySettings);
+          logger.info('accounts', 'Synced shared settings', { path: secondaryPath });
+        }
+      }
+    }
   }
 
   /**

@@ -29,6 +29,10 @@ class ClaudeAccountProvider implements AccountProviderAdapter {
     return SHARED_SUBDIRS;
   }
 
+  getSharedSettingsKeys(): readonly string[] {
+    return ['enabledPlugins', 'enabledMcpjsonServers', 'enableAllProjectMcpServers'];
+  }
+
   getSettingsFileName(): string {
     return 'settings.json';
   }

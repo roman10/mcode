@@ -219,6 +219,7 @@ async function initializeHookSystem(): Promise<void> {
 
     if (result.state === 'ready' && result.port) {
       try {
+        try { accountManager.syncSharedSettings(); } catch { /* non-fatal */ }
         const extraSettingsPaths = accountManager.getAllSettingsPaths().slice(1);
         reconcileOnStartup(result.port, extraSettingsPaths);
         hookRuntimeInfo = result;
