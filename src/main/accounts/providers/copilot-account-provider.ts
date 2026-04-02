@@ -81,7 +81,7 @@ class CopilotAccountProvider implements AccountProviderAdapter {
             ? String((first as Record<string, unknown>).github_user)
             : null;
 
-      return { status: 'ok', identity: username ?? undefined, displayName: username ?? undefined };
+      return { status: 'ok', identity: username, displayName: username };
     } catch {
       return { status: 'not-authenticated' };
     }

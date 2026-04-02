@@ -63,8 +63,8 @@ export interface AccountProfileWithProviders extends AccountProfile {
 export interface AuthStatusResult {
   status: CliAuthStatus;
   email?: string;         // kept — renderer reads this for Claude
-  identity?: string;      // provider-neutral: email, username, auth mode
-  displayName?: string;   // optional human-friendly label
+  identity?: string | null;      // provider-neutral: email, username, auth mode
+  displayName?: string | null;   // optional human-friendly label
 }
 
 // --- Subscription Usage ---
