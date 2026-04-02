@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Loader2, RotateCw, Trash2 } from 'lucide-react';
 import { useAccountsStore } from '../stores/accounts-store';
 import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
@@ -89,8 +89,12 @@ function ProviderStatusRow({
             className="text-text-muted hover:text-text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={onVerify}
             disabled={verifying}
+            title="Verify auth status"
+            aria-label="Verify auth status"
           >
-            {verifying ? 'Checking…' : 'Verify'}
+            {verifying
+              ? <Loader2 size={11} strokeWidth={1.5} className="animate-spin" />
+              : <RotateCw size={11} strokeWidth={1.5} />}
           </button>
         </div>
       </div>
@@ -180,16 +184,17 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
   const addTile = useLayoutStore((s) => s.addTile);
   const persist = useLayoutStore((s) => s.persist);
 
-  const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
+  // newAccountId: set when an account is just created; cleared when rename prompt fires or account deleted
+  const [newAccountId, setNewAccountId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  // verifyingId is `${accountId}:${sessionType}` while a verify call is in-flight
+  // verifyingId is `${accountId}:${sessionType}` while a manual verify call is in-flight
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // authStatuses keyed by `${accountId}:${sessionType}` for fresh check results
   const [authStatuses, setAuthStatuses] = useState<Record<string, CliAuthStatus>>({});
 
-  // Rename prompt state (shown after Claude auth auto-detected in "Add Account" flow)
+  // Rename prompt state (shown after any provider auth detected for a new account)
   const [renameAccountId, setRenameAccountId] = useState<string | null>(null);
   const [renameName, setRenameName] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -209,47 +214,57 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     }
   };
 
-  // One-click add: create account with placeholder name, open Claude auth terminal
-  const handleAddAccount = async (): Promise<void> => {
-    if (isCreating || pendingAccountId) return;
-    setIsCreating(true);
-    setError(null);
-    try {
-      const account = await window.mcode.accounts.create();
-      await refresh();
-      await openAuthTerminal(account.accountId, 'claude');
-      setPendingAccountId(account.accountId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  // Auto-poll Claude auth status while a pending account exists
+  // Keep mutable refs current for use inside async effects without stale closures
+  const openedRef = useRef(false);
+  const accountsRef = useRef(accounts);
+  const newAccountIdRef = useRef(newAccountId);
   const refreshRef = useRef(refresh);
+  accountsRef.current = accounts;
+  newAccountIdRef.current = newAccountId;
   refreshRef.current = refresh;
 
+  // Auto-verify all accounts × providers on dialog open (background check, no per-row spinner)
   useEffect(() => {
-    if (!pendingAccountId) return;
-    const intervalId = setInterval(async () => {
-      try {
-        const result = await window.mcode.accounts.getAuthStatus(pendingAccountId, 'claude');
-        if (result.status === 'ok') {
-          await refreshRef.current();
-          setPendingAccountId(null);
-          const emailOrIdentity = result.identity ?? result.email;
-          if (emailOrIdentity) {
-            setRenameAccountId(pendingAccountId);
-            setRenameName(suggestNameFromEmail(emailOrIdentity));
+    if (!open) {
+      openedRef.current = false;
+      return;
+    }
+    if (openedRef.current) return;
+    openedRef.current = true;
+
+    void (async () => {
+      const currentAccounts = accountsRef.current;
+      const pairs = currentAccounts.flatMap((a) =>
+        SUPPORTED_PROVIDERS.map((p) => ({ accountId: a.accountId, sessionType: p.sessionType })),
+      );
+      if (pairs.length === 0) return;
+      const results = await Promise.allSettled(
+        pairs.map((pair) => window.mcode.accounts.getAuthStatus(pair.accountId, pair.sessionType)),
+      );
+      const updates: Record<string, CliAuthStatus> = {};
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          const key = `${pairs[i].accountId}:${pairs[i].sessionType}`;
+          updates[key] = r.value.status;
+          // Trigger rename prompt if this is the newly-created account's first identity
+          const currentNewAccountId = newAccountIdRef.current;
+          if (
+            currentNewAccountId === pairs[i].accountId &&
+            r.value.status === 'ok' &&
+            (r.value.identity ?? r.value.email)
+          ) {
+            const identity = r.value.identity ?? r.value.email!;
+            setRenameAccountId(pairs[i].accountId);
+            setRenameName(suggestNameFromEmail(identity));
+            setNewAccountId(null);
           }
         }
-      } catch {
-        // Ignore — terminal/CLI may not be ready yet
-      }
-    }, 4000);
-    return () => clearInterval(intervalId);
-  }, [pendingAccountId]);
+      });
+      setAuthStatuses((prev) => ({ ...prev, ...updates }));
+      await refreshRef.current();
+      useAccountsStore.getState().refreshCliStatus().catch(() => {});
+    })();
+  }, [open]);
 
   // Auto-focus rename input when it appears
   useEffect(() => {
@@ -275,6 +290,36 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     setRenameName('');
   }, []);
 
+  // One-click add: create account, then immediately background-verify all providers
+  const handleAddAccount = async (): Promise<void> => {
+    if (isCreating || newAccountId) return;
+    setIsCreating(true);
+    setError(null);
+    try {
+      const account = await window.mcode.accounts.create();
+      setNewAccountId(account.accountId);
+      await refresh();
+      // Background-verify new account's providers (catches already-authenticated edge case)
+      void Promise.allSettled(
+        SUPPORTED_PROVIDERS.map(async (p) => {
+          const result = await window.mcode.accounts.getAuthStatus(account.accountId, p.sessionType);
+          const key = `${account.accountId}:${p.sessionType}`;
+          setAuthStatuses((prev) => ({ ...prev, [key]: result.status }));
+          if (result.status === 'ok' && (result.identity ?? result.email)) {
+            const identity = result.identity ?? result.email!;
+            setRenameAccountId(account.accountId);
+            setRenameName(suggestNameFromEmail(identity));
+            setNewAccountId(null);
+          }
+        }),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleVerify = async (accountId: string, sessionType: string): Promise<void> => {
     const key = `${accountId}:${sessionType}`;
     setVerifyingId(key);
@@ -284,7 +329,13 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       setAuthStatuses((prev) => ({ ...prev, [key]: result.status }));
       await refresh();
       useAccountsStore.getState().refreshCliStatus().catch(() => {});
-      if (pendingAccountId === accountId && result.status === 'ok') setPendingAccountId(null);
+      // Trigger rename prompt for newly-created account on first successful auth
+      if (newAccountId === accountId && result.status === 'ok' && (result.identity ?? result.email)) {
+        const identity = result.identity ?? result.email!;
+        setRenameAccountId(accountId);
+        setRenameName(suggestNameFromEmail(identity));
+        setNewAccountId(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -306,7 +357,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     setError(null);
     try {
       await window.mcode.accounts.delete(accountId);
-      if (pendingAccountId === accountId) setPendingAccountId(null);
+      if (newAccountId === accountId) setNewAccountId(null);
       if (renameAccountId === accountId) {
         setRenameAccountId(null);
         setRenameName('');
@@ -368,14 +419,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
         </div>
       )}
 
-      {/* Pending auth notice */}
-      {pendingAccountId && (
-        <div className="mb-4 px-3 py-2.5 bg-amber-900/20 border border-amber-700/30 rounded-md text-xs text-amber-300">
-          Complete the authentication flow in your browser. This will update automatically.
-        </div>
-      )}
-
-      {/* Rename prompt (shown after Claude auth auto-detected) */}
+      {/* Rename prompt (shown after any provider auth detected for a new account) */}
       {renameAccountId && (
         <div className="mb-4 space-y-2">
           <p className="text-xs text-text-muted uppercase tracking-wide">Name your account</p>
@@ -423,7 +467,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
         <button
           className="mb-4 text-sm text-text-muted hover:text-text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           onClick={handleAddAccount}
-          disabled={isCreating || Boolean(pendingAccountId)}
+          disabled={isCreating || Boolean(newAccountId)}
         >
           {isCreating ? 'Creating…' : '+ Add Account'}
         </button>
