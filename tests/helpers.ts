@@ -244,13 +244,18 @@ export async function cleanupSessions(
   sessionIds: string[],
 ): Promise<void> {
   if (sessionIds.length === 0) return;
+  const sessions = await client.callToolJson<SessionInfo[]>('session_list');
+  const testSessionIds = sessionIds.filter((id) =>
+    sessions.some((session) => session.sessionId === id && session.isTest),
+  );
+  if (testSessionIds.length === 0) return;
   // Kill all concurrently
   await Promise.allSettled(
-    sessionIds.map((id) => client.callTool('session_kill', { sessionId: id })),
+    testSessionIds.map((id) => client.callTool('session_kill', { sessionId: id })),
   );
   // Wait for each to reach 'ended' concurrently with a short timeout
   await Promise.allSettled(
-    sessionIds.map((id) =>
+    testSessionIds.map((id) =>
       client.callToolJson('session_wait_for_status', {
         sessionId: id,
         status: 'ended',
@@ -258,8 +263,12 @@ export async function cleanupSessions(
       }),
     ),
   );
-  // Delete the ended sessions from DB
-  await client.callTool('session_delete_batch', { sessionIds });
+  const endedTestIds = (await client.callToolJson<SessionInfo[]>('session_list'))
+    .filter((session) => testSessionIds.includes(session.sessionId) && session.status === 'ended')
+    .map((session) => session.sessionId);
+  if (endedTestIds.length === 0) return;
+  // Delete only the ended test sessions from DB
+  await client.callTool('session_delete_batch', { sessionIds: endedTestIds });
 }
 
 // --- Hook helpers ---

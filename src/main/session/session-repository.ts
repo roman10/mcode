@@ -339,7 +339,9 @@ export function getEndedTestSessionIds(): string[] {
 export function getActiveTestSessionIds(): string[] {
   return (
     getDb()
-      .prepare("SELECT session_id FROM sessions WHERE is_test = 1 AND status != 'ended'")
+      .prepare(
+        "SELECT session_id FROM sessions WHERE is_test = 1 AND status IN ('starting', 'active', 'idle', 'waiting')",
+      )
       .all() as { session_id: string }[]
   ).map((r) => r.session_id);
 }

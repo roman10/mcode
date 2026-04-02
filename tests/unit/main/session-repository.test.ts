@@ -17,7 +17,9 @@ import {
   findConflictingLabels,
   getTrackedClaudeSessionIds,
   getEndedSessionIds,
+  getEndedTestSessionIds,
   getEmptyEndedSessionIds,
+  getActiveTestSessionIds,
   getActiveTerminalSessionIds,
   hasPendingTasksForSession,
   insertSession,
@@ -282,6 +284,28 @@ describe('session-repository', () => {
       expect(ids).toHaveLength(2);
       expect(ids).toContain('s1');
       expect(ids).toContain('s3');
+    });
+  });
+
+  describe('test-session queries', () => {
+    it('returns only ended test session IDs', () => {
+      insertTestSession('test-ended', { status: 'ended', is_test: 1 });
+      insertTestSession('user-ended', { status: 'ended', is_test: 0 });
+      insertTestSession('test-active', { status: 'active', is_test: 1 });
+
+      expect(getEndedTestSessionIds()).toEqual(['test-ended']);
+    });
+
+    it('returns only active test session IDs', () => {
+      insertTestSession('test-starting', { status: 'starting', is_test: 1 });
+      insertTestSession('test-active', { status: 'active', is_test: 1 });
+      insertTestSession('test-idle', { status: 'idle', is_test: 1 });
+      insertTestSession('test-waiting', { status: 'waiting', is_test: 1 });
+      insertTestSession('test-detached', { status: 'detached', is_test: 1 });
+      insertTestSession('test-ended', { status: 'ended', is_test: 1 });
+      insertTestSession('user-active', { status: 'active', is_test: 0 });
+
+      expect(getActiveTestSessionIds()).toEqual(['test-starting', 'test-active', 'test-idle', 'test-waiting']);
     });
   });
 
