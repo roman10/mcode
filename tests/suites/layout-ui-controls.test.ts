@@ -15,10 +15,25 @@ describe('layout UI controls', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
   let originalCollapsed: boolean;
+  let baselineTileCount: number;
+  let nonTestTileSessionIds: string[] = [];
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+
+    // Record non-test tile baseline so we can restore after destructive tests
+    baselineTileCount = await getTileCount(client);
+    if (baselineTileCount > 0) {
+      const tree = await client.callToolText('layout_get_tree');
+      const sessions = await client.callToolJson<SessionInfo[]>('session_list');
+      const testIds = new Set(sessions.filter((s) => s.isTest).map((s) => s.sessionId));
+      const re = /session:([a-f0-9-]+)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(tree)) !== null) {
+        if (!testIds.has(m[1])) nonTestTileSessionIds.push(m[1]);
+      }
+    }
 
     // Create 2 sessions with tiles
     const [s1, s2] = await Promise.all([
@@ -31,7 +46,7 @@ describe('layout UI controls', () => {
       waitForActive(client, s2.sessionId),
     ]);
     // Wait for auto-tile IPC events
-    await waitForTileCount(client, 2);
+    await waitForTileCount(client, baselineTileCount + 2);
 
     // Save original sidebar collapsed state
     const state = await client.callToolJson<{ collapsed: boolean }>(
@@ -46,6 +61,12 @@ describe('layout UI controls', () => {
       collapsed: originalCollapsed,
     });
     await cleanupSessions(client, sessionIds);
+    // Restore non-test tiles that may have been removed by layout_remove_all_tiles
+    await Promise.allSettled(
+      nonTestTileSessionIds.map((id) =>
+        client.callTool('layout_add_tile', { sessionId: id }),
+      ),
+    );
     await client.disconnect();
   });
 

@@ -519,3 +519,15 @@ export function clearAllAttention(): string[] {
   ).run();
   return rows.map((r) => r.session_id);
 }
+
+export function clearTestAttention(): string[] {
+  const db = getDb();
+  const rows = db
+    .prepare(`SELECT session_id FROM sessions WHERE is_test = 1 AND attention_level != 'none'`)
+    .all() as { session_id: string }[];
+  if (rows.length === 0) return [];
+  db.prepare(
+    `UPDATE sessions SET attention_level = 'none', attention_reason = NULL WHERE is_test = 1 AND attention_level != 'none'`,
+  ).run();
+  return rows.map((r) => r.session_id);
+}

@@ -110,6 +110,12 @@ export class SessionEventStore {
     db.prepare('DELETE FROM events').run();
   }
 
+  /** Delete hook events only for test sessions (is_test=1). */
+  clearTestEvents(): void {
+    const db = getDb();
+    db.prepare('DELETE FROM events WHERE session_id IN (SELECT session_id FROM sessions WHERE is_test = 1)').run();
+  }
+
   /** Prune events older than retention period. */
   pruneOldEvents(): void {
     const db = getDb();

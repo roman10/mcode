@@ -38,6 +38,7 @@ import {
   markAllDetached,
   markTerminalSessionsEnded,
   clearAllAttention as repoClearAllAttention,
+  clearTestAttention as repoClearTestAttention,
   getSessionIdByCopilotSessionId,
 } from './session-repository';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
@@ -1061,6 +1062,13 @@ export class SessionManager {
     }
   }
 
+  clearTestAttention(): void {
+    const changedIds = repoClearTestAttention();
+    for (const id of changedIds) {
+      this.broadcastSessionUpdate(id);
+    }
+  }
+
   /** Atomically set status + attention in one DB update. */
   updateStatusWithAttention(
     sessionId: string,
@@ -1195,6 +1203,11 @@ export class SessionManager {
   /** Delete all hook events from the database. */
   clearAllEvents(): void {
     this.eventStore.clearAllEvents();
+  }
+
+  /** Delete hook events only for test sessions. */
+  clearTestEvents(): void {
+    this.eventStore.clearTestEvents();
   }
 }
 

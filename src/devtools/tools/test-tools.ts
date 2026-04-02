@@ -11,10 +11,15 @@ export function registerTestTools(
 ): void {
   server.registerTool('app_reset_test_state', {
     description:
-      'Reset app to clean state for test isolation. Kills active test sessions, deletes all ended test sessions, removes all tiles, resets view mode to tiles, clears sidebar selection, clears attention, clears hook events, cancels pending tasks. Only affects sessions created with isTest=true.',
+      'Reset app to clean state for test isolation. Kills active test sessions, deletes all ended test sessions, removes test tiles/tabs, resets view mode to tiles, clears sidebar selection, clears test attention/events, cancels test-related pending tasks. Only affects sessions and data created with isTest=true.',
     annotations: { readOnlyHint: false },
   }, async () => {
     const summary: string[] = [];
+
+    // Collect ALL test session IDs upfront (before kill/delete removes them from DB)
+    const allTestIds = ctx.sessionManager.list()
+      .filter((s) => s.isTest)
+      .map((s) => s.sessionId);
 
     // 1. Kill all active/starting test sessions (leave real sessions untouched)
     const testIds = ctx.sessionManager.getActiveTestSessionIds();
@@ -37,12 +42,23 @@ export function registerTestTools(
       summary.push(`Deleted ${deleted.length} ended test session(s)`);
     }
 
-    // 3. Remove all tiles from layout
-    try {
-      await queryRenderer<void>(ctx.mainWindow, 'layout-remove-all-tiles', {});
-      summary.push('Removed all tiles');
-    } catch {
-      // Renderer may not have tiles
+    // 3. Remove tiles and terminal tabs only for test sessions
+    let tilesRemoved = 0;
+    for (const id of allTestIds) {
+      try {
+        await queryRenderer<void>(ctx.mainWindow, 'layout-remove-tile', { sessionId: id });
+        tilesRemoved++;
+      } catch {
+        // Best-effort — tile may not exist for this session
+      }
+      try {
+        await queryRenderer<void>(ctx.mainWindow, 'terminal-panel-remove-tab', { sessionId: id });
+      } catch {
+        // Best-effort — tab may not exist for this session
+      }
+    }
+    if (tilesRemoved > 0) {
+      summary.push(`Removed ${tilesRemoved} test tile(s)`);
     }
 
     // 4. Reset view mode to tiles
@@ -61,16 +77,16 @@ export function registerTestTools(
       // Best-effort
     }
 
-    // 6. Clear all attention
-    ctx.sessionManager.clearAllAttention();
-    summary.push('Cleared all attention');
+    // 6. Clear attention only for test sessions
+    ctx.sessionManager.clearTestAttention();
+    summary.push('Cleared test attention');
 
-    // 7. Clear all hook events
-    ctx.sessionManager.clearAllEvents();
-    summary.push('Cleared hook events');
+    // 7. Clear hook events only for test sessions
+    ctx.sessionManager.clearTestEvents();
+    summary.push('Cleared test hook events');
 
-    // 8. Cancel all pending tasks
-    const cancelledCount = ctx.taskQueue.cancelAllPending();
+    // 8. Cancel pending tasks targeting test sessions
+    const cancelledCount = ctx.taskQueue.cancelPendingForTestSessions();
     if (cancelledCount > 0) {
       summary.push(`Cancelled ${cancelledCount} pending task(s)`);
     }

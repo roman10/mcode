@@ -67,9 +67,9 @@ describe('session delete', () => {
     expect(result.isError).toBe(true);
   });
 
-  it('delete_all_ended removes all ended sessions', async () => {
+  it('delete_all_ended_test removes all ended test sessions', async () => {
     // endedId2 is still ended and not yet deleted
-    const result = await client.callToolText('session_delete_all_ended');
+    const result = await client.callToolText('session_delete_all_ended_test');
     expect(result).toContain('Deleted');
     expect(result).toContain(endedId2);
 
@@ -79,10 +79,10 @@ describe('session delete', () => {
     expect(ids).not.toContain(endedId2);
   });
 
-  it('delete_all_ended is safe when no ended sessions exist', async () => {
-    // All ended sessions are already deleted
-    const result = await client.callToolText('session_delete_all_ended');
-    expect(result).toContain('No ended sessions to delete');
+  it('delete_all_ended_test is safe when no ended test sessions exist', async () => {
+    // All ended test sessions are already deleted
+    const result = await client.callToolText('session_delete_all_ended_test');
+    expect(result).toContain('No ended test sessions to delete');
   });
 
   describe('session_delete_batch', () => {

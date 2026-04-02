@@ -377,6 +377,18 @@ export class TaskQueue {
     return result.changes;
   }
 
+  cancelPendingForTestSessions(): number {
+    const db = getDb();
+    const result = db.prepare(
+      "DELETE FROM task_queue WHERE status = 'pending' AND target_session_id IN (SELECT session_id FROM sessions WHERE is_test = 1)",
+    ).run();
+    if (result.changes > 0) {
+      logger.info('task', 'Cancelled pending tasks for test sessions', { count: result.changes });
+      this.broadcastChange({ type: 'refresh' });
+    }
+    return result.changes;
+  }
+
   update(taskId: number, input: UpdateTaskInput): Task {
     const task = this.getById(taskId);
     if (!task) {
