@@ -802,22 +802,34 @@ Copilot is the best next candidate because:
 
 ### Work
 
-- implement `gemini-account-provider.ts` with:
-  - `getConfigEnv()` → `{ GEMINI_CLI_HOME: accountHome, GEMINI_FORCE_FILE_STORAGE: ‘true’ }` (force file storage to avoid shared Keychain)
-  - `checkAuthStatus()` → read `$GEMINI_CLI_HOME/.gemini/google_accounts.json`, check `active` field
-  - `buildAuthTerminalInput()` → launch `gemini` REPL session (user runs `/auth` interactively). Show instructional text in the UI: "Run /auth in the Gemini session to authenticate."
-  - `getSharedConfigSubdirs()` → `[]` (no user-content subdirs identified)
+- implement `src/main/accounts/providers/gemini-account-provider.ts` with:
   - `getConfigDirName()` → `’.gemini’`
-- support account selection in session creation
+  - `getConfigEnv(accountHome)` → `{ GEMINI_CLI_HOME: accountHome, GEMINI_FORCE_FILE_STORAGE: ‘true’ }`
+    - **Key difference:** `GEMINI_CLI_HOME` points to the **parent** of `.gemini/` (i.e., `accountHome`), not to the config dir itself. This is inconsistent with other providers — the adapter handles the offset internally.
+    - `GEMINI_FORCE_FILE_STORAGE=true` forces encrypted-file auth storage to avoid the shared macOS Keychain entry (`gemini-cli-oauth` / `main-account`) that Gemini uses by default.
+  - `checkAuthStatus(account)` → read `join(accountHome, ‘.gemini’, ‘google_accounts.json’)`, return `active` field as identity (email); absent/null → `not-authenticated`
+  - `buildAuthTerminalInput(account)` → launch `gemini` REPL (no `initialCommand`; user runs `/auth` interactively). Label: `Auth: ${account.name} — run /auth to authenticate`
+  - `getSharedConfigSubdirs()` → `[]` (no user-content subdirs identified)
+  - `supportsSubscriptionUsage()` → `false`
+- enable `supportsAccountProfiles: true` for Gemini in `session-agents.ts`
+- register `GeminiAccountProvider` in `index.ts` (same pattern as Copilot)
+- wire Gemini hook reconciliation for secondary accounts on startup/quit (same pattern as Phase 5 Copilot wiring)
+- **cleanup carried over from Phase 5:**
+  - generalize `setupAccountDirectory()` so it copies settings files for all registered providers, not just `.claude/settings.json`
+  - generalize `getAllSettingsPaths()` to return settings paths for all providers that have hook reconciliation
 
 ### Deliverables
 
-- Gemini account support with file-based auth isolation
+- Gemini sessions can select account profiles
+- AccountsDialog automatically shows Gemini row (no UI code change needed — `SUPPORTED_PROVIDERS` derives from `supportsAccountProfiles` flag)
+- Gemini config state isolated via `GEMINI_CLI_HOME` + `GEMINI_FORCE_FILE_STORAGE`
+- Hook reconciliation for secondary Gemini accounts
 
-### Risks
+### Risks and mitigations
 
-- REPL-only login (`/auth`) means the auth UX is less guided than Claude/Copilot — cannot auto-detect completion easily. Consider polling `google_accounts.json` for `active` field changes as a completion signal.
-- `GEMINI_CLI_HOME` env var semantics differ from other providers (points to parent dir, not config dir itself). The adapter must handle this correctly.
+- **REPL-only login:** `/auth` works only inside the Gemini REPL — no standalone auth command. The `buildAuthTerminalInput()` launches `gemini`; the user runs `/auth` manually. The label string communicates this. Consider polling `google_accounts.json` `active` field as a completion signal to auto-clear the pending state.
+- **`GEMINI_CLI_HOME` parent-dir semantics:** `getConfigEnv()` sets `GEMINI_CLI_HOME=accountHome` (not `accountHome/.gemini`). The adapter’s `checkAuthStatus()` must construct the full path as `join(accountHome, ‘.gemini’, ‘google_accounts.json’)`. No other part of the system is affected since `getConfigDirName()` still returns `’.gemini’` for denylist purposes.
+- **Keychain isolation:** `GEMINI_FORCE_FILE_STORAGE=true` bypasses the shared `main-account` Keychain entry and stores credentials in `$GEMINI_CLI_HOME/.gemini/gemini-credentials.json`. Without this flag, all Gemini accounts would share the same Keychain credential, breaking account isolation.
 
 ## Phase 7 — Codex Account Support Decision
 
