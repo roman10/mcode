@@ -329,6 +329,13 @@ export function initDevtoolsBridge(): void {
         result = { ok: true };
         break;
       }
+      case 'terminal-panel-remove-tab': {
+        const { sessionId } = params as { sessionId: string };
+        const { useTerminalPanelStore } = await import('../stores/terminal-panel-store');
+        useTerminalPanelStore.getState().removeTerminal(sessionId);
+        result = true;
+        break;
+      }
       case 'terminal-action': {
         const { sessionId, action } = params as { sessionId: string; action: string };
         const term = terminalRegistry.get(sessionId);

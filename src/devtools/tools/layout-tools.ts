@@ -309,6 +309,31 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('terminal_panel_remove_tab', {
+    description: 'Remove a terminal tab from the bottom panel',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID whose terminal tab to remove'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId }) => {
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'terminal-panel-remove-tab', { sessionId });
+      return {
+        content: [{ type: 'text', text: `Removed terminal tab: ${sessionId}` }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to remove terminal tab: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_wait_for_tile_count', {
     description: 'Wait until the mosaic layout reaches the expected tile count. Polls every 250ms.',
     inputSchema: {

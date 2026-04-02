@@ -253,6 +253,10 @@ export async function cleanupSessions(
   await Promise.allSettled(
     testSessionIds.map((id) => client.callTool('layout_remove_tile', { sessionId: id })),
   );
+  // Remove bottom-panel terminal tabs (best-effort; no-op for non-terminal sessions)
+  await Promise.allSettled(
+    testSessionIds.map((id) => client.callTool('terminal_panel_remove_tab', { sessionId: id })),
+  );
   // Kill all concurrently
   await Promise.allSettled(
     testSessionIds.map((id) => client.callTool('session_kill', { sessionId: id })),
