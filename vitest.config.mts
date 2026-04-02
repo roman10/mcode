@@ -5,7 +5,7 @@ export default defineConfig({
     include: ['tests/suites/**/*.test.ts'],
     globalTeardown: ['./tests/global-teardown.ts'],
     testTimeout: 30000,
-    hookTimeout: 30000,
+    hookTimeout: 60000,
     fileParallelism: false,
     sequence: {
       concurrent: false,

@@ -15,10 +15,17 @@ import {
 describe('hook integration', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
+  // State-machine session created in beforeAll for the lifecycle test
+  let smSessionId: string;
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+
+    const session = await createTestSession(client);
+    smSessionId = session.sessionId;
+    sessionIds.push(smSessionId);
+    await waitForActive(client, smSessionId);
   });
 
   afterAll(async () => {
@@ -32,66 +39,51 @@ describe('hook integration', () => {
     expect(runtime.state).not.toBe('initializing');
   });
 
-  it('SessionStart transitions to active', async () => {
-    const session = await createTestSession(client);
-    sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
-
-    const updated = await injectHookEvent(
+  it('hook state machine: full lifecycle', async () => {
+    // SessionStart -> active
+    const afterStart = await injectHookEvent(
       client,
-      session.sessionId,
+      smSessionId,
       'SessionStart',
       { claudeSessionId: 'claude-abc-123' },
     );
-    expect(updated.status).toBe('active');
-    // claudeSessionId is only persisted for claude-type sessions;
-    // terminal sessions (used here) do not store agent session IDs.
-  });
+    expect(afterStart.status).toBe('active');
 
-  it('PreToolUse updates lastTool', async () => {
-    const sessionId = sessionIds[0];
-    const updated = await injectHookEvent(client, sessionId, 'PreToolUse', {
+    // PreToolUse -> lastTool updated
+    const afterPreTool = await injectHookEvent(client, smSessionId, 'PreToolUse', {
       toolName: 'Read',
     });
-    expect(updated.lastTool).toBe('Read');
-  });
+    expect(afterPreTool.lastTool).toBe('Read');
 
-  it('PostToolUse stays active', async () => {
-    const sessionId = sessionIds[0];
-    const updated = await injectHookEvent(client, sessionId, 'PostToolUse', {
+    // PostToolUse -> stays active
+    const afterPostTool = await injectHookEvent(client, smSessionId, 'PostToolUse', {
       toolName: 'Read',
     });
-    expect(updated.status).toBe('active');
-    expect(updated.lastTool).toBe('Read');
-  });
+    expect(afterPostTool.status).toBe('active');
+    expect(afterPostTool.lastTool).toBe('Read');
 
-  it('Stop transitions to idle with action attention', async () => {
-    const sessionId = sessionIds[0];
-    const updated = await injectHookEvent(client, sessionId, 'Stop');
-    expect(updated.status).toBe('idle');
-    expect(updated.attentionLevel).toBe('action');
-  });
+    // Stop -> idle with action attention
+    const afterStop = await injectHookEvent(client, smSessionId, 'Stop');
+    expect(afterStop.status).toBe('idle');
+    expect(afterStop.attentionLevel).toBe('action');
 
-  it('PermissionRequest transitions to waiting with action attention', async () => {
-    const sessionId = sessionIds[0];
-    const updated = await injectHookEvent(
+    // PermissionRequest -> waiting with action attention
+    const afterPerm = await injectHookEvent(
       client,
-      sessionId,
+      smSessionId,
       'PermissionRequest',
       { toolName: 'Bash' },
     );
-    expect(updated.status).toBe('waiting');
-    expect(updated.attentionLevel).toBe('action');
-    expect(updated.attentionReason).toContain('Bash');
-  });
+    expect(afterPerm.status).toBe('waiting');
+    expect(afterPerm.attentionLevel).toBe('action');
+    expect(afterPerm.attentionReason).toContain('Bash');
 
-  it('PostToolUse returns to active and clears action attention', async () => {
-    const sessionId = sessionIds[0];
-    const updated = await injectHookEvent(client, sessionId, 'PostToolUse', {
+    // PostToolUse -> returns to active, clears action attention
+    const afterReturn = await injectHookEvent(client, smSessionId, 'PostToolUse', {
       toolName: 'Bash',
     });
-    expect(updated.status).toBe('active');
-    expect(updated.attentionLevel).toBe('none');
+    expect(afterReturn.status).toBe('active');
+    expect(afterReturn.attentionLevel).toBe('none');
   });
 
   it('SessionEnd with PTY alive clears attention but keeps status (no claudeSessionId)', async () => {
@@ -170,10 +162,10 @@ describe('hook integration', () => {
   });
 
   it('events are persisted and retrievable with sessionStatus', async () => {
-    const sessionId = sessionIds[0];
-    const events = await getRecentEvents(client, sessionId);
+    // Uses the state-machine session which has had multiple events injected
+    const events = await getRecentEvents(client, smSessionId);
     expect(events.length).toBeGreaterThan(0);
-    expect(events[0].sessionId).toBe(sessionId);
+    expect(events[0].sessionId).toBe(smSessionId);
     expect(events[0].hookEventName).toBeTruthy();
     expect(events[0].sessionStatus).toBeDefined();
   });
@@ -403,9 +395,8 @@ describe('hook integration', () => {
     expect(afterStop.attentionReason).toBe('Finished — awaiting input');
   });
 
+  // IMPORTANT: These two tests must run after all event-injecting tests above
   it('hook_list_recent_all returns events with sessionStatus across sessions', async () => {
-    // Earlier tests in this suite injected events into multiple sessions.
-    // hook_list_recent_all should return events from across all of them.
     const events = await client.callToolJson<Array<{ sessionId: string; sessionStatus?: string }>>(
       'hook_list_recent_all',
     );

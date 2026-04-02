@@ -13,10 +13,16 @@ import {
 describe('detach semantics (close tile != kill session)', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
+  let sessionId: string;
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+
+    const session = await createLiveClaudeTestSession(client);
+    sessionId = session.sessionId;
+    sessionIds.push(sessionId);
+    await waitForActive(client, sessionId);
   });
 
   afterAll(async () => {
@@ -24,48 +30,33 @@ describe('detach semantics (close tile != kill session)', () => {
     await client.disconnect();
   });
 
-  it('removing tile does not kill the session', async () => {
-    const session = await createLiveClaudeTestSession(client);
-    sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
+  it('detach lifecycle: remove tile, re-add, kill detached', async () => {
+    // --- Section 1: Removing tile does not kill the session ---
+    const tilesBefore = await getTileCount(client);
 
-    // Tile was auto-added on creation — get current count
-    const before = await getTileCount(client);
+    await client.callTool('layout_remove_tile', { sessionId });
+    await waitForTileCount(client, tilesBefore - 1);
 
-    // Remove the auto-added tile (detach)
-    await client.callTool('layout_remove_tile', {
-      sessionId: session.sessionId,
-    });
-    await waitForTileCount(client, before - 1);
-
-    // Session should still be active
-    const status = await client.callToolJson<SessionInfo>(
+    const afterDetach = await client.callToolJson<SessionInfo>(
       'session_get_status',
-      { sessionId: session.sessionId },
+      { sessionId },
     );
-    expect(status.status).toBe('active');
-  });
+    expect(afterDetach.status).toBe('active');
 
-  it('can re-add tile after detach', async () => {
-    const sessionId = sessionIds[0];
-    const before = await getTileCount(client);
+    // --- Section 2: Can re-add tile after detach ---
+    const tilesAfterDetach = await getTileCount(client);
 
     await client.callTool('layout_add_tile', { sessionId });
-    await waitForTileCount(client, before + 1);
+    await waitForTileCount(client, tilesAfterDetach + 1);
 
-    const after = await getTileCount(client);
-    expect(after).toBe(before + 1);
-  });
+    const tilesAfterReAdd = await getTileCount(client);
+    expect(tilesAfterReAdd).toBe(tilesAfterDetach + 1);
 
-  it('can kill a detached session', async () => {
-    const sessionId = sessionIds[0];
-
-    // Remove tile first (detach)
-    const before = await getTileCount(client);
+    // --- Section 3: Can kill a detached session ---
+    const tilesBeforeKill = await getTileCount(client);
     await client.callTool('layout_remove_tile', { sessionId });
-    await waitForTileCount(client, before - 1);
+    await waitForTileCount(client, tilesBeforeKill - 1);
 
-    // Kill
     await client.callTool('session_kill', { sessionId });
     await client.callToolJson('session_wait_for_status', {
       sessionId,
@@ -73,10 +64,10 @@ describe('detach semantics (close tile != kill session)', () => {
       timeout_ms: 15000,
     });
 
-    const session = await client.callToolJson<SessionInfo>(
+    const ended = await client.callToolJson<SessionInfo>(
       'session_get_status',
       { sessionId },
     );
-    expect(session.status).toBe('ended');
+    expect(ended.status).toBe('ended');
   });
 });

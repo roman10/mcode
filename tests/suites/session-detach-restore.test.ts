@@ -16,10 +16,34 @@ import {
 describe('session detach and restore', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
+  // Indices into sessionIds for the 3 setup sessions
+  let s1Id: string; // will be idle
+  let s2Id: string; // will be active
+  let s3Id: string; // will be waiting
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+
+    // Create session 1: transition to idle via Stop hook
+    const s1 = await createLiveClaudeTestSession(client);
+    s1Id = s1.sessionId;
+    sessionIds.push(s1Id);
+    const s1Idle = await injectHookEvent(client, s1Id, 'Stop');
+    expect(s1Idle.status).toBe('idle');
+
+    // Create session 2: remain active
+    const s2 = await createLiveClaudeTestSession(client);
+    s2Id = s2.sessionId;
+    sessionIds.push(s2Id);
+    expect(s2.status).toBe('active');
+
+    // Create session 3: transition to waiting via PermissionRequest
+    const s3 = await createLiveClaudeTestSession(client);
+    s3Id = s3.sessionId;
+    sessionIds.push(s3Id);
+    const s3Waiting = await injectHookEvent(client, s3Id, 'PermissionRequest', { toolName: 'Bash' });
+    expect(s3Waiting.status).toBe('waiting');
   });
 
   afterAll(async () => {
@@ -33,61 +57,34 @@ describe('session detach and restore', () => {
     await client.disconnect();
   });
 
-  it('creates sessions in different states for detach testing', async () => {
-    // Create session 1: will be transitioned to idle via Stop hook
-    const s1 = await createLiveClaudeTestSession(client);
-    sessionIds.push(s1.sessionId);
-    expect(s1.status).toBe('active');
+  it('detach and restore preserves session states', async () => {
+    // Ensure expected pre-detach states (guard against onFirstData race)
+    await injectHookEvent(client, s2Id, 'PreToolUse', { toolName: 'Bash' });
+    await injectHookEvent(client, s3Id, 'PermissionRequest', { toolName: 'Bash' });
 
-    // Transition s1 to idle via Stop event
-    const s1Idle = await injectHookEvent(client, s1.sessionId, 'Stop');
-    expect(s1Idle.status).toBe('idle');
-
-    // Create session 2: will remain active
-    const s2 = await createLiveClaudeTestSession(client);
-    sessionIds.push(s2.sessionId);
-    expect(s2.status).toBe('active');
-
-    // Create session 3: will be transitioned to waiting via PermissionRequest
-    const s3 = await createLiveClaudeTestSession(client);
-    sessionIds.push(s3.sessionId);
-    const s3Waiting = await injectHookEvent(client, s3.sessionId, 'PermissionRequest', { toolName: 'Bash' });
-    expect(s3Waiting.status).toBe('waiting');
-  });
-
-  it('detachAllActive preserves all session states', async () => {
-    // Ensure s2 and s3 are in expected states — onFirstData may have
-    // transitioned Claude sessions to idle asynchronously after hook injection
-    await injectHookEvent(client, sessionIds[1], 'PreToolUse', { toolName: 'Bash' });
-    await injectHookEvent(client, sessionIds[2], 'PermissionRequest', { toolName: 'Bash' });
-
-    // Simulate app close
+    // --- Detach all (simulate app close) ---
     await client.callTool('app_detach_all');
 
-    // Verify all sessions are detached
-    for (const id of sessionIds) {
+    for (const id of [s1Id, s2Id, s3Id]) {
       const session = await client.callToolJson<SessionInfo>('session_get_status', { sessionId: id });
       expect(session.status).toBe('detached');
     }
-  });
 
-  it('reconcileDetachedSessions restores pre-detach states', async () => {
-    // Simulate app reopen — all sessions are alive
+    // --- Reconcile (simulate app reopen) ---
     const result = await client.callToolJson<SessionInfo[]>('app_reconcile_detached', {
-      aliveSessionIds: sessionIds,
+      aliveSessionIds: [s1Id, s2Id, s3Id],
     });
 
-    // Find our sessions in the result
-    const s1 = result.find((s) => s.sessionId === sessionIds[0]);
-    const s2 = result.find((s) => s.sessionId === sessionIds[1]);
-    const s3 = result.find((s) => s.sessionId === sessionIds[2]);
+    const r1 = result.find((s) => s.sessionId === s1Id);
+    const r2 = result.find((s) => s.sessionId === s2Id);
+    const r3 = result.find((s) => s.sessionId === s3Id);
 
-    // Session 1 was idle before detach → should be idle again
-    expect(s1!.status).toBe('idle');
-    // Session 2 was active before detach → should be active again
-    expect(s2!.status).toBe('active');
-    // Session 3 was waiting before detach → should be waiting again
-    expect(s3!.status).toBe('waiting');
+    // Session 1 was idle before detach -> should be idle again
+    expect(r1!.status).toBe('idle');
+    // Session 2 was active before detach -> should be active again
+    expect(r2!.status).toBe('active');
+    // Session 3 was waiting before detach -> should be waiting again
+    expect(r3!.status).toBe('waiting');
   });
 
   it('reconcileDetachedSessions marks dead sessions as ended', async () => {

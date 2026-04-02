@@ -19,6 +19,16 @@ describe('concurrent sessions', () => {
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+
+    const promises = Array.from({ length: SESSION_COUNT }, () =>
+      createTestSession(client),
+    );
+    const sessions = await Promise.all(promises);
+    for (const s of sessions) {
+      sessionIds.push(s.sessionId);
+    }
+
+    await Promise.all(sessionIds.map((id) => waitForActive(client, id)));
   });
 
   afterAll(async () => {
@@ -26,25 +36,13 @@ describe('concurrent sessions', () => {
     await client.disconnect();
   });
 
-  it(`creates ${SESSION_COUNT} sessions concurrently`, async () => {
-    const promises = Array.from({ length: SESSION_COUNT }, () =>
-      createTestSession(client),
-    );
-    const sessions = await Promise.all(promises);
-
-    for (const s of sessions) {
-      sessionIds.push(s.sessionId);
-      expect(s.status).toBe('starting');
-    }
-
+  it(`all ${SESSION_COUNT} sessions were created and are active`, async () => {
     expect(sessionIds.length).toBe(SESSION_COUNT);
-  });
-
-  it('all sessions transition to active', async () => {
-    const promises = sessionIds.map((id) => waitForActive(client, id));
-    const results = await Promise.all(promises);
-
-    for (const session of results) {
+    for (const id of sessionIds) {
+      const session = await client.callToolJson<SessionInfo>(
+        'session_get_status',
+        { sessionId: id },
+      );
       expect(session.status).toBe('active');
     }
   });

@@ -12,10 +12,16 @@ import {
 describe('sidebar sessions', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
+  let sessionId: string;
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+
+    const session = await createTestSession(client, { sessionType: 'terminal' });
+    sessionId = session.sessionId;
+    sessionIds.push(sessionId);
+    await waitForActive(client, sessionId);
   });
 
   afterAll(async () => {
@@ -24,22 +30,16 @@ describe('sidebar sessions', () => {
   });
 
   it('shows created session in sidebar', async () => {
-    const session = await createTestSession(client, { sessionType: 'terminal' });
-    sessionIds.push(session.sessionId);
-
     const sidebarSessions = await client.callToolJson<SessionInfo[]>(
       'sidebar_get_sessions',
     );
     const found = sidebarSessions.find(
-      (s) => s.sessionId === session.sessionId,
+      (s) => s.sessionId === sessionId,
     );
     expect(found).toBeDefined();
   });
 
   it('sidebar shows active status after transition', async () => {
-    const sessionId = sessionIds[0];
-    await waitForActive(client, sessionId);
-
     const sidebarSessions = await client.callToolJson<SessionInfo[]>(
       'sidebar_get_sessions',
     );
@@ -49,7 +49,6 @@ describe('sidebar sessions', () => {
   });
 
   it('sidebar shows ended status after kill', async () => {
-    const sessionId = sessionIds[0];
     await killAndWaitEnded(client, sessionId);
 
     const sidebarSessions = await client.callToolJson<SessionInfo[]>(

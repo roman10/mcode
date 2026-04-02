@@ -19,6 +19,12 @@ describe('tile auto-focus', () => {
     await client.connect();
     await resetTestState(client);
     initialTileCount = await getTileCount(client);
+
+    // Create first session in beforeAll so test 3 doesn't depend on test 1
+    const session = await createLiveClaudeTestSession(client);
+    sessionIds.push(session.sessionId);
+    await waitForActive(client, session.sessionId);
+    await waitForTileCount(client, initialTileCount + 1);
   });
 
   afterAll(async () => {
@@ -31,14 +37,9 @@ describe('tile auto-focus', () => {
     await client.disconnect();
   });
 
-  it('newly created session is auto-selected in sidebar', async () => {
-    const session = await createLiveClaudeTestSession(client);
-    sessionIds.push(session.sessionId);
-    await waitForActive(client, session.sessionId);
-    await waitForTileCount(client, initialTileCount + 1);
-
+  it('initial session is auto-selected in sidebar', async () => {
     const { selectedSessionId } = await getSidebarSelected(client);
-    expect(selectedSessionId).toBe(session.sessionId);
+    expect(selectedSessionId).toBe(sessionIds[0]);
   });
 
   it('second session steals focus from first', async () => {
