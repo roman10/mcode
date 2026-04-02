@@ -12,6 +12,7 @@ import {
   countActiveSessions,
   hasActiveAgentSessions,
   getLastClaudeDefaults,
+  getLastSessionDefaults,
   lookupByClaudeSessionId,
   getDistinctCwds,
   findConflictingLabels,
@@ -224,6 +225,49 @@ describe('session-repository', () => {
     it('returns null when no claude sessions exist', () => {
       insertTestSession('s1', { session_type: 'terminal' });
       expect(getLastClaudeDefaults()).toBeNull();
+    });
+  });
+
+  describe('getLastSessionDefaults', () => {
+    it('returns defaults from most recent session of specified type', () => {
+      insertTestSession('s1', {
+        started_at: '2026-01-01T00:00:00.000Z',
+        session_type: 'codex',
+        cwd: '/codex-old',
+        permission_mode: 'fullAuto',
+      });
+      insertTestSession('s2', {
+        started_at: '2026-01-02T00:00:00.000Z',
+        session_type: 'codex',
+        cwd: '/codex-new',
+        permission_mode: 'bypassAll',
+      });
+      insertTestSession('s3', {
+        started_at: '2026-01-03T00:00:00.000Z',
+        session_type: 'claude',
+        cwd: '/claude',
+        permission_mode: 'auto',
+      });
+      const defaults = getLastSessionDefaults('codex');
+      expect(defaults).not.toBeNull();
+      expect(defaults!.cwd).toBe('/codex-new');
+      expect(defaults!.permissionMode).toBe('bypassAll');
+    });
+
+    it('returns null when no sessions of that type exist', () => {
+      insertTestSession('s1', { session_type: 'claude' });
+      expect(getLastSessionDefaults('gemini')).toBeNull();
+    });
+
+    it('includes model in returned defaults', () => {
+      insertTestSession('s1', {
+        session_type: 'gemini',
+        cwd: '/gem',
+        model: 'gemini-2.5-pro',
+      });
+      const defaults = getLastSessionDefaults('gemini');
+      expect(defaults).not.toBeNull();
+      expect(defaults!.model).toBe('gemini-2.5-pro');
     });
   });
 

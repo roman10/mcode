@@ -18,7 +18,7 @@ export interface SessionInvokeContract {
   'session:delete':                     { params: [sessionId: string]; result: void };
   'session:delete-all-ended':           { params: []; result: string[] };
   'session:delete-batch':               { params: [sessionIds: string[]]; result: string[] };
-  'session:get-last-defaults':          { params: []; result: SessionDefaults | null };
+  'session:get-last-defaults':          { params: [sessionType?: string]; result: SessionDefaults | null };
   'session:set-label':                  { params: [sessionId: string, label: string]; result: void };
   'session:set-auto-label':             { params: [sessionId: string, label: string]; result: void };
   'session:set-auto-close':             { params: [sessionId: string, value: boolean]; result: void };

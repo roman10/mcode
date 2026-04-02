@@ -42,6 +42,14 @@ export const AGENT_PERMISSION_MODES: Partial<Record<string, readonly PermissionM
   gemini: ['plan', ...GEMINI_PERMISSION_MODES],
 };
 
+/** Default (most permissive) permission mode for each agent when no last-used value exists. */
+export const DEFAULT_AGENT_PERMISSION_MODE: Partial<Record<string, PermissionMode>> = {
+  claude: 'auto',
+  codex: 'fullAuto',
+  copilot: 'autopilot',
+  gemini: 'autoEdit',
+};
+
 /** Human-readable labels for all permission modes. */
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
   plan: 'Plan',

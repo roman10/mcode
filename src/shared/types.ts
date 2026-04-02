@@ -148,6 +148,7 @@ export interface SessionDefaults {
   effort?: EffortLevel;
   enableAutoMode?: boolean;
   accountId?: string;
+  model?: string;
 }
 
 // --- External (non-mcode) Claude Code sessions ---
@@ -357,7 +358,7 @@ export interface MCodeAPI {
     importExternal(claudeSessionId: string, cwd: string, label?: string): Promise<SessionInfo>;
     onUpdated(callback: (session: SessionInfo) => void): () => void;
     onCreated(callback: (session: SessionInfo) => void): () => void;
-    getLastDefaults(): Promise<SessionDefaults | null>;
+    getLastDefaults(sessionType?: string): Promise<SessionDefaults | null>;
     delete(sessionId: string): Promise<void>;
     deleteAllEnded(): Promise<string[]>;
     deleteBatch(sessionIds: string[]): Promise<string[]>;

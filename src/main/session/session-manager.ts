@@ -18,7 +18,7 @@ import {
   getDetachedSessions,
   countActiveSessions as repoCountActiveSessions,
   hasActiveAgentSessions as repoHasActiveAgentSessions,
-  getLastClaudeDefaults,
+  getLastSessionDefaults,
   lookupByClaudeSessionId as repoLookupByClaudeSessionId,
   getDistinctCwds,
   findConflictingLabels,
@@ -951,8 +951,8 @@ export class SessionManager {
     return repoCountActiveSessions();
   }
 
-  getLastDefaults() {
-    return getLastClaudeDefaults();
+  getLastDefaults(sessionType?: string) {
+    return getLastSessionDefaults(sessionType || 'claude');
   }
 
   setLabel(sessionId: string, label: string): void {
@@ -1240,8 +1240,8 @@ export function registerSessionIpc(sessionManager: SessionManager): void {
     return sessionManager.deleteBatch(sessionIds);
   });
 
-  typedHandle('session:get-last-defaults', () => {
-    return sessionManager.getLastDefaults();
+  typedHandle('session:get-last-defaults', (sessionType) => {
+    return sessionManager.getLastDefaults(sessionType);
   });
 
   typedHandle('session:set-label', (sessionId, label) => {

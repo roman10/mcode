@@ -260,14 +260,14 @@ export function hasActiveAgentSessions(): boolean {
     .get();
 }
 
-export function getLastClaudeDefaults(): SessionDefaults | null {
+export function getLastSessionDefaults(sessionType: string): SessionDefaults | null {
   const row = getDb()
     .prepare(
-      `SELECT cwd, permission_mode, effort, enable_auto_mode, account_id FROM sessions
-       WHERE session_type = 'claude'
+      `SELECT cwd, permission_mode, effort, enable_auto_mode, account_id, model FROM sessions
+       WHERE session_type = ?
        ORDER BY started_at DESC LIMIT 1`,
     )
-    .get() as { cwd: string; permission_mode: string | null; effort: string | null; enable_auto_mode: number | null; account_id: string | null } | undefined;
+    .get(sessionType) as { cwd: string; permission_mode: string | null; effort: string | null; enable_auto_mode: number | null; account_id: string | null; model: string | null } | undefined;
   if (!row) return null;
   return {
     cwd: row.cwd,
@@ -275,7 +275,13 @@ export function getLastClaudeDefaults(): SessionDefaults | null {
     effort: (row.effort as EffortLevel) ?? undefined,
     enableAutoMode: row.enable_auto_mode === 1 ? true : row.enable_auto_mode === 0 ? false : undefined,
     accountId: row.account_id ?? undefined,
+    model: row.model ?? undefined,
   };
+}
+
+/** @deprecated Use getLastSessionDefaults('claude') instead. */
+export function getLastClaudeDefaults(): SessionDefaults | null {
+  return getLastSessionDefaults('claude');
 }
 
 export function lookupByClaudeSessionId(claudeSessionId: string): string | null {

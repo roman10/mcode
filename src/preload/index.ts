@@ -175,8 +175,8 @@ contextBridge.exposeInMainWorld('mcode', {
     onCreated: (cb: (session: SessionInfo) => void): (() => void) =>
       typedListen('session:created', cb),
 
-    getLastDefaults: (): Promise<SessionDefaults | null> =>
-      typedInvoke('session:get-last-defaults'),
+    getLastDefaults: (sessionType?: string): Promise<SessionDefaults | null> =>
+      typedInvoke('session:get-last-defaults', sessionType),
 
     delete: (sessionId: string): Promise<void> =>
       typedInvoke('session:delete', sessionId),

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Dialog from '../shared/Dialog';
 import { getAgentDefinition, type AgentSessionType } from '@shared/session-agents';
 import type { AccountProfileWithProviders, SessionCreateInput } from '@shared/types';
-import { AGENT_PERMISSION_MODES, EFFORT_LEVELS, PERMISSION_MODE_LABELS, type EffortLevel, type PermissionMode } from '@shared/constants';
+import { AGENT_PERMISSION_MODES, DEFAULT_AGENT_PERMISSION_MODE, EFFORT_LEVELS, PERMISSION_MODE_LABELS, type EffortLevel, type PermissionMode } from '@shared/constants';
 
 const isMac = navigator.userAgent.includes('Mac');
 
@@ -36,18 +36,22 @@ function NewSessionDialog({
 
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
+  const justOpenedRef = useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
+      justOpenedRef.current = true;
       setSessionType(initialSessionType ?? 'claude');
       setLabel('');
       setEnableAutoMode(false);
       setUseWorktree(false);
       setWorktreeName('');
       setIsCreating(false);
+      const agentType = initialSessionType ?? 'claude';
       Promise.all([
-        window.mcode.sessions.getLastDefaults(),
+        window.mcode.sessions.getLastDefaults(agentType),
         window.mcode.accounts.list(),
       ]).then(([defaults, list]) => {
+        justOpenedRef.current = false;
         setAccounts(list);
         const defaultAccount = list.find((a) => a.isDefault);
         const rememberedAccountId = defaults?.accountId;
@@ -56,25 +60,44 @@ function NewSessionDialog({
         } else {
           setSelectedAccountId(defaultAccount?.accountId ?? '');
         }
+        const validModes = AGENT_PERMISSION_MODES[agentType];
         if (defaults) {
           setCwd(defaults.cwd);
-          if (defaults.permissionMode) {
-            const validModes = AGENT_PERMISSION_MODES[initialSessionType ?? 'claude'];
-            if (validModes?.includes(defaults.permissionMode as PermissionMode)) {
-              setPermissionMode(defaults.permissionMode);
-            }
+          if (defaults.permissionMode && validModes?.includes(defaults.permissionMode as PermissionMode)) {
+            setPermissionMode(defaults.permissionMode);
+          } else {
+            const fallback = DEFAULT_AGENT_PERMISSION_MODE[agentType];
+            setPermissionMode(fallback && validModes?.includes(fallback) ? fallback : '');
           }
           if (defaults.effort) setEffort(defaults.effort);
           setEnableAutoMode(defaults.enableAutoMode === true);
+        } else {
+          const fallback = DEFAULT_AGENT_PERMISSION_MODE[agentType];
+          setPermissionMode(fallback && validModes?.includes(fallback) ? fallback : '');
         }
       });
     }
     prevOpenRef.current = open;
   }, [open, initialSessionType]);
 
-  // Reset permission mode when switching agent types to avoid stale cross-agent values
+  // Re-fetch last-used defaults when switching agent types
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    setPermissionMode('');
+    if (!open) return;
+    if (justOpenedRef.current) {
+      justOpenedRef.current = false;
+      return; // Skip — dialog-open effect already loaded defaults for this agent
+    }
+    window.mcode.sessions.getLastDefaults(sessionType).then((defaults) => {
+      const validModes = AGENT_PERMISSION_MODES[sessionType];
+      if (defaults?.permissionMode && validModes?.includes(defaults.permissionMode as PermissionMode)) {
+        setPermissionMode(defaults.permissionMode);
+      } else {
+        const fallback = DEFAULT_AGENT_PERMISSION_MODE[sessionType];
+        setPermissionMode(fallback && validModes?.includes(fallback) ? fallback : '');
+      }
+      if (defaults?.cwd) setCwd(defaults.cwd);
+    });
   }, [sessionType]);
 
   const handleBrowse = async (): Promise<void> => {
