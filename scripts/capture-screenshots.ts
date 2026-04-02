@@ -132,10 +132,10 @@ async function main(): Promise<void> {
     // -------------------------------------------------------------------------
     console.log('\nCreating sessions for tiling/kanban screenshots…');
     const sessionDefs = [
-      { label: 'auth-refactor', cwd: process.cwd() },
-      { label: 'api-endpoints', cwd: process.cwd() },
-      { label: 'write-tests', cwd: process.cwd() },
-      { label: 'fix-ci', cwd: process.cwd() },
+      { label: 'auth-refactor', cwd: process.cwd(), isTest: true },
+      { label: 'api-endpoints', cwd: process.cwd(), isTest: true },
+      { label: 'write-tests', cwd: process.cwd(), isTest: true },
+      { label: 'fix-ci', cwd: process.cwd(), isTest: true },
     ];
 
     for (const def of sessionDefs) {
@@ -178,7 +178,13 @@ async function main(): Promise<void> {
     // Clean up created sessions and tiles
     console.log('\nCleaning up…');
     for (const id of createdSessions) {
-      try { await c.call('session_kill', { sessionId: id }); } catch { /* best-effort */ }
+      try {
+        await c.call('session_kill', { sessionId: id });
+        // Also delete the session so it doesn't stay in the DB/sidebar
+        await c.call('session_delete', { sessionId: id });
+      } catch {
+        /* best-effort */
+      }
     }
     try { await c.call('layout_remove_all_tiles'); } catch { /* best-effort */ }
 
