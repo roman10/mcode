@@ -15,10 +15,13 @@ describe('concurrent sessions', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
   const SESSION_COUNT = 4;
+  let baselineTiles: number;
 
   beforeAll(async () => {
     await client.connect();
     await resetTestState(client);
+
+    baselineTiles = await getTileCount(client);
 
     const promises = Array.from({ length: SESSION_COUNT }, () =>
       createTestSession(client),
@@ -61,8 +64,8 @@ describe('concurrent sessions', () => {
 
   it('terminal sessions do not auto-add mosaic tiles', async () => {
     // Terminal sessions live in the bottom terminal panel rather than mosaic tiles.
-    await waitForTileCount(client, 0);
-    expect(await getTileCount(client)).toBe(0);
+    await waitForTileCount(client, baselineTiles);
+    expect(await getTileCount(client)).toBe(baselineTiles);
   });
 
   it('all sessions appear in sidebar', async () => {
@@ -117,8 +120,7 @@ describe('concurrent sessions', () => {
 
   it('tile count returns to baseline after kills', async () => {
     // Wait for renderer to process all auto-close events
-    // Use 0 as baseline since this suite creates its own sessions
-    await waitForTileCount(client, 0, 15000);
-    expect(await getTileCount(client)).toBe(0);
+    await waitForTileCount(client, baselineTiles, 15000);
+    expect(await getTileCount(client)).toBe(baselineTiles);
   });
 });
