@@ -249,6 +249,10 @@ export async function cleanupSessions(
     sessions.some((session) => session.sessionId === id && session.isTest),
   );
   if (testSessionIds.length === 0) return;
+  // Remove mosaic tiles before killing (best-effort; no-op for terminal sessions or already-removed tiles)
+  await Promise.allSettled(
+    testSessionIds.map((id) => client.callTool('layout_remove_tile', { sessionId: id })),
+  );
   // Kill all concurrently
   await Promise.allSettled(
     testSessionIds.map((id) => client.callTool('session_kill', { sessionId: id })),

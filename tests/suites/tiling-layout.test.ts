@@ -35,12 +35,6 @@ describe('tiling layout', () => {
   });
 
   afterAll(async () => {
-    // Remove tiles we added
-    for (const id of sessionIds) {
-      try {
-        await client.callTool('layout_remove_tile', { sessionId: id });
-      } catch { /* best-effort */ }
-    }
     await cleanupSessions(client, sessionIds);
     await client.disconnect();
   });
