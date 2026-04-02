@@ -38,6 +38,11 @@ class CopilotAccountProvider implements AccountProviderAdapter {
     return [];
   }
 
+  getSettingsFileName(): null {
+    // Copilot hook config is managed via hooks.json through its own bridge, not settings.json.
+    return null;
+  }
+
   async checkCliInstalled(): Promise<CliAuthStatus> {
     try {
       await execFileAsync('which', ['copilot']);

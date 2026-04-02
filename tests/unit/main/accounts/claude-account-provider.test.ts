@@ -29,6 +29,10 @@ describe('ClaudeAccountProvider', () => {
     expect(subdirs).toEqual(['commands', 'skills', 'plugins', 'projects']);
   });
 
+  it('returns settings.json as settings file name', () => {
+    expect(adapter.getSettingsFileName()).toBe('settings.json');
+  });
+
   it('returns install help URL', () => {
     expect(adapter.getInstallHelpUrl()).toBe('https://docs.anthropic.com/en/docs/claude-code/overview');
   });

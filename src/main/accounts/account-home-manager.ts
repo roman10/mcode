@@ -51,10 +51,14 @@ export class AccountHomeManager {
       }
     }
 
-    // Copy Claude settings.json so hooks work in the new account
-    const primarySettings = join(realHome, '.claude', 'settings.json');
-    if (existsSync(primarySettings)) {
-      copyFileSync(primarySettings, join(accountHome, '.claude', 'settings.json'));
+    // Copy each provider's settings file so hooks work in the new account
+    for (const adapter of this.registry.getRegistered()) {
+      const fileName = adapter.getSettingsFileName();
+      if (!fileName) continue;
+      const src = join(realHome, adapter.getConfigDirName(), fileName);
+      if (existsSync(src)) {
+        copyFileSync(src, join(accountHome, adapter.getConfigDirName(), fileName));
+      }
     }
 
     // Symlink shared subdirectories for each provider
@@ -119,16 +123,25 @@ export class AccountHomeManager {
   }
 
   /**
-   * Get all Claude settings.json paths that need hook reconciliation.
-   * Returns the primary path plus all secondary account paths.
+   * Get all settings.json paths that need hook reconciliation, across all registered
+   * providers that declare a settings file. Returns the primary paths (one per provider)
+   * followed by the corresponding paths for each secondary account home.
    */
   getAllSettingsPaths(accounts: AccountProfile[]): string[] {
-    const primary = join(homedir(), '.claude', 'settings.json');
-    const paths = [primary];
+    const realHome = homedir();
+    const adaptersWithSettings = this.registry.getRegistered().filter((a) => a.getSettingsFileName());
+    const paths: string[] = [];
+
+    for (const adapter of adaptersWithSettings) {
+      const fileName = adapter.getSettingsFileName()!;
+      paths.push(join(realHome, adapter.getConfigDirName(), fileName));
+    }
 
     for (const account of accounts) {
-      if (!account.isDefault && account.homeDir) {
-        paths.push(join(account.homeDir, '.claude', 'settings.json'));
+      if (account.isDefault || !account.homeDir) continue;
+      for (const adapter of adaptersWithSettings) {
+        const fileName = adapter.getSettingsFileName()!;
+        paths.push(join(account.homeDir, adapter.getConfigDirName(), fileName));
       }
     }
 

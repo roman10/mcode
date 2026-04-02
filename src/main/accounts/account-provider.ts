@@ -26,6 +26,14 @@ export interface AccountProviderAdapter {
   /** Subdirs inside the config dir that are safe to symlink from the primary account. */
   getSharedConfigSubdirs(): readonly string[];
 
+  /**
+   * Return the settings file name (relative to the config dir) that needs to be copied
+   * to new account homes and included in hook reconciliation paths.
+   * Return null if this provider does not use a settings file for hook config.
+   * Example: Claude returns 'settings.json'; Copilot (uses hooks.json via its own bridge) returns null.
+   */
+  getSettingsFileName(): string | null;
+
   /** Check if the CLI binary is installed and available. */
   checkCliInstalled(): Promise<CliAuthStatus>;
 

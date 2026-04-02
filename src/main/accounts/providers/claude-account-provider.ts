@@ -29,6 +29,10 @@ class ClaudeAccountProvider implements AccountProviderAdapter {
     return SHARED_SUBDIRS;
   }
 
+  getSettingsFileName(): string {
+    return 'settings.json';
+  }
+
   async checkCliInstalled(): Promise<CliAuthStatus> {
     try {
       await execFileAsync('which', ['claude']);

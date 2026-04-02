@@ -32,6 +32,10 @@ describe('CopilotAccountProvider', () => {
     expect(adapter.getSharedConfigSubdirs()).toEqual([]);
   });
 
+  it('returns null for settings file name (uses own hook bridge, not settings.json)', () => {
+    expect(adapter.getSettingsFileName()).toBeNull();
+  });
+
   it('returns install help URL', () => {
     expect(adapter.getInstallHelpUrl()).toBe(
       'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started',
