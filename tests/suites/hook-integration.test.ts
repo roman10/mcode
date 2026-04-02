@@ -405,20 +405,23 @@ describe('hook integration', () => {
     expect(events[0].sessionStatus).toBeDefined();
   });
 
-  it('hook_clear_all_events removes all events', async () => {
+  it('hook_clear_test_events removes only test session events', async () => {
     // Verify events exist from earlier tests
     const before = await client.callToolJson<Array<{ sessionId: string }>>(
       'hook_list_recent_all',
     );
     expect(before.length).toBeGreaterThan(0);
 
-    // Clear all events
-    await client.callTool('hook_clear_all_events');
+    // Clear only test events (preserves non-test session events)
+    await client.callTool('hook_clear_test_events');
 
-    // Verify no events remain
+    // Verify test session events are gone
     const after = await client.callToolJson<Array<{ sessionId: string }>>(
       'hook_list_recent_all',
     );
-    expect(after.length).toBe(0);
+    const testSessionEvents = after.filter((e) =>
+      sessionIds.includes(e.sessionId),
+    );
+    expect(testSessionEvents.length).toBe(0);
   });
 });

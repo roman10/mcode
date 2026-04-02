@@ -74,6 +74,17 @@ export function registerHookTools(
     };
   });
 
+  server.registerTool('hook_clear_test_events', {
+    description: 'Delete hook events only for test sessions (is_test=1)',
+    inputSchema: {},
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    ctx.sessionManager.clearTestEvents();
+    return {
+      content: [{ type: 'text', text: 'Test events cleared' }],
+    };
+  });
+
   server.registerTool('session_wait_for_attention', {
     description: 'Wait until a session reaches the specified attention level. Polls every 250ms.',
     inputSchema: {
