@@ -22,8 +22,6 @@ function NewSessionDialog({
   const [sessionType, setSessionType] = useState<AgentSessionType>(initialSessionType ?? 'claude');
   const [cwd, setCwd] = useState('');
   const [label, setLabel] = useState('');
-  const [initialPrompt, setInitialPrompt] = useState('');
-  const [model, setModel] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [effort, setEffort] = useState<EffortLevel | ''>('');
   const [enableAutoMode, setEnableAutoMode] = useState(false);
@@ -34,7 +32,6 @@ function NewSessionDialog({
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const agentDefinition = getAgentDefinition(sessionType);
   const isClaude = agentDefinition?.dialogMode === 'full';
-  const showModelField = agentDefinition?.supportsModelDisplay ?? false;
   const agentModes = AGENT_PERMISSION_MODES[sessionType] as readonly PermissionMode[] | undefined;
 
   // Reset form and load defaults when dialog opens
@@ -43,8 +40,6 @@ function NewSessionDialog({
     if (open && !prevOpenRef.current) {
       setSessionType(initialSessionType ?? 'claude');
       setLabel('');
-      setInitialPrompt('');
-      setModel('');
       setEnableAutoMode(false);
       setUseWorktree(false);
       setWorktreeName('');
@@ -103,8 +98,6 @@ function NewSessionDialog({
       onCreate({
         cwd: cwd.trim(),
         label: label.trim() || undefined,
-        initialPrompt: initialPrompt.trim() || undefined,
-        model: model.trim() || undefined,
         permissionMode: permissionMode || undefined,
         effort: effort || undefined,
         enableAutoMode: enableAutoMode,
@@ -116,8 +109,6 @@ function NewSessionDialog({
       onCreate({
         cwd: cwd.trim(),
         label: label.trim() || undefined,
-        initialPrompt: initialPrompt.trim() || undefined,
-        model: showModelField ? (model.trim() || undefined) : undefined,
         permissionMode: permissionMode || undefined,
         accountId,
         sessionType,
@@ -203,34 +194,6 @@ function NewSessionDialog({
               placeholder="My session"
             />
           </div>
-
-          {/* Initial prompt */}
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">
-              Initial prompt (optional)
-            </label>
-            <textarea
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
-              rows={3}
-              value={initialPrompt}
-              onChange={(e) => setInitialPrompt(e.target.value)}
-              placeholder={`What should ${agentDefinition?.displayName ?? 'the agent'} work on?`}
-            />
-          </div>
-
-          {showModelField && (
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">
-                Model (optional)
-              </label>
-              <input
-                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={`${agentDefinition?.displayName ?? 'Agent'} model name`}
-              />
-            </div>
-          )}
 
           {/* Permission mode — shown for any agent with permission modes */}
           {agentModes && agentModes.length > 0 && (
