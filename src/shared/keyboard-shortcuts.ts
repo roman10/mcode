@@ -14,7 +14,7 @@ export const SHORTCUT_CATEGORIES = [
 
 export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   // General
-  { label: 'New Session', keys: 'N', mod: true, category: 'general' },
+  { label: 'New Claude Code Session', keys: 'N', mod: true, category: 'general' },
   { label: 'New Terminal', keys: 'T', mod: true, category: 'general' },
   { label: 'Toggle Sidebar', keys: '\\', mod: true, category: 'general' },
   { label: 'Keyboard Shortcuts', keys: '/', mod: true, category: 'general' },

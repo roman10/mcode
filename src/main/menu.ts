@@ -44,7 +44,7 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
         label: 'File',
         submenu: [
           {
-            label: 'New Session',
+            label: 'New Claude Code Session',
             accelerator: 'CmdOrCtrl+N',
             click: () => sendCommand({ command: 'new-session' }),
           },

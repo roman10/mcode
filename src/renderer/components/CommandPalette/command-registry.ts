@@ -49,9 +49,9 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
     // --- General ---
     {
       id: 'new-session',
-      label: 'New Session',
+      label: 'New Claude Code Session',
       category: 'General',
-      shortcut: shortcuts.get('New Session'),
+      shortcut: shortcuts.get('New Claude Code Session'),
       enabled: true,
       execute: () => executeAppCommand({ command: 'new-session' }),
     },
