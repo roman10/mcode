@@ -34,7 +34,7 @@ export function buildCopilotCreatePlan(ctx: AgentCreateContext): PreparedCreate 
   const args: string[] = [];
   const model = input.model?.trim() || null;
   if (model) args.push('--model', model);
-  if (input.permissionMode === 'autopilot') args.push('--autopilot');
+  if (input.permissionMode === 'autopilot') args.push('--allow-all-tools');
   if (input.permissionMode === 'allowAll') args.push('--allow-all');
   if (input.initialPrompt) args.push('-i', input.initialPrompt);
 
@@ -56,7 +56,7 @@ export function buildCopilotResumePlan(ctx: AgentPrepareResumeContext): Prepared
   const hookMode = bridgeReady ? 'live' : 'fallback';
 
   const args = ['--resume', ctx.row.copilotSessionId];
-  if (ctx.row.permissionMode === 'autopilot') args.push('--autopilot');
+  if (ctx.row.permissionMode === 'autopilot') args.push('--allow-all-tools');
   if (ctx.row.permissionMode === 'allowAll') args.push('--allow-all');
 
   return {
