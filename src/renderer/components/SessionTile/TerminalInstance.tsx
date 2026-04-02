@@ -275,6 +275,15 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // PTY exit → terminal
     const unsubExit = window.mcode.pty.onExit((id, { code, signal }) => {
       if (id === sessionId) {
+        // Reset terminal modes the exiting process may not have cleaned up.
+        // Without this, a crashed/killed CLI leaves stale mouse tracking,
+        // alternate screen, or bracketed paste mode active.
+        term.write(
+          '\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1006l' + // mouse tracking off
+          '\x1b[?1049l' +  // exit alternate screen
+          '\x1b[?25h' +    // show cursor
+          '\x1b[?2004l',   // bracketed paste off
+        );
         const detail = signal ? `signal ${signal}` : `code ${code}`;
         term.write(`\r\n\x1b[90m[Process exited with ${detail}]\x1b[0m\r\n`);
       }
