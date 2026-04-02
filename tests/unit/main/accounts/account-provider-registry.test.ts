@@ -9,6 +9,7 @@ function createMockAdapter(overrides: Partial<AccountProviderAdapter> = {}): Acc
     getConfigDirName: () => '.claude',
     getConfigEnv: () => ({}),
     getSharedConfigSubdirs: () => [],
+    getSettingsFileName: () => null,
     checkCliInstalled: async () => 'ok',
     checkAuthStatus: async () => ({ status: 'ok' }),
     buildAuthTerminalInput: () => null,
