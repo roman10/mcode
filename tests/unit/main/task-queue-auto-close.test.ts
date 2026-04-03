@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { getDb, resetDbForTest } from '../../../src/main/db';
+import { truncateTestData } from '../db-helpers';
 
 /**
  * Tests for the auto-close feature on sessions.
@@ -21,8 +22,8 @@ const SET_AUTO_CLOSE_SQL = `UPDATE sessions SET auto_close = ? WHERE session_id 
 
 // SQL mirroring session-manager.ts create() INSERT
 const INSERT_SESSION_SQL = `
-  INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, hook_mode)
-  VALUES (?, ?, '/tmp', 'idle', datetime('now'), 'claude', ?, 'live')
+  INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, hook_mode, is_test)
+  VALUES (?, ?, '/tmp', 'idle', datetime('now'), 'claude', ?, 'live', 1)
 `;
 
 // SQL mirroring session-manager.ts toSessionInfo()
@@ -69,13 +70,12 @@ describe('auto-close: DB schema', () => {
 
   beforeEach(() => {
     const db = getDb();
-    db.prepare('DELETE FROM task_queue').run();
-    db.prepare('DELETE FROM sessions').run();
+    truncateTestData(db);
   });
 
   it('sessions table has auto_close column with default 0', () => {
-    getDb().prepare(`INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode)
-            VALUES ('schema-test', 'test', '/tmp', 'idle', datetime('now'), 'claude', 'live')`).run();
+    getDb().prepare(`INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode, is_test)
+            VALUES ('schema-test', 'test', '/tmp', 'idle', datetime('now'), 'claude', 'live', 1)`).run();
     const result = getAutoClose('schema-test');
     expect(result).toBe(false);
   });
@@ -97,8 +97,7 @@ describe('auto-close: setAutoClose SQL', () => {
 
   beforeEach(() => {
     const db = getDb();
-    db.prepare('DELETE FROM task_queue').run();
-    db.prepare('DELETE FROM sessions').run();
+    truncateTestData(db);
   });
 
   it('can toggle auto_close from false to true', () => {
@@ -129,8 +128,7 @@ describe('auto-close: queue drain detection', () => {
 
   beforeEach(() => {
     const db = getDb();
-    db.prepare(`DELETE FROM task_queue`).run();
-    db.prepare(`DELETE FROM sessions`).run();
+    truncateTestData(db);
   });
 
   it('returns 0 when no tasks exist for session', () => {
@@ -219,8 +217,7 @@ describe('auto-close: resume clears auto_close flag', () => {
 
   beforeEach(() => {
     const db = getDb();
-    db.prepare('DELETE FROM task_queue').run();
-    db.prepare('DELETE FROM sessions').run();
+    truncateTestData(db);
   });
 
   // SQL mirroring the updated session-manager.ts resume() method
@@ -239,8 +236,8 @@ describe('auto-close: resume clears auto_close flag', () => {
 
   it('resume clears auto_close so the session is not immediately re-killed', () => {
     getDb().prepare(
-      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, claude_session_id, hook_mode)
-       VALUES ('resume-autoclose', 'test', '/tmp', 'ended', datetime('now'), 'claude', 1, 'abc123', 'live')`,
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, claude_session_id, hook_mode, is_test)
+       VALUES ('resume-autoclose', 'test', '/tmp', 'ended', datetime('now'), 'claude', 1, 'abc123', 'live', 1)`,
     ).run();
     expect(getAutoClose('resume-autoclose')).toBe(true);
 
@@ -252,8 +249,8 @@ describe('auto-close: resume clears auto_close flag', () => {
 
   it('status is reset to starting after resume', () => {
     getDb().prepare(
-      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, claude_session_id, hook_mode)
-       VALUES ('resume-status', 'test', '/tmp', 'ended', datetime('now'), 'claude', 1, 'abc456', 'live')`,
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, claude_session_id, hook_mode, is_test)
+       VALUES ('resume-status', 'test', '/tmp', 'ended', datetime('now'), 'claude', 1, 'abc456', 'live', 1)`,
     ).run();
     getDb().prepare(RESUME_SQL).run('resume-status');
 
@@ -266,11 +263,11 @@ describe('auto-close: resume clears auto_close flag', () => {
     getDb().prepare(
       `INSERT INTO sessions (
          session_id, label, cwd, status, started_at, session_type, auto_close,
-         claude_session_id, last_tool, last_event_at, attention_level, attention_reason, hook_mode
+         claude_session_id, last_tool, last_event_at, attention_level, attention_reason, hook_mode, is_test
        )
        VALUES (
          'resume-cleanup', 'test', '/tmp', 'ended', datetime('now'), 'claude', 1,
-         'abc789', 'ExitPlanMode', '2026-01-01T00:00:00.000Z', 'action', 'Waiting for your response', 'live'
+         'abc789', 'ExitPlanMode', '2026-01-01T00:00:00.000Z', 'action', 'Waiting for your response', 'live', 1
        )`,
     ).run();
 
@@ -298,8 +295,7 @@ describe('auto-close: idle guard (Fix 1)', () => {
 
   beforeEach(() => {
     const db = getDb();
-    db.prepare('DELETE FROM task_queue').run();
-    db.prepare('DELETE FROM sessions').run();
+    truncateTestData(db);
   });
 
   // maybeScheduleAutoClose kills only when cnt===0 AND session.status==='idle'.
@@ -307,8 +303,8 @@ describe('auto-close: idle guard (Fix 1)', () => {
   // a non-'idle' value, confirming the guard would short-circuit the kill.
   it('session with status=active is NOT idle — kill guard would prevent auto-close', () => {
     getDb().prepare(
-      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, hook_mode)
-       VALUES ('guard-active', 'test', '/tmp', 'active', datetime('now'), 'claude', 1, 'live')`,
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, hook_mode, is_test)
+       VALUES ('guard-active', 'test', '/tmp', 'active', datetime('now'), 'claude', 1, 'live', 1)`,
     ).run();
     const row = getDb().prepare(
       `SELECT status FROM sessions WHERE session_id = 'guard-active'`,
@@ -319,8 +315,8 @@ describe('auto-close: idle guard (Fix 1)', () => {
 
   it('session with status=idle passes the kill guard', () => {
     getDb().prepare(
-      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, hook_mode)
-       VALUES ('guard-idle', 'test', '/tmp', 'idle', datetime('now'), 'claude', 1, 'live')`,
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, auto_close, hook_mode, is_test)
+       VALUES ('guard-idle', 'test', '/tmp', 'idle', datetime('now'), 'claude', 1, 'live', 1)`,
     ).run();
     const row = getDb().prepare(
       `SELECT status FROM sessions WHERE session_id = 'guard-idle'`,

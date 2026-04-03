@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import { getDb, resetDbForTest } from '../../../src/main/db';
+import { truncateTestData } from '../db-helpers';
 import { SessionEventStore } from '../../../src/main/session/session-event-store';
 import type { HookEvent } from '../../../src/shared/types';
 
@@ -19,13 +20,12 @@ describe('SessionEventStore', () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     const db = getDb();
-    db.prepare('DELETE FROM events').run();
-    db.prepare('DELETE FROM sessions').run();
+    truncateTestData(db);
     
     // Insert a test session for foreign key constraint
     db.prepare(
-      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode)
-       VALUES ('s1', 'test', '/tmp', 'active', datetime('now'), 'claude', 'live')`,
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode, is_test)
+       VALUES ('s1', 'test', '/tmp', 'active', datetime('now'), 'claude', 'live', 1)`,
     ).run();
     
     store = new SessionEventStore(MAX_BYTES);
@@ -90,8 +90,8 @@ describe('SessionEventStore', () => {
 
   it('getRecentAllEvents returns events across all sessions', () => {
     getDb().prepare(
-      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode)
-       VALUES ('s2', 'test2', '/tmp', 'active', datetime('now'), 'claude', 'live')`,
+      `INSERT INTO sessions (session_id, label, cwd, status, started_at, session_type, hook_mode, is_test)
+       VALUES ('s2', 'test2', '/tmp', 'active', datetime('now'), 'claude', 'live', 1)`,
     ).run();
 
     store.persistEvent('s1', { sessionId: 's1', hookEventName: 'E1', createdAt: 'T1', payload: {} }, 'active');

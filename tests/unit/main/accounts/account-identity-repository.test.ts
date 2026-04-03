@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { getDb, resetDbForTest } from '../../../../src/main/db';
+import { truncateTestData } from '../../db-helpers';
 import { AccountIdentityRepository } from '../../../../src/main/accounts/account-identity-repository';
 import { AccountProfileRepository } from '../../../../src/main/accounts/account-profile-repository';
 
@@ -18,8 +19,7 @@ describe('AccountIdentityRepository', () => {
 
   beforeEach(() => {
     const db = getDb();
-    db.prepare('DELETE FROM account_provider_identities').run();
-    db.prepare('DELETE FROM account_profiles').run();
+    truncateTestData(db);
 
     repo = new AccountIdentityRepository();
     profileRepo = new AccountProfileRepository();

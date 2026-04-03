@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { getDb, resetDbForTest } from '../../../../src/main/db';
+import { truncateTestData } from '../../db-helpers';
 import { AccountProfileRepository } from '../../../../src/main/accounts/account-profile-repository';
 
 describe('AccountProfileRepository', () => {
@@ -15,7 +16,7 @@ describe('AccountProfileRepository', () => {
 
   beforeEach(() => {
     const db = getDb();
-    db.prepare('DELETE FROM account_profiles').run();
+    truncateTestData(db);
   });
 
   describe('ensureDefaultAccount', () => {

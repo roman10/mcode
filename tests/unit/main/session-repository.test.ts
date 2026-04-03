@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { getDb, resetDbForTest } from '../../../src/main/db';
+import { truncateTestData } from '../db-helpers';
 
 import {
   getSession,
@@ -47,6 +48,7 @@ function insertTestSession(id: string, overrides: Record<string, any> = {}) {
     terminal_config: '{}',
     attention_level: 'none',
     auto_close: 0,
+    is_test: 1,
   };
   const merged = { ...defaults, ...overrides };
   const cols = ['session_id', ...Object.keys(merged)];
@@ -66,10 +68,7 @@ describe('session-repository', () => {
 
   beforeEach(() => {
     const db = getDb();
-    db.prepare('DELETE FROM events').run();
-    db.prepare('DELETE FROM task_queue').run();
-    db.prepare('DELETE FROM session_labels').run();
-    db.prepare('DELETE FROM sessions').run();
+    truncateTestData(db);
   });
 
   // -----------------------------------------------------------------
