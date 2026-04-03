@@ -1,7 +1,8 @@
 import HeatmapGrid from '../shared/HeatmapGrid';
+import DailyBarChart from '../shared/DailyBarChart';
 import SectionDivider from './SectionDivider';
-import { formatNumber, formatHour } from './stats-helpers';
-import type { DailyInputStats, InputHeatmapEntry, InputWeeklyTrend, InputCadenceInfo } from '@shared/types';
+import { formatNumber, formatHour, computeRollups } from './stats-helpers';
+import type { DailyInputStats, InputHeatmapEntry, InputCadenceInfo } from '@shared/types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -29,7 +30,6 @@ interface InputSectionProps {
   onToggle: () => void;
   dailyInputStats: DailyInputStats | null;
   inputHeatmap: InputHeatmapEntry[];
-  inputWeeklyTrend: InputWeeklyTrend | null;
   inputCadence: InputCadenceInfo | null;
   viewDate: string;
   onHeatmapSelect: (date: string) => void;
@@ -41,13 +41,13 @@ function InputSection({
   onToggle,
   dailyInputStats,
   inputHeatmap,
-  inputWeeklyTrend,
   inputCadence,
   viewDate,
   onHeatmapSelect,
   dateLabel,
 }: InputSectionProps): React.JSX.Element {
   const inputMsgCount = dailyInputStats?.messageCount ?? 0;
+  const rollups = computeRollups(inputHeatmap, e => e.messageCount);
   const inputChars = dailyInputStats?.totalCharacters ?? 0;
   const inputWords = dailyInputStats?.totalWords ?? 0;
   const inputSessions = dailyInputStats?.activeSessionCount ?? 0;
@@ -99,6 +99,18 @@ function InputSection({
             />
           )}
 
+          {/* Daily bar chart */}
+          {inputHeatmap.length > 0 && (
+            <DailyBarChart
+              entries={inputHeatmap}
+              getValue={e => e.messageCount}
+              getTooltip={(date, v) => `${date}: ${v} msg${v !== 1 ? 's' : ''}`}
+              colorScale="blue"
+              selectedDate={viewDate}
+              onSelect={onHeatmapSelect}
+            />
+          )}
+
           {/* Cadence & trend */}
           {(inputCadence?.avgThinkTimeMinutes != null || inputCadence?.leverageRatio != null || inputCadence?.peakHour != null) && (
             <div className="text-xs text-text-muted space-y-0.5">
@@ -112,17 +124,10 @@ function InputSection({
             </div>
           )}
 
-          {/* Weekly trend */}
-          {inputWeeklyTrend && (
+          {/* Rolling rollups */}
+          {inputHeatmap.length > 0 && (
             <div className="text-xs text-text-muted">
-              This week: {inputWeeklyTrend.thisWeek.messageCount} messages
-              {inputWeeklyTrend.pctChange != null && (
-                <span className={inputWeeklyTrend.pctChange >= 0 ? 'text-blue-400' : 'text-text-muted'}>
-                  {' '}
-                  ({inputWeeklyTrend.pctChange >= 0 ? '+' : ''}
-                  {inputWeeklyTrend.pctChange}% vs last week)
-                </span>
-              )}
+              7d: {formatNumber(rollups.d7)} · 30d: {formatNumber(rollups.d30)} · 90d: {formatNumber(rollups.d90)} messages
             </div>
           )}
 

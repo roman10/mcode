@@ -1,7 +1,8 @@
 import HeatmapGrid from '../shared/HeatmapGrid';
+import DailyBarChart from '../shared/DailyBarChart';
 import SectionDivider from './SectionDivider';
-import { formatNumber, formatHour } from './stats-helpers';
-import type { DailyCommitStats, CommitHeatmapEntry, CommitStreakInfo, CommitCadenceInfo, CommitWeeklyTrend } from '@shared/types';
+import { formatNumber, formatHour, computeRollups } from './stats-helpers';
+import type { DailyCommitStats, CommitHeatmapEntry, CommitStreakInfo, CommitCadenceInfo } from '@shared/types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,6 @@ interface OutputSectionProps {
   commitHeatmap: CommitHeatmapEntry[];
   streaks: CommitStreakInfo | null;
   cadence: CommitCadenceInfo | null;
-  commitWeeklyTrend: CommitWeeklyTrend | null;
   viewDate: string;
   onHeatmapSelect: (date: string) => void;
   dateLabel: string;
@@ -61,12 +61,12 @@ function OutputSection({
   commitHeatmap,
   streaks,
   cadence,
-  commitWeeklyTrend,
   viewDate,
   onHeatmapSelect,
   dateLabel,
 }: OutputSectionProps): React.JSX.Element {
   const total = dailyStats?.total ?? 0;
+  const rollups = computeRollups(commitHeatmap, e => e.count);
   const totalLines = (dailyStats?.totalInsertions ?? 0) + (dailyStats?.totalDeletions ?? 0);
   const aiCount = dailyStats?.aiAssisted ?? 0;
   const soloCount = dailyStats?.soloCount ?? 0;
@@ -138,6 +138,18 @@ function OutputSection({
             />
           )}
 
+          {/* Daily bar chart */}
+          {commitHeatmap.length > 0 && (
+            <DailyBarChart
+              entries={commitHeatmap}
+              getValue={e => e.count}
+              getTooltip={(date, v) => `${date}: ${v} commit${v !== 1 ? 's' : ''}`}
+              colorScale="green"
+              selectedDate={viewDate}
+              onSelect={onHeatmapSelect}
+            />
+          )}
+
           {/* Commit types */}
           {dailyStats && dailyStats.byType.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -167,27 +179,18 @@ function OutputSection({
             </div>
           )}
 
-          {/* Cadence & weekly trend */}
-          {(cadence?.avgMinutes != null || commitWeeklyTrend) && (
-            <div className="text-xs text-text-muted space-y-0.5">
-              {cadence?.avgMinutes != null && (
-                <div>
-                  Cadence: every {cadence.avgMinutes} min
-                  {cadence.peakHour != null && <span> · Peak: {formatHour(cadence.peakHour)}</span>}
-                </div>
-              )}
-              {commitWeeklyTrend && (
-                <div>
-                  This week: {commitWeeklyTrend.thisWeek}
-                  {commitWeeklyTrend.pctChange != null && (
-                    <span className={commitWeeklyTrend.pctChange >= 0 ? 'text-green-400' : 'text-red-400'}>
-                      {' '}
-                      ({commitWeeklyTrend.pctChange >= 0 ? '+' : ''}
-                      {commitWeeklyTrend.pctChange}% vs last week)
-                    </span>
-                  )}
-                </div>
-              )}
+          {/* Cadence */}
+          {cadence?.avgMinutes != null && (
+            <div className="text-xs text-text-muted">
+              Cadence: every {cadence.avgMinutes} min
+              {cadence.peakHour != null && <span> · Peak: {formatHour(cadence.peakHour)}</span>}
+            </div>
+          )}
+
+          {/* Rolling rollups */}
+          {commitHeatmap.length > 0 && (
+            <div className="text-xs text-text-muted">
+              7d: {formatNumber(rollups.d7)} · 30d: {formatNumber(rollups.d30)} · 90d: {formatNumber(rollups.d90)} commits
             </div>
           )}
 

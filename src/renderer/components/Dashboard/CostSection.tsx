@@ -1,10 +1,11 @@
 import HeatmapGrid from '../shared/HeatmapGrid';
+import DailyBarChart from '../shared/DailyBarChart';
 import SectionDivider from './SectionDivider';
+import { computeRollups } from './stats-helpers';
 import { formatTimeUntil } from '../../utils/date-nav';
 import type {
   DailyTokenUsage,
   TokenHeatmapEntry,
-  TokenWeeklyTrend,
   ModelUsageSummary,
   SubscriptionUsage,
   AccountProfileWithProviders,
@@ -121,7 +122,6 @@ interface CostSectionProps {
   onToggle: () => void;
   dailyUsage: DailyTokenUsage | null;
   tokenHeatmap: TokenHeatmapEntry[];
-  tokenWeeklyTrend: TokenWeeklyTrend | null;
   accounts: AccountProfileWithProviders[];
   subscriptionByAccount: Record<string, SubscriptionUsage | null>;
   providerFilter: AgentSessionType | null;
@@ -135,7 +135,6 @@ function CostSection({
   onToggle,
   dailyUsage,
   tokenHeatmap,
-  tokenWeeklyTrend,
   accounts,
   subscriptionByAccount,
   providerFilter,
@@ -144,6 +143,7 @@ function CostSection({
   dateLabel,
 }: CostSectionProps): React.JSX.Element {
   const cost = dailyUsage?.estimatedCostUsd ?? 0;
+  const rollups = computeRollups(tokenHeatmap, e => e.estimatedCostUsd);
   const messageCount = dailyUsage?.messageCount ?? 0;
   const premiumRequests = dailyUsage?.premiumRequests ?? 0;
   const topSessions = dailyUsage?.topSessions ?? [];
@@ -220,6 +220,18 @@ function CostSection({
             />
           )}
 
+          {/* Daily bar chart */}
+          {tokenHeatmap.length > 0 && (
+            <DailyBarChart
+              entries={tokenHeatmap}
+              getValue={e => e.estimatedCostUsd}
+              getTooltip={(date, v) => `${date}: ${formatCost(v)}`}
+              colorScale="emerald"
+              selectedDate={viewDate}
+              onSelect={onHeatmapSelect}
+            />
+          )}
+
           {/* Model breakdown */}
           {byModel.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -255,17 +267,10 @@ function CostSection({
             </div>
           )}
 
-          {/* Weekly trend */}
-          {tokenWeeklyTrend && (
+          {/* Rolling rollups */}
+          {tokenHeatmap.length > 0 && (
             <div className="text-xs text-text-muted">
-              This week: {formatCost(tokenWeeklyTrend.thisWeek.estimatedCostUsd)}
-              {tokenWeeklyTrend.pctChange != null && (
-                <span className={tokenWeeklyTrend.pctChange >= 0 ? 'text-red-400' : 'text-green-400'}>
-                  {' '}
-                  ({tokenWeeklyTrend.pctChange >= 0 ? '+' : ''}
-                  {tokenWeeklyTrend.pctChange}% vs last week)
-                </span>
-              )}
+              7d: {formatCost(rollups.d7)} · 30d: {formatCost(rollups.d30)} · 90d: {formatCost(rollups.d90)}
             </div>
           )}
 

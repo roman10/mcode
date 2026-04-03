@@ -19,15 +19,12 @@ function StatsPanel(): React.JSX.Element {
   const {
     dailyUsage,
     tokenHeatmap,
-    tokenWeeklyTrend,
     dailyStats,
     commitHeatmap,
     streaks,
     cadence,
-    commitWeeklyTrend,
     dailyInputStats,
     inputHeatmap,
-    inputWeeklyTrend,
     inputCadence,
     loading,
     refreshAll,
@@ -212,7 +209,6 @@ function StatsPanel(): React.JSX.Element {
           commitHeatmap={commitHeatmap}
           streaks={streaks}
           cadence={cadence}
-          commitWeeklyTrend={commitWeeklyTrend}
           viewDate={viewDate}
           onHeatmapSelect={handleHeatmapSelect}
           dateLabel={dateLabel}
@@ -223,7 +219,6 @@ function StatsPanel(): React.JSX.Element {
           onToggle={() => setCostCollapsed((v) => !v)}
           dailyUsage={dailyUsage}
           tokenHeatmap={tokenHeatmap}
-          tokenWeeklyTrend={tokenWeeklyTrend}
           accounts={accounts}
           subscriptionByAccount={subscriptionByAccount}
           providerFilter={providerFilter}
@@ -237,7 +232,6 @@ function StatsPanel(): React.JSX.Element {
           onToggle={() => setInputCollapsed((v) => !v)}
           dailyInputStats={dailyInputStats}
           inputHeatmap={inputHeatmap}
-          inputWeeklyTrend={inputWeeklyTrend}
           inputCadence={inputCadence}
           viewDate={viewDate}
           onHeatmapSelect={handleHeatmapSelect}
