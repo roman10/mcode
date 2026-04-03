@@ -23,6 +23,7 @@ function formatCost(usd: number): string {
 }
 
 function formatTokens(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
@@ -143,7 +144,8 @@ function CostSection({
   dateLabel,
 }: CostSectionProps): React.JSX.Element {
   const cost = dailyUsage?.estimatedCostUsd ?? 0;
-  const rollups = computeRollups(tokenHeatmap, e => e.inputTokens + e.outputTokens);
+  const tokenRollups = computeRollups(tokenHeatmap, e => e.inputTokens + e.outputTokens);
+  const costRollups = computeRollups(tokenHeatmap, e => e.estimatedCostUsd);
   const messageCount = dailyUsage?.messageCount ?? 0;
   const premiumRequests = dailyUsage?.premiumRequests ?? 0;
   const topSessions = dailyUsage?.topSessions ?? [];
@@ -220,16 +222,44 @@ function CostSection({
             />
           )}
 
-          {/* Daily bar chart */}
+          {/* Tokens bar chart */}
           {tokenHeatmap.length > 0 && (
-            <DailyBarChart
-              entries={tokenHeatmap}
-              getValue={e => e.inputTokens + e.outputTokens}
-              getTooltip={(date, v) => `${date}: ${formatTokens(v)} tokens`}
-              colorScale="emerald"
-              selectedDate={viewDate}
-              onSelect={onHeatmapSelect}
-            />
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">Tokens</span>
+                <span className="text-[10px] text-text-muted">
+                  7d: {formatTokens(tokenRollups.d7)} · 30d: {formatTokens(tokenRollups.d30)} · 90d: {formatTokens(tokenRollups.d90)}
+                </span>
+              </div>
+              <DailyBarChart
+                entries={tokenHeatmap}
+                getValue={e => e.inputTokens + e.outputTokens}
+                getTooltip={(date, v) => `${date}: ${formatTokens(v)} tokens`}
+                colorScale="emerald"
+                selectedDate={viewDate}
+                onSelect={onHeatmapSelect}
+              />
+            </div>
+          )}
+
+          {/* Cost bar chart */}
+          {tokenHeatmap.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">Cost</span>
+                <span className="text-[10px] text-text-muted">
+                  7d: {formatCost(costRollups.d7)} · 30d: {formatCost(costRollups.d30)} · 90d: {formatCost(costRollups.d90)}
+                </span>
+              </div>
+              <DailyBarChart
+                entries={tokenHeatmap}
+                getValue={e => e.estimatedCostUsd}
+                getTooltip={(date, v) => `${date}: ${formatCost(v)}`}
+                colorScale="amber"
+                selectedDate={viewDate}
+                onSelect={onHeatmapSelect}
+              />
+            </div>
           )}
 
           {/* Model breakdown */}
@@ -264,13 +294,6 @@ function CostSection({
                 </div>
                 );
               })}
-            </div>
-          )}
-
-          {/* Rolling rollups */}
-          {tokenHeatmap.length > 0 && (
-            <div className="text-xs text-text-muted">
-              7d: {formatTokens(rollups.d7)} · 30d: {formatTokens(rollups.d30)} · 90d: {formatTokens(rollups.d90)}
             </div>
           )}
 

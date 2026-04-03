@@ -7,13 +7,14 @@ const COLORS: Record<string, { bar: string; avg: string }> = {
   green:   { bar: '#4ade80', avg: '#86efac' },
   emerald: { bar: '#34d399', avg: '#6ee7b7' },
   blue:    { bar: '#60a5fa', avg: '#93c5fd' },
+  amber:   { bar: '#fbbf24', avg: '#fcd34d' },
 };
 
 interface DailyBarChartProps<T extends { date: string }> {
   entries: T[];
   getValue: (entry: T) => number;
   getTooltip: (date: string, value: number) => string;
-  colorScale?: 'green' | 'emerald' | 'blue';
+  colorScale?: 'green' | 'emerald' | 'blue' | 'amber';
   selectedDate: string;
   onSelect: (date: string) => void;
   days?: number;
