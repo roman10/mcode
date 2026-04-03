@@ -12,7 +12,7 @@ const mockDailyUsage = {
   topSessions: [],
 };
 
-const mockTokenHeatmap = [{ date: '2025-03-25', estimatedCostUsd: 2.14, messageCount: 84, outputTokens: 500 }];
+const mockTokenHeatmap = [{ date: '2025-03-25', estimatedCostUsd: 2.14, messageCount: 84, inputTokens: 1000, outputTokens: 500 }];
 const mockTokenWeeklyTrend = { thisWeek: { estimatedCostUsd: 10 }, lastWeek: { estimatedCostUsd: 8 }, pctChange: 25 };
 
 const mockDailyStats = {

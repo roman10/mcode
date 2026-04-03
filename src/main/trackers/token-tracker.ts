@@ -496,6 +496,10 @@ export class TokenTracker {
       const existing = rows.find((r) => r.date === dateStr);
       result.push({
         date: dateStr,
+        inputTokens: (existing?.input_tokens ?? 0) +
+                     (existing?.cache_write_5m_tokens ?? 0) +
+                     (existing?.cache_write_1h_tokens ?? 0) +
+                     (existing?.cache_read_tokens ?? 0),
         outputTokens: existing?.output_tokens ?? 0,
         estimatedCostUsd: dayCosts.get(dateStr) ?? 0,
         messageCount: existing?.message_count ?? 0,

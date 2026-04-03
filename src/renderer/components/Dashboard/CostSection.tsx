@@ -143,7 +143,7 @@ function CostSection({
   dateLabel,
 }: CostSectionProps): React.JSX.Element {
   const cost = dailyUsage?.estimatedCostUsd ?? 0;
-  const rollups = computeRollups(tokenHeatmap, e => e.estimatedCostUsd);
+  const rollups = computeRollups(tokenHeatmap, e => e.inputTokens + e.outputTokens);
   const messageCount = dailyUsage?.messageCount ?? 0;
   const premiumRequests = dailyUsage?.premiumRequests ?? 0;
   const topSessions = dailyUsage?.topSessions ?? [];
@@ -224,8 +224,8 @@ function CostSection({
           {tokenHeatmap.length > 0 && (
             <DailyBarChart
               entries={tokenHeatmap}
-              getValue={e => e.estimatedCostUsd}
-              getTooltip={(date, v) => `${date}: ${formatCost(v)}`}
+              getValue={e => e.inputTokens + e.outputTokens}
+              getTooltip={(date, v) => `${date}: ${formatTokens(v)} tokens`}
               colorScale="emerald"
               selectedDate={viewDate}
               onSelect={onHeatmapSelect}
@@ -270,7 +270,7 @@ function CostSection({
           {/* Rolling rollups */}
           {tokenHeatmap.length > 0 && (
             <div className="text-xs text-text-muted">
-              7d: {formatCost(rollups.d7)} · 30d: {formatCost(rollups.d30)} · 90d: {formatCost(rollups.d90)}
+              7d: {formatTokens(rollups.d7)} · 30d: {formatTokens(rollups.d30)} · 90d: {formatTokens(rollups.d90)}
             </div>
           )}
 

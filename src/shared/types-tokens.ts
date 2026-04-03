@@ -70,6 +70,7 @@ export interface TokenWeeklyTrend {
 
 export interface TokenHeatmapEntry {
   date: string;
+  inputTokens: number;
   outputTokens: number;
   estimatedCostUsd: number;
   messageCount: number;

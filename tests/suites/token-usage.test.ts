@@ -45,6 +45,7 @@ interface TokenWeeklyTrend {
 
 interface TokenHeatmapEntry {
   date: string;
+  inputTokens: number;
   outputTokens: number;
   estimatedCostUsd: number;
   messageCount: number;
@@ -156,6 +157,7 @@ describe('token usage', () => {
     expect(heatmap).toHaveLength(7);
     for (const entry of heatmap) {
       expect(typeof entry.date).toBe('string');
+      expect(typeof entry.inputTokens).toBe('number');
       expect(typeof entry.outputTokens).toBe('number');
       expect(typeof entry.estimatedCostUsd).toBe('number');
       expect(typeof entry.messageCount).toBe('number');
