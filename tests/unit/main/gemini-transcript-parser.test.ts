@@ -192,4 +192,22 @@ describe('parseGeminiTranscriptHumanMessages', () => {
   it('handles invalid JSON', () => {
     expect(parseGeminiTranscriptHumanMessages('{')).toEqual([]);
   });
+
+  it('handles missing nested fields in message content', () => {
+    const transcript = JSON.stringify({
+      messages: [
+        { id: 'u1', type: 'user', content: [{ unexpected: 'format' }] },
+      ],
+    });
+    expect(parseGeminiTranscriptHumanMessages(transcript)).toEqual([]);
+  });
+
+  it('handles non-array content in message', () => {
+    const transcript = JSON.stringify({
+      messages: [
+        { id: 'u1', type: 'user', content: 42 },
+      ],
+    });
+    expect(parseGeminiTranscriptHumanMessages(transcript)).toEqual([]);
+  });
 });

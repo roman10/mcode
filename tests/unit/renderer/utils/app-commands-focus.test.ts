@@ -1,15 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createBalancedTreeFromLeaves } from 'react-mosaic-component';
+import { setupMcodeMock } from '../mock-mcode';
 import { makeSession } from '../../test-factories';
 
-// Mock window.mcode before importing stores
-vi.stubGlobal('window', {
-  mcode: {
-    layout: { save: vi.fn().mockResolvedValue(undefined), load: vi.fn().mockResolvedValue(null) },
-    preferences: { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue(undefined) },
-    sessions: { clearAttention: vi.fn().mockResolvedValue(undefined) },
-  },
-});
+setupMcodeMock();
 
 // Mock DOM APIs for toggle-terminal-panel tests
 vi.stubGlobal('requestAnimationFrame', (cb: () => void) => { cb(); return 0; });

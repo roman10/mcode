@@ -118,8 +118,9 @@ export function parseCodexTranscript(content: string): CodexParseResult {
       if (!currentModel || !result.sessionId) continue;
 
       const usage = info.last_token_usage;
-      const timestamp = (line as CodexTokenCount).timestamp;
-      if (!timestamp) continue;
+      const rawTimestamp = (line as CodexTokenCount).timestamp;
+      const timestamp = typeof rawTimestamp === 'string' ? rawTimestamp : new Date().toISOString();
+      if (!result.sessionId) continue;
 
       result.tokenEntries.push({
         messageId: `codex:${result.sessionId}:${timestamp}`,
@@ -136,8 +137,9 @@ export function parseCodexTranscript(content: string): CodexParseResult {
       const message = (payload as CodexUserMessage['payload']).message;
       if (typeof message !== 'string' || !message) continue;
 
-      const timestamp = (line as CodexUserMessage).timestamp;
-      if (!timestamp || !result.sessionId) continue;
+      const rawTimestamp = (line as CodexUserMessage).timestamp;
+      const timestamp = typeof rawTimestamp === 'string' ? rawTimestamp : new Date().toISOString();
+      if (!result.sessionId) continue;
 
       result.humanEntries.push({
         messageId: `codex:${result.sessionId}:${timestamp}`,

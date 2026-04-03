@@ -1,13 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { setupMcodeMock } from '../mock-mcode';
 
-vi.stubGlobal('window', {
-  mcode: {
-    app: { getPlatform: () => 'darwin' },
-    layout: { save: vi.fn().mockResolvedValue(undefined), load: vi.fn().mockResolvedValue(null) },
-    preferences: { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue(undefined) },
-    sessions: { clearAttention: vi.fn().mockResolvedValue(undefined) },
-  },
-});
+setupMcodeMock();
 
 const { useDialogStore } = await import('../../../../src/renderer/stores/dialog-store');
 const { executeAppCommand } = await import('../../../../src/renderer/utils/app-commands');

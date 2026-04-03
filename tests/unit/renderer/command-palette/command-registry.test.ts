@@ -1,13 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
+import { setupMcodeMock } from '../../renderer/mock-mcode';
 
-vi.stubGlobal('window', {
-  mcode: {
-    app: { getPlatform: () => 'darwin' },
-    layout: { save: vi.fn().mockResolvedValue(undefined), load: vi.fn().mockResolvedValue(null) },
-    preferences: { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue(undefined) },
-    sessions: { clearAttention: vi.fn().mockResolvedValue(undefined) },
-  },
-});
+setupMcodeMock();
 
 const { getCommands } = await import('../../../../src/renderer/components/CommandPalette/command-registry');
 

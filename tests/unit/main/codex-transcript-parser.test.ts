@@ -163,4 +163,33 @@ describe('parseCodexTranscript', () => {
     expect(result.sessionId).toBe('sess-abc');
     expect(result.tokenEntries).toHaveLength(1);
   });
+
+  it('handles missing nested fields in token_count payload', () => {
+    const broken = {
+      type: 'event_msg',
+      timestamp: '2026-03-27T00:25:12Z',
+      payload: { type: 'token_count', info: { last_token_usage: {} } },
+    };
+    const result = parseCodexTranscript(jsonl(SESSION_META, TURN_CONTEXT, broken));
+    expect(result.tokenEntries).toHaveLength(1);
+    expect(result.tokenEntries[0].inputTokens).toBe(0);
+  });
+
+  it('handles missing payload entirely', () => {
+    const broken = { type: 'event_msg', timestamp: '2026-03-27T00:25:12Z' };
+    const result = parseCodexTranscript(jsonl(SESSION_META, TURN_CONTEXT, broken));
+    expect(result.tokenEntries).toHaveLength(0);
+  });
+
+  it('handles non-string timestamp gracefully by falling back to current time', () => {
+    const broken = {
+      type: 'event_msg',
+      timestamp: 123456789,
+      payload: { type: 'user_message', message: 'hello' },
+    };
+    const result = parseCodexTranscript(jsonl(SESSION_META, broken));
+    expect(result.humanEntries).toHaveLength(1);
+    expect(typeof result.humanEntries[0].timestamp).toBe('string');
+    expect(result.humanEntries[0].timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
 });

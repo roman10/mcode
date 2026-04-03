@@ -25,7 +25,7 @@ describe('ErrorBoundary', () => {
         <div>child content</div>
       </ErrorBoundary>,
     );
-    expect(screen.getByText('child content')).toBeDefined();
+    expect(screen.getByText('child content')).toBeTruthy();
   });
 
   it('renders fallback when child throws', () => {
@@ -34,7 +34,7 @@ describe('ErrorBoundary', () => {
         <ThrowingComponent shouldThrow />
       </ErrorBoundary>,
     );
-    expect(screen.getByText('Error: test render error')).toBeDefined();
+    expect(screen.getByText('Error: test render error')).toBeTruthy();
   });
 
   it('calls onError callback when child throws', () => {
@@ -67,13 +67,13 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText('retry')).toBeDefined();
+    expect(screen.getByText('retry')).toBeTruthy();
 
     // Fix the underlying issue, then retry
     shouldThrow = false;
     fireEvent.click(screen.getByText('retry'));
 
-    expect(screen.getByText('recovered')).toBeDefined();
+    expect(screen.getByText('recovered')).toBeTruthy();
   });
 });
 
@@ -81,17 +81,17 @@ describe('ErrorFallback', () => {
   it('renders inline variant by default', () => {
     const reset = vi.fn();
     render(<ErrorFallback error={new Error('oops')} reset={reset} />);
-    expect(screen.getByText('Something went wrong')).toBeDefined();
-    expect(screen.getByText('oops')).toBeDefined();
-    expect(screen.getByText('Retry')).toBeDefined();
+    expect(screen.getByText('Something went wrong')).toBeTruthy();
+    expect(screen.getByText('oops')).toBeTruthy();
+    expect(screen.getByText('Retry')).toBeTruthy();
   });
 
   it('renders page variant with Reload button', () => {
     const reset = vi.fn();
     render(<ErrorFallback error={new Error('fatal')} reset={reset} variant="page" />);
-    expect(screen.getByText('Something went wrong')).toBeDefined();
-    expect(screen.getByText('fatal')).toBeDefined();
-    expect(screen.getByText('Reload')).toBeDefined();
+    expect(screen.getByText('Something went wrong')).toBeTruthy();
+    expect(screen.getByText('fatal')).toBeTruthy();
+    expect(screen.getByText('Reload')).toBeTruthy();
   });
 
   it('calls reset on Retry click (inline)', () => {

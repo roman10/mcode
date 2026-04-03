@@ -109,8 +109,8 @@ describe('AccountProfileRepository', () => {
       const account = repo.insert('Active', '/tmp/test-active');
       // Insert a non-ended session referencing this account
       const db = getDb();
-      db.prepare(`INSERT INTO sessions (session_id, label, label_source, cwd, status, started_at, session_type, hook_mode, terminal_config, attention_level, auto_close, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-        'sess-1', 'test', 'auto', '/tmp', 'active', '2026-01-01T00:00:00Z', 'claude', 'live', '{}', 'none', 0, account.accountId,
+      db.prepare(`INSERT INTO sessions (session_id, label, label_source, cwd, status, started_at, session_type, hook_mode, terminal_config, attention_level, auto_close, account_id, is_test) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        'sess-1', 'test', 'auto', '/tmp', 'active', '2026-01-01T00:00:00Z', 'claude', 'live', '{}', 'none', 0, account.accountId, 1,
       );
       expect(() => repo.delete(account.accountId)).toThrow('Cannot delete account with active sessions');
       // Cleanup

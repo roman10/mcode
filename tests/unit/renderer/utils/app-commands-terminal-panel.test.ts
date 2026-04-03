@@ -1,18 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { setupMcodeMock } from '../mock-mcode';
 
 const killFn = vi.fn().mockResolvedValue(undefined);
 const createFn = vi.fn().mockResolvedValue({ sessionId: 'new-sess' });
 
-vi.stubGlobal('window', {
-  mcode: {
-    app: { getPlatform: () => 'darwin', getHomeDir: () => '/home/user' },
-    layout: { save: vi.fn().mockResolvedValue(undefined), load: vi.fn().mockResolvedValue(null) },
-    preferences: { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue(undefined) },
-    sessions: {
-      clearAttention: vi.fn().mockResolvedValue(undefined),
-      kill: killFn,
-      create: createFn,
-    },
+setupMcodeMock({
+  sessions: {
+    kill: killFn,
+    create: createFn,
+    clearAttention: vi.fn().mockResolvedValue(undefined),
   },
 });
 

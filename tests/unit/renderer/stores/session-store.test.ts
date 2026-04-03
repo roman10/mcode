@@ -1,16 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { setupMcodeMock } from '../mock-mcode';
 import { useSessionStore } from '../../../../src/renderer/stores/session-store';
 import type { SessionInfo } from '../../../../src/shared/types';
 
-const mockClearAttention = vi.fn().mockResolvedValue(undefined);
-
-vi.stubGlobal('window', {
-  mcode: {
-    sessions: {
-      clearAttention: mockClearAttention,
-    },
-  },
-});
+const mcode = setupMcodeMock();
+const mockClearAttention = mcode.sessions.clearAttention;
 
 function makeSession(id: string): SessionInfo {
   return {

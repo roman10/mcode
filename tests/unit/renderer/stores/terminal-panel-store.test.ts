@@ -1,11 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { setupMcodeMock } from '../mock-mcode';
 
-vi.stubGlobal('window', {
-  mcode: {
-    app: { getPlatform: () => 'darwin' },
-    sessions: { create: vi.fn().mockResolvedValue({ sessionId: 'new-sess' }) },
-  },
-});
+setupMcodeMock();
 
 const { useTerminalPanelStore } = await import(
   '../../../../src/renderer/stores/terminal-panel-store'

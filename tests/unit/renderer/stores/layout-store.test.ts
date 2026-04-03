@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getLeaves } from 'react-mosaic-component';
 import type { MosaicNode } from 'react-mosaic-component';
+import { setupMcodeMock } from '../mock-mcode';
 
 const mockSelectSession = vi.fn();
 
@@ -11,14 +12,8 @@ vi.mock('../../../../src/renderer/stores/session-store', () => ({
   },
 }));
 
-// Mock window.mcode before importing the store
-vi.stubGlobal('window', {
-  mcode: {
-    layout: { save: vi.fn().mockResolvedValue(undefined), load: vi.fn().mockResolvedValue(null) },
-    preferences: { get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue(undefined) },
-    sessions: { clearAttention: vi.fn().mockResolvedValue(undefined) },
-  },
-});
+// Setup window.mcode mock
+setupMcodeMock();
 
 const { useLayoutStore, migrateTab } = await import(
   '../../../../src/renderer/stores/layout-store'

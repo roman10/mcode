@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { setupMcodeMock } from '../mock-mcode';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -63,12 +64,11 @@ const inputMock = {
   getCadence: vi.fn().mockResolvedValue(mockInputCadence),
 };
 
-const preferencesMock = {
-  get: vi.fn().mockResolvedValue(null),
-  set: vi.fn().mockResolvedValue(undefined),
-};
-
-vi.stubGlobal('window', { mcode: { tokens: tokensMock, commits: commitsMock, input: inputMock, preferences: preferencesMock } });
+setupMcodeMock({
+  tokens: tokensMock,
+  commits: commitsMock,
+  input: inputMock,
+});
 
 const { useStatsStore } = await import('../../../../src/renderer/stores/stats-store');
 
