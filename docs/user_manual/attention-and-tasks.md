@@ -34,6 +34,7 @@ Press `Cmd+Shift+T` to open the New Task dialog. Fill in:
 - **Prompt** — the instruction to send
 - **Working directory** — the project folder for the task
 - **Target session** — pick an existing active or idle session (required)
+- **Permission mode** (optional) — change the target session's permission mode when this task is dispatched; disabled until a target session is selected; defaults to "Don't change". Available modes depend on the target session's agent type.
 
 ### Task statuses
 

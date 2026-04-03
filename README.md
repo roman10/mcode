@@ -39,6 +39,7 @@ Looking for setup and usage docs? Start with the [user manual](docs/user_manual/
 - **Commit analytics** — daily stats, streaks, heatmaps, cadence, and per-repo breakdown.
 - **Token analytics** — usage and cost by model, cache efficiency, top sessions, 7-day heatmap.
 - **Git integration** — commit graph visualization, VS Code-style staging/unstaging, and inline diff viewer.
+- **Todos panel** — per-repo task list with priority levels, completion tracking, and automatic scanning of `TODO`/`FIXME`/`HACK`/`BUG` comments in code.
 
 ![Stats sidebar with commit and token analytics](docs/screenshots/stats-sidebar.png)
 
@@ -147,6 +148,8 @@ mcode exposes a Model Context Protocol (MCP) server with 105 tools across 15 cat
 | Search | 1 | full-text file search |
 
 This means agents can drive the IDE programmatically — creating sessions, dispatching tasks, reading terminal output, and verifying results without manual interaction.
+
+> **Note:** Copilot CLI sessions are excluded from token cost metrics — Copilot does not expose token usage data.
 
 ## Tech Stack
 

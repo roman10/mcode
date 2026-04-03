@@ -90,11 +90,14 @@ Double-click the title in the toolbar to rename the session inline.
    - **Working directory** (required) — click "Browse" to select a project folder, or type a path
    - **Label** (optional) — a name for the session; defaults to the folder name
    - **Initial prompt** (optional) — what you want the agent to work on
-   - **Model** (Gemini and Copilot, optional) — explicit model name such as `gemini-2.5-pro` or `gpt-4o`; when set, mcode launches the agent with `--model <value>` and stores it on the session so the model pill can render consistently
-   - **Permission mode** (Claude only) — controls how Claude handles tool permissions (`default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`)
+   - **Permission mode** — controls how the agent handles tool permissions. Available modes depend on the agent:
+     - Claude: `plan`, `acceptEdits`, `auto` (default), `dontAsk`, `bypassPermissions`
+     - Copilot: `autopilot` (default), `allowAll`
+     - Codex: `fullAuto` (default), `bypassAll`
+     - Gemini: `plan`, `autoEdit` (default), `yolo`
    - **Effort** (Claude only) — controls reasoning depth (`low`, `medium`, `high`, `max`)
    - **Enable auto mode** (Claude only) — allows the session to use Claude's auto permission mode; off by default (Team plan feature)
-   - **Account** (Claude only, shown when multiple accounts are configured) — select which Claude account to use
+   - **Account** (Claude and Copilot, shown when multiple accounts are configured) — select which account to use
    - **Run in isolated worktree** (Claude only) — creates a git worktree so the session works on an isolated branch; optional branch name field appears when checked
 3. Click **Create Session**
 

@@ -20,6 +20,10 @@ Enable **Vim keybindings** in Settings (`Cmd+,`) under the **Editor** section. W
 - `:q` — close the tile
 - `:wq` — save and close
 
+## Syntax highlighting
+
+The file viewer uses CodeMirror and automatically detects the language from the file extension. Syntax highlighting applies to all common languages.
+
 ## Closing a file
 
 Press `Cmd+W` to close the file viewer tile (same as any other tile).

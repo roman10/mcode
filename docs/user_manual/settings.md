@@ -30,4 +30,4 @@ Open settings with `Cmd+,` or click the gear icon in the sidebar footer.
 
 | Setting | Default | Description |
 |---|---|---|
-| MCP server | Off | Exposes an MCP server on `localhost:7532` so external tools and agents (such as Claude Code) can control mcode programmatically. Requires a restart to take effect. |
+| MCP server | Off | Exposes an MCP server on `localhost:7532` so external tools and agents (such as Claude Code) can control mcode programmatically. Requires a restart to take effect. When enabled, agents can use the 105 MCP tools to create sessions, dispatch tasks, read terminal output, switch views, and more — the primary way to build multi-agent orchestration workflows where one Claude session drives the others. |

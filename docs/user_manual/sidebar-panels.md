@@ -91,6 +91,8 @@ By default only commits on the main branch are tracked. To include all branches,
 - **Weekly trend** — this week's cost vs last week, with percentage change
 - **Usage quotas** — (Claude only) subscription quota utilization per account: 5-hour, 7-day, and 7-day Opus limits shown as color-coded progress bars
 
+> **Note:** Copilot CLI sessions are excluded from cost tracking — Copilot does not expose token usage data.
+
 ### Human Input
 
 Tracks your own interaction activity:
@@ -115,9 +117,29 @@ Tracks your own interaction activity:
 
 **Open it:** Click the Checkmark icon in the activity bar, or press `Cmd+Shift+I`.
 
-Scan for TODO comments across project directories with active sessions.
+Scan for TODO comments across project directories with active sessions, and manage manual todos.
 
-- **Scan**: mcode scans files in session directories for `TODO`, `FIXME`, `HACK`, and `BUG` markers.
-- **Group by file**: Results are grouped by file with line numbers and the task description.
-- **Jump to code**: Click a todo item to open the file in the viewer at the correct line.
-- **Manual Todos**: You can also add manual TODOs that aren't in code by typing `+` in the Command Palette.
+### Code scanning
+
+mcode scans files in session directories for `TODO`, `FIXME`, `HACK`, and `BUG` markers. Results are grouped by file with line numbers. Click an item to open the file in the viewer at the correct line.
+
+### Manual todos
+
+Add todos that aren't in code:
+
+- **From the panel**: click the `+` button in the panel header (visible in single-repo mode). Type the text and press Enter. Append `#high`, `#medium`, or `#low` to set a priority: `Fix login bug #high`.
+- **From the Command Palette**: type `+` to open todos mode. Type text to search existing todos or create a new one — a "Create" option appears at the top. Supports the same `#priority` syntax. In multi-repo workspaces, append `@reponame` to target a specific repo.
+
+### Todo management
+
+- **Priority**: a colored dot appears next to each item — red (high), yellow (medium), blue (low).
+- **Reorder**: hover an item to reveal up/down arrows.
+- **Complete**: click the checkbox to mark done. Completed items collapse under a "Completed (N)" toggle.
+- **Edit**: click a todo's text to edit inline; Enter to save, Escape to cancel.
+
+### Repo scope
+
+Use the dropdown in the panel header to switch between:
+- **Auto** — follows the focused session's working directory
+- **Specific repo** — pin to one repo
+- **All repos** — shows todos from all active session directories, grouped by repo (add button hidden in this mode)
