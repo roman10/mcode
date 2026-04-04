@@ -49,7 +49,7 @@ Pre-built DMG for Apple Silicon (macOS):
 
 **[Download latest DMG (Apple Silicon)](https://github.com/roman10/mcode/releases/latest)**
 
-> **Gatekeeper note:** macOS may block the app on first launch since it is not yet notarized. Right-click `mcode.app` in your Applications folder → **Open** → **Open Anyway**. Alternatively: `xattr -cr /Applications/mcode.app`
+The app is signed and notarized — macOS Gatekeeper will allow it to open without extra steps.
 
 ### Install via Homebrew
 
