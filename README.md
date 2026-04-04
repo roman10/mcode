@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/roman10/mcode/ci.yml?label=CI)](https://github.com/roman10/mcode/actions)
 
-mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-agent sessions simultaneously. It currently supports Claude Code, Gemini CLI, Codex CLI, Copilot CLI, and plain terminal sessions. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring for Claude sessions, and 105 MCP tools make it highly automatable.
+mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-agent sessions simultaneously. It currently supports Claude Code, Gemini CLI, Codex CLI, Copilot CLI, and plain terminal sessions. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring for Claude sessions, and 115 MCP tools make it highly automatable.
 
 Looking for setup and usage docs? Start with the [user manual](docs/user_manual/README.md) for guided walkthroughs, feature guides, and shortcut reference.
 
@@ -30,7 +30,7 @@ Looking for setup and usage docs? Start with the [user manual](docs/user_manual/
 
 - **Task queue** — dispatch prompts to sessions with per-session reordering, retry logic, and concurrent execution.
 - **Hook-driven monitoring for Claude** — receives Claude Code hook events (tool use, notifications, permission requests, stops) over HTTP for live session visibility.
-- **105 MCP tools** — 15 tool categories covering sessions, terminals, layout, tasks, git, files, commits, tokens, hooks, and more. Every feature is agent-accessible.
+- **115 MCP tools** — 16 tool categories covering sessions, terminals, layout, tasks, git, files, commits, tokens, hooks, todos, and more. Every feature is agent-accessible.
 
 ### Productivity
 
@@ -103,7 +103,14 @@ For the full first-run walkthrough, see [Getting Started](docs/user_manual/getti
 - [Getting Started](docs/user_manual/getting-started.md) — first-run walkthrough and core workflows
 - [Attention & Tasks](docs/user_manual/attention-and-tasks.md) — understand attention levels and the task queue
 - [Command Palette & Quick Open](docs/user_manual/command-palette.md) — fuzzy navigation, commands, and snippets
+- [Sidebar Panels](docs/user_manual/sidebar-panels.md) — sessions, search, changes, stats, activity, and todos
+- [Kanban View](docs/user_manual/kanban-view.md) — board layout, cards, and expanded session view
+- [Terminal Panel](docs/user_manual/terminal-panel.md) — bottom terminal area, tabs, and layout
+- [File Viewer](docs/user_manual/file-viewer.md) — opening, editing, and saving files
 - [Git Changes & Diff Viewer](docs/user_manual/git-changes.md) — review, stage, and inspect changes
+- [Accounts](docs/user_manual/accounts.md) — manage Claude accounts
+- [Multi-Account GitHub](docs/user_manual/multi-account-github.md) — GitHub SSH and gh CLI for multiple accounts
+- [Settings](docs/user_manual/settings.md) — general, tracking, editor, and advanced settings
 - [Keyboard Shortcuts](docs/user_manual/keyboard-shortcuts.md) — full shortcut reference
 
 ## Keyboard Shortcuts
@@ -127,14 +134,14 @@ See [Keyboard Shortcuts](docs/user_manual/keyboard-shortcuts.md) for the full li
 
 ## MCP Automation
 
-mcode exposes a Model Context Protocol (MCP) server with 105 tools across 15 categories:
+mcode exposes a Model Context Protocol (MCP) server with 115 tools across 16 categories:
 
 | Category | Tools | Examples |
 |---|---|---|
-| Session | 17 | create, kill, resume, wait for status, set label/model, account list |
+| Session | 19 | create, kill, resume, wait for status, set label/model, auto-close, account list |
 | Layout | 15 | get/set view mode, add/remove tiles, toggle command palette |
-| Terminal | 9 | send keys, read buffer, resize, drop files, panel height |
-| Hooks | 8 | list events, attention summary, wait/clear attention |
+| Terminal | 11 | send keys, read buffer, resize, drop files, panel height/tabs |
+| Hooks | 9 | list events, attention summary, wait/clear attention |
 | Sidebar | 7 | switch tab, select session, get/set filter |
 | Git | 10 | stage/unstage/discard files, get diff, open diff viewer |
 | Commits | 9 | daily stats, heatmap, cadence, streaks, scan control |
@@ -144,6 +151,7 @@ mcode exposes a Model Context Protocol (MCP) server with 105 tools across 15 cat
 | App | 5 | version, console logs, HMR events, sleep control |
 | Kanban | 3 | get columns, expand session, collapse |
 | Window | 3 | get bounds, resize, screenshot |
+| Todo | 5 | create, update, delete, reorder, list |
 | Snippet | 1 | list snippet templates |
 | Search | 1 | full-text file search |
 
