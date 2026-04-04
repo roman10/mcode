@@ -234,7 +234,7 @@ function CostSection({
               <DailyBarChart
                 entries={tokenHeatmap}
                 getValue={e => e.inputTokens + e.outputTokens}
-                getTooltip={(date, v) => `${date}: ${formatTokens(v)} tokens`}
+                getTooltip={(date, v, avg7, avg30) => `${date}: ${formatTokens(v)} tokens\n7d avg: ${formatTokens(avg7)} · 30d avg: ${formatTokens(avg30)}`}
                 colorScale="emerald"
                 selectedDate={viewDate}
                 onSelect={onHeatmapSelect}
@@ -254,7 +254,7 @@ function CostSection({
               <DailyBarChart
                 entries={tokenHeatmap}
                 getValue={e => e.estimatedCostUsd}
-                getTooltip={(date, v) => `${date}: ${formatCost(v)}`}
+                getTooltip={(date, v, avg7, avg30) => `${date}: ${formatCost(v)}\n7d avg: ${formatCost(avg7)} · 30d avg: ${formatCost(avg30)}`}
                 colorScale="amber"
                 selectedDate={viewDate}
                 onSelect={onHeatmapSelect}

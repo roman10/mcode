@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { todayStr, shiftDate } from '../../utils/date-nav';
 
 const CHART_W = 600;
@@ -13,7 +14,7 @@ const COLORS: Record<string, { bar: string; avg: string }> = {
 interface DailyBarChartProps<T extends { date: string }> {
   entries: T[];
   getValue: (entry: T) => number;
-  getTooltip: (date: string, value: number) => string;
+  getTooltip: (date: string, value: number, avg7: number, avg30: number) => string;
   colorScale?: 'green' | 'emerald' | 'blue' | 'amber';
   selectedDate: string;
   onSelect: (date: string) => void;
@@ -30,6 +31,13 @@ function DailyBarChart<T extends { date: string }>({
   days = 90,
 }: DailyBarChartProps<T>): React.JSX.Element {
   const colors = COLORS[colorScale] ?? COLORS.green;
+  const [hovered, setHovered] = useState<{ index: number; x: number; y: number } | null>(null);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGGElement>, index: number) => {
+    setHovered({ index, x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleMouseLeave = useCallback(() => setHovered(null), []);
 
   const today = todayStr();
   const dateRange: string[] = [];
@@ -65,65 +73,92 @@ function DailyBarChart<T extends { date: string }>({
     .map((avg, i) => `${midX(i).toFixed(1)},${barTop(avg).toFixed(1)}`)
     .join(' ');
 
+  const tooltipLines = hovered
+    ? getTooltip(dateRange[hovered.index], values[hovered.index], rollingAvg[hovered.index], a30).split('\n')
+    : [];
+
   return (
-    <svg
-      viewBox={`0 0 ${CHART_W} ${BAR_AREA_H}`}
-      width="100%"
-      height={BAR_AREA_H}
-      preserveAspectRatio="none"
-      style={{ display: 'block' }}
-      aria-hidden="true"
-    >
-      {/* 30-day average dashed reference line */}
-      {avg30Y != null && (
-        <line
-          x1={0} y1={avg30Y} x2={CHART_W} y2={avg30Y}
-          stroke="#6b7280" strokeOpacity={0.4} strokeDasharray="3 2" strokeWidth={0.8}
+    <div style={{ position: 'relative' }}>
+      <svg
+        viewBox={`0 0 ${CHART_W} ${BAR_AREA_H}`}
+        width="100%"
+        height={BAR_AREA_H}
+        preserveAspectRatio="none"
+        style={{ display: 'block' }}
+        aria-hidden="true"
+      >
+        {/* 30-day average dashed reference line */}
+        {avg30Y != null && (
+          <line
+            x1={0} y1={avg30Y} x2={CHART_W} y2={avg30Y}
+            stroke="#6b7280" strokeOpacity={0.4} strokeDasharray="3 2" strokeWidth={0.8}
+          />
+        )}
+
+        {/* Bars */}
+        {dateRange.map((date, i) => {
+          const v = values[i];
+          const h = barH(v);
+          const isSelected = date === selectedDate;
+          const x = barLeft(i);
+          return (
+            <g
+              key={date}
+              onClick={() => onSelect(date)}
+              onMouseMove={e => handleMouseMove(e, i)}
+              onMouseLeave={handleMouseLeave}
+              style={{ cursor: 'pointer' }}
+            >
+              {/* Full-height transparent hit area */}
+              <rect x={x} y={0} width={barW} height={BAR_AREA_H} fill="transparent" />
+              {/* Bar */}
+              {h > 0.5 && (
+                <rect
+                  x={x}
+                  y={barTop(v)}
+                  width={barW}
+                  height={h}
+                  fill={colors.bar}
+                  fillOpacity={isSelected ? 1 : 0.35}
+                  rx={0.5}
+                />
+              )}
+              {/* Selected date indicator at bottom (visible even for zero-value days) */}
+              {isSelected && (
+                <rect x={x} y={BAR_AREA_H - 2} width={barW} height={2} fill={colors.bar} fillOpacity={0.9} rx={0.5} />
+              )}
+            </g>
+          );
+        })}
+
+        {/* 7-day rolling average line */}
+        <polyline
+          points={avgPoints}
+          fill="none"
+          stroke={colors.avg}
+          strokeWidth={1}
+          strokeOpacity={0.85}
+          strokeLinejoin="round"
+          strokeLinecap="round"
         />
+      </svg>
+
+      {/* Custom instant tooltip — fixed positioning to avoid clipping by overflow:hidden ancestors */}
+      {hovered && (
+        <div
+          className="fixed z-50 rounded px-2 py-1 text-xs bg-bg-elevated text-text-primary shadow-md border border-border-subtle pointer-events-none whitespace-nowrap"
+          style={{
+            left: hovered.x,
+            top: hovered.y,
+            transform: 'translate(-50%, -100%) translateY(-6px)',
+          }}
+        >
+          {tooltipLines.map((line, i) => (
+            <div key={i} className={i > 0 ? 'text-text-secondary' : ''}>{line}</div>
+          ))}
+        </div>
       )}
-
-      {/* Bars */}
-      {dateRange.map((date, i) => {
-        const v = values[i];
-        const h = barH(v);
-        const isSelected = date === selectedDate;
-        const x = barLeft(i);
-        return (
-          <g key={date} onClick={() => onSelect(date)} style={{ cursor: 'pointer' }}>
-            {/* Full-height transparent hit area */}
-            <rect x={x} y={0} width={barW} height={BAR_AREA_H} fill="transparent" />
-            {/* Bar */}
-            {h > 0.5 && (
-              <rect
-                x={x}
-                y={barTop(v)}
-                width={barW}
-                height={h}
-                fill={colors.bar}
-                fillOpacity={isSelected ? 1 : 0.35}
-                rx={0.5}
-              />
-            )}
-            {/* Selected date indicator at bottom (visible even for zero-value days) */}
-            {isSelected && (
-              <rect x={x} y={BAR_AREA_H - 2} width={barW} height={2} fill={colors.bar} fillOpacity={0.9} rx={0.5} />
-            )}
-            <title>{getTooltip(date, v)}</title>
-          </g>
-        );
-      })}
-
-      {/* 7-day rolling average line */}
-      <polyline
-        points={avgPoints}
-        fill="none"
-        stroke={colors.avg}
-        strokeWidth={1}
-        strokeOpacity={0.85}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
+    </div>
   );
 }
 

@@ -143,7 +143,7 @@ function OutputSection({
             <DailyBarChart
               entries={commitHeatmap}
               getValue={e => e.count}
-              getTooltip={(date, v) => `${date}: ${v} commit${v !== 1 ? 's' : ''}`}
+              getTooltip={(date, v, avg7, avg30) => `${date}: ${v} commit${v !== 1 ? 's' : ''}\n7d avg: ${avg7.toFixed(1)} · 30d avg: ${avg30.toFixed(1)}`}
               colorScale="green"
               selectedDate={viewDate}
               onSelect={onHeatmapSelect}

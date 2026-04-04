@@ -104,7 +104,7 @@ function InputSection({
             <DailyBarChart
               entries={inputHeatmap}
               getValue={e => e.messageCount}
-              getTooltip={(date, v) => `${date}: ${v} msg${v !== 1 ? 's' : ''}`}
+              getTooltip={(date, v, avg7, avg30) => `${date}: ${v} msg${v !== 1 ? 's' : ''}\n7d avg: ${avg7.toFixed(1)} · 30d avg: ${avg30.toFixed(1)}`}
               colorScale="blue"
               selectedDate={viewDate}
               onSelect={onHeatmapSelect}
