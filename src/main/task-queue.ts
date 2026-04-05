@@ -717,8 +717,7 @@ export class TaskQueue {
       const typeHere = choices.find((c) => /type here|tell.*what to change/i.test(c.text));
       if (!typeHere) return; // Not a plan mode menu; stay pending
 
-      const navKeys = '\x1b[B'.repeat(typeHere.index - 1) + '\r';
-      this.ptyManager.write(task.targetSessionId!, navKeys);
+      this.ptyManager.write(task.targetSessionId!, '\x1b[B'.repeat(typeHere.index - 1) + '\r');
       this.markPlanModeDispatched(db, task, typeHere.index);
 
       // After the text sub-mode activates (~300ms), type the message
@@ -734,10 +733,14 @@ export class TaskQueue {
         ? /auto.?accept|bypass\s+permission/i
         : /manually\s+approve/i;
       const choice = choices.find((c) => pattern.test(c.text));
-      if (!choice) return; // Menu doesn't have the expected option; stay pending
+      if (!choice) {
+        logger.info('task', 'Plan mode menu missing expected option, staying pending', {
+          taskId: task.id, action, availableChoices: choices.map((c) => c.text),
+        });
+        return;
+      }
 
-      const navKeys = '\x1b[B'.repeat(choice.index - 1) + '\r';
-      this.ptyManager.write(task.targetSessionId!, navKeys);
+      this.ptyManager.write(task.targetSessionId!, '\x1b[B'.repeat(choice.index - 1) + '\r');
       this.markPlanModeDispatched(db, task, choice.index);
       this.sessionManager.updateStatus(task.targetSessionId!, 'active');
     }
@@ -940,7 +943,7 @@ export class TaskQueue {
       const atIdlePrompt = isAtClaudePrompt(bufferTail);
 
       // Plan mode tasks also complete when Claude re-enters a user-choice menu
-      // (e.g. "Revise" caused Claude to re-plan and show a new menu).
+      // (e.g. Claude re-planned and is showing a new ExitPlanMode menu).
       const atNewMenu = task.planModeAction && isAtUserChoice(bufferTail.slice(-500));
 
       if (!atIdlePrompt && !atNewMenu) continue;
