@@ -18,7 +18,8 @@
     "test:unit": "vitest run --config vitest.unit.config.mts",
     "test:mcp": "vitest run --config vitest.config.mts",
     "lint": "eslint src/",
-    "lint:fix": "eslint --fix src/"
+    "lint:fix": "eslint --fix src/",
+    "cleanup-test": "npx tsx scripts/cleanup-test-sessions.ts"
   },
   "dependencies": {
     "@codemirror/merge": "^6.12.1",
