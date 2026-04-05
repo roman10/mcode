@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import * as RadixDialog from '@radix-ui/react-dialog';
 import { Command, defaultFilter } from 'cmdk';
-import { createFocusRestorer } from '../../utils/focus-utils';
 import FileSearchItems from './FileSearchItems';
 import CommandItems from './CommandItems';
 import ShellModeContent from './ShellModeContent';
@@ -36,22 +35,6 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
     ? input.slice(1).trimStart()
     : input;
 
-  // Save focus target before we steal focus; restore on unmount
-  const restoreFocusRef = useRef(createFocusRestorer());
-  useEffect(() => () => restoreFocusRef.current(), []);
-
-  // Portal container: render outside #root so Radix Dialog's `inert` attribute
-  // (applied to #root when a modal is open) doesn't block focus.
-  const portalRef = useRef<HTMLDivElement | null>(null);
-  if (!portalRef.current) {
-    portalRef.current = document.createElement('div');
-  }
-  useEffect(() => {
-    const el = portalRef.current!;
-    document.body.appendChild(el);
-    return () => { el.remove(); };
-  }, []);
-
   // Explicitly focus the input after mount — autoFocus is unreliable in Electron
   // when xterm.js terminals hold focus (they reclaim it after React's commit phase).
   const inputRef = useRef<HTMLInputElement>(null);
@@ -65,88 +48,78 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
   // Escape override for snippet variable form (back to search instead of closing)
   const escapeOverrideRef = useRef<(() => void) | null>(null);
 
-  // Close on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        if (escapeOverrideRef.current) {
-          escapeOverrideRef.current();
-        } else {
-          onClose();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[60] flex items-start justify-center pt-[10vh] bg-black/50 animate-fade-in"
-      onClick={onClose}
-    >
-      <div
-        className="w-[600px] max-w-[90vw] bg-bg-elevated border border-border-subtle rounded-lg shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Command
-          loop
-          className="[&>label]:hidden"
-          shouldFilter={mode === 'commands'}
-          filter={(value, search, keywords) => {
-            const q = search.startsWith('>') ? search.slice(1).trimStart() : search;
-            if (!q) return 1;
-            return defaultFilter(value, q, keywords);
+  return (
+    <RadixDialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <RadixDialog.Portal>
+        <RadixDialog.Overlay className="fixed inset-0 z-[60] bg-black/50 animate-fade-in" />
+        <RadixDialog.Content
+          aria-describedby={undefined}
+          className="fixed top-[10vh] left-1/2 -translate-x-1/2 z-[60] w-[600px] max-w-[90vw] bg-bg-elevated border border-border-subtle rounded-lg shadow-2xl overflow-hidden"
+          onEscapeKeyDown={(e) => {
+            if (escapeOverrideRef.current) {
+              e.preventDefault();
+              escapeOverrideRef.current();
+            }
           }}
         >
-          <Command.Input
-            ref={inputRef}
-            value={input}
-            onValueChange={setInput}
-            placeholder={
-              mode === 'shell'
-                ? '! Type a shell command...'
-                : mode === 'commands'
-                  ? '> Type a command...'
-                  : mode === 'snippets'
-                    ? '@ Search prompt library...'
-                    : mode === 'todos'
-                      ? '+ Add or search TODOs...'
-                      : 'Search files by name...'
-            }
-            className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
-                       outline-none placeholder:text-text-muted"
-          />
-          <Command.List className="max-h-[50vh] overflow-y-auto py-1 border-t border-border-subtle">
-            {mode === 'todos' ? (
-              <TodoItems query={searchQuery} onClose={onClose} />
-            ) : mode === 'snippets' ? (
-              <PromptLibraryItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
-            ) : mode === 'shell' ? (
-              <ShellModeContent query={searchQuery} onClose={onClose} onSetInput={setInput} />
-            ) : mode === 'files' ? (
-              <>
-                <FileSearchItems query={searchQuery} onClose={onClose} />
-                {/* Hints for other modes */}
-                {!searchQuery && (
-                  <div className="px-4 py-1.5 text-xs text-text-muted border-t border-border-subtle mt-1">
-                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">!</kbd> to run a shell command
-                    {' · '}
-                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">@</kbd> to search prompt library
-                    {' · '}
-                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">+</kbd> to add a TODO
-                  </div>
-                )}
-              </>
-            ) : (
-              <CommandItems onClose={onClose} />
-            )}
-          </Command.List>
-        </Command>
-      </div>
-    </div>,
-    portalRef.current!,
+          <RadixDialog.Title className="sr-only">Command palette</RadixDialog.Title>
+          <Command
+            loop
+            className="[&>label]:hidden"
+            shouldFilter={mode === 'commands'}
+            filter={(value, search, keywords) => {
+              const q = search.startsWith('>') ? search.slice(1).trimStart() : search;
+              if (!q) return 1;
+              return defaultFilter(value, q, keywords);
+            }}
+          >
+            <Command.Input
+              ref={inputRef}
+              value={input}
+              onValueChange={setInput}
+              placeholder={
+                mode === 'shell'
+                  ? '! Type a shell command...'
+                  : mode === 'commands'
+                    ? '> Type a command...'
+                    : mode === 'snippets'
+                      ? '@ Search prompt library...'
+                      : mode === 'todos'
+                        ? '+ Add or search TODOs...'
+                        : 'Search files by name...'
+              }
+              className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
+                         outline-none placeholder:text-text-muted"
+            />
+            <Command.List className="max-h-[50vh] overflow-y-auto py-1 border-t border-border-subtle">
+              {mode === 'todos' ? (
+                <TodoItems query={searchQuery} onClose={onClose} />
+              ) : mode === 'snippets' ? (
+                <PromptLibraryItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
+              ) : mode === 'shell' ? (
+                <ShellModeContent query={searchQuery} onClose={onClose} onSetInput={setInput} />
+              ) : mode === 'files' ? (
+                <>
+                  <FileSearchItems query={searchQuery} onClose={onClose} />
+                  {/* Hints for other modes */}
+                  {!searchQuery && (
+                    <div className="px-4 py-1.5 text-xs text-text-muted border-t border-border-subtle mt-1">
+                      Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">!</kbd> to run a shell command
+                      {' · '}
+                      Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">@</kbd> to search prompt library
+                      {' · '}
+                      Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">+</kbd> to add a TODO
+                    </div>
+                  )}
+                </>
+              ) : (
+                <CommandItems onClose={onClose} />
+              )}
+            </Command.List>
+          </Command>
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
   );
 }
 
