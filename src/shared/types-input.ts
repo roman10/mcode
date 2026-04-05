@@ -44,4 +44,5 @@ export interface PromptHistoryEntry {
   wordCount: number;
   messageTimestamp: string;
   provider: string;
+  isPinned: boolean;
 }

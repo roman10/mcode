@@ -9,7 +9,7 @@ interface DialogState {
   showAccountsDialog: boolean;
   showCommandPalette: boolean;
   showCreateTaskDialog: boolean;
-  quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets' | 'history' | 'todos';
+  quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets' | 'todos';
   /** When set, snippet insertion targets this callback instead of the PTY. */
   textInsertTarget: ((text: string) => void) | null;
 
@@ -20,7 +20,7 @@ interface DialogState {
   setShowAccountsDialog(show: boolean): void;
   setShowCommandPalette(show: boolean): void;
   setShowCreateTaskDialog(show: boolean): void;
-  openQuickOpen(mode: 'files' | 'commands' | 'shell' | 'snippets' | 'history' | 'todos'): void;
+  openQuickOpen(mode: 'files' | 'commands' | 'shell' | 'snippets' | 'todos'): void;
   setTextInsertTarget(target: ((text: string) => void) | null): void;
 }
 

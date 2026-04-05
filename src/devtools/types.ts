@@ -5,6 +5,7 @@ import type { TaskQueue } from '../main/task-queue';
 import type { CommitTracker } from '../main/trackers/commit-tracker';
 import type { GitChangesService } from '../main/git-changes';
 import type { TokenTracker } from '../main/trackers/token-tracker';
+import type { InputTracker } from '../main/trackers/input-tracker';
 import type { SleepBlocker } from '../main/sleep-blocker';
 import type { FileLister } from '../main/file-lister';
 import type { FileSearch } from '../main/file-search';
@@ -21,6 +22,7 @@ export interface McpServerContext {
   commitTracker: CommitTracker;
   gitChangesService: GitChangesService;
   tokenTracker: TokenTracker;
+  inputTracker: InputTracker;
   getHookRuntimeInfo: () => HookRuntimeInfo;
   sleepBlocker: SleepBlocker;
   fileLister: FileLister;

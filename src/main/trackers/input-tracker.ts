@@ -51,6 +51,7 @@ interface PromptHistoryRow {
   word_count: number;
   message_timestamp: string;
   provider: string;
+  is_pinned: number;
 }
 
 function toPromptHistoryEntry(row: PromptHistoryRow): PromptHistoryEntry {
@@ -62,6 +63,7 @@ function toPromptHistoryEntry(row: PromptHistoryRow): PromptHistoryEntry {
     wordCount: row.word_count,
     messageTimestamp: row.message_timestamp,
     provider: row.provider,
+    isPinned: row.is_pinned === 1,
   };
 }
 
@@ -243,11 +245,11 @@ export class InputTracker {
     const escaped = query.replace(/[%_\\]/g, '\\$&');
     const rows = db.prepare(`
       SELECT id, prompt_text, agent_session_id, project_dir,
-             word_count, message_timestamp, provider
+             word_count, message_timestamp, provider, is_pinned
       FROM human_input
       WHERE prompt_text IS NOT NULL
         AND prompt_text LIKE ? ESCAPE '\\'
-      ORDER BY message_timestamp DESC
+      ORDER BY is_pinned DESC, message_timestamp DESC
       LIMIT ?
     `).all(`%${escaped}%`, limit) as PromptHistoryRow[];
 
@@ -258,20 +260,25 @@ export class InputTracker {
     const db = getDb();
     const rows = db.prepare(`
       SELECT id, prompt_text, agent_session_id, project_dir,
-             word_count, message_timestamp, provider
+             word_count, message_timestamp, provider, is_pinned
       FROM human_input
       WHERE prompt_text IS NOT NULL
-      ORDER BY message_timestamp DESC
+      ORDER BY is_pinned DESC, message_timestamp DESC
       LIMIT ?
     `).all(limit) as PromptHistoryRow[];
 
     return rows.map(toPromptHistoryEntry);
   }
 
+  togglePin(id: number): void {
+    const db = getDb();
+    db.prepare('UPDATE human_input SET is_pinned = CASE WHEN is_pinned = 1 THEN 0 ELSE 1 END WHERE id = ?').run(id);
+  }
+
   deletePrompt(id: number): void {
     const db = getDb();
     // Null out the text rather than deleting the row — the row still feeds input stats.
-    db.prepare('UPDATE human_input SET prompt_text = NULL WHERE id = ?').run(id);
+    db.prepare('UPDATE human_input SET prompt_text = NULL, is_pinned = 0 WHERE id = ?').run(id);
   }
 
   getInputCadence(date?: string, provider?: string): InputCadenceInfo {
@@ -364,5 +371,9 @@ export function registerInputIpc(inputTracker: InputTracker): void {
 
   typedHandle('prompt-history:delete', (id) => {
     inputTracker.deletePrompt(id);
+  });
+
+  typedHandle('prompt-history:toggle-pin', (id) => {
+    inputTracker.togglePin(id);
   });
 }

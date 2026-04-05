@@ -179,6 +179,46 @@ export async function createSnippet(scope: 'user' | 'project', cwd: string): Pro
   return fullPath;
 }
 
+/** Create a new snippet file pre-populated with the given text as the body. */
+export async function createSnippetFromText(
+  scope: 'user' | 'project',
+  cwd: string,
+  text: string,
+): Promise<string> {
+  const dir = snippetsDir(scope, cwd);
+  await mkdir(dir, { recursive: true });
+
+  // Derive a filename from the first ~40 chars of the text
+  const slug = text
+    .replace(/\n/g, ' ')
+    .trim()
+    .slice(0, 40)
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase() || 'saved-prompt';
+
+  // Find a unique filename
+  let filename = `${slug}.md`;
+  let counter = 2;
+  while (true) {
+    try {
+      await access(join(dir, filename));
+      filename = `${slug}-${counter}.md`;
+      counter++;
+    } catch {
+      break; // File doesn't exist — use this name
+    }
+  }
+
+  const name = slug.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+  const content = `---\nname: ${name}\ndescription: \n---\n${text}\n`;
+
+  const fullPath = join(dir, filename);
+  await writeFile(fullPath, content, 'utf-8');
+  return fullPath;
+}
+
 export async function deleteSnippet(filePath: string): Promise<void> {
   // Validate the path is inside a snippets directory and is a .md file
   const normalized = normalize(filePath);
@@ -206,6 +246,9 @@ export function registerSnippetIpc(): void {
   });
   typedHandle('snippets:create', (scope, cwd) => {
     return createSnippet(scope, cwd);
+  });
+  typedHandle('snippets:create-from-text', (scope, cwd, text) => {
+    return createSnippetFromText(scope, cwd, text);
   });
   typedHandle('snippets:delete', (filePath) => {
     return deleteSnippet(filePath);

@@ -74,14 +74,9 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             click: () => sendCommand({ command: 'search-in-files' }),
           },
           {
-            label: 'Snippets',
+            label: 'Prompt Library',
             accelerator: 'CmdOrCtrl+Shift+S',
             click: () => sendCommand({ command: 'open-snippets' }),
-          },
-          {
-            label: 'Prompt History',
-            accelerator: 'CmdOrCtrl+Shift+H',
-            click: () => sendCommand({ command: 'open-prompt-history' }),
           },
         ],
       },

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { scanSnippets } from '../../main/snippet-scanner';
+import { scanSnippets, createSnippetFromText } from '../../main/snippet-scanner';
 
 export function registerSnippetTools(
   server: McpServer,
@@ -15,12 +15,23 @@ export function registerSnippetTools(
   }, async ({ cwd }) => {
     const entries = await scanSnippets(cwd);
     return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(entries, null, 2),
-        },
-      ],
+      content: [{ type: 'text', text: JSON.stringify(entries, null, 2) }],
+    };
+  });
+
+  server.registerTool('snippet_create_from_text', {
+    description:
+      'Create a new snippet from a prompt text. Creates a .md file with the text as the body and opens it for editing.',
+    inputSchema: {
+      scope: z.enum(['user', 'project']).describe("Where to save: 'user' (~/.mcode/snippets/) or 'project' (<cwd>/.mcode/snippets/)"),
+      cwd: z.string().describe('Working directory for project-level snippets'),
+      text: z.string().describe('The prompt text to save as a snippet'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ scope, cwd, text }) => {
+    const filePath = await createSnippetFromText(scope, cwd, text);
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ filePath }, null, 2) }],
     };
   });
 }

@@ -487,6 +487,7 @@ app.whenReady().then(async () => {
         commitTracker,
         gitChangesService,
         tokenTracker,
+        inputTracker,
         getHookRuntimeInfo: () => hookRuntimeInfo,
         sleepBlocker,
         fileLister,

@@ -39,6 +39,7 @@ export interface TrackersInvokeContract {
   'prompt-history:search':              { params: [query: string, limit?: number]; result: PromptHistoryEntry[] };
   'prompt-history:recent':              { params: [limit?: number]; result: PromptHistoryEntry[] };
   'prompt-history:delete':              { params: [id: number]; result: void };
+  'prompt-history:toggle-pin':          { params: [id: number]; result: void };
 
   // --- Commits ---
   'commits:get-daily-stats':            { params: [date?: string, provider?: string]; result: DailyCommitStats };

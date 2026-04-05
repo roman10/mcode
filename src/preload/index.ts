@@ -347,6 +347,8 @@ contextBridge.exposeInMainWorld('mcode', {
       typedInvoke('snippets:scan', cwd),
     create: (scope: 'user' | 'project', cwd: string): Promise<string> =>
       typedInvoke('snippets:create', scope, cwd),
+    createFromText: (scope: 'user' | 'project', cwd: string, text: string): Promise<string> =>
+      typedInvoke('snippets:create-from-text', scope, cwd, text),
     delete: (filePath: string): Promise<void> =>
       typedInvoke('snippets:delete', filePath),
     openFolder: (scope: 'user' | 'project', cwd: string): Promise<void> =>
@@ -412,6 +414,9 @@ contextBridge.exposeInMainWorld('mcode', {
 
     delete: (id: number): Promise<void> =>
       typedInvoke('prompt-history:delete', id),
+
+    togglePin: (id: number): Promise<void> =>
+      typedInvoke('prompt-history:toggle-pin', id),
   },
 
   git: {

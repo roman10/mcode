@@ -193,7 +193,6 @@ export type AppCommand =
   | { command: 'run-shell-command' }
   | { command: 'search-in-files' }
   | { command: 'open-snippets' }
-  | { command: 'open-prompt-history' }
   | { command: 'open-todos' }
   | { command: 'toggle-terminal-panel' }
   | { command: 'split-terminal-horizontal' }
@@ -466,6 +465,7 @@ export interface MCodeAPI {
     search(query: string, limit?: number): Promise<PromptHistoryEntry[]>;
     recent(limit?: number): Promise<PromptHistoryEntry[]>;
     delete(id: number): Promise<void>;
+    togglePin(id: number): Promise<void>;
   };
 
   git: {
@@ -492,6 +492,7 @@ export interface MCodeAPI {
   snippets: {
     scan(cwd: string): Promise<SnippetEntry[]>;
     create(scope: 'user' | 'project', cwd: string): Promise<string>;
+    createFromText(scope: 'user' | 'project', cwd: string, text: string): Promise<string>;
     delete(filePath: string): Promise<void>;
     openFolder(scope: 'user' | 'project', cwd: string): Promise<void>;
   };

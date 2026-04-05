@@ -4,12 +4,11 @@ import { createFocusRestorer } from '../../utils/focus-utils';
 import FileSearchItems from './FileSearchItems';
 import CommandItems from './CommandItems';
 import ShellModeContent from './ShellModeContent';
-import SnippetItems from './SnippetItems';
-import PromptHistoryItems from './PromptHistoryItems';
+import PromptLibraryItems from './PromptLibraryItems';
 import TodoItems from './TodoItems';
 
 interface CommandPaletteProps {
-  initialMode: 'files' | 'commands' | 'shell' | 'snippets' | 'history' | 'todos';
+  initialMode: 'files' | 'commands' | 'shell' | 'snippets' | 'todos';
   onClose(): void;
 }
 
@@ -18,7 +17,6 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
     initialMode === 'commands' ? '> '
     : initialMode === 'shell' ? '! '
     : initialMode === 'snippets' ? '@ '
-    : initialMode === 'history' ? '# '
     : initialMode === 'todos' ? '+ '
     : '',
   );
@@ -30,12 +28,10 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
       ? 'commands'
       : input.startsWith('@')
         ? 'snippets'
-        : input.startsWith('#')
-          ? 'history'
-          : input.startsWith('+')
-            ? 'todos'
-            : 'files';
-  const searchQuery = mode === 'commands' || mode === 'shell' || mode === 'snippets' || mode === 'history' || mode === 'todos'
+        : input.startsWith('+')
+          ? 'todos'
+          : 'files';
+  const searchQuery = mode === 'commands' || mode === 'shell' || mode === 'snippets' || mode === 'todos'
     ? input.slice(1).trimStart()
     : input;
 
@@ -101,12 +97,10 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
                 : mode === 'commands'
                   ? '> Type a command...'
                   : mode === 'snippets'
-                    ? '@ Search snippets...'
-                    : mode === 'history'
-                      ? '# Search prompt history...'
-                      : mode === 'todos'
-                        ? '+ Add or search TODOs...'
-                        : 'Search files by name...'
+                    ? '@ Search prompt library...'
+                    : mode === 'todos'
+                      ? '+ Add or search TODOs...'
+                      : 'Search files by name...'
             }
             className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
                        outline-none placeholder:text-text-muted"
@@ -115,9 +109,7 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
             {mode === 'todos' ? (
               <TodoItems query={searchQuery} onClose={onClose} />
             ) : mode === 'snippets' ? (
-              <SnippetItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
-            ) : mode === 'history' ? (
-              <PromptHistoryItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
+              <PromptLibraryItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
             ) : mode === 'shell' ? (
               <ShellModeContent query={searchQuery} onClose={onClose} onSetInput={setInput} />
             ) : mode === 'files' ? (
@@ -128,9 +120,7 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
                   <div className="px-4 py-1.5 text-xs text-text-muted border-t border-border-subtle mt-1">
                     Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">!</kbd> to run a shell command
                     {' · '}
-                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">@</kbd> to insert a snippet
-                    {' · '}
-                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">#</kbd> to search prompt history
+                    Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">@</kbd> to search prompt library
                     {' · '}
                     Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">+</kbd> to add a TODO
                   </div>

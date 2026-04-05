@@ -28,6 +28,7 @@ export interface FilesInvokeContract {
   // --- Snippets ---
   'snippets:scan':                      { params: [cwd: string]; result: SnippetEntry[] };
   'snippets:create':                    { params: [scope: 'user' | 'project', cwd: string]; result: string };
+  'snippets:create-from-text':          { params: [scope: 'user' | 'project', cwd: string, text: string]; result: string };
   'snippets:delete':                    { params: [filePath: string]; result: void };
   'snippets:open-folder':              { params: [scope: 'user' | 'project', cwd: string]; result: void };
 }
