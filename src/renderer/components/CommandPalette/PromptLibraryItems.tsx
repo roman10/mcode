@@ -8,6 +8,7 @@ import {
   useFuzzyFilter,
   usePrimaryCwd,
 } from './prompt-library-utils';
+import Tooltip from '../shared/Tooltip';
 import { useLayoutStore } from '../../stores/layout-store';
 import { resolveActiveCwd } from '../../utils/session-actions';
 import { basename } from '../../utils/path-utils';
@@ -99,16 +100,17 @@ function ActionButton({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={`shrink-0 opacity-0 group-hover:opacity-100 text-text-muted
-                  p-0.5 rounded hover:bg-bg-secondary transition-opacity cursor-pointer
-                  ${danger ? 'hover:text-red-400' : 'hover:text-text-primary'}`}
-    >
-      {children}
-    </button>
+    <Tooltip content={title} side="bottom">
+      <button
+        type="button"
+        onClick={onClick}
+        className={`shrink-0 opacity-0 group-hover:opacity-100 text-text-muted
+                    p-0.5 rounded hover:bg-bg-secondary transition-opacity cursor-pointer
+                    ${danger ? 'hover:text-red-400' : 'hover:text-text-primary'}`}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 
