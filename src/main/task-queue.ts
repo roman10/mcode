@@ -387,6 +387,7 @@ export class TaskQueue {
       "DELETE FROM task_queue WHERE status = 'pending' AND target_session_id IN (SELECT session_id FROM sessions WHERE is_test = 1)",
     ).run();
     if (result.changes > 0) {
+      this.loggedPlanModeDeferrals.clear();
       logger.info('task', 'Cancelled pending tasks for test sessions', { count: result.changes });
       this.broadcastChange({ type: 'refresh' });
     }
@@ -1079,6 +1080,7 @@ export class TaskQueue {
       db.prepare(
         `UPDATE task_queue SET status = 'failed', error = 'Target session ended', completed_at = ? WHERE id = ?`,
       ).run(now, row.id);
+      this.loggedPlanModeDeferrals.delete(row.id);
       const updated = this.getById(row.id);
       if (updated) this.broadcastChange({ type: 'upsert', task: updated });
       logger.info('task', 'Cascade-failed pending task', { taskId: row.id, targetSessionId });
