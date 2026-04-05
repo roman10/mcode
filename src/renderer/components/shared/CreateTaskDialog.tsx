@@ -162,7 +162,7 @@ function CreateTaskDialog({
       open={open}
       onOpenChange={onOpenChange}
       closeOnOverlayClick={false}
-      title={isPlanResponse ? 'Queue Plan Response' : 'New Task'}
+      title={isPlanResponse ? 'Queue Plan Mode Response' : 'New Task'}
     >
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
@@ -209,7 +209,7 @@ function CreateTaskDialog({
                     : 'border-border-default text-text-secondary hover:bg-bg-elevated'
                 }`}
               >
-                Plan response
+                Plan Mode response
               </button>
             </div>
           )}
@@ -373,7 +373,7 @@ function CreateTaskDialog({
           >
             {isCreating ? 'Creating...' : (
               <>
-                {isPlanResponse ? 'Queue Response' : 'Create Task'}
+                {isPlanResponse ? 'Queue Plan Mode Response' : 'Create Task'}
                 <kbd className="ml-2 text-xs opacity-70 font-mono">
                   {isMac ? '⌘↵' : 'Ctrl+↵'}
                 </kbd>
