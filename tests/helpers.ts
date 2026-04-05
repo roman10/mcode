@@ -440,6 +440,8 @@ export interface TaskInfo {
   maxRetries: number;
   error: string | null;
   sortOrder: number | null;
+  planModeAction: { exitPlanMode: boolean } | null;
+  permissionMode: string | null;
 }
 
 export async function createTask(

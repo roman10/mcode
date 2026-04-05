@@ -503,4 +503,52 @@ describe('task queue', () => {
 
     await killAndWaitEnded(client, session.sessionId);
   });
+
+  it('creates a plan mode response task with planModeAction persisted', async () => {
+    const session = await createIdleLiveClaudeSession(client);
+    sessionIds.push(session.sessionId);
+
+    const task = await createTask(client, {
+      prompt: 'revise the auth flow',
+      targetSessionId: session.sessionId,
+      planModeAction: { exitPlanMode: false },
+      scheduledAt: futureIso(),
+    });
+
+    expect(task.planModeAction).toEqual({ exitPlanMode: false });
+    expect(task.status).toBe('pending');
+    expect(task.targetSessionId).toBe(session.sessionId);
+
+    // Verify persistence via list
+    const tasks = await listTasks(client, { targetSessionId: session.sessionId });
+    const found = tasks.find((t) => t.id === task.id);
+    expect(found?.planModeAction).toEqual({ exitPlanMode: false });
+
+    await cancelTask(client, task.id);
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
+  it('rejects plan mode task without targetSessionId', async () => {
+    await expect(
+      createTask(client, {
+        prompt: 'orphan plan response',
+        planModeAction: { exitPlanMode: true },
+        scheduledAt: futureIso(),
+      }),
+    ).rejects.toThrow(/target.*session/i);
+  });
+
+  it('rejects plan mode task targeting ended session', async () => {
+    const session = await createIdleLiveClaudeSession(client);
+    sessionIds.push(session.sessionId);
+    await killAndWaitEnded(client, session.sessionId);
+
+    await expect(
+      createTask(client, {
+        prompt: 'too late',
+        targetSessionId: session.sessionId,
+        planModeAction: { exitPlanMode: true },
+      }),
+    ).rejects.toThrow(/ended/i);
+  });
 });
