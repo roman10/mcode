@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Command, defaultFilter } from 'cmdk';
 import { createFocusRestorer } from '../../utils/focus-utils';
 import FileSearchItems from './FileSearchItems';
@@ -39,6 +40,18 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
   const restoreFocusRef = useRef(createFocusRestorer());
   useEffect(() => () => restoreFocusRef.current(), []);
 
+  // Portal container: render outside #root so Radix Dialog's `inert` attribute
+  // (applied to #root when a modal is open) doesn't block focus.
+  const portalRef = useRef<HTMLDivElement | null>(null);
+  if (!portalRef.current) {
+    portalRef.current = document.createElement('div');
+  }
+  useEffect(() => {
+    const el = portalRef.current!;
+    document.body.appendChild(el);
+    return () => { el.remove(); };
+  }, []);
+
   // Explicitly focus the input after mount — autoFocus is unreliable in Electron
   // when xterm.js terminals hold focus (they reclaim it after React's commit phase).
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +81,7 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-start justify-center pt-[10vh] bg-black/50 animate-fade-in"
       onClick={onClose}
@@ -132,7 +145,8 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
           </Command.List>
         </Command>
       </div>
-    </div>
+    </div>,
+    portalRef.current!,
   );
 }
 
