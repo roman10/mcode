@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/roman10/mcode/ci.yml?label=CI)](https://github.com/roman10/mcode/actions)
 
-mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-agent sessions simultaneously. It currently supports Claude Code, Gemini CLI, Codex CLI, Copilot CLI, and plain terminal sessions. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring for Claude sessions, and 115 MCP tools make it highly automatable.
+mcode is a desktop IDE that lets you run, view, and orchestrate multiple coding-agent sessions simultaneously. It currently supports Claude Code, Gemini CLI, Codex CLI, Copilot CLI, and plain terminal sessions. Instead of tabbing between terminals, you see every session at once in a tiling layout — or switch to a kanban board grouped by status. A built-in task queue, hook-driven monitoring for Claude sessions, and 120 MCP tools make it highly automatable.
 
 Looking for setup and usage docs? Start with the [user manual](docs/user_manual/README.md) for guided walkthroughs, feature guides, and shortcut reference.
 
@@ -17,7 +17,7 @@ Looking for setup and usage docs? Start with the [user manual](docs/user_manual/
 
 - **Tiling layout** — split the screen into resizable tiles, each running a fully interactive agent terminal. See all sessions at once.
 - **Kanban board** — switch to a board view with columns by status: Needs Attention, Working, Ready, and Completed.
-- **Multi-account support for Claude** — run Claude sessions under different accounts; switch accounts when an account limit reaches and resume work from a different account.
+- **Multi-account support for Claude and Copilot** — run sessions under different accounts; switch accounts when a rate limit hits and resume work from a different account.
 
 ![Kanban board grouped by session status](docs/screenshots/kanban-view.png)
 
@@ -28,15 +28,15 @@ Looking for setup and usage docs? Start with the [user manual](docs/user_manual/
 
 ### Orchestration
 
-- **Task queue** — dispatch prompts to sessions with per-session reordering, retry logic, and concurrent execution.
+- **Task queue** — dispatch prompts to sessions with per-session reordering, retry logic, and concurrent execution. Supports **plan mode** — agents propose a plan before executing, with an approve/revise workflow.
 - **Hook-driven monitoring for Claude** — receives Claude Code hook events (tool use, notifications, permission requests, stops) over HTTP for live session visibility.
-- **115 MCP tools** — 16 tool categories covering sessions, terminals, layout, tasks, git, files, commits, tokens, hooks, todos, and more. Every feature is agent-accessible.
+- **120 MCP tools** — 17 tool categories covering sessions, terminals, layout, tasks, git, files, commits, tokens, hooks, todos, prompt history, and more. Every feature is agent-accessible.
 
 ### Productivity
 
 - **Command palette** (<kbd>Cmd+Shift+P</kbd>) + **Quick Open** (<kbd>Cmd+P</kbd>) — VS Code-style fuzzy navigation.
-- **Snippet palette** — reusable prompt templates with variable interpolation.
-- **Commit analytics** — daily stats, streaks, heatmaps, cadence, and per-repo breakdown.
+- **Prompt library** — unified palette combining reusable snippet templates (`@` prefix) and prompt history (`#` prefix) with pinning and save-as-snippet.
+- **Commit analytics** — daily bar charts, streaks, heatmaps, cadence, 7d/30d averages, and per-repo breakdown.
 - **Token analytics** — usage and cost by model, cache efficiency, top sessions, 7-day heatmap.
 - **Git integration** — commit graph visualization, VS Code-style staging/unstaging, and inline diff viewer.
 - **Todos panel** — per-repo task list with priority levels, completion tracking, and automatic scanning of `TODO`/`FIXME`/`HACK`/`BUG` comments in code.
@@ -89,7 +89,7 @@ This produces a DMG in the `dist/` directory.
 
 ## Quick Start
 
-1. **Create a session** — press <kbd>Cmd+N</kbd>, choose Claude Code, Gemini CLI, Codex CLI, or Copilot CLI, then pick a working directory and optional prompt. Use <kbd>Cmd+T</kbd> for a plain terminal.
+1. **Create a session** — press <kbd>Cmd+N</kbd> to create a new Claude Code session (pick a working directory and optional prompt), or choose Gemini CLI, Codex CLI, or Copilot CLI from the command palette. Use <kbd>Cmd+T</kbd> for a plain terminal.
 2. **Split the view** — <kbd>Cmd+D</kbd> splits horizontally, <kbd>Cmd+Shift+D</kbd> splits vertically. <kbd>Cmd+Enter</kbd> maximizes a tile.
 3. **Navigate** — <kbd>Cmd+Shift+P</kbd> opens the command palette. <kbd>Cmd+P</kbd> opens Quick Open for file search.
 4. **Queue work** — <kbd>Cmd+Shift+T</kbd> creates a task. Tasks dispatch to sessions automatically or can target a specific session.
@@ -134,7 +134,7 @@ See [Keyboard Shortcuts](docs/user_manual/keyboard-shortcuts.md) for the full li
 
 ## MCP Automation
 
-mcode exposes a Model Context Protocol (MCP) server with 115 tools across 16 categories:
+mcode exposes a Model Context Protocol (MCP) server with 120 tools across 17 categories:
 
 | Category | Tools | Examples |
 |---|---|---|
@@ -152,7 +152,8 @@ mcode exposes a Model Context Protocol (MCP) server with 115 tools across 16 cat
 | Kanban | 3 | get columns, expand session, collapse |
 | Window | 3 | get bounds, resize, screenshot |
 | Todo | 5 | create, update, delete, reorder, list |
-| Snippet | 1 | list snippet templates |
+| Prompt History | 4 | recent, search, pin/unpin, list pinned |
+| Snippet | 2 | list snippet templates, create from text |
 | Search | 1 | full-text file search |
 
 This means agents can drive the IDE programmatically — creating sessions, dispatching tasks, reading terminal output, and verifying results without manual interaction.
