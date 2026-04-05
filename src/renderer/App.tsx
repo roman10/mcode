@@ -153,6 +153,7 @@ function App(): React.JSX.Element {
   const quickOpenInitialMode = useDialogStore((s) => s.quickOpenInitialMode);
   const showCreateTaskDialog = useDialogStore((s) => s.showCreateTaskDialog);
   const setShowCreateTaskDialog = useDialogStore((s) => s.setShowCreateTaskDialog);
+  const createTaskDefaults = useDialogStore((s) => s.createTaskDefaults);
   const addTask = useTaskStore((s) => s.addTask);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const selectedSession = useSessionStore((s) => selectedSessionId ? s.sessions[selectedSessionId] : null);
@@ -246,15 +247,14 @@ function App(): React.JSX.Element {
           setShowCreateTaskDialog(false);
         }}
         defaultTargetSessionId={
-          canSessionBeDefaultTaskTarget(selectedSession)
-            ? selectedSessionId ?? undefined
-            : undefined
+          createTaskDefaults?.targetSessionId
+          ?? (canSessionBeDefaultTaskTarget(selectedSession) ? selectedSessionId ?? undefined : undefined)
         }
         defaultCwd={
-          canSessionBeDefaultTaskTarget(selectedSession)
-            ? selectedSession?.cwd
-            : undefined
+          createTaskDefaults?.cwd
+          ?? (canSessionBeDefaultTaskTarget(selectedSession) ? selectedSession?.cwd : undefined)
         }
+        defaultTaskType={createTaskDefaults?.taskType}
       />
     </RadixTooltip.Provider>
   );

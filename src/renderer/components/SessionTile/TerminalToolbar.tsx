@@ -3,15 +3,15 @@ import { Maximize2, Minimize2, Plus, Square, TimerOff, X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import { useTaskStore } from '../../stores/task-store';
 import { useAccountsStore } from '../../stores/accounts-store';
+import { useDialogStore } from '../../stores/dialog-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
 import AgentIcon from '../shared/AgentIcon';
 import Tooltip from '../shared/Tooltip';
-import CreateTaskDialog from '../shared/CreateTaskDialog';
 import ModelPill from './ModelPill';
 import AccountPill from './AccountPill';
 import { canSessionQueueTasks } from '@shared/session-capabilities';
-import type { SessionStatus, CreateTaskInput } from '@shared/types';
+import type { SessionStatus } from '@shared/types';
 import { useSlashCommandWarningStore } from '../../stores/slash-command-warning-store';
 
 interface TerminalToolbarProps {
@@ -61,9 +61,9 @@ function TerminalToolbar({
   });
 
   const canQueueTasks = canSessionQueueTasks(session);
+  const openCreateTaskDialog = useDialogStore((s) => s.openCreateTaskDialog);
 
   const tasks = useTaskStore((s) => s.tasks);
-  const addTask = useTaskStore((s) => s.addTask);
   const pendingTaskCount = useMemo(
     () =>
       canQueueTasks
@@ -78,7 +78,6 @@ function TerminalToolbar({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const startEditing = (): void => {
@@ -108,16 +107,6 @@ function TerminalToolbar({
       await window.mcode.sessions.kill(sessionId);
     } catch (err) {
       console.error('Failed to kill session:', err);
-    }
-  };
-
-  const handleCreateTask = async (input: CreateTaskInput): Promise<void> => {
-    try {
-      await addTask(input);
-      setShowCreateDialog(false);
-    } catch (err) {
-      console.error('Failed to create task:', err);
-      setShowCreateDialog(false);
     }
   };
 
@@ -196,7 +185,7 @@ function TerminalToolbar({
             <button
               aria-label="Add task"
               className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"
-              onClick={() => setShowCreateDialog(true)}
+              onClick={() => openCreateTaskDialog({ targetSessionId: sessionId, cwd: session?.cwd })}
             >
               <Plus size={14} strokeWidth={1.5} />
             </button>
@@ -249,14 +238,6 @@ function TerminalToolbar({
           </button>
         </Tooltip>
       </div>
-
-      <CreateTaskDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        onCreate={handleCreateTask}
-        defaultTargetSessionId={sessionId}
-        defaultCwd={session?.cwd}
-      />
     </div>
   );
 }

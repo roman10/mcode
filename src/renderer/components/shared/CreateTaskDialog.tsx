@@ -6,11 +6,13 @@ import Dialog from './Dialog';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import FileAutocomplete from './FileAutocomplete';
 import { buildModeCycle, TASK_PERMISSION_MODE_LABELS } from '@shared/task-utils';
-import { canSessionBeTaskTarget } from '@shared/session-capabilities';
+import { canSessionBeTaskTarget, canSessionBePlanResponseTarget } from '@shared/session-capabilities';
 import { getAgentDefinition } from '@shared/session-agents';
 import type { CreateTaskInput, TaskPermissionMode } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
+
+type TaskType = 'prompt' | 'planResponse';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -18,6 +20,7 @@ interface CreateTaskDialogProps {
   onCreate(input: CreateTaskInput): void;
   defaultTargetSessionId?: string;
   defaultCwd?: string;
+  defaultTaskType?: TaskType;
 }
 
 function CreateTaskDialog({
@@ -26,11 +29,14 @@ function CreateTaskDialog({
   onCreate,
   defaultTargetSessionId,
   defaultCwd,
+  defaultTaskType,
 }: CreateTaskDialogProps): React.JSX.Element {
+  const [taskType, setTaskType] = useState<TaskType>(defaultTaskType ?? 'prompt');
   const [prompt, setPrompt] = useState('');
   const [cwd, setCwd] = useState(defaultCwd ?? '');
   const [targetSessionId, setTargetSessionId] = useState(defaultTargetSessionId ?? '');
   const [permissionMode, setPermissionMode] = useState<TaskPermissionMode | ''>('');
+  const [exitPlanMode, setExitPlanMode] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [cursorPos, setCursorPos] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -39,14 +45,19 @@ function CreateTaskDialog({
 
   const sessions = useSessionStore((s) => s.sessions);
 
-  // Valid targets: live-mode Claude sessions that are active or idle
-  const targetableSessions = Object.values(sessions).filter(
-    (s) => canSessionBeTaskTarget(s),
+  // Valid targets depend on task type
+  const targetableSessions = useMemo(
+    () => Object.values(sessions).filter(
+      (s) => taskType === 'planResponse' ? canSessionBePlanResponseTarget(s) : canSessionBeTaskTarget(s),
+    ),
+    [sessions, taskType],
   );
 
   // Available permission modes based on selected target session
   const selectedSession = targetSessionId ? sessions[targetSessionId] : undefined;
-  const selectedAgentName = getAgentDefinition(selectedSession?.sessionType)?.displayName ?? 'Claude Code';
+  const selectedAgentDef = getAgentDefinition(selectedSession?.sessionType);
+  const selectedAgentName = selectedAgentDef?.displayName ?? 'Claude Code';
+  const supportsPlanMode = selectedAgentDef?.supportsPlanMode ?? false;
   const slashSessionType = selectedSession?.sessionType === 'terminal'
     ? 'claude'
     : selectedSession?.sessionType ?? 'claude';
@@ -62,14 +73,30 @@ function CreateTaskDialog({
     }
   }, [availableModes, permissionMode]);
 
+  // When target session changes and doesn't support plan mode, reset taskType
+  useEffect(() => {
+    if (taskType === 'planResponse' && targetSessionId && !supportsPlanMode) {
+      setTaskType('prompt');
+    }
+  }, [taskType, targetSessionId, supportsPlanMode]);
+
+  // Clear target if it's no longer in the filtered list (e.g., switching task type)
+  useEffect(() => {
+    if (targetSessionId && !defaultTargetSessionId && !targetableSessions.some((s) => s.sessionId === targetSessionId)) {
+      setTargetSessionId('');
+    }
+  }, [targetSessionId, defaultTargetSessionId, targetableSessions]);
+
   // Reset form and load defaults when dialog opens
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
+      setTaskType(defaultTaskType ?? 'prompt');
       setPrompt('');
       setCwd(defaultCwd ?? '');
       setTargetSessionId(defaultTargetSessionId ?? '');
       setPermissionMode('');
+      setExitPlanMode(true);
       setIsCreating(false);
       setCursorPos(0);
       if (!defaultCwd) {
@@ -80,7 +107,14 @@ function CreateTaskDialog({
       }
     }
     prevOpenRef.current = open;
-  }, [open, defaultCwd, defaultTargetSessionId]);
+  }, [open, defaultCwd, defaultTargetSessionId, defaultTaskType]);
+
+  // In plan response mode, lock CWD to target session's cwd
+  useEffect(() => {
+    if (taskType === 'planResponse' && selectedSession?.cwd) {
+      setCwd(selectedSession.cwd);
+    }
+  }, [taskType, selectedSession?.cwd]);
 
   const handleBrowse = async (): Promise<void> => {
     const dir = await window.mcode.app.selectDirectory();
@@ -96,7 +130,8 @@ function CreateTaskDialog({
       prompt: prompt.trim(),
       cwd: cwd.trim(),
       targetSessionId,
-      ...(permissionMode ? { permissionMode } : {}),
+      ...(taskType === 'prompt' && permissionMode ? { permissionMode } : {}),
+      ...(taskType === 'planResponse' ? { planModeAction: { exitPlanMode } } : {}),
     });
   };
 
@@ -117,25 +152,109 @@ function CreateTaskDialog({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open]);
 
+  const isPlanResponse = taskType === 'planResponse';
+  const promptLabel = isPlanResponse
+    ? (exitPlanMode ? 'Tell Claude to proceed' : 'Tell Claude what to change')
+    : 'Prompt';
+  const promptPlaceholder = isPlanResponse
+    ? (exitPlanMode ? 'proceed with implementation' : 'what should be changed in the plan')
+    : `What should ${selectedAgentName} work on?`;
+
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       closeOnOverlayClick={false}
-      title="New Task"
+      title={isPlanResponse ? 'Queue Plan Response' : 'New Task'}
     >
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
+          {/* Target session — placed first so task type toggle can react to it */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">
+              Target session
+            </label>
+            <select
+              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
+              value={targetSessionId}
+              onChange={(e) => setTargetSessionId(e.target.value)}
+              disabled={!!defaultTargetSessionId}
+            >
+              <option value="" disabled>Select a session...</option>
+              {targetableSessions.map((s) => (
+                <option key={s.sessionId} value={s.sessionId}>
+                  {s.label || s.sessionId.slice(0, 8)} — {s.status} · {formatShortTime(s.startedAt)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Task type toggle — only shown when agent supports plan mode */}
+          {supportsPlanMode && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTaskType('prompt')}
+                className={`flex-1 py-2 text-sm rounded border transition-colors ${
+                  !isPlanResponse
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border-default text-text-secondary hover:bg-bg-elevated'
+                }`}
+              >
+                New prompt
+              </button>
+              <button
+                type="button"
+                onClick={() => setTaskType('planResponse')}
+                className={`flex-1 py-2 text-sm rounded border transition-colors ${
+                  isPlanResponse
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border-default text-text-secondary hover:bg-bg-elevated'
+                }`}
+              >
+                Plan response
+              </button>
+            </div>
+          )}
+
+          {/* Proceed / Revise toggle — only in plan response mode */}
+          {isPlanResponse && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setExitPlanMode(true)}
+                className={`flex-1 py-2 text-sm rounded border transition-colors ${
+                  exitPlanMode
+                    ? 'border-green-500 bg-green-500/10 text-green-400'
+                    : 'border-border-default text-text-secondary hover:bg-bg-elevated'
+                }`}
+              >
+                Proceed
+              </button>
+              <button
+                type="button"
+                onClick={() => setExitPlanMode(false)}
+                className={`flex-1 py-2 text-sm rounded border transition-colors ${
+                  !exitPlanMode
+                    ? 'border-amber-500 bg-amber-500/10 text-amber-400'
+                    : 'border-border-default text-text-secondary hover:bg-bg-elevated'
+                }`}
+              >
+                Revise
+              </button>
+            </div>
+          )}
+
           {/* Prompt */}
           <div>
             <label className="block text-sm text-text-secondary mb-1">
-              Prompt
+              {promptLabel}
             </label>
             <div className="relative">
               <textarea
                 ref={textareaRef}
                 className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
-                rows={4}
+                rows={isPlanResponse ? 3 : 4}
                 value={prompt}
                 onChange={(e) => {
                   setPrompt(e.target.value);
@@ -143,8 +262,8 @@ function CreateTaskDialog({
                 }}
                 onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
                 onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-                placeholder={`What should ${selectedAgentName} work on?`}
-                autoFocus
+                placeholder={promptPlaceholder}
+                autoFocus={!!defaultTargetSessionId}
               />
               <SlashCommandAutocomplete
                 prompt={prompt}
@@ -177,60 +296,45 @@ function CreateTaskDialog({
             </label>
             <div className="flex gap-2">
               <input
-                className="flex-1 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
+                className="flex-1 bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
                 value={cwd}
                 onChange={(e) => setCwd(e.target.value)}
                 placeholder="/path/to/project"
+                disabled={isPlanResponse}
               />
-              <button
-                type="button"
-                className="px-3 py-2 text-sm bg-bg-secondary text-text-secondary border border-border-default rounded hover:bg-bg-elevated transition-colors"
-                onClick={handleBrowse}
-              >
-                Browse
-              </button>
+              {!isPlanResponse && (
+                <button
+                  type="button"
+                  className="px-3 py-2 text-sm bg-bg-secondary text-text-secondary border border-border-default rounded hover:bg-bg-elevated transition-colors"
+                  onClick={handleBrowse}
+                >
+                  Browse
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Target session */}
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">
-              Target session
-            </label>
-            <select
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
-              value={targetSessionId}
-              onChange={(e) => setTargetSessionId(e.target.value)}
-              disabled={!!defaultTargetSessionId}
-            >
-              <option value="" disabled>Select a session...</option>
-              {targetableSessions.map((s) => (
-                <option key={s.sessionId} value={s.sessionId}>
-                  {s.label || s.sessionId.slice(0, 8)} — {s.status} · {formatShortTime(s.startedAt)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Permission mode */}
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">
-              Permission mode
-            </label>
-            <select
-              className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
-              value={permissionMode}
-              onChange={(e) => setPermissionMode(e.target.value as TaskPermissionMode | '')}
-              disabled={!targetSessionId}
-            >
-              <option value="">Don&apos;t change</option>
-              {availableModes.map((mode) => (
-                <option key={mode} value={mode}>
-                  {TASK_PERMISSION_MODE_LABELS[mode as TaskPermissionMode] ?? mode}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Permission mode — hidden in plan response mode */}
+          {!isPlanResponse && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">
+                Permission mode
+              </label>
+              <select
+                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
+                value={permissionMode}
+                onChange={(e) => setPermissionMode(e.target.value as TaskPermissionMode | '')}
+                disabled={!targetSessionId}
+              >
+                <option value="">Don&apos;t change</option>
+                {availableModes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {TASK_PERMISSION_MODE_LABELS[mode as TaskPermissionMode] ?? mode}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -250,7 +354,7 @@ function CreateTaskDialog({
           >
             {isCreating ? 'Creating...' : (
               <>
-                Create Task
+                {isPlanResponse ? 'Queue Response' : 'Create Task'}
                 <kbd className="ml-2 text-xs opacity-70 font-mono">
                   {isMac ? '⌘↵' : 'Ctrl+↵'}
                 </kbd>

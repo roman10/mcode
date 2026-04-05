@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canDisplaySessionModel,
   canSessionBeDefaultTaskTarget,
+  canSessionBePlanResponseTarget,
   canSessionBeTaskTarget,
   canSessionQueueTasks,
   getSessionSlashCommandHelp,
@@ -122,6 +123,28 @@ describe('session-capabilities', () => {
     expect(getSessionSlashCommandSupport('codex')?.builtins.get('plan')).toBeTruthy();
     expect(getSessionSlashCommandSupport('copilot')?.builtins.get('usage')).toBeTruthy();
     expect(getSessionSlashCommandSupport('terminal')).toBeNull();
+  });
+
+  it('allows plan response targets for Claude in active/idle/waiting states', () => {
+    expect(canSessionBePlanResponseTarget(makeSession({ status: 'active' }))).toBe(true);
+    expect(canSessionBePlanResponseTarget(makeSession({ status: 'idle' }))).toBe(true);
+    expect(canSessionBePlanResponseTarget(makeSession({ status: 'waiting' }))).toBe(true);
+  });
+
+  it('blocks plan response targets for ended/starting/detached Claude sessions', () => {
+    expect(canSessionBePlanResponseTarget(makeSession({ status: 'ended' }))).toBe(false);
+    expect(canSessionBePlanResponseTarget(makeSession({ status: 'starting' }))).toBe(false);
+    expect(canSessionBePlanResponseTarget(makeSession({ status: 'detached' }))).toBe(false);
+  });
+
+  it('blocks plan response targets for non-plan-mode agents', () => {
+    expect(canSessionBePlanResponseTarget(makeSession({ sessionType: 'gemini', hookMode: 'live', status: 'idle' }))).toBe(false);
+    expect(canSessionBePlanResponseTarget(makeSession({ sessionType: 'copilot', hookMode: 'live', status: 'idle' }))).toBe(false);
+    expect(canSessionBePlanResponseTarget(makeSession({ sessionType: 'codex', hookMode: 'live', status: 'idle' }))).toBe(false);
+  });
+
+  it('blocks plan response targets for fallback-mode Claude sessions', () => {
+    expect(canSessionBePlanResponseTarget(makeSession({ hookMode: 'fallback', status: 'idle' }))).toBe(false);
   });
 
   it('hides terminal cursor only for agents that manage DECTCEM visibility', () => {

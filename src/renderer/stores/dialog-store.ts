@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import type { AgentSessionType } from '@shared/session-agents';
 
+export interface CreateTaskDefaults {
+  targetSessionId?: string;
+  cwd?: string;
+  taskType?: 'prompt' | 'planResponse';
+}
+
 interface DialogState {
   showNewSessionDialog: boolean;
   newSessionDialogType: AgentSessionType;
@@ -9,6 +15,7 @@ interface DialogState {
   showAccountsDialog: boolean;
   showCommandPalette: boolean;
   showCreateTaskDialog: boolean;
+  createTaskDefaults: CreateTaskDefaults | null;
   quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets' | 'todos';
   /** When set, snippet insertion targets this callback instead of the PTY. */
   textInsertTarget: ((text: string) => void) | null;
@@ -20,6 +27,7 @@ interface DialogState {
   setShowAccountsDialog(show: boolean): void;
   setShowCommandPalette(show: boolean): void;
   setShowCreateTaskDialog(show: boolean): void;
+  openCreateTaskDialog(defaults?: CreateTaskDefaults): void;
   openQuickOpen(mode: 'files' | 'commands' | 'shell' | 'snippets' | 'todos'): void;
   setTextInsertTarget(target: ((text: string) => void) | null): void;
 }
@@ -32,6 +40,7 @@ export const useDialogStore = create<DialogState>((set) => ({
   showAccountsDialog: false,
   showCommandPalette: false,
   showCreateTaskDialog: false,
+  createTaskDefaults: null,
   quickOpenInitialMode: 'files' as const,
   textInsertTarget: null,
 
@@ -41,7 +50,8 @@ export const useDialogStore = create<DialogState>((set) => ({
   setShowSettings: (show) => set({ showSettings: show }),
   setShowAccountsDialog: (show) => set({ showAccountsDialog: show }),
   setShowCommandPalette: (show) => set({ showCommandPalette: show }),
-  setShowCreateTaskDialog: (show) => set({ showCreateTaskDialog: show }),
+  setShowCreateTaskDialog: (show) => set({ showCreateTaskDialog: show, ...(!show && { createTaskDefaults: null }) }),
+  openCreateTaskDialog: (defaults) => set({ showCreateTaskDialog: true, createTaskDefaults: defaults ?? null }),
 
   openQuickOpen: (mode) => set({ quickOpenInitialMode: mode, showCommandPalette: true }),
   setTextInsertTarget: (target) => set({ textInsertTarget: target }),

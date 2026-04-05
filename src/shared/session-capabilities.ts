@@ -22,6 +22,12 @@ export function canSessionBeTaskTarget(session: TaskSessionLike): boolean {
   return hasLiveTaskQueue(session) && (session.status === 'active' || session.status === 'idle');
 }
 
+export function canSessionBePlanResponseTarget(session: TaskSessionLike): boolean {
+  return hasLiveTaskQueue(session)
+    && (getAgentDefinition(session.sessionType)?.supportsPlanMode ?? false)
+    && (session.status === 'active' || session.status === 'idle' || session.status === 'waiting');
+}
+
 export function canDisplaySessionModel(session: ModelSessionLike): boolean {
   return !!session?.model && (getAgentDefinition(session.sessionType)?.supportsModelDisplay ?? false);
 }

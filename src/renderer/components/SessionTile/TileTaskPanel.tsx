@@ -2,9 +2,9 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { ChevronUp, ChevronDown, Pencil, TimerOff, X } from 'lucide-react';
 import { useTaskStore } from '../../stores/task-store';
 import { useSessionStore } from '../../stores/session-store';
+import { useDialogStore } from '../../stores/dialog-store';
 import type { Task, TaskStatus } from '@shared/types';
 import Tooltip from '../shared/Tooltip';
-import PlanModeResponseDialog from '../shared/PlanModeResponseDialog';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-amber-400',
@@ -95,6 +95,11 @@ function TileTaskItem({ task, isFirst, isLast }: TileTaskItemProps): React.JSX.E
                 className={`shrink-0 w-2 h-2 rounded-full ${statusColors[task.status]}`}
               />
             </Tooltip>
+            {task.planModeAction != null && (
+              <span className={`text-xs shrink-0 ${task.planModeAction.exitPlanMode ? 'text-green-400' : 'text-amber-400'}`}>
+                {task.planModeAction.exitPlanMode ? 'Proceed:' : 'Revise:'}
+              </span>
+            )}
             <span
               className="text-xs text-text-primary truncate flex-1"
               title={task.prompt}
@@ -172,10 +177,9 @@ function TileTaskPanel({
   sessionId,
 }: TileTaskPanelProps): React.JSX.Element | null {
   const tasks = useTaskStore((s) => s.tasks);
-  const addTask = useTaskStore((s) => s.addTask);
   const session = useSessionStore((s) => s.sessions[sessionId]);
+  const openCreateTaskDialog = useDialogStore((s) => s.openCreateTaskDialog);
   const [expanded, setExpanded] = useState(true);
-  const [planModeDialogOpen, setPlanModeDialogOpen] = useState(false);
 
   const sessionTasks = useMemo(
     () =>
@@ -225,7 +229,7 @@ function TileTaskPanel({
             <span className="text-xs text-red-400">Needs response</span>
             <button
               className="text-xs text-red-400 hover:text-red-300 transition-colors"
-              onClick={() => setPlanModeDialogOpen(true)}
+              onClick={() => openCreateTaskDialog({ taskType: 'planResponse', targetSessionId: sessionId, cwd: session?.cwd })}
             >
               Queue response ›
             </button>
@@ -274,18 +278,6 @@ function TileTaskPanel({
         )}
       </div>
 
-      {session && (
-        <PlanModeResponseDialog
-          open={planModeDialogOpen}
-          onOpenChange={setPlanModeDialogOpen}
-          targetSessionId={sessionId}
-          cwd={session.cwd}
-          onCreate={(input) => {
-            addTask(input).catch(() => {});
-            setPlanModeDialogOpen(false);
-          }}
-        />
-      )}
     </>
   );
 }
