@@ -329,7 +329,7 @@ app.whenReady().then(async () => {
     try {
       const alive = await brokerClient.listSessions();
       sessionManager.reconcileDetachedSessions(alive.map((s) => s.id));
-      await Promise.all(alive.map((s) => brokerClient.populateFromBroker(s.id)));
+      await Promise.all(alive.map((s) => brokerClient.populateFromBroker(s.id, { pid: s.pid })));
     } catch (err) {
       logger.error('app', 'Failed to reconcile after broker reconnect', { err });
     }
@@ -343,7 +343,7 @@ app.whenReady().then(async () => {
       await brokerClient.connect(BROKER_SOCKET_PATH);
       const alive = await brokerClient.listSessions();
       sessionManager.reconcileDetachedSessions(alive.map((s) => s.id));
-      await Promise.all(alive.map((s) => brokerClient.populateFromBroker(s.id)));
+      await Promise.all(alive.map((s) => brokerClient.populateFromBroker(s.id, { pid: s.pid })));
     } catch (err) {
       logger.error('app', 'Failed to respawn broker', { err });
       sessionManager.reconcileDetachedSessions([]);
@@ -358,11 +358,19 @@ app.whenReady().then(async () => {
   );
   sessionManager.deleteEmptyEnded();
 
+  // Ensure sessions transition to ended when the PTY process exits.
+  // The per-session onExit callback (registered in spawn()) handles this during
+  // normal operation, but after app restart the callbacks are empty. This
+  // app-level listener acts as a safety net. updateStatus is idempotent.
+  brokerClient.on('pty.exit', (id: string) => {
+    sessionManager.updateStatus(id, 'ended');
+  });
+
   // Reconcile any sessions left detached from a previous app close
   const aliveSessions = await brokerClient.listSessions();
   sessionManager.reconcileDetachedSessions(aliveSessions.map((s) => s.id));
   // Populate local ring buffers so permission/task detection works immediately
-  await Promise.all(aliveSessions.map((s) => brokerClient.populateFromBroker(s.id)));
+  await Promise.all(aliveSessions.map((s) => brokerClient.populateFromBroker(s.id, { pid: s.pid })));
   // Immediately detect sessions that transitioned while the app was closed
   // (e.g., active sessions that finished and are now at the ❯ prompt)
   sessionManager.pollSessionStates();

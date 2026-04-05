@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import type { IPtyManager, PtyInfo } from '../../shared/pty-manager-interface';
 import type { PtySpawnOptions } from '../../shared/types';
-import { RING_BUFFER_MAX_BYTES } from '../../shared/constants';
+import { RING_BUFFER_MAX_BYTES, DEFAULT_COLS, DEFAULT_ROWS } from '../../shared/constants';
 import { logger } from '../logger';
 import { typedHandle, typedOn } from '../ipc-helpers';
 
@@ -131,11 +131,22 @@ export class BrokerClient extends EventEmitter implements IPtyManager {
    * Fetch replay data from the broker and populate the local ring buffer.
    * Used on reconnect to restore the cached state for live sessions.
    */
-  async populateFromBroker(id: string): Promise<void> {
+  async populateFromBroker(id: string, ptyInfo?: { pid: number }): Promise<void> {
     const data = await this._request<string>('pty.replay', { id });
     if (data) {
       this.ringBuffers.set(id, data.slice(-RING_BUFFER_MAX_BYTES));
       this.lastDataAtMap.set(id, Date.now());
+    }
+    // Restore PTY info so getInfo() works for recovered sessions.
+    // Use provided pid from broker; default cols/rows are updated when the
+    // renderer mounts the terminal component and sends a resize event.
+    if (!this.ptyInfoMap.has(id)) {
+      this.ptyInfoMap.set(id, {
+        id,
+        pid: ptyInfo?.pid ?? 0,
+        cols: DEFAULT_COLS,
+        rows: DEFAULT_ROWS,
+      });
     }
   }
 

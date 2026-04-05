@@ -156,6 +156,8 @@ export class TaskQueue {
   private dispatchTimer: ReturnType<typeof setInterval> | null = null;
   private unsubSessionUpdates: (() => void) | null = null;
   private dispatchStates = new Map<number, DispatchState>();
+  /** Tracks plan mode tasks that already had a buffer-check deferral logged (avoid noise). */
+  private loggedPlanModeDeferrals = new Set<number>();
 
   constructor(
     sessionManager: SessionManager,
@@ -362,6 +364,7 @@ export class TaskQueue {
 
     const db = getDb();
     db.prepare('DELETE FROM task_queue WHERE id = ?').run(taskId);
+    this.loggedPlanModeDeferrals.delete(taskId);
 
     logger.info('task', 'Cancelled task', { taskId });
     this.broadcastChange({ type: 'remove', taskId });
@@ -371,6 +374,7 @@ export class TaskQueue {
     const db = getDb();
     const result = db.prepare("DELETE FROM task_queue WHERE status = 'pending'").run();
     if (result.changes > 0) {
+      this.loggedPlanModeDeferrals.clear();
       logger.info('task', 'Cancelled all pending tasks', { count: result.changes });
       this.broadcastChange({ type: 'refresh' });
     }
@@ -707,7 +711,19 @@ export class TaskQueue {
     if (session.status !== 'waiting') return; // Wait for session to enter plan mode
 
     const buffer = this.ptyManager.getReplayData(task.targetSessionId!);
-    if (!buffer || !isAtUserChoice(buffer.slice(-500))) return;
+    if (!buffer || !isAtUserChoice(buffer.slice(-500))) {
+      if (!this.loggedPlanModeDeferrals.has(task.id)) {
+        logger.info('task', 'Plan mode dispatch deferred: buffer check failed', {
+          taskId: task.id,
+          sessionId: task.targetSessionId,
+          hasBuffer: !!buffer,
+          bufferLength: buffer?.length ?? 0,
+          isAtUserChoice: buffer ? isAtUserChoice(buffer.slice(-500)) : false,
+        });
+        this.loggedPlanModeDeferrals.add(task.id);
+      }
+      return;
+    }
 
     const choices = parseUserChoices(buffer);
     const action = task.planModeAction!.action;
@@ -715,7 +731,13 @@ export class TaskQueue {
     if (action === 'revise') {
       // Navigate to "Type here" / "Tell Claude what to change", enter text sub-mode, type message
       const typeHere = choices.find((c) => /type here|tell.*what to change/i.test(c.text));
-      if (!typeHere) return; // Not a plan mode menu; stay pending
+      if (!typeHere) {
+        logger.info('task', 'Plan mode dispatch deferred: no "type here" option in menu', {
+          taskId: task.id, sessionId: task.targetSessionId,
+          availableChoices: choices.map((c) => c.text),
+        });
+        return;
+      }
 
       this.ptyManager.write(task.targetSessionId!, '\x1b[B'.repeat(typeHere.index - 1) + '\r');
       this.markPlanModeDispatched(db, task, typeHere.index);
@@ -967,6 +989,7 @@ export class TaskQueue {
   private completeTask(taskId: number): void {
     const state = this.dispatchStates.get(taskId);
     if (state?.idleTimer) clearTimeout(state.idleTimer);
+    this.loggedPlanModeDeferrals.delete(taskId);
 
     const db = getDb();
     db.prepare(
@@ -1016,6 +1039,7 @@ export class TaskQueue {
   private failTask(taskId: number, error: string, permanent = false): void {
     const state = this.dispatchStates.get(taskId);
     if (state?.idleTimer) clearTimeout(state.idleTimer);
+    this.loggedPlanModeDeferrals.delete(taskId);
 
     const db = getDb();
     const task = this.getById(taskId);
