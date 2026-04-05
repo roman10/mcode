@@ -12,7 +12,6 @@ import type {
   Task,
   TaskStatus,
   TaskPermissionMode,
-  PlanModeAction,
   CreateTaskInput,
   UpdateTaskInput,
   TaskFilter,
@@ -20,6 +19,7 @@ import type {
   HookRuntimeInfo,
   SessionInfo,
 } from '../shared/types';
+import { normalizePlanModeAction } from '../shared/types-tasks';
 import { getAgentDefinition } from '../shared/session-agents';
 import { hasLiveTaskQueue } from '../shared/session-capabilities';
 
@@ -69,7 +69,7 @@ function toTask(row: TaskRecord): Task {
     retryCount: row.retry_count,
     maxRetries: row.max_retries,
     error: row.error,
-    planModeAction: row.plan_mode_action ? (JSON.parse(row.plan_mode_action) as PlanModeAction) : null,
+    planModeAction: row.plan_mode_action ? normalizePlanModeAction(JSON.parse(row.plan_mode_action)) : null,
     sortOrder: row.sort_order,
     permissionMode: (row.permission_mode as TaskPermissionMode) ?? null,
   };
@@ -710,14 +710,40 @@ export class TaskQueue {
     if (!buffer || !isAtUserChoice(buffer.slice(-500))) return;
 
     const choices = parseUserChoices(buffer);
-    const typeHere = choices.find((c) => /type here/i.test(c.text));
-    if (!typeHere) return; // Not a plan mode menu (e.g. permission prompt); stay pending
+    const action = task.planModeAction!.action;
 
-    // Navigate to "Type here" option: (index-1) ↓ presses, then Enter to enter text sub-mode
-    const navKeys = '\x1b[B'.repeat(typeHere.index - 1) + '\r';
-    this.ptyManager.write(task.targetSessionId!, navKeys);
+    if (action === 'revise') {
+      // Navigate to "Type here" / "Tell Claude what to change", enter text sub-mode, type message
+      const typeHere = choices.find((c) => /type here|tell.*what to change/i.test(c.text));
+      if (!typeHere) return; // Not a plan mode menu; stay pending
 
-    // Mark dispatched immediately
+      const navKeys = '\x1b[B'.repeat(typeHere.index - 1) + '\r';
+      this.ptyManager.write(task.targetSessionId!, navKeys);
+      this.markPlanModeDispatched(db, task, typeHere.index);
+
+      // After the text sub-mode activates (~300ms), type the message
+      setTimeout(() => {
+        const currentSession = this.sessionManager.get(task.targetSessionId!);
+        if (!currentSession || currentSession.status === 'ended') return;
+        this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
+        this.sessionManager.updateStatus(task.targetSessionId!, 'active');
+      }, 300);
+    } else {
+      // auto-accept or manual-approve: select the matching menu option directly
+      const pattern = action === 'auto-accept'
+        ? /auto.?accept|bypass\s+permission/i
+        : /manually\s+approve/i;
+      const choice = choices.find((c) => pattern.test(c.text));
+      if (!choice) return; // Menu doesn't have the expected option; stay pending
+
+      const navKeys = '\x1b[B'.repeat(choice.index - 1) + '\r';
+      this.ptyManager.write(task.targetSessionId!, navKeys);
+      this.markPlanModeDispatched(db, task, choice.index);
+      this.sessionManager.updateStatus(task.targetSessionId!, 'active');
+    }
+  }
+
+  private markPlanModeDispatched(db: ReturnType<typeof getDb>, task: Task, choiceIndex: number): void {
     const dispatchedAt = new Date().toISOString();
     db.prepare(
       `UPDATE task_queue SET status = 'dispatched', session_id = ?, dispatched_at = ? WHERE id = ?`,
@@ -733,19 +759,12 @@ export class TaskQueue {
     logger.info('task', 'Dispatched plan mode task', {
       taskId: task.id,
       sessionId: task.targetSessionId,
-      typeHereIndex: typeHere.index,
+      action: task.planModeAction!.action,
+      choiceIndex,
     });
 
     const updated = this.getById(task.id)!;
     this.broadcastChange({ type: 'upsert', task: updated });
-
-    // After the text sub-mode activates (~300ms), type the message
-    setTimeout(() => {
-      const currentSession = this.sessionManager.get(task.targetSessionId!);
-      if (!currentSession || currentSession.status === 'ended') return;
-      this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
-      this.sessionManager.updateStatus(task.targetSessionId!, 'active');
-    }, 300);
   }
 
   private dispatchNewSession(task: Task): void {

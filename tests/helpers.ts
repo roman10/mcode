@@ -440,7 +440,7 @@ export interface TaskInfo {
   maxRetries: number;
   error: string | null;
   sortOrder: number | null;
-  planModeAction: { exitPlanMode: boolean } | null;
+  planModeAction: { action: string } | null;
   permissionMode: string | null;
 }
 
@@ -755,7 +755,7 @@ export function describeAgentTaskQueue(
       createTask(client, {
         prompt: 'test',
         targetSessionId: session.sessionId,
-        planModeAction: { exitPlanMode: false },
+        planModeAction: { action: 'revise' },
       }),
     ).rejects.toThrow(/plan mode/i);
 

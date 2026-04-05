@@ -96,8 +96,14 @@ function TileTaskItem({ task, isFirst, isLast }: TileTaskItemProps): React.JSX.E
               />
             </Tooltip>
             {task.planModeAction != null && (
-              <span className={`text-xs shrink-0 ${task.planModeAction.exitPlanMode ? 'text-green-400' : 'text-amber-400'}`}>
-                {task.planModeAction.exitPlanMode ? 'Proceed:' : 'Revise:'}
+              <span className={`text-xs shrink-0 ${
+                task.planModeAction.action === 'auto-accept' ? 'text-green-400' :
+                task.planModeAction.action === 'manual-approve' ? 'text-blue-400' :
+                'text-amber-400'
+              }`}>
+                {task.planModeAction.action === 'auto-accept' ? 'Auto-accept:' :
+                 task.planModeAction.action === 'manual-approve' ? 'Manual:' :
+                 'Revise:'}
               </span>
             )}
             <span

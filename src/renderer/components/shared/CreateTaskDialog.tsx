@@ -8,7 +8,7 @@ import FileAutocomplete from './FileAutocomplete';
 import { buildModeCycle, TASK_PERMISSION_MODE_LABELS } from '@shared/task-utils';
 import { canSessionBeTaskTarget, canSessionBePlanResponseTarget } from '@shared/session-capabilities';
 import { getAgentDefinition } from '@shared/session-agents';
-import type { CreateTaskInput, TaskPermissionMode } from '@shared/types';
+import type { CreateTaskInput, TaskPermissionMode, PlanModeActionType } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
 
@@ -36,7 +36,7 @@ function CreateTaskDialog({
   const [cwd, setCwd] = useState(defaultCwd ?? '');
   const [targetSessionId, setTargetSessionId] = useState(defaultTargetSessionId ?? '');
   const [permissionMode, setPermissionMode] = useState<TaskPermissionMode | ''>('');
-  const [exitPlanMode, setExitPlanMode] = useState(true);
+  const [planAction, setPlanAction] = useState<PlanModeActionType>('auto-accept');
   const [isCreating, setIsCreating] = useState(false);
   const [cursorPos, setCursorPos] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -96,7 +96,7 @@ function CreateTaskDialog({
       setCwd(defaultCwd ?? '');
       setTargetSessionId(defaultTargetSessionId ?? '');
       setPermissionMode('');
-      setExitPlanMode(true);
+      setPlanAction('auto-accept');
       setIsCreating(false);
       setCursorPos(0);
       if (!defaultCwd) {
@@ -121,17 +121,22 @@ function CreateTaskDialog({
     if (dir) setCwd(dir);
   };
 
+  const isPlanResponse = taskType === 'planResponse';
+  const needsPrompt = !isPlanResponse || planAction === 'revise';
+
   const handleSubmit = (e?: React.FormEvent): void => {
     e?.preventDefault();
-    if (!prompt.trim() || !cwd.trim() || !targetSessionId || isCreating) return;
+    if ((needsPrompt && !prompt.trim()) || !cwd.trim() || !targetSessionId || isCreating) return;
+
+    const finalPrompt = needsPrompt ? prompt.trim() : 'Proceed';
 
     setIsCreating(true);
     onCreate({
-      prompt: prompt.trim(),
+      prompt: finalPrompt,
       cwd: cwd.trim(),
       targetSessionId,
       ...(taskType === 'prompt' && permissionMode ? { permissionMode } : {}),
-      ...(taskType === 'planResponse' ? { planModeAction: { exitPlanMode } } : {}),
+      ...(taskType === 'planResponse' ? { planModeAction: { action: planAction } } : {}),
     });
   };
 
@@ -151,14 +156,6 @@ function CreateTaskDialog({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open]);
-
-  const isPlanResponse = taskType === 'planResponse';
-  const promptLabel = isPlanResponse
-    ? (exitPlanMode ? 'Tell Claude to proceed' : 'Tell Claude what to change')
-    : 'Prompt';
-  const promptPlaceholder = isPlanResponse
-    ? (exitPlanMode ? 'proceed with implementation' : 'what should be changed in the plan')
-    : `What should ${selectedAgentName} work on?`;
 
   return (
     <Dialog
@@ -217,77 +214,99 @@ function CreateTaskDialog({
             </div>
           )}
 
-          {/* Proceed / Revise toggle — only in plan response mode */}
+          {/* Plan action radio list — only in plan response mode */}
           {isPlanResponse && (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setExitPlanMode(true)}
-                className={`flex-1 py-2 text-sm rounded border transition-colors ${
-                  exitPlanMode
-                    ? 'border-green-500 bg-green-500/10 text-green-400'
-                    : 'border-border-default text-text-secondary hover:bg-bg-elevated'
-                }`}
-              >
-                Proceed
-              </button>
-              <button
-                type="button"
-                onClick={() => setExitPlanMode(false)}
-                className={`flex-1 py-2 text-sm rounded border transition-colors ${
-                  !exitPlanMode
-                    ? 'border-amber-500 bg-amber-500/10 text-amber-400'
-                    : 'border-border-default text-text-secondary hover:bg-bg-elevated'
-                }`}
-              >
-                Revise
-              </button>
+            <div className="space-y-1">
+              {([
+                {
+                  value: 'auto-accept' as const,
+                  label: 'Yes, auto-accept edits',
+                  active: 'border-green-500 bg-green-500/10 text-green-400',
+                  radio: 'border-green-500',
+                  dot: 'bg-green-500',
+                },
+                {
+                  value: 'manual-approve' as const,
+                  label: 'Yes, manually approve edits',
+                  active: 'border-blue-500 bg-blue-500/10 text-blue-400',
+                  radio: 'border-blue-500',
+                  dot: 'bg-blue-500',
+                },
+                {
+                  value: 'revise' as const,
+                  label: 'Tell Claude what to change',
+                  active: 'border-amber-500 bg-amber-500/10 text-amber-400',
+                  radio: 'border-amber-500',
+                  dot: 'bg-amber-500',
+                },
+              ]).map(({ value, label, active, radio, dot }) => (
+                <label
+                  key={value}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded border cursor-pointer transition-colors ${
+                    planAction === value
+                      ? active
+                      : 'border-transparent text-text-secondary hover:bg-bg-elevated'
+                  }`}
+                  onClick={() => setPlanAction(value)}
+                >
+                  <span className={`shrink-0 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                    planAction === value ? radio : 'border-text-muted'
+                  }`}>
+                    {planAction === value && (
+                      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                    )}
+                  </span>
+                  <span className="text-sm">{label}</span>
+                </label>
+              ))}
             </div>
           )}
 
-          {/* Prompt */}
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">
-              {promptLabel}
-            </label>
-            <div className="relative">
-              <textarea
-                ref={textareaRef}
-                className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
-                rows={isPlanResponse ? 3 : 4}
-                value={prompt}
-                onChange={(e) => {
-                  setPrompt(e.target.value);
-                  setCursorPos(e.target.selectionStart ?? 0);
-                }}
-                onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-                onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-                placeholder={promptPlaceholder}
-                autoFocus={!!defaultTargetSessionId}
-              />
-              <SlashCommandAutocomplete
-                prompt={prompt}
-                cwd={cwd}
-                sessionType={slashSessionType}
-                textareaRef={textareaRef}
-                onSelect={(text) => { setPrompt(text); setCursorPos(text.length); }}
-              />
-              <FileAutocomplete
-                text={prompt}
-                cursorPos={cursorPos}
-                cwd={cwd}
-                textareaRef={textareaRef}
-                onSelect={(newText, newPos) => {
-                  setPrompt(newText);
-                  setCursorPos(newPos);
-                  requestAnimationFrame(() => {
-                    const ta = textareaRef.current;
-                    if (ta) { ta.selectionStart = newPos; ta.selectionEnd = newPos; }
-                  });
-                }}
-              />
+          {/* Prompt — hidden for non-revise plan actions */}
+          {(!isPlanResponse || planAction === 'revise') && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">
+                {isPlanResponse ? 'Tell Claude what to change' : 'Prompt'}
+              </label>
+              <div className="relative">
+                <textarea
+                  ref={textareaRef}
+                  className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none resize-none"
+                  rows={isPlanResponse ? 3 : 4}
+                  value={prompt}
+                  onChange={(e) => {
+                    setPrompt(e.target.value);
+                    setCursorPos(e.target.selectionStart ?? 0);
+                  }}
+                  onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+                  onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+                  placeholder={isPlanResponse ? 'what should be changed in the plan' : `What should ${selectedAgentName} work on?`}
+                  autoFocus={!!defaultTargetSessionId}
+                />
+                <SlashCommandAutocomplete
+                  prompt={prompt}
+                  cwd={cwd}
+                  sessionType={slashSessionType}
+                  textareaRef={textareaRef}
+                  onSelect={(text) => { setPrompt(text); setCursorPos(text.length); }}
+                />
+                <FileAutocomplete
+                  text={prompt}
+                  cursorPos={cursorPos}
+                  cwd={cwd}
+                  textareaRef={textareaRef}
+                  onSelect={(newText, newPos) => {
+                    setPrompt(newText);
+                    setCursorPos(newPos);
+                    requestAnimationFrame(() => {
+                      const ta = textareaRef.current;
+                      if (ta) { ta.selectionStart = newPos; ta.selectionEnd = newPos; }
+                    });
+                  }}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Working directory */}
           <div>
@@ -349,7 +368,7 @@ function CreateTaskDialog({
           </button>
           <button
             type="submit"
-            disabled={!prompt.trim() || !cwd.trim() || !targetSessionId || isCreating}
+            disabled={(needsPrompt && !prompt.trim()) || !cwd.trim() || !targetSessionId || isCreating}
             className="inline-flex items-center px-4 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
           >
             {isCreating ? 'Creating...' : (

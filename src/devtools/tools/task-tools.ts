@@ -19,11 +19,12 @@ export function registerTaskTools(
       scheduledAt: z.string().optional().describe('ISO 8601 time to schedule dispatch (null = ASAP)'),
       maxRetries: z.number().int().optional().describe('Max retries on failure (default: 3)'),
       planModeAction: z.object({
-        exitPlanMode: z.boolean().describe('UI hint: true = proceed with plan, false = revise plan'),
+        action: z.enum(['auto-accept', 'manual-approve', 'revise'])
+          .describe('auto-accept: proceed and auto-accept all edits. manual-approve: proceed but require manual approval. revise: send feedback text to revise the plan.'),
       }).optional().describe(
-        'If set, this is a plan mode response task. When the target session enters plan mode, ' +
-        'the task queue navigates to the "Type here" option and types the prompt as feedback. ' +
-        'Requires targetSessionId. The prompt should express intent, e.g. "proceed with implementation" or "add error handling first".',
+        'Plan mode response action. For auto-accept/manual-approve, selects the corresponding menu option directly. ' +
+        'For revise, navigates to the "Type here" option and types the prompt as feedback. ' +
+        'Requires targetSessionId.',
       ),
       permissionMode: z.enum([...PERMISSION_MODES, 'default']).optional().describe(
         'Permission mode to cycle to via Shift+Tab before sending the prompt. ' +

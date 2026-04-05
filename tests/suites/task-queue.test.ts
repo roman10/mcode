@@ -511,18 +511,18 @@ describe('task queue', () => {
     const task = await createTask(client, {
       prompt: 'revise the auth flow',
       targetSessionId: session.sessionId,
-      planModeAction: { exitPlanMode: false },
+      planModeAction: { action: 'revise' },
       scheduledAt: futureIso(),
     });
 
-    expect(task.planModeAction).toEqual({ exitPlanMode: false });
+    expect(task.planModeAction).toEqual({ action: 'revise' });
     expect(task.status).toBe('pending');
     expect(task.targetSessionId).toBe(session.sessionId);
 
     // Verify persistence via list
     const tasks = await listTasks(client, { targetSessionId: session.sessionId });
     const found = tasks.find((t) => t.id === task.id);
-    expect(found?.planModeAction).toEqual({ exitPlanMode: false });
+    expect(found?.planModeAction).toEqual({ action: 'revise' });
 
     await cancelTask(client, task.id);
     await killAndWaitEnded(client, session.sessionId);
@@ -532,7 +532,7 @@ describe('task queue', () => {
     await expect(
       createTask(client, {
         prompt: 'orphan plan response',
-        planModeAction: { exitPlanMode: true },
+        planModeAction: { action: 'auto-accept' },
         scheduledAt: futureIso(),
       }),
     ).rejects.toThrow(/target.*session/i);
@@ -547,7 +547,7 @@ describe('task queue', () => {
       createTask(client, {
         prompt: 'too late',
         targetSessionId: session.sessionId,
-        planModeAction: { exitPlanMode: true },
+        planModeAction: { action: 'auto-accept' },
       }),
     ).rejects.toThrow(/ended/i);
   });
