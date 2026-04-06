@@ -100,7 +100,7 @@ function StatsPanel(): React.JSX.Element {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
       const mod = isMac ? e.metaKey : e.ctrlKey;
-      if (mod && e.key === 'r') {
+      if (mod && e.key === 'r' && !e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
         handleRefresh();
