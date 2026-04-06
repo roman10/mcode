@@ -750,12 +750,19 @@ export class TaskQueue {
       this.ptyManager.write(task.targetSessionId!, '\x1b[B'.repeat(typeHere.index - 1));
       this.markPlanModeDispatched(db, task, typeHere.index);
 
-      // After the text-input activates (~300ms), type the message
+      // After the text-input activates (~300ms), type the message.
+      // Enter must be a separate write (same as Gemini sessions) so the
+      // inline text-input processes the text before submission.
       setTimeout(() => {
         const currentSession = this.sessionManager.get(task.targetSessionId!);
         if (!currentSession || currentSession.status === 'ended') return;
-        this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
-        this.sessionManager.updateStatus(task.targetSessionId!, 'active');
+        this.ptyManager.write(task.targetSessionId!, task.prompt);
+        setTimeout(() => {
+          const sess = this.sessionManager.get(task.targetSessionId!);
+          if (!sess || sess.status === 'ended') return;
+          this.ptyManager.write(task.targetSessionId!, '\r');
+          this.sessionManager.updateStatus(task.targetSessionId!, 'active');
+        }, SUBMIT_DELAY_MS);
       }, 300);
     } else {
       // auto-accept or manual-approve: select the matching menu option directly
