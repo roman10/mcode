@@ -1171,11 +1171,15 @@ export class SessionManager {
     const aliveSet = new Set(aliveSessionIds);
     const detached = getDetachedSessions();
 
-    for (const { session_id, pre_detach_status } of detached) {
+    for (const { session_id, pre_detach_status, session_type } of detached) {
       if (aliveSet.has(session_id)) {
         const restoreStatus = (pre_detach_status || 'active') as SessionStatus;
         this.updateStatus(session_id, restoreStatus);
         updateSession(session_id, { preDetachStatus: null });
+        // Restore prompt-labelled tracking for label-static agents (matches resume() behaviour)
+        if (session_type === 'copilot' || session_type === 'gemini') {
+          this.promptLabelledSessions.add(session_id);
+        }
         logger.info('session', 'Reconnected to running session', { sessionId: session_id, restoredStatus: restoreStatus });
       } else {
         this.updateStatus(session_id, 'ended');

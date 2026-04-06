@@ -233,10 +233,10 @@ export function getActiveAgentStates(): PollableSessionRow[] {
     .all() as PollableSessionRow[];
 }
 
-export function getDetachedSessions(): Array<{ session_id: string; pre_detach_status: string | null }> {
+export function getDetachedSessions(): Array<{ session_id: string; pre_detach_status: string | null; session_type: string }> {
   return getDb()
-    .prepare(`SELECT session_id, pre_detach_status FROM sessions WHERE status = 'detached'`)
-    .all() as Array<{ session_id: string; pre_detach_status: string | null }>;
+    .prepare(`SELECT session_id, pre_detach_status, session_type FROM sessions WHERE status = 'detached'`)
+    .all() as Array<{ session_id: string; pre_detach_status: string | null; session_type: string }>;
 }
 
 export function countActiveSessions(): { agent: number; terminal: number } {

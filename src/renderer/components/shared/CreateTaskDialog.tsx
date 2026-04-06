@@ -53,6 +53,14 @@ function CreateTaskDialog({
     [sessions, taskType],
   );
 
+  // Show plan mode toggle whenever any session can receive a plan response,
+  // independent of the currently selected session. The toggle changes which
+  // sessions appear in the dropdown, so it must not depend on the selection.
+  const anyPlanModeTargets = useMemo(
+    () => Object.values(sessions).some((s) => canSessionBePlanResponseTarget(s)),
+    [sessions],
+  );
+
   // Available permission modes based on selected target session
   const selectedSession = targetSessionId ? sessions[targetSessionId] : undefined;
   const selectedAgentDef = getAgentDefinition(selectedSession?.sessionType);
@@ -186,8 +194,8 @@ function CreateTaskDialog({
             </select>
           </div>
 
-          {/* Task type toggle — only shown when agent supports plan mode */}
-          {supportsPlanMode && (
+          {/* Task type toggle — shown when any session can receive a plan response */}
+          {anyPlanModeTargets && (
             <div className="flex gap-2">
               <button
                 type="button"
