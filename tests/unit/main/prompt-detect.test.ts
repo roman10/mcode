@@ -92,6 +92,13 @@ describe('isAtUserChoice', () => {
     expect(isAtUserChoice(menu + statusBar)).toBe(true);
   });
 
+  it('detects menu rendered with cursor-right sequences (CSI 1C)', () => {
+    const raw =
+      '\x1b[38;2;177;185;249m❯\x1b[1C\x1b[38;2;153;153;153m1.\x1b[1C\x1b[38;2;177;185;249mYes,\x1b[1Cand\x1b[1Cbypass\x1b[39m\n' +
+      '\x1b[3C\x1b[38;2;153;153;153m2.\x1b[1C\x1b[39mManually\x1b[1Capprove\n';
+    expect(isAtUserChoice(raw)).toBe(true);
+  });
+
   it('returns false after Esc dismisses the menu', () => {
     // After Esc, Claude renders a new idle prompt — last ❯ is now the idle prompt
     const oldMenu = '❯ 1. Option one\n  2. Option two\n';
@@ -147,6 +154,20 @@ describe('parseUserChoices', () => {
     const menu = '❯ 1.   padded text   \n';
     const choices = parseUserChoices(menu);
     expect(choices[0].text).toBe('padded text');
+  });
+
+  it('parses menu rendered with cursor-right sequences (CSI 1C)', () => {
+    // Real-world buffer: Claude Code uses \x1b[1C between words instead of spaces
+    const raw =
+      '\x1b[38;2;177;185;249m❯\x1b[1C\x1b[38;2;153;153;153m1.\x1b[1C\x1b[38;2;177;185;249mYes,\x1b[1Cand\x1b[1Cbypass\x1b[1Cpermissions\x1b[39m\n' +
+      '\x1b[3C\x1b[38;2;153;153;153m2.\x1b[1C\x1b[39mYes,\x1b[1Cmanually\x1b[1Capprove\x1b[1Cedits\n' +
+      '\x1b[3C\x1b[38;2;153;153;153m3.\x1b[1C\x1b[39mNo,\x1b[1Crefine\x1b[1Cwith\x1b[1CUltraplan\n' +
+      '\x1b[3C\x1b[38;2;153;153;153m4.\x1b[1CTell\x1b[1CClaude\x1b[1Cwhat\x1b[1Cto\x1b[1Cchange\x1b[39m\n';
+    const choices = parseUserChoices(raw);
+    expect(choices).toHaveLength(4);
+    expect(choices[0]).toEqual({ index: 1, text: 'Yes, and bypass permissions' });
+    expect(choices[1]).toEqual({ index: 2, text: 'Yes, manually approve edits' });
+    expect(choices[3]).toEqual({ index: 4, text: 'Tell Claude what to change' });
   });
 
   it('handles ANSI codes in the buffer', () => {

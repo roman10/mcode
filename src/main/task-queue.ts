@@ -712,14 +712,15 @@ export class TaskQueue {
     if (session.status !== 'waiting') return; // Wait for session to enter plan mode
 
     const buffer = this.ptyManager.getReplayData(task.targetSessionId!);
-    if (!buffer || !isAtUserChoice(buffer.slice(-500))) {
+    const planBufferTail = buffer?.slice(-2000);
+    if (!planBufferTail || !isAtUserChoice(planBufferTail)) {
       if (!this.loggedPlanModeDeferrals.has(task.id)) {
         logger.info('task', 'Plan mode dispatch deferred: buffer check failed', {
           taskId: task.id,
           sessionId: task.targetSessionId,
           hasBuffer: !!buffer,
           bufferLength: buffer?.length ?? 0,
-          isAtUserChoice: buffer ? isAtUserChoice(buffer.slice(-500)) : false,
+          isAtUserChoice: planBufferTail ? isAtUserChoice(planBufferTail) : false,
         });
         this.loggedPlanModeDeferrals.add(task.id);
       }
@@ -894,7 +895,7 @@ export class TaskQueue {
       const agentDef = getAgentDefinition(session.sessionType);
       if (agentDef?.supportsPlanMode) {
         const buffer = this.ptyManager.getReplayData(session.sessionId);
-        if (buffer && isAtUserChoice(buffer.slice(-500))) {
+        if (buffer && isAtUserChoice(buffer.slice(-2000))) {
           state.completedViaIdle = true;
           this.completeTask(taskId);
           return;
@@ -943,7 +944,7 @@ export class TaskQueue {
         // a bare 'waiting' status could be a permission prompt, not completion.
         if (session?.status === 'waiting' && task.planModeAction) {
           const buffer = this.ptyManager.getReplayData(task.sessionId);
-          if (!buffer || !isAtUserChoice(buffer.slice(-500))) continue;
+          if (!buffer || !isAtUserChoice(buffer.slice(-2000))) continue;
         }
         logger.info('task', 'Session confirmed idle via fallback polling, completing task', {
           taskId,
@@ -967,7 +968,7 @@ export class TaskQueue {
 
       // Plan mode tasks also complete when Claude re-enters a user-choice menu
       // (e.g. Claude re-planned and is showing a new ExitPlanMode menu).
-      const atNewMenu = task.planModeAction && isAtUserChoice(bufferTail.slice(-500));
+      const atNewMenu = task.planModeAction && isAtUserChoice(bufferTail);
 
       if (!atIdlePrompt && !atNewMenu) continue;
 

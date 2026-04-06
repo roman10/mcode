@@ -71,7 +71,7 @@ export function isAtUserChoice(rawBufferTail: string): boolean {
  * response tasks.
  */
 export function parseUserChoices(rawBufferTail: string): { index: number; text: string }[] {
-  const clean = stripAnsi(rawBufferTail.slice(-800));
+  const clean = stripAnsi(rawBufferTail.slice(-2000));
   const menuStart = clean.lastIndexOf('❯');
   if (menuStart === -1) return [];
   const menuBlock = clean.slice(menuStart);

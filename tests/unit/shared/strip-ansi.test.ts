@@ -50,4 +50,22 @@ describe('stripAnsi', () => {
     expect(stripAnsi('❯ hello')).toBe('❯ hello');
     expect(stripAnsi('\x1b[32m❯\x1b[0m prompt')).toBe('❯ prompt');
   });
+
+  it('replaces cursor-right (CSI 1C) with a single space', () => {
+    expect(stripAnsi('hello\x1b[1Cworld')).toBe('hello world');
+  });
+
+  it('replaces cursor-right with explicit count (CSI 3C) with N spaces', () => {
+    expect(stripAnsi('a\x1b[3Cb')).toBe('a   b');
+  });
+
+  it('replaces cursor-right with no count (CSI C) with 1 space (default)', () => {
+    expect(stripAnsi('a\x1b[Cb')).toBe('a b');
+  });
+
+  it('converts cursor-right to spaces in a Claude Code menu', () => {
+    // Real-world: Claude Code renders menu items with [1C between words
+    const raw = '\x1b[38;2;177;185;249m❯\x1b[1C\x1b[38;2;153;153;153m1.\x1b[1C\x1b[38;2;177;185;249mYes,\x1b[1Cand\x1b[1Cbypass\x1b[1Cpermissions\x1b[39m';
+    expect(stripAnsi(raw)).toBe('❯ 1. Yes, and bypass permissions');
+  });
 });
