@@ -174,6 +174,10 @@ export function executeAppCommand(command: AppCommand): void {
       useDialogStore.getState().setShowCreateTaskDialog(true);
       break;
 
+    case 'show-create-task-plan-response':
+      useDialogStore.getState().openCreateTaskDialog({ taskType: 'planResponse' });
+      break;
+
     case 'quick-open': {
       const ds = useDialogStore.getState();
       ds.setShowSettings(false);

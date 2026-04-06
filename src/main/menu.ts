@@ -64,6 +64,11 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             click: () => sendCommand({ command: 'show-create-task' }),
           },
           {
+            label: 'New Plan Mode Response',
+            accelerator: 'CmdOrCtrl+Shift+R',
+            click: () => sendCommand({ command: 'show-create-task-plan-response' }),
+          },
+          {
             label: 'Run Shell Command',
             accelerator: 'CmdOrCtrl+Shift+E',
             click: () => sendCommand({ command: 'run-shell-command' }),

@@ -188,6 +188,7 @@ export type AppCommand =
   | { command: 'show-command-palette' }
   | { command: 'quick-open' }
   | { command: 'show-create-task' }
+  | { command: 'show-create-task-plan-response' }
   | { command: 'set-view-mode'; mode: ViewMode }
   | { command: 'toggle-view-mode' }
   | { command: 'run-shell-command' }

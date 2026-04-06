@@ -30,6 +30,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutEntry[] = [
   { label: 'Quick Open', keys: 'P', mod: true, category: 'general' },
   { label: 'Command Palette', keys: 'Shift+P', mod: true, category: 'general' },
   { label: 'New Task', keys: 'Shift+T', mod: true, category: 'general' },
+  { label: 'New Plan Mode Response', keys: 'Shift+R', mod: true, category: 'general' },
   { label: 'Run Shell Command', keys: 'Shift+E', mod: true, category: 'general' },
   { label: 'Search in Files', keys: 'Shift+F', mod: true, category: 'general' },
   { label: 'Prompt Library', keys: 'Shift+S', mod: true, category: 'general' },
