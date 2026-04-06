@@ -79,12 +79,7 @@ function TileTaskItem({ task, isFirst, isLast }: TileTaskItemProps): React.JSX.E
             )}
             <button
               className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
-              onClick={() => openCreateTaskDialog({
-                editTask: task,
-                targetSessionId: task.targetSessionId ?? undefined,
-                cwd: task.cwd,
-                taskType: task.planModeAction ? 'planResponse' : 'prompt',
-              })}
+              onClick={() => openCreateTaskDialog({ editTask: task })}
               title="Edit task"
             >
               <Pencil size={12} strokeWidth={1.5} />

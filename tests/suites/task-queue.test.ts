@@ -322,6 +322,32 @@ describe('task queue', () => {
     await cancelTask(client, task.id);
   });
 
+  it('task_update changes planModeAction on pending task', async () => {
+    const session = await createIdleLiveClaudeSession(client);
+    sessionIds.push(session.sessionId);
+
+    const task = await createTask(client, {
+      prompt: 'revise auth',
+      targetSessionId: session.sessionId,
+      planModeAction: { action: 'revise' },
+      scheduledAt: futureIso(),
+    });
+    expect(task.planModeAction).toEqual({ action: 'revise' });
+
+    const updated = await updateTask(client, task.id, {
+      planModeAction: { action: 'auto-accept' },
+    });
+    expect(updated.planModeAction).toEqual({ action: 'auto-accept' });
+
+    // Verify persistence via list
+    const tasks = await listTasks(client, { targetSessionId: session.sessionId });
+    const found = tasks.find((t) => t.id === task.id);
+    expect(found?.planModeAction).toEqual({ action: 'auto-accept' });
+
+    await cancelTask(client, task.id);
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
   it('task_update rejects non-pending tasks', async () => {
     // Use a dispatched task to exercise the "only pending" code path
     // (cancel does a hard DELETE, so cancelled tasks can't be tested here)

@@ -619,7 +619,7 @@ export async function switchSidebarTab(
 export async function updateTask(
   client: McpTestClient,
   taskId: number,
-  updates: { prompt?: string; priority?: number; scheduledAt?: string | null },
+  updates: { prompt?: string; priority?: number; scheduledAt?: string | null; planModeAction?: { action: string } | null },
 ): Promise<TaskInfo> {
   return client.callToolJson<TaskInfo>('task_update', { taskId, ...updates });
 }
