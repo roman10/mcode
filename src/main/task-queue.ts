@@ -419,6 +419,10 @@ export class TaskQueue {
       sets.push('scheduled_at = ?');
       params.push(input.scheduledAt);
     }
+    if (input.planModeAction !== undefined) {
+      sets.push('plan_mode_action = ?');
+      params.push(input.planModeAction ? JSON.stringify(input.planModeAction) : null);
+    }
 
     if (sets.length === 0) return task;
 

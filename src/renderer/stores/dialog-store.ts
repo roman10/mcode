@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import type { AgentSessionType } from '@shared/session-agents';
+import type { Task } from '@shared/types';
 
 export interface CreateTaskDefaults {
   targetSessionId?: string;
   cwd?: string;
   taskType?: 'prompt' | 'planResponse';
+  /** When set, the dialog opens in edit mode for this task. */
+  editTask?: Task;
 }
 
 interface DialogState {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronUp, ChevronDown, Pencil, TimerOff, X } from 'lucide-react';
 import { useTaskStore } from '../../stores/task-store';
 import { useSessionStore } from '../../stores/session-store';
@@ -20,48 +20,9 @@ interface TileTaskItemProps {
 }
 
 function TileTaskItem({ task, isFirst, isLast }: TileTaskItemProps): React.JSX.Element {
-  const updateTask = useTaskStore((s) => s.updateTask);
   const cancelTask = useTaskStore((s) => s.cancelTask);
   const reorderTask = useTaskStore((s) => s.reorderTask);
-  const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(task.prompt);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (editing && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.select();
-    }
-  }, [editing]);
-
-  const handleSave = async (): Promise<void> => {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== task.prompt) {
-      try {
-        await updateTask(task.id, { prompt: trimmed });
-      } catch {
-        // Revert on failure
-        setEditValue(task.prompt);
-      }
-    }
-    setEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent): void => {
-    // Stop propagation for all mod+key combos to prevent TerminalTile handlers
-    // (e.g., Cmd+Enter = maximize, Cmd+W = close) from firing
-    if (e.metaKey || e.ctrlKey) {
-      e.stopPropagation();
-    }
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSave();
-    }
-    if (e.key === 'Escape') {
-      setEditValue(task.prompt);
-      setEditing(false);
-    }
-  };
+  const openCreateTaskDialog = useDialogStore((s) => s.openCreateTaskDialog);
 
   const promptPreview =
     task.prompt.length > 80 ? task.prompt.slice(0, 77) + '...' : task.prompt;
@@ -70,106 +31,90 @@ function TileTaskItem({ task, isFirst, isLast }: TileTaskItemProps): React.JSX.E
 
   return (
     <div className="px-3 py-1.5 border-b border-border-default/50 group hover:bg-bg-elevated/50 transition-colors">
-      {editing ? (
-        <div>
-          <textarea
-            ref={textareaRef}
-            className="w-full bg-bg-primary text-text-primary text-xs px-2 py-1 border border-border-focus rounded outline-none resize-none"
-            rows={3}
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={handleKeyDown}
+      <div className="flex items-center gap-2 min-w-0">
+        <Tooltip
+          content={isPending ? 'Queued' : 'Running'}
+          side="right"
+        >
+          <span
+            className={`shrink-0 w-2 h-2 rounded-full ${statusColors[task.status]}`}
           />
-          <span className="text-xs text-text-muted">
-            {'\u2318\u21B5'} to save &middot; Esc to cancel
+        </Tooltip>
+        {task.planModeAction != null && (
+          <span className={`text-xs shrink-0 ${
+            task.planModeAction.action === 'auto-accept' ? 'text-green-400' :
+            task.planModeAction.action === 'manual-approve' ? 'text-blue-400' :
+            'text-amber-400'
+          }`}>
+            {task.planModeAction.action === 'auto-accept' ? 'Auto-accept:' :
+             task.planModeAction.action === 'manual-approve' ? 'Manual:' :
+             'Revise:'}
           </span>
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center gap-2 min-w-0">
-            <Tooltip
-              content={isPending ? 'Queued' : 'Running'}
-              side="right"
+        )}
+        <span
+          className="text-xs text-text-primary truncate flex-1"
+          title={task.prompt}
+        >
+          {promptPreview}
+        </span>
+        {isPending && (
+          <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+            {!isFirst && (
+              <button
+                className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
+                onClick={() => reorderTask(task.id, 'up').catch(() => {})}
+                title="Move up"
+              >
+                <ChevronUp size={12} strokeWidth={1.5} />
+              </button>
+            )}
+            {!isLast && (
+              <button
+                className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
+                onClick={() => reorderTask(task.id, 'down').catch(() => {})}
+                title="Move down"
+              >
+                <ChevronDown size={12} strokeWidth={1.5} />
+              </button>
+            )}
+            <button
+              className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
+              onClick={() => openCreateTaskDialog({
+                editTask: task,
+                targetSessionId: task.targetSessionId ?? undefined,
+                cwd: task.cwd,
+                taskType: task.planModeAction ? 'planResponse' : 'prompt',
+              })}
+              title="Edit task"
             >
-              <span
-                className={`shrink-0 w-2 h-2 rounded-full ${statusColors[task.status]}`}
-              />
-            </Tooltip>
-            {task.planModeAction != null && (
-              <span className={`text-xs shrink-0 ${
-                task.planModeAction.action === 'auto-accept' ? 'text-green-400' :
-                task.planModeAction.action === 'manual-approve' ? 'text-blue-400' :
-                'text-amber-400'
-              }`}>
-                {task.planModeAction.action === 'auto-accept' ? 'Auto-accept:' :
-                 task.planModeAction.action === 'manual-approve' ? 'Manual:' :
-                 'Revise:'}
-              </span>
-            )}
-            <span
-              className="text-xs text-text-primary truncate flex-1"
-              title={task.prompt}
+              <Pencil size={12} strokeWidth={1.5} />
+            </button>
+            <button
+              className="text-text-muted hover:text-red-400 p-0.5 transition-colors"
+              onClick={() => cancelTask(task.id).catch(() => {})}
+              title="Delete task"
             >
-              {promptPreview}
-            </span>
-            {isPending && (
-              <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-                {!isFirst && (
-                  <button
-                    className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
-                    onClick={() => reorderTask(task.id, 'up').catch(() => {})}
-                    title="Move up"
-                  >
-                    <ChevronUp size={12} strokeWidth={1.5} />
-                  </button>
-                )}
-                {!isLast && (
-                  <button
-                    className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
-                    onClick={() => reorderTask(task.id, 'down').catch(() => {})}
-                    title="Move down"
-                  >
-                    <ChevronDown size={12} strokeWidth={1.5} />
-                  </button>
-                )}
-                <button
-                  className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
-                  onClick={() => {
-                    setEditValue(task.prompt);
-                    setEditing(true);
-                  }}
-                  title="Edit task"
-                >
-                  <Pencil size={12} strokeWidth={1.5} />
-                </button>
-                <button
-                  className="text-text-muted hover:text-red-400 p-0.5 transition-colors"
-                  onClick={() => cancelTask(task.id).catch(() => {})}
-                  title="Delete task"
-                >
-                  <X size={12} strokeWidth={1.5} />
-                </button>
-              </div>
-            )}
-            {!isPending && (
-              <span className="text-xs text-green-400 shrink-0">
-                Running
-              </span>
-            )}
+              <X size={12} strokeWidth={1.5} />
+            </button>
           </div>
-          {(task.scheduledAt || task.retryCount > 0) && (
-            <div className="flex items-center gap-2 mt-0.5 ml-4">
-              {task.scheduledAt && task.status === 'pending' && (
-                <span className="text-xs text-text-muted">scheduled</span>
-              )}
-              {task.retryCount > 0 && (
-                <span className="text-xs text-text-muted">
-                  retry {task.retryCount}/{task.maxRetries}
-                </span>
-              )}
-            </div>
+        )}
+        {!isPending && (
+          <span className="text-xs text-green-400 shrink-0">
+            Running
+          </span>
+        )}
+      </div>
+      {(task.scheduledAt || task.retryCount > 0) && (
+        <div className="flex items-center gap-2 mt-0.5 ml-4">
+          {task.scheduledAt && task.status === 'pending' && (
+            <span className="text-xs text-text-muted">scheduled</span>
           )}
-        </>
+          {task.retryCount > 0 && (
+            <span className="text-xs text-text-muted">
+              retry {task.retryCount}/{task.maxRetries}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

@@ -8,7 +8,7 @@ import FileAutocomplete from './FileAutocomplete';
 import { buildModeCycle, TASK_PERMISSION_MODE_LABELS } from '@shared/task-utils';
 import { canSessionBeTaskTarget, canSessionBePlanResponseTarget } from '@shared/session-capabilities';
 import { getAgentDefinition } from '@shared/session-agents';
-import type { CreateTaskInput, TaskPermissionMode, PlanModeActionType } from '@shared/types';
+import type { CreateTaskInput, UpdateTaskInput, TaskPermissionMode, PlanModeActionType, Task } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
 
@@ -18,6 +18,8 @@ interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
   onCreate(input: CreateTaskInput): void;
+  onEdit?(taskId: number, input: UpdateTaskInput): void;
+  editTask?: Task;
   defaultTargetSessionId?: string;
   defaultCwd?: string;
   defaultTaskType?: TaskType;
@@ -27,10 +29,13 @@ function CreateTaskDialog({
   open,
   onOpenChange,
   onCreate,
+  onEdit,
+  editTask,
   defaultTargetSessionId,
   defaultCwd,
   defaultTaskType,
 }: CreateTaskDialogProps): React.JSX.Element {
+  const isEditMode = editTask != null;
   const [taskType, setTaskType] = useState<TaskType>(defaultTaskType ?? 'prompt');
   const [prompt, setPrompt] = useState('');
   const [cwd, setCwd] = useState(defaultCwd ?? '');
@@ -99,23 +104,35 @@ function CreateTaskDialog({
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      setTaskType(defaultTaskType ?? 'prompt');
-      setPrompt('');
-      setCwd(defaultCwd ?? '');
-      setTargetSessionId(defaultTargetSessionId ?? '');
-      setPermissionMode('');
-      setPlanAction('auto-accept');
+      if (editTask) {
+        // Edit mode: pre-fill from existing task
+        const isPlan = editTask.planModeAction != null;
+        setTaskType(isPlan ? 'planResponse' : 'prompt');
+        setPrompt(editTask.prompt);
+        setCwd(editTask.cwd);
+        setTargetSessionId(editTask.targetSessionId ?? '');
+        setPermissionMode(editTask.permissionMode ?? '');
+        setPlanAction(editTask.planModeAction?.action ?? 'auto-accept');
+      } else {
+        // Create mode: reset form
+        setTaskType(defaultTaskType ?? 'prompt');
+        setPrompt('');
+        setCwd(defaultCwd ?? '');
+        setTargetSessionId(defaultTargetSessionId ?? '');
+        setPermissionMode('');
+        setPlanAction('auto-accept');
+        if (!defaultCwd) {
+          window.mcode.sessions.getLastDefaults().then((defaults) => {
+            if (!defaults) return;
+            setCwd(defaults.cwd);
+          });
+        }
+      }
       setIsCreating(false);
       setCursorPos(0);
-      if (!defaultCwd) {
-        window.mcode.sessions.getLastDefaults().then((defaults) => {
-          if (!defaults) return;
-          setCwd(defaults.cwd);
-        });
-      }
     }
     prevOpenRef.current = open;
-  }, [open, defaultCwd, defaultTargetSessionId, defaultTaskType]);
+  }, [open, defaultCwd, defaultTargetSessionId, defaultTaskType, editTask]);
 
   // In plan response mode, lock CWD to target session's cwd
   useEffect(() => {
@@ -139,13 +156,26 @@ function CreateTaskDialog({
     const finalPrompt = needsPrompt ? prompt.trim() : 'Proceed';
 
     setIsCreating(true);
-    onCreate({
-      prompt: finalPrompt,
-      cwd: cwd.trim(),
-      targetSessionId,
-      ...(taskType === 'prompt' && permissionMode ? { permissionMode } : {}),
-      ...(taskType === 'planResponse' ? { planModeAction: { action: planAction } } : {}),
-    });
+
+    if (isEditMode && onEdit) {
+      // Edit mode: only send changed fields
+      const updates: UpdateTaskInput = {};
+      if (finalPrompt !== editTask.prompt) updates.prompt = finalPrompt;
+      const newPlanAction = taskType === 'planResponse' ? { action: planAction } : null;
+      const oldPlanAction = editTask.planModeAction;
+      if (newPlanAction?.action !== oldPlanAction?.action) {
+        updates.planModeAction = newPlanAction;
+      }
+      onEdit(editTask.id, updates);
+    } else {
+      onCreate({
+        prompt: finalPrompt,
+        cwd: cwd.trim(),
+        targetSessionId,
+        ...(taskType === 'prompt' && permissionMode ? { permissionMode } : {}),
+        ...(taskType === 'planResponse' ? { planModeAction: { action: planAction } } : {}),
+      });
+    }
   };
 
   // Cmd+Enter to submit — use ref to avoid stale closure
@@ -170,7 +200,10 @@ function CreateTaskDialog({
       open={open}
       onOpenChange={onOpenChange}
       closeOnOverlayClick={false}
-      title={isPlanResponse ? 'Queue Plan Mode Response' : 'New Task'}
+      title={isEditMode
+        ? (isPlanResponse ? 'Edit Plan Mode Response' : 'Edit Task')
+        : (isPlanResponse ? 'Queue Plan Mode Response' : 'New Task')
+      }
     >
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
@@ -183,7 +216,7 @@ function CreateTaskDialog({
               className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none disabled:opacity-60"
               value={targetSessionId}
               onChange={(e) => setTargetSessionId(e.target.value)}
-              disabled={!!defaultTargetSessionId}
+              disabled={isEditMode || !!defaultTargetSessionId}
             >
               <option value="" disabled>Select a session...</option>
               {targetableSessions.map((s) => (
@@ -194,8 +227,8 @@ function CreateTaskDialog({
             </select>
           </div>
 
-          {/* Task type toggle — shown when any session can receive a plan response */}
-          {anyPlanModeTargets && (
+          {/* Task type toggle — shown when any session can receive a plan response, hidden in edit mode */}
+          {anyPlanModeTargets && !isEditMode && (
             <div className="flex gap-2">
               <button
                 type="button"
@@ -327,9 +360,9 @@ function CreateTaskDialog({
                 value={cwd}
                 onChange={(e) => setCwd(e.target.value)}
                 placeholder="/path/to/project"
-                disabled={isPlanResponse}
+                disabled={isEditMode || isPlanResponse}
               />
-              {!isPlanResponse && (
+              {!isPlanResponse && !isEditMode && (
                 <button
                   type="button"
                   className="px-3 py-2 text-sm bg-bg-secondary text-text-secondary border border-border-default rounded hover:bg-bg-elevated transition-colors"
@@ -341,8 +374,8 @@ function CreateTaskDialog({
             </div>
           </div>
 
-          {/* Permission mode — hidden in plan response mode */}
-          {!isPlanResponse && (
+          {/* Permission mode — hidden in plan response mode and edit mode */}
+          {!isPlanResponse && !isEditMode && (
             <div>
               <label className="block text-sm text-text-secondary mb-1">
                 Permission mode
@@ -379,9 +412,12 @@ function CreateTaskDialog({
             disabled={(needsPrompt && !prompt.trim()) || !cwd.trim() || !targetSessionId || isCreating}
             className="inline-flex items-center px-4 py-2 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
           >
-            {isCreating ? 'Creating...' : (
+            {isCreating ? (isEditMode ? 'Saving...' : 'Creating...') : (
               <>
-                {isPlanResponse ? 'Queue Plan Mode Response' : 'Create Task'}
+                {isEditMode
+                  ? 'Save'
+                  : (isPlanResponse ? 'Queue Plan Mode Response' : 'Create Task')
+                }
                 <kbd className="ml-2 text-xs opacity-70 font-mono">
                   {isMac ? '⌘↵' : 'Ctrl+↵'}
                 </kbd>

@@ -155,6 +155,7 @@ function App(): React.JSX.Element {
   const setShowCreateTaskDialog = useDialogStore((s) => s.setShowCreateTaskDialog);
   const createTaskDefaults = useDialogStore((s) => s.createTaskDefaults);
   const addTask = useTaskStore((s) => s.addTask);
+  const updateTask = useTaskStore((s) => s.updateTask);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const selectedSession = useSessionStore((s) => selectedSessionId ? s.sessions[selectedSessionId] : null);
 
@@ -246,6 +247,15 @@ function App(): React.JSX.Element {
           }
           setShowCreateTaskDialog(false);
         }}
+        onEdit={async (taskId, input) => {
+          try {
+            await updateTask(taskId, input);
+          } catch (err) {
+            console.error('Failed to update task:', err);
+          }
+          setShowCreateTaskDialog(false);
+        }}
+        editTask={createTaskDefaults?.editTask}
         defaultTargetSessionId={
           createTaskDefaults?.targetSessionId
           ?? (canSessionBeDefaultTaskTarget(selectedSession) ? selectedSessionId ?? undefined : undefined)

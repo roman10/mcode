@@ -57,6 +57,7 @@ export interface UpdateTaskInput {
   prompt?: string;
   priority?: number;
   scheduledAt?: string | null;
+  planModeAction?: PlanModeAction | null;
 }
 
 export interface TaskFilter {

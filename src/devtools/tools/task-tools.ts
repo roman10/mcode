@@ -105,11 +105,15 @@ export function registerTaskTools(
       prompt: z.string().optional().describe('New prompt text'),
       priority: z.number().int().optional().describe('New priority value'),
       scheduledAt: z.string().nullable().optional().describe('New scheduled time (ISO 8601, or null to clear)'),
+      planModeAction: z.object({
+        action: z.enum(['auto-accept', 'manual-approve', 'revise'])
+          .describe('auto-accept: proceed and auto-accept all edits. manual-approve: proceed but require manual approval. revise: send feedback text to revise the plan.'),
+      }).nullable().optional().describe('Change the plan mode action (null to clear)'),
     },
     annotations: { readOnlyHint: false },
-  }, async ({ taskId, prompt, priority, scheduledAt }) => {
+  }, async ({ taskId, prompt, priority, scheduledAt, planModeAction }) => {
     try {
-      const task = ctx.taskQueue.update(taskId, { prompt, priority, scheduledAt });
+      const task = ctx.taskQueue.update(taskId, { prompt, priority, scheduledAt, planModeAction });
       return {
         content: [{ type: 'text', text: JSON.stringify(task, null, 2) }],
       };
