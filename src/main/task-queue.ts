@@ -735,7 +735,9 @@ export class TaskQueue {
     const action = task.planModeAction!.action;
 
     if (action === 'revise') {
-      // Navigate to "Type here" / "Tell Claude what to change", enter text sub-mode, type message
+      // Navigate to the text-input option and type the revision message.
+      // No \r after navigation — the text-input activates on highlight;
+      // Enter would submit empty content and exit plan mode.
       const typeHere = choices.find((c) => /type here|tell.*what to change/i.test(c.text) || c.text === '');
       if (!typeHere) {
         logger.info('task', 'Plan mode dispatch deferred: no "type here" option in menu', {
@@ -745,10 +747,10 @@ export class TaskQueue {
         return;
       }
 
-      this.ptyManager.write(task.targetSessionId!, '\x1b[B'.repeat(typeHere.index - 1) + '\r');
+      this.ptyManager.write(task.targetSessionId!, '\x1b[B'.repeat(typeHere.index - 1));
       this.markPlanModeDispatched(db, task, typeHere.index);
 
-      // After the text sub-mode activates (~300ms), type the message
+      // After the text-input activates (~300ms), type the message
       setTimeout(() => {
         const currentSession = this.sessionManager.get(task.targetSessionId!);
         if (!currentSession || currentSession.status === 'ended') return;
