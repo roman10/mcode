@@ -170,6 +170,20 @@ describe('parseUserChoices', () => {
     expect(choices[3]).toEqual({ index: 4, text: 'Tell Claude what to change' });
   });
 
+  it('captures options with empty text (hint/placeholder stripped)', () => {
+    const menu = '❯ 1. Yes, and bypass permissions\n  2. Yes, manually approve edits\n  3. \n';
+    const choices = parseUserChoices(menu);
+    expect(choices).toHaveLength(3);
+    expect(choices[2]).toEqual({ index: 3, text: '' });
+  });
+
+  it('captures options with whitespace-only text as empty', () => {
+    const menu = '❯ 1. Accept\n  2.   \n';
+    const choices = parseUserChoices(menu);
+    expect(choices).toHaveLength(2);
+    expect(choices[1]).toEqual({ index: 2, text: '' });
+  });
+
   it('handles ANSI codes in the buffer', () => {
     const menu = '\x1b[32m❯\x1b[0m 1. Option A\n  2. Option B\n';
     const choices = parseUserChoices(menu);

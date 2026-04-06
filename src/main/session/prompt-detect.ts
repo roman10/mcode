@@ -65,16 +65,18 @@ export function isAtUserChoice(rawBufferTail: string): boolean {
  * Returns an array of {index, text} entries, e.g.:
  *   [{ index: 1, text: 'Yes, and bypass permissions' },
  *    { index: 2, text: 'Yes, manually approve edits' },
- *    { index: 3, text: 'Type here to tell Claude what to change' }]
+ *    { index: 3, text: '' }]  // empty when hint text is stripped
  *
- * Used by the task queue to locate the "Type here" option for plan mode
- * response tasks.
+ * Used by the task queue to locate the text-input option for plan mode
+ * response tasks.  The text-input option may have empty text when its
+ * placeholder ("Tell Claude what to change") is rendered as ANSI hint
+ * styling that gets stripped.
  */
 export function parseUserChoices(rawBufferTail: string): { index: number; text: string }[] {
   const clean = stripAnsi(rawBufferTail.slice(-2000));
   const menuStart = clean.lastIndexOf('❯');
   if (menuStart === -1) return [];
   const menuBlock = clean.slice(menuStart);
-  const matches = [...menuBlock.matchAll(/(\d+)\.\s+(.+)/g)];
+  const matches = [...menuBlock.matchAll(/(\d+)\.\s*(.*)/g)];
   return matches.map((m) => ({ index: parseInt(m[1], 10), text: m[2].trim() }));
 }

@@ -736,7 +736,7 @@ export class TaskQueue {
 
     if (action === 'revise') {
       // Navigate to "Type here" / "Tell Claude what to change", enter text sub-mode, type message
-      const typeHere = choices.find((c) => /type here|tell.*what to change/i.test(c.text));
+      const typeHere = choices.find((c) => /type here|tell.*what to change/i.test(c.text) || c.text === '');
       if (!typeHere) {
         logger.info('task', 'Plan mode dispatch deferred: no "type here" option in menu', {
           taskId: task.id, sessionId: task.targetSessionId,
