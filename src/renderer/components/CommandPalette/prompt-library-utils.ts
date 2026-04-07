@@ -2,6 +2,7 @@ import uFuzzy from '@leeoniya/ufuzzy';
 import { useMemo } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useDialogStore } from '../../stores/dialog-store';
+import { terminalRegistry } from '../../devtools/terminal-registry';
 
 /** Shared uFuzzy instance for fuzzy filtering. */
 const uf = new uFuzzy({ intraMode: 1 });
@@ -16,6 +17,8 @@ export function insertPromptText(text: string): boolean {
   const sessionId = useSessionStore.getState().selectedSessionId;
   if (!sessionId) return false;
   window.mcode.pty.write(sessionId, text);
+  // Refocus the terminal after the command palette unmounts
+  setTimeout(() => terminalRegistry.get(sessionId)?.focus(), 0);
   return true;
 }
 
