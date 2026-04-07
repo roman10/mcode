@@ -81,6 +81,27 @@ export interface SubscriptionUsage {
   fetchedAt: string; // ISO-8601 timestamp
 }
 
+export interface QuotaWindow {
+  id: string;
+  label: string;
+  utilization: number;     // 0-100 percent
+  resetsAt: string | null; // ISO-8601 datetime, or null
+  limitId?: string | null;
+  windowMinutes?: number | null;
+}
+
+export interface QuotaSnapshot {
+  provider: AgentSessionType;
+  sourceId: string;
+  sourceKind: 'account' | 'local';
+  displayName: string;
+  sourceLabel: string | null;
+  identity: string | null;
+  planType: string | null;
+  fetchedAt: string; // ISO-8601 timestamp
+  windows: QuotaWindow[];
+}
+
 // --- Terminal Config ---
 
 export interface TerminalConfig {
@@ -328,7 +349,10 @@ export interface MCodeAPI {
     getAuthStatus(accountId: string, sessionType?: string): Promise<AuthStatusResult>;
     checkCliInstalled(sessionType?: string): Promise<CliAuthStatus>;
     openAuthTerminal(accountId: string, sessionType?: string): Promise<string>; // returns sessionId of auth terminal
-    getSubscriptionUsage(accountId: string, forceRefresh?: boolean): Promise<SubscriptionUsage | null>;
+  };
+
+  quota: {
+    list(forceRefresh?: boolean): Promise<QuotaSnapshot[]>;
   };
 
   pty: {

@@ -6,6 +6,18 @@ import { vi } from 'vitest';
  */
 export function setupMcodeMock(overrides: Record<string, any> = {}) {
   const mcode = {
+    accounts: {
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({}),
+      rename: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+      getAuthStatus: vi.fn().mockResolvedValue({ status: 'ok' }),
+      checkCliInstalled: vi.fn().mockResolvedValue('ok'),
+      openAuthTerminal: vi.fn().mockResolvedValue('session-id'),
+    },
+    quota: {
+      list: vi.fn().mockResolvedValue([]),
+    },
     app: {
       getPlatform: vi.fn().mockReturnValue('darwin'),
       getHomeDir: vi.fn().mockReturnValue('/home/user'),

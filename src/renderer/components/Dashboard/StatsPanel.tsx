@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useStatsStore } from '../../stores/stats-store';
-import { useAccountsStore } from '../../stores/accounts-store';
+import { useQuotaStore } from '../../stores/quota-store';
 import Tooltip from '../shared/Tooltip';
 import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
 import OutputSection from './OutputSection';
@@ -33,8 +33,7 @@ function StatsPanel(): React.JSX.Element {
     providerFilter,
     setProviderFilter,
   } = useStatsStore();
-
-  const { accounts, subscriptionByAccount, refreshSubscriptionUsage } = useAccountsStore();
+  const { snapshots: quotaSnapshots, refresh: refreshQuota } = useQuotaStore();
 
   // Collapse state for sections
   const [outputCollapsed, setOutputCollapsed] = useState(false);
@@ -79,17 +78,17 @@ function StatsPanel(): React.JSX.Element {
     refreshAll();
   }, [collapsedRestored, refreshAll]);
 
-  // Fetch subscription quotas once on mount — independent of date changes.
+  // Fetch usage quotas once on mount — independent of date changes.
   useEffect(() => {
-    refreshSubscriptionUsage().catch(console.error);
+    refreshQuota().catch(console.error);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = useCallback((): void => {
     Promise.all([window.mcode.tokens.refresh(), window.mcode.commits.refresh()])
       .then(() => refreshAll())
       .catch(console.error);
-    refreshSubscriptionUsage().catch(console.error);
-  }, [refreshAll, refreshSubscriptionUsage]);
+    refreshQuota(true).catch(console.error);
+  }, [refreshAll, refreshQuota]);
 
   const handleForceRefresh = useCallback((): void => {
     window.mcode.commits.forceRescan()
@@ -219,8 +218,7 @@ function StatsPanel(): React.JSX.Element {
           onToggle={() => setCostCollapsed((v) => !v)}
           dailyUsage={dailyUsage}
           tokenHeatmap={tokenHeatmap}
-          accounts={accounts}
-          subscriptionByAccount={subscriptionByAccount}
+          quotaSnapshots={quotaSnapshots}
           providerFilter={providerFilter}
           viewDate={viewDate}
           onHeatmapSelect={handleHeatmapSelect}

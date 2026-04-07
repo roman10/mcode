@@ -2,8 +2,7 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { AccountProviderAdapter } from '../account-provider';
-import { fetchSubscriptionUsage } from '../../claude-subscription-fetcher';
-import type { AccountProfile, AuthStatusResult, CliAuthStatus, SessionCreateInput, SubscriptionUsage } from '../../../shared/types';
+import type { AccountProfile, AuthStatusResult, CliAuthStatus, SessionCreateInput } from '../../../shared/types';
 
 const execFileAsync = promisify(execFile);
 
@@ -79,14 +78,6 @@ class ClaudeAccountProvider implements AccountProviderAdapter {
 
   getInstallHelpUrl(): string | undefined {
     return 'https://docs.anthropic.com/en/docs/claude-code/overview';
-  }
-
-  supportsSubscriptionUsage(): boolean {
-    return true;
-  }
-
-  async getSubscriptionUsage(account: AccountProfile, force?: boolean): Promise<SubscriptionUsage | null> {
-    return fetchSubscriptionUsage(account, force);
   }
 }
 

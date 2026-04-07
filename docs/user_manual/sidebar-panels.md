@@ -89,7 +89,7 @@ By default only commits on the main branch are tracked. To include all branches,
 - **Cache efficiency** — cache hit rate percentage (shown when cache reads exist)
 - **Top sessions** — the sessions with the highest token usage for the selected day
 - **Weekly trend** — this week's cost vs last week, with percentage change
-- **Usage quotas** — (Claude only) subscription quota utilization per account: 5-hour, 7-day, and 7-day Opus limits shown as color-coded progress bars
+- **Usage quotas** — provider-specific quota utilization when available. Claude shows per-account 5-hour, 7-day, and Opus bars; Codex shows the latest local CLI quota window telemetry.
 
 > **Note:** Copilot CLI sessions are excluded from cost tracking — Copilot does not expose token usage data.
 

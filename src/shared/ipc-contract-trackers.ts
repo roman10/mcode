@@ -11,6 +11,7 @@ import type {
   InputWeeklyTrend,
   ModelTokenBreakdown,
   PromptHistoryEntry,
+  QuotaSnapshot,
   SessionTokenUsage,
   TokenHeatmapEntry,
   TokenWeeklyTrend,
@@ -28,6 +29,7 @@ export interface TrackersInvokeContract {
   'tokens:get-weekly-trend':            { params: [provider?: string]; result: TokenWeeklyTrend };
   'tokens:get-heatmap':                 { params: [days?: number, provider?: string]; result: TokenHeatmapEntry[] };
   'tokens:refresh':                     { params: []; result: void };
+  'quota:list':                         { params: [forceRefresh?: boolean]; result: QuotaSnapshot[] };
 
   // --- Input ---
   'input:get-daily-stats':              { params: [date?: string, provider?: string]; result: DailyInputStats };

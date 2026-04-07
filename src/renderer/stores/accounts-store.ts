@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AccountProfileWithProviders, CliAuthStatus, SubscriptionUsage } from '@shared/types';
+import type { AccountProfileWithProviders, CliAuthStatus } from '@shared/types';
 
 interface AccountsState {
   accounts: AccountProfileWithProviders[];
@@ -7,18 +7,15 @@ interface AccountsState {
   cliStatus: CliAuthStatus | null;
   /** Whether the CLI status banner has been dismissed this session. */
   cliStatusDismissed: boolean;
-  subscriptionByAccount: Record<string, SubscriptionUsage | null>;
   refresh(): Promise<void>;
   refreshCliStatus(): Promise<void>;
   dismissCliStatus(): void;
-  refreshSubscriptionUsage(): Promise<void>;
 }
 
-export const useAccountsStore = create<AccountsState>((set, get) => ({
+export const useAccountsStore = create<AccountsState>((set) => ({
   accounts: [],
   cliStatus: null,
   cliStatusDismissed: false,
-  subscriptionByAccount: {},
 
   refresh: async () => {
     const accounts = await window.mcode.accounts.list();
@@ -36,22 +33,5 @@ export const useAccountsStore = create<AccountsState>((set, get) => ({
 
   dismissCliStatus: () => {
     set({ cliStatusDismissed: true });
-  },
-
-  refreshSubscriptionUsage: async () => {
-    let { accounts } = get();
-    if (accounts.length === 0) {
-      await get().refresh();
-      accounts = get().accounts;
-    }
-    const prev = get().subscriptionByAccount;
-    const entries = await Promise.all(
-      accounts.map(async (a) => {
-        const usage = await window.mcode.accounts.getSubscriptionUsage(a.accountId, true);
-        // Keep previous value on failure so we never flash "quota unavailable"
-        return [a.accountId, usage ?? prev[a.accountId] ?? null] as const;
-      }),
-    );
-    set({ subscriptionByAccount: Object.fromEntries(entries) });
   },
 }));

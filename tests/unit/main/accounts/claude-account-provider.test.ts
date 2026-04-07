@@ -36,11 +36,6 @@ describe('ClaudeAccountProvider', () => {
   it('returns install help URL', () => {
     expect(adapter.getInstallHelpUrl()).toBe('https://docs.anthropic.com/en/docs/claude-code/overview');
   });
-
-  it('supports subscription usage', () => {
-    expect(adapter.supportsSubscriptionUsage()).toBe(true);
-  });
-
   it('builds auth terminal input for secondary account', () => {
     const account = {
       accountId: 'test-id',

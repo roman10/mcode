@@ -14,8 +14,6 @@ function createMockAdapter(overrides: Partial<AccountProviderAdapter> = {}): Acc
     checkAuthStatus: async () => ({ status: 'ok' }),
     buildAuthTerminalInput: () => null,
     getInstallHelpUrl: () => undefined,
-    supportsSubscriptionUsage: () => false,
-    getSubscriptionUsage: async () => null,
     ...overrides,
   };
 }

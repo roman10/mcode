@@ -7,11 +7,10 @@ import type {
   DailyTokenUsage,
   TokenHeatmapEntry,
   ModelUsageSummary,
-  SubscriptionUsage,
-  AccountProfileWithProviders,
+  QuotaSnapshot,
+  QuotaWindow,
 } from '@shared/types';
 import type { AgentSessionType } from '@shared/session-agents';
-import { getAgentDefinition } from '@shared/session-agents';
 import { splitLabelIcon } from '../../utils/label-utils';
 import AgentIcon from '../shared/AgentIcon';
 
@@ -84,34 +83,29 @@ function UsageQuotaBar({
 }
 
 function UsageQuotaSection({
-  usage,
-  accountName,
-  accountEmail,
+  windows,
+  sourceLabel,
+  identity,
 }: {
-  usage: SubscriptionUsage;
-  accountName?: string;
-  accountEmail?: string | null;
+  windows: QuotaWindow[];
+  sourceLabel?: string | null;
+  identity?: string | null;
 }): React.JSX.Element {
   return (
     <div className="space-y-1.5">
-      {accountName && (
+      {sourceLabel && (
         <div className="text-xs text-text-muted font-medium">
-          {accountName}{accountEmail ? <span className="text-text-muted/70 font-normal"> · {accountEmail}</span> : null}
+          {sourceLabel}{identity ? <span className="text-text-muted/70 font-normal"> · {identity}</span> : null}
         </div>
       )}
-      {usage.fiveHour && (
-        <UsageQuotaBar label="5-hour" utilization={usage.fiveHour.utilization} resetsAt={usage.fiveHour.resetsAt} />
-      )}
-      {usage.sevenDay && (
-        <UsageQuotaBar label="7-day" utilization={usage.sevenDay.utilization} resetsAt={usage.sevenDay.resetsAt} />
-      )}
-      {usage.sevenDayOpus && (
+      {windows.map((window) => (
         <UsageQuotaBar
-          label="Opus"
-          utilization={usage.sevenDayOpus.utilization}
-          resetsAt={usage.sevenDayOpus.resetsAt}
+          key={window.id}
+          label={window.label}
+          utilization={window.utilization}
+          resetsAt={window.resetsAt}
         />
-      )}
+      ))}
     </div>
   );
 }
@@ -123,8 +117,7 @@ interface CostSectionProps {
   onToggle: () => void;
   dailyUsage: DailyTokenUsage | null;
   tokenHeatmap: TokenHeatmapEntry[];
-  accounts: AccountProfileWithProviders[];
-  subscriptionByAccount: Record<string, SubscriptionUsage | null>;
+  quotaSnapshots: QuotaSnapshot[];
   providerFilter: AgentSessionType | null;
   viewDate: string;
   onHeatmapSelect: (date: string) => void;
@@ -136,8 +129,7 @@ function CostSection({
   onToggle,
   dailyUsage,
   tokenHeatmap,
-  accounts,
-  subscriptionByAccount,
+  quotaSnapshots,
   providerFilter,
   viewDate,
   onHeatmapSelect,
@@ -152,6 +144,16 @@ function CostSection({
   const byModel = dailyUsage?.byModel ?? [];
   const totals = dailyUsage?.totals;
   const cacheReadTokens = totals?.cacheReadTokens ?? 0;
+  const filteredQuotaSnapshots = quotaSnapshots.filter((snapshot) => {
+    if (providerFilter == null) return true;
+    return snapshot.provider === providerFilter;
+  });
+  const quotaGroups = new Map<AgentSessionType, QuotaSnapshot[]>();
+  for (const snapshot of filteredQuotaSnapshots) {
+    const existing = quotaGroups.get(snapshot.provider) ?? [];
+    existing.push(snapshot);
+    quotaGroups.set(snapshot.provider, existing);
+  }
   const totalInputTokens =
     (totals?.inputTokens ?? 0) +
     cacheReadTokens +
@@ -297,50 +299,49 @@ function CostSection({
             </div>
           )}
 
-          {/* Usage Quota — Claude-specific (Anthropic API) */}
-          {(() => {
-            // Quota comes from the Anthropic API — only relevant for Claude
-            if (providerFilter != null && providerFilter !== 'claude') return null;
-            const quotaAccounts = accounts.filter(
-              (a) => subscriptionByAccount[a.accountId] != null || a.providers?.claude != null,
-            );
-            if (quotaAccounts.length === 0) return null;
-            const multiAccount = quotaAccounts.length > 1;
-            const cliName = getAgentDefinition('claude')!.displayName;
-            return (
-              <div className="space-y-3">
-                <div>
-                  <div className="text-xs text-text-muted font-medium">Usage Quota — {cliName}</div>
-                  {!multiAccount && quotaAccounts[0].providers?.claude?.identity && (
-                    <div className="text-xs text-text-muted/70 mt-0.5">
-                      {quotaAccounts[0].providers.claude.identity}
+          {quotaGroups.size > 0 && (
+            <div className="space-y-3">
+              <div className="text-xs text-text-muted font-medium">Usage Quotas</div>
+              {Array.from(quotaGroups.entries()).map(([provider, snapshots]) => {
+                const multiSource = snapshots.length > 1;
+                const first = snapshots[0];
+                const singleSubtitle = multiSource
+                  ? null
+                  : [first.identity, first.sourceKind === 'local' ? first.sourceLabel : null, first.planType]
+                    .filter(Boolean)
+                    .join(' · ');
+
+                return (
+                  <div key={provider} className="space-y-2">
+                    <div>
+                      <div className="text-xs text-text-secondary font-medium">{first.displayName}</div>
+                      {singleSubtitle && <div className="text-xs text-text-muted/70 mt-0.5">{singleSubtitle}</div>}
                     </div>
-                  )}
-                </div>
-                {quotaAccounts.map((a) => {
-                  const usage = subscriptionByAccount[a.accountId];
-                  const claudeIdentity = a.providers?.claude?.identity;
-                  return usage ? (
-                    <UsageQuotaSection
-                      key={a.accountId}
-                      usage={usage}
-                      accountName={multiAccount ? a.name : undefined}
-                      accountEmail={multiAccount ? claudeIdentity : undefined}
-                    />
-                  ) : (
-                    <div key={a.accountId} className="space-y-1.5">
-                      {multiAccount && (
-                        <div className="text-xs text-text-muted font-medium">
-                          {a.name}{claudeIdentity ? <span className="text-text-muted/70 font-normal"> · {claudeIdentity}</span> : null}
+                    {snapshots.map((snapshot) => (
+                      snapshot.windows.length > 0 ? (
+                        <UsageQuotaSection
+                          key={`${snapshot.provider}:${snapshot.sourceId}`}
+                          windows={snapshot.windows}
+                          sourceLabel={multiSource ? snapshot.sourceLabel : undefined}
+                          identity={multiSource ? snapshot.identity : undefined}
+                        />
+                      ) : (
+                        <div key={`${snapshot.provider}:${snapshot.sourceId}`} className="space-y-1.5">
+                          {multiSource && snapshot.sourceLabel && (
+                            <div className="text-xs text-text-muted font-medium">
+                              {snapshot.sourceLabel}
+                              {snapshot.identity ? <span className="text-text-muted/70 font-normal"> · {snapshot.identity}</span> : null}
+                            </div>
+                          )}
+                          <div className="text-xs text-text-muted/50">quota unavailable</div>
                         </div>
-                      )}
-                      <div className="text-xs text-text-muted/50">quota unavailable</div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
+                      )
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {cost === 0 && messageCount === 0 && (
             <div className="text-sm text-text-muted text-center py-2">No token usage {dateLabel}</div>

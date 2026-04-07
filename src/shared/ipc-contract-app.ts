@@ -6,7 +6,6 @@ import type {
   CreateTaskInput,
   HookEvent,
   HookRuntimeInfo,
-  SubscriptionUsage,
   Task,
   TaskChangeEvent,
   TaskFilter,
@@ -53,7 +52,6 @@ export interface AppInvokeContract {
   'account:get-auth-status':            { params: [accountId: string, sessionType?: string]; result: AuthStatusResult };
   'account:check-cli-installed':        { params: [sessionType?: string]; result: AuthStatusResult };
   'account:open-auth-terminal':         { params: [accountId: string, sessionType?: string]; result: string };
-  'account:get-subscription-usage':     { params: [accountId: string, forceRefresh?: boolean]; result: SubscriptionUsage | null };
 }
 
 export interface AppSendContract {

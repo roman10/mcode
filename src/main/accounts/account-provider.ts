@@ -1,5 +1,5 @@
 import type { AgentSessionType } from '../../shared/session-agents';
-import type { AccountProfile, AuthStatusResult, CliAuthStatus, SessionCreateInput, SubscriptionUsage } from '../../shared/types';
+import type { AccountProfile, AuthStatusResult, CliAuthStatus, SessionCreateInput } from '../../shared/types';
 
 /**
  * Provider-specific account adapter.
@@ -57,11 +57,6 @@ export interface AccountProviderAdapter {
   /** URL to show when the CLI is not installed. */
   getInstallHelpUrl(): string | undefined;
 
-  /** Whether this provider supports subscription/quota display. */
-  supportsSubscriptionUsage(): boolean;
-
-  /** Fetch subscription/usage data. Only called if supportsSubscriptionUsage() is true. */
-  getSubscriptionUsage(account: AccountProfile, force?: boolean): Promise<SubscriptionUsage | null>;
 }
 
 /**

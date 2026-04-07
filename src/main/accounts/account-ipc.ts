@@ -51,13 +51,4 @@ export function registerAccountIpc(
     const session = sessionManager.create(input);
     return session.sessionId;
   });
-
-  typedHandle('account:get-subscription-usage', async (accountId, forceRefresh) => {
-    const account = accountService.get(accountId);
-    if (!account) return null;
-    // Route through adapter — only Claude supports subscription usage currently
-    const adapter = registry.get('claude');
-    if (!adapter || !adapter.supportsSubscriptionUsage()) return null;
-    return adapter.getSubscriptionUsage(account, forceRefresh);
-  });
 }

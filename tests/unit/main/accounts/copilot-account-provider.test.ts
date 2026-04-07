@@ -41,23 +41,6 @@ describe('CopilotAccountProvider', () => {
       'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started',
     );
   });
-
-  it('does not support subscription usage', () => {
-    expect(adapter.supportsSubscriptionUsage()).toBe(false);
-  });
-
-  it('returns null for subscription usage', async () => {
-    const account = {
-      accountId: 'test',
-      name: 'Test',
-      isDefault: false,
-      homeDir: '/tmp/test',
-      createdAt: '2026-01-01T00:00:00Z',
-      lastUsedAt: null,
-    };
-    expect(await adapter.getSubscriptionUsage(account)).toBeNull();
-  });
-
   it('builds auth terminal input for secondary account', () => {
     const account = {
       accountId: 'test-id',

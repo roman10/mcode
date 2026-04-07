@@ -13,6 +13,7 @@ import { CommitTracker, registerCommitIpc } from './trackers/commit-tracker';
 import { GitChangesService, registerGitChangesIpc } from './git-changes';
 import { TokenTracker, registerTokenIpc } from './trackers/token-tracker';
 import { InputTracker, registerInputIpc } from './trackers/input-tracker';
+import { QuotaProviderRegistry, QuotaService, ClaudeQuotaProvider, CodexQuotaProvider, registerQuotaIpc } from './quota';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister, registerFileIpc } from './file-lister';
 import { FileSearch, registerSearchIpc } from './file-search';
@@ -55,6 +56,7 @@ let commitTracker: CommitTracker;
 let gitChangesService: GitChangesService;
 let tokenTracker: TokenTracker;
 let inputTracker: InputTracker;
+let quotaService: QuotaService;
 let sleepBlocker: SleepBlocker;
 let fileLister: FileLister;
 let fileSearch: FileSearch;
@@ -309,6 +311,11 @@ app.whenReady().then(async () => {
   );
   accountManager.ensureDefaultAccount();
 
+  const quotaRegistry = new QuotaProviderRegistry();
+  quotaRegistry.register(new ClaudeQuotaProvider(accountManager));
+  quotaRegistry.register(new CodexQuotaProvider());
+  quotaService = new QuotaService(quotaRegistry);
+
   // Start (or connect to) PTY broker — holds PTY fds across app restarts
   await ensureBroker(BROKER_SOCKET_PATH);
   brokerClient = new BrokerClient();
@@ -414,6 +421,7 @@ app.whenReady().then(async () => {
   registerGitChangesIpc(gitChangesService);
   registerTokenIpc(tokenTracker);
   registerInputIpc(inputTracker);
+  registerQuotaIpc(quotaService);
   registerPreferencesIpc();
 
   // Create window AFTER IPC handlers are registered to avoid a race condition:

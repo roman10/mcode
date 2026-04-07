@@ -9,7 +9,6 @@ import type {
   AuthStatusResult,
   CliAuthStatus,
   SessionCreateInput,
-  SubscriptionUsage,
 } from '../../../shared/types';
 
 const execFileAsync = promisify(execFile);
@@ -105,14 +104,6 @@ class CopilotAccountProvider implements AccountProviderAdapter {
 
   getInstallHelpUrl(): string | undefined {
     return 'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started';
-  }
-
-  supportsSubscriptionUsage(): boolean {
-    return false;
-  }
-
-  async getSubscriptionUsage(_account: AccountProfile, _force?: boolean): Promise<SubscriptionUsage | null> {
-    return null;
   }
 }
 

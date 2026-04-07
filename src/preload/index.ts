@@ -39,7 +39,7 @@ import type {
   AccountProfileWithProviders,
   AuthStatusResult,
   CliAuthStatus,
-  SubscriptionUsage,
+  QuotaSnapshot,
   SlashCommandEntry,
   SnippetEntry,
   FileSearchRequest,
@@ -102,9 +102,11 @@ contextBridge.exposeInMainWorld('mcode', {
 
     openAuthTerminal: (accountId: string, sessionType?: string): Promise<string> =>
       typedInvoke('account:open-auth-terminal', accountId, sessionType),
+  },
 
-    getSubscriptionUsage: (accountId: string, forceRefresh?: boolean): Promise<SubscriptionUsage | null> =>
-      typedInvoke('account:get-subscription-usage', accountId, forceRefresh),
+  quota: {
+    list: (forceRefresh?: boolean): Promise<QuotaSnapshot[]> =>
+      typedInvoke('quota:list', forceRefresh),
   },
 
   pty: {
