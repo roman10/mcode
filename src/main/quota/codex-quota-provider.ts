@@ -149,6 +149,7 @@ function parseLatestCodexQuotaCandidate(content: string): CodexQuotaCandidate | 
       timestamp?: string;
       payload?: {
         type?: string;
+        rate_limits?: CodexRateLimitsPayload | null;
         info?: {
           rate_limits?: CodexRateLimitsPayload | null;
         } | null;
@@ -156,7 +157,7 @@ function parseLatestCodexQuotaCandidate(content: string): CodexQuotaCandidate | 
     };
 
     if (line.type !== 'event_msg' || line.payload?.type !== 'token_count') continue;
-    const rateLimits = line.payload.info?.rate_limits;
+    const rateLimits = line.payload.rate_limits ?? line.payload.info?.rate_limits;
     if (!rateLimits || typeof rateLimits !== 'object') continue;
     if (!line.timestamp) continue;
 
