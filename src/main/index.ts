@@ -1,6 +1,6 @@
 import { app, BrowserWindow, session, dialog, shell } from 'electron';
 import { join } from 'node:path';
-import { is, optimizer } from '@electron-toolkit/utils';
+import { is } from '@electron-toolkit/utils';
 import { BrokerClient, registerPtyIpc } from './pty/broker-client';
 import { ensureBroker, BROKER_SOCKET_PATH } from './pty/broker-launcher';
 import { SessionManager, registerSessionIpc } from './session/session-manager';
@@ -279,7 +279,23 @@ async function initializeHookSystem(): Promise<void> {
 
 app.whenReady().then(async () => {
   app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window);
+    // Custom shortcut handler that blocks Cmd+R reload in production
+    // but allows Cmd+Shift+R (plan mode) through to menu accelerators.
+    // Replaces optimizer.watchWindowShortcuts() which over-broadly blocks
+    // all Cmd+R variants regardless of Shift modifier.
+    if (!is.dev) {
+      window.webContents.on('before-input-event', (event, input) => {
+        if (input.type === 'keyDown') {
+          if (
+            input.code === 'KeyR' &&
+            (input.control || input.meta) &&
+            !input.shift
+          ) {
+            event.preventDefault();
+          }
+        }
+      });
+    }
   });
 
   setupCSP();
