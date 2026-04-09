@@ -469,7 +469,7 @@ export class CommitTracker {
       SELECT COUNT(*) as total,
              COALESCE(SUM(insertions), 0) as totalInsertions,
              COALESCE(SUM(deletions), 0) as totalDeletions,
-             SUM(CASE WHEN is_ai_assisted = 1 THEN 1 ELSE 0 END) as aiAssisted
+             COALESCE(SUM(CASE WHEN is_ai_assisted = 1 THEN 1 ELSE 0 END), 0) as aiAssisted
       FROM commits WHERE date = ?${pf.clause}
     `).get(targetDate, ...pf.params) as {
       total: number;
