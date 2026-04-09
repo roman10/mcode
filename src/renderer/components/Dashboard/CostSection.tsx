@@ -333,7 +333,7 @@ function CostSection({
                               {snapshot.identity ? <span className="text-text-muted/70 font-normal"> · {snapshot.identity}</span> : null}
                             </div>
                           )}
-                          <div className="text-xs text-text-muted/50">quota unavailable</div>
+                          <div className="text-xs text-text-muted/50">{snapshot.setupHint ?? 'quota unavailable'}</div>
                         </div>
                       )
                     ))}

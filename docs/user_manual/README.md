@@ -25,6 +25,7 @@ Detailed product documentation for mcode. If you want the project overview, down
 
 - [Account Management](accounts.md) - manage Claude accounts inside mcode
 - [Multi-Account GitHub Setup](multi-account-github.md) - configure GitHub SSH and `gh` CLI for multiple accounts
+- [Copilot Quota Tracking](copilot-quota.md) - set up `gh` CLI for Copilot premium request quota display
 
 ## Suggested reading paths
 

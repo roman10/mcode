@@ -100,6 +100,7 @@ export interface QuotaSnapshot {
   planType: string | null;
   fetchedAt: string; // ISO-8601 timestamp
   windows: QuotaWindow[];
+  setupHint?: string | null; // Shown when windows is empty, to guide user setup
 }
 
 // --- Terminal Config ---
