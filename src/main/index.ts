@@ -15,7 +15,7 @@ import { CommitTracker, registerCommitIpc } from './trackers/commit-tracker';
 import { GitChangesService, registerGitChangesIpc } from './git-changes';
 import { TokenTracker, registerTokenIpc } from './trackers/token-tracker';
 import { InputTracker, registerInputIpc } from './trackers/input-tracker';
-import { QuotaProviderRegistry, QuotaService, ClaudeQuotaProvider, CodexQuotaProvider, CopilotQuotaProvider, registerQuotaIpc } from './quota';
+import { QuotaProviderRegistry, QuotaService, ClaudeQuotaProvider, CodexQuotaProvider, CopilotQuotaProvider, GeminiQuotaProvider, registerQuotaIpc } from './quota';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister, registerFileIpc } from './file-lister';
 import { FileSearch, registerSearchIpc } from './file-search';
@@ -338,6 +338,7 @@ app.whenReady().then(async () => {
   quotaRegistry.register(new ClaudeQuotaProvider(accountManager));
   quotaRegistry.register(new CodexQuotaProvider());
   quotaRegistry.register(new CopilotQuotaProvider());
+  quotaRegistry.register(new GeminiQuotaProvider(accountManager));
   quotaService = new QuotaService(quotaRegistry);
 
   // Start (or connect to) PTY broker — holds PTY fds across app restarts

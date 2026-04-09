@@ -11,3 +11,4 @@ dist/
 .claude/projects/
 docs/marketing/
 .env.signing
+.env.local
