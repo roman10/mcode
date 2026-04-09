@@ -1,6 +1,7 @@
 import type { AgentSessionType } from '../../shared/session-agents';
 import type { QuotaSnapshot } from '../../shared/types';
 import type { QuotaProviderRegistry } from './quota-provider';
+import { logger } from '../logger';
 
 export class QuotaService {
   constructor(private registry: QuotaProviderRegistry) {}
@@ -14,7 +15,8 @@ export class QuotaService {
       adapters.map(async (adapter) => {
         try {
           return await adapter.getSnapshots(forceRefresh);
-        } catch {
+        } catch (err) {
+          logger.debug('quota', `Provider ${adapter.provider} failed: ${err}`);
           return [];
         }
       }),
