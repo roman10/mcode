@@ -74,7 +74,7 @@ describe('canResumeSession', () => {
   it('uses agent metadata to decide account override support', () => {
     expect(canOverrideResumeAccount(makeSession({ sessionType: 'claude' }))).toBe(true);
     expect(canOverrideResumeAccount(makeSession({ sessionType: 'codex' }))).toBe(true);
-    expect(canOverrideResumeAccount(makeSession({ sessionType: 'gemini' }))).toBe(false);
+    expect(canOverrideResumeAccount(makeSession({ sessionType: 'gemini' }))).toBe(true);
     expect(canOverrideResumeAccount(makeSession({ sessionType: 'terminal' }))).toBe(false);
   });
 

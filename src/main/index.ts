@@ -9,6 +9,7 @@ import { AccountService, AccountProviderRegistry, AccountProfileRepository, Acco
 import { createClaudeAccountProvider } from './accounts/providers/claude-account-provider';
 import { createCopilotAccountProvider } from './accounts/providers/copilot-account-provider';
 import { createCodexAccountProvider } from './accounts/providers/codex-account-provider';
+import { createGeminiAccountProvider } from './accounts/providers/gemini-account-provider';
 import { TaskQueue, registerTaskIpc } from './task-queue';
 import { CommitTracker, registerCommitIpc } from './trackers/commit-tracker';
 import { GitChangesService, registerGitChangesIpc } from './git-changes';
@@ -324,6 +325,7 @@ app.whenReady().then(async () => {
   providerRegistry.register(createClaudeAccountProvider());
   providerRegistry.register(createCopilotAccountProvider());
   providerRegistry.register(createCodexAccountProvider());
+  providerRegistry.register(createGeminiAccountProvider());
   accountManager = new AccountService(
     new AccountProfileRepository(),
     new AccountHomeManager(providerRegistry),
