@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { existsSync, mkdirSync, readdirSync, symlinkSync, copyFileSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, symlinkSync, unlinkSync, copyFileSync, rmSync } from 'node:fs';
 import { logger } from '../logger';
 import { readJsonConfig, writeJsonConfig } from '../hooks/hook-config-io';
 import type { AccountProviderRegistry } from './account-provider';
@@ -85,6 +85,22 @@ export class AccountHomeManager {
 
     const realHome = homedir();
     const denylist = this.registry.getAllConfigDirNames();
+
+    // Migrate provider config dirs from symlinks to real directories.
+    // Handles providers added after the account was originally created.
+    for (const dirName of denylist) {
+      const dirPath = join(accountHome, dirName);
+      try {
+        const stats = lstatSync(dirPath);
+        if (stats.isSymbolicLink()) {
+          unlinkSync(dirPath);
+          mkdirSync(dirPath, { recursive: true });
+          logger.info('accounts', 'Migrated provider config symlink to isolated directory', { dirPath });
+        }
+      } catch {
+        // Path doesn't exist yet — will be created by syncProviderSubdirSymlinks or setupAccountDirectory
+      }
+    }
 
     const realEntries = readdirSync(realHome, { withFileTypes: true });
     for (const entry of realEntries) {

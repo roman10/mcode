@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { join } from 'node:path';
+import { mkdirSync, symlinkSync, lstatSync, existsSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { AccountProviderRegistry } from '../../../../src/main/accounts/account-provider';
 import { AccountHomeManager } from '../../../../src/main/accounts/account-home-manager';
 import type { AccountProviderAdapter } from '../../../../src/main/accounts/account-provider';
@@ -79,6 +82,89 @@ describe('AccountHomeManager', () => {
       expect(paths.some((p) => p.includes('.claude/settings.json'))).toBe(true);
       expect(paths.some((p) => p.includes('.gemini/settings.json'))).toBe(true);
       expect(paths.every((p) => !p.includes('.copilot'))).toBe(true);
+    });
+  });
+
+  describe('syncSymlinks — symlink-to-directory migration', () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = join(tmpdir(), `ahm-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      mkdirSync(tmpDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('converts provider config symlink to real directory', () => {
+      // Simulate existing account home where .codex is a symlink (pre-migration state)
+      const accountHome = join(tmpDir, 'account');
+      mkdirSync(accountHome, { recursive: true });
+
+      // Create a source dir to symlink to (simulates real ~/.codex)
+      const sourceDir = join(tmpDir, 'source-codex');
+      mkdirSync(sourceDir, { recursive: true });
+      symlinkSync(sourceDir, join(accountHome, '.codex'));
+
+      // Verify it's a symlink before migration
+      expect(lstatSync(join(accountHome, '.codex')).isSymbolicLink()).toBe(true);
+
+      const registry = new AccountProviderRegistry();
+      registry.register(createMockAdapter({ sessionType: 'codex', getConfigDirName: () => '.codex', getSharedConfigSubdirs: () => [] }));
+      const manager = new AccountHomeManager(registry);
+
+      manager.syncSymlinks({
+        accountId: 'test',
+        name: 'Test',
+        isDefault: false,
+        homeDir: accountHome,
+        createdAt: '2026-01-01',
+        lastUsedAt: null,
+      });
+
+      // After migration: .codex should be a real directory, not a symlink
+      expect(existsSync(join(accountHome, '.codex'))).toBe(true);
+      expect(lstatSync(join(accountHome, '.codex')).isSymbolicLink()).toBe(false);
+      expect(lstatSync(join(accountHome, '.codex')).isDirectory()).toBe(true);
+    });
+
+    it('leaves existing real directories untouched', () => {
+      const accountHome = join(tmpDir, 'account');
+      mkdirSync(join(accountHome, '.codex'), { recursive: true });
+
+      const registry = new AccountProviderRegistry();
+      registry.register(createMockAdapter({ sessionType: 'codex', getConfigDirName: () => '.codex', getSharedConfigSubdirs: () => [] }));
+      const manager = new AccountHomeManager(registry);
+
+      manager.syncSymlinks({
+        accountId: 'test',
+        name: 'Test',
+        isDefault: false,
+        homeDir: accountHome,
+        createdAt: '2026-01-01',
+        lastUsedAt: null,
+      });
+
+      // Should still be a real directory
+      expect(lstatSync(join(accountHome, '.codex')).isDirectory()).toBe(true);
+      expect(lstatSync(join(accountHome, '.codex')).isSymbolicLink()).toBe(false);
+    });
+
+    it('skips default accounts', () => {
+      const registry = new AccountProviderRegistry();
+      registry.register(createMockAdapter({ sessionType: 'codex', getConfigDirName: () => '.codex' }));
+      const manager = new AccountHomeManager(registry);
+
+      // Should not throw for default account (no-op)
+      manager.syncSymlinks({
+        accountId: 'default',
+        name: 'Default',
+        isDefault: true,
+        homeDir: null,
+        createdAt: '2026-01-01',
+        lastUsedAt: null,
+      });
     });
   });
 
