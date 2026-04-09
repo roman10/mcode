@@ -24,9 +24,18 @@ describe('session-capabilities', () => {
   it('blocks non-live or ended sessions from task targeting', () => {
     expect(canSessionQueueTasks(makeSession({ hookMode: 'fallback' }))).toBe(false);
     expect(canSessionQueueTasks(makeSession({ status: 'ended' }))).toBe(false);
-    expect(canSessionBeTaskTarget(makeSession({ status: 'waiting' }))).toBe(false);
     expect(canSessionQueueTasks(makeSession({ sessionType: 'gemini', hookMode: 'fallback' }))).toBe(false);
-    expect(canSessionBeDefaultTaskTarget(makeSession({ status: 'starting' }))).toBe(false);
+    expect(canSessionBeTaskTarget(makeSession({ status: 'ended' }))).toBe(false);
+    expect(canSessionBeTaskTarget(makeSession({ status: 'detached' }))).toBe(false);
+    expect(canSessionBeDefaultTaskTarget(makeSession({ status: 'ended' }))).toBe(false);
+    expect(canSessionBeDefaultTaskTarget(makeSession({ status: 'detached' }))).toBe(false);
+  });
+
+  it('allows waiting and starting sessions as task targets (tasks queue until idle)', () => {
+    expect(canSessionBeTaskTarget(makeSession({ status: 'waiting' }))).toBe(true);
+    expect(canSessionBeTaskTarget(makeSession({ status: 'starting' }))).toBe(true);
+    expect(canSessionBeDefaultTaskTarget(makeSession({ status: 'starting' }))).toBe(true);
+    expect(canSessionBeDefaultTaskTarget(makeSession({ status: 'waiting' }))).toBe(true);
   });
 
   it('allows live Gemini sessions to queue tasks (WP1)', () => {

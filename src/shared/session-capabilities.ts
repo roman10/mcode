@@ -19,7 +19,7 @@ export function canSessionBeDefaultTaskTarget(session: TaskSessionLike): boolean
 }
 
 export function canSessionBeTaskTarget(session: TaskSessionLike): boolean {
-  return hasLiveTaskQueue(session) && (session.status === 'active' || session.status === 'idle');
+  return hasLiveTaskQueue(session) && session.status !== 'ended' && session.status !== 'detached';
 }
 
 export function canSessionBePlanResponseTarget(session: TaskSessionLike): boolean {
