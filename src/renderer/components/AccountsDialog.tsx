@@ -24,26 +24,30 @@ function suggestNameFromEmail(email: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-// --- ProviderStatusRow ---
+// --- AccountRow ---
+// Renders one account's auth status for a single provider (CLI type).
 
-interface ProviderStatusRowProps {
+interface AccountRowProps {
+  account: AccountProfileWithProviders;
   provider: AgentDefinition;
   identity?: AccountProviderIdentity;
-  authStatus: CliAuthStatus | null; // fresh check result from this session
+  authStatus: CliAuthStatus | null;
   onVerify(): void;
   verifying: boolean;
-  onLogin?(): void; // undefined for default account
+  onLogin?(): void;
+  onDelete?(): void;
 }
 
-function ProviderStatusRow({
+function AccountRow({
+  account,
   provider,
   identity,
   authStatus,
   onVerify,
   verifying,
   onLogin,
-}: ProviderStatusRowProps): React.JSX.Element {
-  // Fresh check takes priority over persisted identity status
+  onDelete,
+}: AccountRowProps): React.JSX.Element {
   const effectiveStatus = authStatus ?? identity?.authStatus;
   const isOk = effectiveStatus === 'ok';
   const isCliMissing = authStatus === 'cli-not-found';
@@ -74,7 +78,12 @@ function ProviderStatusRow({
     <div>
       <div className="flex items-center gap-2 text-xs pl-1">
         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
-        <span className="text-text-muted w-20 shrink-0">{provider.displayName}:</span>
+        <span className="text-sm text-text-primary shrink-0">{account.name}</span>
+        {account.isDefault && (
+          <span className="text-xs text-text-muted bg-bg-secondary px-1.5 py-0.5 rounded">
+            default
+          </span>
+        )}
         <span className={`flex-1 min-w-0 truncate ${textColor}`}>{identityText}</span>
         <div className="flex items-center gap-2 shrink-0">
           {onLogin && !isOk && (
@@ -96,6 +105,14 @@ function ProviderStatusRow({
               ? <Loader2 size={11} strokeWidth={1.5} className="animate-spin" />
               : <RotateCw size={11} strokeWidth={1.5} />}
           </button>
+          {onDelete && (
+            <button
+              className="text-text-muted hover:text-red-400 transition-colors"
+              onClick={onDelete}
+            >
+              <Trash2 size={13} strokeWidth={1.5} />
+            </button>
+          )}
         </div>
       </div>
       {isCliMissing && provider.installHelpUrl && (
@@ -113,59 +130,20 @@ function ProviderStatusRow({
   );
 }
 
-// --- AccountBlock ---
+// --- ProviderSection ---
 
-interface AccountBlockProps {
-  account: AccountProfileWithProviders;
-  authStatuses: Record<string, CliAuthStatus>;
-  verifyingId: string | null;
-  onVerify(sessionType: string): void;
-  onLogin(sessionType: string): void;
-  onDelete?(): void;
+interface ProviderSectionProps {
+  provider: AgentDefinition;
+  children: React.ReactNode;
 }
 
-function AccountBlock({
-  account,
-  authStatuses,
-  verifyingId,
-  onVerify,
-  onLogin,
-  onDelete,
-}: AccountBlockProps): React.JSX.Element {
-  const key = (sessionType: string) => `${account.accountId}:${sessionType}`;
-
+function ProviderSection({ provider, children }: ProviderSectionProps): React.JSX.Element {
   return (
-    <div className="bg-bg-primary border border-border-default rounded-md px-3 py-2.5 space-y-2">
-      {/* Account header */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-text-primary">{account.name}</span>
-        {account.isDefault && (
-          <span className="text-xs text-text-muted bg-bg-secondary px-1.5 py-0.5 rounded">
-            default
-          </span>
-        )}
-        {onDelete && (
-          <button
-            className="ml-auto text-text-muted hover:text-red-400 transition-colors shrink-0"
-            onClick={onDelete}
-          >
-            <Trash2 size={13} strokeWidth={1.5} />
-          </button>
-        )}
+    <div className="mb-4">
+      <p className="text-xs text-text-muted uppercase tracking-wide mb-2">{provider.displayName}</p>
+      <div className="bg-bg-primary border border-border-default rounded-md px-3 py-2.5 space-y-2">
+        {children}
       </div>
-
-      {/* Per-provider status rows */}
-      {SUPPORTED_PROVIDERS.map((provider) => (
-        <ProviderStatusRow
-          key={provider.sessionType}
-          provider={provider}
-          identity={account.providers?.[provider.sessionType]}
-          authStatus={authStatuses[key(provider.sessionType)] ?? null}
-          onVerify={() => onVerify(provider.sessionType)}
-          verifying={verifyingId === key(provider.sessionType)}
-          onLogin={!account.isDefault ? () => onLogin(provider.sessionType) : undefined}
-        />
-      ))}
     </div>
   );
 }
@@ -199,8 +177,11 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
   const [renameName, setRenameName] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const defaultAccount = accounts.find((a) => a.isDefault);
-  const secondaryAccounts = accounts.filter((a) => !a.isDefault);
+  // Ordered: default account first, then secondaries in original order
+  const orderedAccounts = [
+    ...accounts.filter((a) => a.isDefault),
+    ...accounts.filter((a) => !a.isDefault),
+  ];
 
   // Helper: open a provider auth terminal and focus the new session tile
   const openAuthTerminal = async (accountId: string, sessionType: string): Promise<void> => {
@@ -379,45 +360,27 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       width="w-[460px]"
       className="max-h-[80vh] overflow-y-auto"
     >
-      {/* Default account */}
-      <div className="mb-4">
-        <p className="text-xs text-text-muted uppercase tracking-wide mb-2">Default Account</p>
-        {defaultAccount && (
-          <AccountBlock
-            account={defaultAccount}
-            authStatuses={authStatuses}
-            verifyingId={verifyingId}
-            onVerify={(sessionType) => handleVerify(defaultAccount.accountId, sessionType)}
-            onLogin={() => {
-              /* default account cannot open auth terminals */
-            }}
-          />
-        )}
-      </div>
-
-      {/* Secondary accounts */}
-      {secondaryAccounts.length > 0 && (
-        <div className="mb-4">
-          <p className="text-xs text-text-muted uppercase tracking-wide mb-2">Secondary Accounts</p>
-          <div className="space-y-2">
-            {secondaryAccounts.map((account) => (
-              <AccountBlock
+      {/* Provider sections — grouped by CLI type */}
+      {SUPPORTED_PROVIDERS.map((provider) => (
+        <ProviderSection key={provider.sessionType} provider={provider}>
+          {orderedAccounts.map((account) => {
+            const key = `${account.accountId}:${provider.sessionType}`;
+            return (
+              <AccountRow
                 key={account.accountId}
                 account={account}
-                authStatuses={authStatuses}
-                verifyingId={verifyingId}
-                onVerify={(sessionType) => handleVerify(account.accountId, sessionType)}
-                onLogin={(sessionType) => handleLogin(account.accountId, sessionType)}
-                onDelete={
-                  deletingId === account.accountId
-                    ? undefined
-                    : () => handleDelete(account.accountId)
-                }
+                provider={provider}
+                identity={account.providers?.[provider.sessionType]}
+                authStatus={authStatuses[key] ?? null}
+                onVerify={() => handleVerify(account.accountId, provider.sessionType)}
+                verifying={verifyingId === key}
+                onLogin={!account.isDefault ? () => handleLogin(account.accountId, provider.sessionType) : undefined}
+                onDelete={!account.isDefault && deletingId !== account.accountId ? () => handleDelete(account.accountId) : undefined}
               />
-            ))}
-          </div>
-        </div>
-      )}
+            );
+          })}
+        </ProviderSection>
+      ))}
 
       {/* Rename prompt (shown after any provider auth detected for a new account) */}
       {renameAccountId && (
