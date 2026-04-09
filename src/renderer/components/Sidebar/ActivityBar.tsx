@@ -107,7 +107,7 @@ function ActivityBar({ activeTab, panelCollapsed, onTabSelect, onSettingsClick, 
 
       {/* Bottom icons */}
       <div className="mt-auto flex flex-col">
-        <Tooltip content="Accounts" side="right">
+        <Tooltip content="Profiles" side="right">
           <button
             className="w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
             onClick={onAccountsClick}

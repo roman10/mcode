@@ -9,7 +9,6 @@ import Dialog from './shared/Dialog';
 import type { AccountProfileWithProviders, AccountProviderIdentity, CliAuthStatus } from '@shared/types';
 
 // Providers that support account profiles — derived from agent metadata.
-// Re-evaluated at module load so it updates automatically when new providers are added.
 const SUPPORTED_PROVIDERS: AgentDefinition[] = AGENT_SESSION_TYPES
   .map((t) => getAgentDefinition(t)!)
   .filter((d) => d.supportsAccountProfiles);
@@ -24,125 +23,154 @@ function suggestNameFromEmail(email: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-// --- AccountRow ---
-// Renders one account's auth status for a single provider (CLI type).
+// --- CliRow ---
+// One CLI connection within a profile card.
 
-interface AccountRowProps {
-  account: AccountProfileWithProviders;
+interface CliRowProps {
   provider: AgentDefinition;
   identity?: AccountProviderIdentity;
   authStatus: CliAuthStatus | null;
   onVerify(): void;
   verifying: boolean;
-  onLogin?(): void;
-  onDelete?(): void;
+  onConnect?(): void; // undefined = default profile (no connect action)
 }
 
-function AccountRow({
-  account,
+function CliRow({
   provider,
   identity,
   authStatus,
   onVerify,
   verifying,
-  onLogin,
-  onDelete,
-}: AccountRowProps): React.JSX.Element {
+  onConnect,
+}: CliRowProps): React.JSX.Element {
   const effectiveStatus = authStatus ?? identity?.authStatus;
   const isOk = effectiveStatus === 'ok';
   const isCliMissing = authStatus === 'cli-not-found';
+  const isNotConnected = !isOk && !isCliMissing;
 
   const dotColor = isCliMissing
     ? 'bg-red-400'
     : isOk
       ? 'bg-green-400'
-      : effectiveStatus != null
-        ? 'bg-amber-400'
-        : 'bg-neutral-500';
+      : 'bg-neutral-600';
 
-  const identityText = isCliMissing
-    ? 'CLI not found'
-    : isOk
-      ? (identity?.identity ?? 'Authenticated')
-      : effectiveStatus != null
-        ? 'Not authenticated'
-        : 'Not verified';
+  let statusText: string;
+  if (isCliMissing) {
+    statusText = 'CLI not found';
+  } else if (isOk) {
+    const id = identity?.identity;
+    statusText = id ? `connected as ${id}` : 'connected';
+  } else {
+    statusText = 'not connected';
+  }
 
-  const textColor = isCliMissing
+  const statusColor = isCliMissing
     ? 'text-red-300'
     : isOk
       ? 'text-text-secondary'
       : 'text-text-muted';
 
   return (
-    <div>
-      <div className="flex items-center gap-2 text-xs pl-1">
+    <div className="flex items-center gap-2">
+      <div className={`flex items-center gap-2 flex-1 min-w-0 ${isNotConnected ? 'opacity-50' : ''}`}>
         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
-        <span className="text-sm text-text-primary shrink-0">{account.name}</span>
-        {account.isDefault && (
-          <span className="text-xs text-text-muted bg-bg-secondary px-1.5 py-0.5 rounded">
-            default
-          </span>
-        )}
-        <span className={`flex-1 min-w-0 truncate ${textColor}`}>{identityText}</span>
-        <div className="flex items-center gap-2 shrink-0">
-          {onLogin && !isOk && (
-            <button
-              className="text-text-muted hover:text-text-secondary transition-colors"
-              onClick={onLogin}
-            >
-              Login
-            </button>
-          )}
-          <button
-            className="text-text-muted hover:text-text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={onVerify}
-            disabled={verifying}
-            title="Verify auth status"
-            aria-label="Verify auth status"
-          >
-            {verifying
-              ? <Loader2 size={11} strokeWidth={1.5} className="animate-spin" />
-              : <RotateCw size={11} strokeWidth={1.5} />}
-          </button>
-          {onDelete && (
-            <button
-              className="text-text-muted hover:text-red-400 transition-colors"
-              onClick={onDelete}
-            >
-              <Trash2 size={13} strokeWidth={1.5} />
-            </button>
-          )}
-        </div>
+        <span className="text-xs text-text-muted w-20 shrink-0">{provider.displayName}</span>
+        <span className={`flex-1 min-w-0 truncate text-xs ${statusColor}`}>{statusText}</span>
       </div>
-      {isCliMissing && provider.installHelpUrl && (
-        <div className="mt-1 ml-4 text-xs text-red-300">
-          Install {provider.displayName} to get started.{' '}
+      <div className="flex items-center gap-2 shrink-0">
+        {onConnect && !isOk && !isCliMissing && (
           <button
-            className="underline hover:text-red-200 transition-colors"
+            className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+            onClick={onConnect}
+          >
+            Connect
+          </button>
+        )}
+        {isCliMissing && provider.installHelpUrl && (
+          <button
+            className="text-xs text-red-300 hover:text-red-200 underline transition-colors"
             onClick={() => window.open(provider.installHelpUrl, '_blank')}
           >
-            Instructions
+            Install
           </button>
-        </div>
-      )}
+        )}
+        <button
+          className="text-text-muted hover:text-text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          onClick={onVerify}
+          disabled={verifying}
+          title="Verify connection"
+          aria-label="Verify connection"
+        >
+          {verifying
+            ? <Loader2 size={10} strokeWidth={1.5} className="animate-spin" />
+            : <RotateCw size={10} strokeWidth={1.5} />}
+        </button>
+      </div>
     </div>
   );
 }
 
-// --- ProviderSection ---
+// --- ProfileCard ---
+// An isolated workspace showing its CLI connections.
 
-interface ProviderSectionProps {
-  provider: AgentDefinition;
-  children: React.ReactNode;
+interface ProfileCardProps {
+  account: AccountProfileWithProviders;
+  authStatuses: Record<string, CliAuthStatus>;
+  verifyingId: string | null;
+  deletingId: string | null;
+  isNew: boolean;
+  onVerify(sessionType: string): void;
+  onConnect(sessionType: string): void;
+  onDelete(): void;
 }
 
-function ProviderSection({ provider, children }: ProviderSectionProps): React.JSX.Element {
+function ProfileCard({
+  account,
+  authStatuses,
+  verifyingId,
+  deletingId,
+  isNew,
+  onVerify,
+  onConnect,
+  onDelete,
+}: ProfileCardProps): React.JSX.Element {
   return (
-    <div className="mb-4">
-      <p className="text-xs text-text-muted uppercase tracking-wide mb-2">{provider.displayName}</p>
-      <div className="bg-bg-primary border border-border-default rounded-md px-3 py-2.5 space-y-2">
-        {children}
+    <div className={`mb-3 border rounded-md overflow-hidden ${isNew ? 'border-accent/40' : 'border-border-default'}`}>
+      {/* Card header */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-bg-secondary">
+        <span className="text-sm text-text-primary font-medium truncate flex-1 min-w-0">{account.name}</span>
+        {account.isDefault ? (
+          <span className="text-xs text-text-muted shrink-0">default · uses your system $HOME</span>
+        ) : (
+          <button
+            className="text-text-muted hover:text-red-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+            onClick={onDelete}
+            disabled={deletingId === account.accountId}
+            title="Delete profile"
+            aria-label="Delete profile"
+          >
+            {deletingId === account.accountId
+              ? <Loader2 size={13} strokeWidth={1.5} className="animate-spin" />
+              : <Trash2 size={13} strokeWidth={1.5} />}
+          </button>
+        )}
+      </div>
+      {/* CLI rows */}
+      <div className="px-3 py-2.5 space-y-2 bg-bg-primary">
+        {SUPPORTED_PROVIDERS.map((provider) => {
+          const key = `${account.accountId}:${provider.sessionType}`;
+          return (
+            <CliRow
+              key={provider.sessionType}
+              provider={provider}
+              identity={account.providers?.[provider.sessionType]}
+              authStatus={authStatuses[key] ?? null}
+              onVerify={() => onVerify(provider.sessionType)}
+              verifying={verifyingId === key}
+              onConnect={!account.isDefault ? () => onConnect(provider.sessionType) : undefined}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -271,7 +299,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     setRenameName('');
   }, []);
 
-  // One-click add: create account, then immediately background-verify all providers
+  // One-click add: create profile, then immediately background-verify all providers
   const handleAddAccount = async (): Promise<void> => {
     if (isCreating || newAccountId) return;
     setIsCreating(true);
@@ -280,7 +308,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       const account = await window.mcode.accounts.create();
       setNewAccountId(account.accountId);
       await refresh();
-      // Background-verify new account's providers (catches already-authenticated edge case)
+      // Background-verify new profile's providers (catches already-authenticated edge case)
       void Promise.allSettled(
         SUPPORTED_PROVIDERS.map(async (p) => {
           const result = await window.mcode.accounts.getAuthStatus(account.accountId, p.sessionType);
@@ -310,7 +338,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       setAuthStatuses((prev) => ({ ...prev, [key]: result.status }));
       await refresh();
       useAccountsStore.getState().refreshCliStatus().catch(() => {});
-      // Trigger rename prompt for newly-created account on first successful auth
+      // Trigger rename prompt for newly-created profile on first successful auth
       if (newAccountId === accountId && result.status === 'ok' && (result.identity ?? result.email)) {
         const identity = result.identity ?? result.email!;
         setRenameAccountId(accountId);
@@ -324,7 +352,7 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
     }
   };
 
-  const handleLogin = async (accountId: string, sessionType: string): Promise<void> => {
+  const handleConnect = async (accountId: string, sessionType: string): Promise<void> => {
     setError(null);
     try {
       await openAuthTerminal(accountId, sessionType);
@@ -356,42 +384,39 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
       open={open}
       onOpenChange={onOpenChange}
       closeOnOverlayClick={false}
-      title="Accounts"
-      width="w-[460px]"
+      title="Profiles"
+      width="w-[480px]"
       className="max-h-[80vh] overflow-y-auto"
     >
-      {/* Provider sections — grouped by CLI type */}
-      {SUPPORTED_PROVIDERS.map((provider) => (
-        <ProviderSection key={provider.sessionType} provider={provider}>
-          {orderedAccounts.map((account) => {
-            const key = `${account.accountId}:${provider.sessionType}`;
-            return (
-              <AccountRow
-                key={account.accountId}
-                account={account}
-                provider={provider}
-                identity={account.providers?.[provider.sessionType]}
-                authStatus={authStatuses[key] ?? null}
-                onVerify={() => handleVerify(account.accountId, provider.sessionType)}
-                verifying={verifyingId === key}
-                onLogin={!account.isDefault ? () => handleLogin(account.accountId, provider.sessionType) : undefined}
-                onDelete={!account.isDefault && deletingId !== account.accountId ? () => handleDelete(account.accountId) : undefined}
-              />
-            );
-          })}
-        </ProviderSection>
+      <p className="text-xs text-text-muted mb-4 -mt-1">
+        Each profile is an isolated workspace with its own credentials for each AI tool.
+      </p>
+
+      {/* Profile cards */}
+      {orderedAccounts.map((account) => (
+        <ProfileCard
+          key={account.accountId}
+          account={account}
+          authStatuses={authStatuses}
+          verifyingId={verifyingId}
+          deletingId={deletingId}
+          isNew={newAccountId === account.accountId}
+          onVerify={(sessionType) => handleVerify(account.accountId, sessionType)}
+          onConnect={(sessionType) => handleConnect(account.accountId, sessionType)}
+          onDelete={() => handleDelete(account.accountId)}
+        />
       ))}
 
-      {/* Rename prompt (shown after any provider auth detected for a new account) */}
+      {/* Rename prompt (shown after any provider auth detected for a new profile) */}
       {renameAccountId && (
         <div className="mb-4 space-y-2">
-          <p className="text-xs text-text-muted uppercase tracking-wide">Name your account</p>
+          <p className="text-xs text-text-muted uppercase tracking-wide">Name your profile</p>
           <input
             ref={renameInputRef}
             className="w-full bg-bg-primary text-text-primary text-sm px-3 py-2 border border-border-default rounded focus:border-border-focus outline-none"
             value={renameName}
             onChange={(e) => setRenameName(e.target.value)}
-            placeholder="Account name"
+            placeholder="Profile name"
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleRename();
               if (e.key === 'Escape') {
@@ -425,15 +450,18 @@ function AccountsDialog({ open, onOpenChange }: AccountsDialogProps): React.JSX.
         </div>
       )}
 
-      {/* Add account — one-click button */}
+      {/* Add profile */}
       {!renameAccountId && (
-        <button
-          className="mb-4 text-sm text-text-muted hover:text-text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          onClick={handleAddAccount}
-          disabled={isCreating || Boolean(newAccountId)}
-        >
-          {isCreating ? 'Creating…' : '+ Add Account'}
-        </button>
+        <div className="mb-4">
+          <button
+            className="text-sm text-text-muted hover:text-text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={handleAddAccount}
+            disabled={isCreating || Boolean(newAccountId)}
+          >
+            {isCreating ? 'Creating…' : '+ Add Profile'}
+          </button>
+          <p className="text-xs text-text-muted mt-0.5">Creates a new isolated workspace</p>
+        </div>
       )}
 
       {/* Footer */}
