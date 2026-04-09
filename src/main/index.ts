@@ -71,6 +71,11 @@ let hookRuntimeInfo: HookRuntimeInfo = {
 let pruneInterval: ReturnType<typeof setInterval> | null = null;
 let pollSessionStatesInterval: ReturnType<typeof setInterval> | null = null;
 const agentBridges: HookBridge[] = [codexHookBridge, geminiHookBridge, copilotHookBridge];
+const providerRegistry = new AccountProviderRegistry();
+providerRegistry.register(createClaudeAccountProvider());
+providerRegistry.register(createCopilotAccountProvider());
+providerRegistry.register(createCodexAccountProvider());
+providerRegistry.register(createGeminiAccountProvider());
 
 function setupCSP(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -321,11 +326,6 @@ app.whenReady().then(async () => {
   // Initialize database
   getDb();
 
-  const providerRegistry = new AccountProviderRegistry();
-  providerRegistry.register(createClaudeAccountProvider());
-  providerRegistry.register(createCopilotAccountProvider());
-  providerRegistry.register(createCodexAccountProvider());
-  providerRegistry.register(createGeminiAccountProvider());
   accountManager = new AccountService(
     new AccountProfileRepository(),
     new AccountHomeManager(providerRegistry),
