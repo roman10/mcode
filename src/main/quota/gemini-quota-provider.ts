@@ -32,7 +32,16 @@ export class GeminiQuotaProvider implements QuotaProviderAdapter {
       }),
     );
 
-    return snapshots.filter((s): s is QuotaSnapshot => !!s);
+    const filtered = snapshots.filter((s): s is QuotaSnapshot => !!s);
+
+    // Deduplicate: multiple account profiles may share the same Google identity (same email).
+    // Quota is Google-account-scoped, so keeping one snapshot per identity is correct.
+    const seen = new Set<string>();
+    return filtered.filter((s) => {
+      if (seen.has(s.identity!)) return false;
+      seen.add(s.identity!);
+      return true;
+    });
   }
 
   private buildSnapshot(
