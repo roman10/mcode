@@ -630,7 +630,7 @@ export class TaskQueue {
         setTimeout(() => {
           const sess = this.sessionManager.get(task.targetSessionId!);
           if (!sess || sess.status === 'ended') return;
-          this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
+          this.submitPrompt(task.targetSessionId!, task.prompt);
           this.sessionManager.updateStatus(task.targetSessionId!, 'active');
 
           // Update DB permission_mode so future tasks have accurate state
@@ -650,23 +650,21 @@ export class TaskQueue {
     sendNext();
   }
 
+  // Split text and Enter into two writes so agent TUIs treat \r as the submit key rather than as a literal char inside a paste.
+  private submitPrompt(sessionId: string, prompt: string): void {
+    this.ptyManager.write(sessionId, prompt);
+    setTimeout(() => {
+      const sess = this.sessionManager.get(sessionId);
+      if (!sess || sess.status === 'ended') return;
+      this.ptyManager.write(sessionId, '\r');
+    }, SUBMIT_DELAY_MS);
+  }
+
   /** Write prompt to PTY and mark the task as dispatched. Shared by direct dispatch and post-cycling dispatch. */
   private writePromptAndMarkDispatched(task: Task): void {
     const db = getDb();
 
-    // Write prompt to PTY
-    const session = this.sessionManager.get(task.targetSessionId!);
-    if (session?.sessionType === 'gemini') {
-      // Gemini CLI interprets \r as a newline within pasted text if it
-      // arrives in the same read buffer as the prompt. Split into two
-      // writes so the Enter arrives as a separate input event.
-      this.ptyManager.write(task.targetSessionId!, task.prompt);
-      setTimeout(() => {
-        this.ptyManager.write(task.targetSessionId!, '\r');
-      }, SUBMIT_DELAY_MS);
-    } else {
-      this.ptyManager.write(task.targetSessionId!, task.prompt + '\r');
-    }
+    this.submitPrompt(task.targetSessionId!, task.prompt);
 
     // Mark dispatched
     const dispatchedAt = new Date().toISOString();
@@ -750,19 +748,14 @@ export class TaskQueue {
       this.ptyManager.write(task.targetSessionId!, '\x1b[B'.repeat(typeHere.index - 1));
       this.markPlanModeDispatched(db, task, typeHere.index);
 
-      // After the text-input activates (~300ms), type the message.
-      // Enter must be a separate write (same as Gemini sessions) so the
-      // inline text-input processes the text before submission.
+      // After the text-input activates (~300ms), type the message via
+      // submitPrompt so the inline text-input processes the text before
+      // Enter arrives as a separate stdin read event.
       setTimeout(() => {
         const currentSession = this.sessionManager.get(task.targetSessionId!);
         if (!currentSession || currentSession.status === 'ended') return;
-        this.ptyManager.write(task.targetSessionId!, task.prompt);
-        setTimeout(() => {
-          const sess = this.sessionManager.get(task.targetSessionId!);
-          if (!sess || sess.status === 'ended') return;
-          this.ptyManager.write(task.targetSessionId!, '\r');
-          this.sessionManager.updateStatus(task.targetSessionId!, 'active');
-        }, SUBMIT_DELAY_MS);
+        this.submitPrompt(task.targetSessionId!, task.prompt);
+        this.sessionManager.updateStatus(task.targetSessionId!, 'active');
       }, 300);
     } else {
       // auto-accept or manual-approve: select the matching menu option directly
