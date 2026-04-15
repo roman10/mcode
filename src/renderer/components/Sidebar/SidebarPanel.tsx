@@ -7,7 +7,6 @@ import { useAccountsStore } from '../../stores/accounts-store';
 import { useStatsStore } from '../../stores/stats-store';
 import { getAgentDefinition } from '@shared/session-agents';
 import SessionList from './SessionList';
-import NewSessionDialog from './NewSessionDialog';
 import Tooltip from '../shared/Tooltip';
 import DeleteSessionsDialog from './DeleteSessionsDialog';
 import StatsPanel from '../Dashboard/StatsPanel';
@@ -16,8 +15,8 @@ import CommitGraphPanel from '../CommitGraph/CommitGraphPanel';
 import ActivityFeed from '../Dashboard/ActivityFeed';
 import SearchPanel from './SearchPanel';
 import TodosPanel from './TodosPanel';
-import { createTerminalSession, autoExpandInKanban } from '../../utils/session-actions';
-import type { SessionCreateInput, SessionInfo } from '@shared/types';
+import { createTerminalSession } from '../../utils/session-actions';
+import type { SessionInfo } from '@shared/types';
 
 const claudeDef = getAgentDefinition('claude')!;
 import {
@@ -26,15 +25,10 @@ import {
 } from '@shared/constants';
 
 function SidebarPanel(): React.JSX.Element {
-  const showNewDialog = useDialogStore((s) => s.showNewSessionDialog);
   const setShowNewDialog = useDialogStore((s) => s.setShowNewSessionDialog);
-  const newSessionDialogType = useDialogStore((s) => s.newSessionDialogType);
-  const splitIntent = useLayoutStore((s) => s.splitIntent);
-  const setSplitIntent = useLayoutStore((s) => s.setSplitIntent);
   const sidebarWidth = useLayoutStore((s) => s.sidebarWidth);
   const setSidebarWidth = useLayoutStore((s) => s.setSidebarWidth);
   const addTile = useLayoutStore((s) => s.addTile);
-  const addTileAdjacent = useLayoutStore((s) => s.addTileAdjacent);
   const removeAllTiles = useLayoutStore((s) => s.removeAllTiles);
   const hasTiles = useLayoutStore((s) => s.mosaicTree !== null);
   const persist = useLayoutStore((s) => s.persist);
@@ -111,34 +105,6 @@ function SidebarPanel(): React.JSX.Element {
     },
     [flushPersist, sidebarWidth, setSidebarWidth],
   );
-
-  const handleCreate = async (input: SessionCreateInput): Promise<void> => {
-    try {
-      const session = await window.mcode.sessions.create(input);
-      addSession(session);
-
-      if (splitIntent) {
-        addTileAdjacent(splitIntent.anchorSessionId, session.sessionId, splitIntent.direction);
-        setSplitIntent(null);
-      } else {
-        addTile(session.sessionId);
-      }
-
-      persist();
-      useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
-      autoExpandInKanban(session.sessionId);
-      setShowNewDialog(false);
-    } catch (err) {
-      console.error('Failed to create session:', err);
-      setShowNewDialog(false);
-      setSplitIntent(null);
-    }
-  };
-
-  const handleNewDialogOpenChange = (open: boolean): void => {
-    setShowNewDialog(open);
-    if (!open) setSplitIntent(null);
-  };
 
   const handleMarkAllRead = async (): Promise<void> => {
     try {
@@ -366,13 +332,6 @@ function SidebarPanel(): React.JSX.Element {
       <div
         className="w-[1px] shrink-0 cursor-col-resize bg-border-default hover:bg-border-focus transition-colors relative before:absolute before:inset-y-0 before:-left-[3px] before:-right-[3px] before:content-['']"
         onMouseDown={handleMouseDown}
-      />
-
-      <NewSessionDialog
-        open={showNewDialog}
-        initialSessionType={newSessionDialogType}
-        onOpenChange={handleNewDialogOpenChange}
-        onCreate={handleCreate}
       />
 
       <DeleteSessionsDialog

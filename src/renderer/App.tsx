@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import * as RadixTooltip from '@radix-ui/react-tooltip';
 import ActivityBar from './components/Sidebar/ActivityBar';
 import SidebarPanel from './components/Sidebar/SidebarPanel';
+import NewSessionDialog from './components/Sidebar/NewSessionDialog';
 import { getLeaves } from 'react-mosaic-component';
 import MosaicLayout from './components/Layout/MosaicLayout';
 import KanbanLayout from './components/Kanban/KanbanLayout';
@@ -18,6 +19,7 @@ import { useTaskStore } from './stores/task-store';
 import { useChangesStore } from './stores/changes-store';
 import { useTodoStore } from './stores/todo-store';
 import { executeAppCommand } from './utils/app-commands';
+import { autoExpandInKanban } from './utils/session-actions';
 import TitleBar from './components/TitleBar';
 import { ErrorBoundary, ErrorFallback } from './components/shared/ErrorBoundary';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
@@ -27,7 +29,7 @@ import { useUpdateSubscriptions } from './hooks/useUpdateSubscriptions';
 import { useUpdateStore } from './stores/update-store';
 import UpdateBanner from './components/UpdateBanner';
 import { canSessionBeDefaultTaskTarget } from '@shared/session-capabilities';
-import type { CreateTaskInput, SidebarTab } from '@shared/types';
+import type { CreateTaskInput, SessionCreateInput, SidebarTab } from '@shared/types';
 
 function App(): React.JSX.Element {
   const { loading, error } = useAppInitialization();
@@ -159,6 +161,46 @@ function App(): React.JSX.Element {
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const selectedSession = useSessionStore((s) => selectedSessionId ? s.sessions[selectedSessionId] : null);
 
+  // New Session dialog must mount outside the sidebar subtree: the sidebar
+  // unmounts when collapsed, but the dialog can be opened from global triggers.
+  const showNewSessionDialog = useDialogStore((s) => s.showNewSessionDialog);
+  const setShowNewSessionDialog = useDialogStore((s) => s.setShowNewSessionDialog);
+  const newSessionDialogType = useDialogStore((s) => s.newSessionDialogType);
+  const splitIntent = useLayoutStore((s) => s.splitIntent);
+  const setSplitIntent = useLayoutStore((s) => s.setSplitIntent);
+  const addTile = useLayoutStore((s) => s.addTile);
+  const addTileAdjacent = useLayoutStore((s) => s.addTileAdjacent);
+  const persistLayout = useLayoutStore((s) => s.persist);
+  const addSession = useSessionStore((s) => s.addSession);
+
+  const handleCreateSession = async (input: SessionCreateInput): Promise<void> => {
+    try {
+      const session = await window.mcode.sessions.create(input);
+      addSession(session);
+
+      if (splitIntent) {
+        addTileAdjacent(splitIntent.anchorSessionId, session.sessionId, splitIntent.direction);
+        setSplitIntent(null);
+      } else {
+        addTile(session.sessionId);
+      }
+
+      persistLayout();
+      useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
+      autoExpandInKanban(session.sessionId);
+      setShowNewSessionDialog(false);
+    } catch (err) {
+      console.error('Failed to create session:', err);
+      setShowNewSessionDialog(false);
+      setSplitIntent(null);
+    }
+  };
+
+  const handleNewSessionDialogOpenChange = (open: boolean): void => {
+    setShowNewSessionDialog(open);
+    if (!open) setSplitIntent(null);
+  };
+
   if (error) {
     return (
       <div className="flex flex-col h-screen w-screen bg-bg-primary">
@@ -236,6 +278,12 @@ function App(): React.JSX.Element {
           onClose={() => setShowCommandPalette(false)}
         />
       )}
+      <NewSessionDialog
+        open={showNewSessionDialog}
+        initialSessionType={newSessionDialogType}
+        onOpenChange={handleNewSessionDialogOpenChange}
+        onCreate={handleCreateSession}
+      />
       <CreateTaskDialog
         open={showCreateTaskDialog}
         onOpenChange={setShowCreateTaskDialog}
