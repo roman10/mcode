@@ -650,9 +650,9 @@ export class TaskQueue {
     sendNext();
   }
 
-  // Split text and Enter into two writes so agent TUIs treat \r as the submit key rather than as a literal char inside a paste.
+  // Wrap text in bracketed-paste markers and send Enter as a separate write so agent TUIs treat \r as submit, not a literal newline.
   private submitPrompt(sessionId: string, prompt: string): void {
-    this.ptyManager.write(sessionId, prompt);
+    this.ptyManager.write(sessionId, `\x1b[200~${prompt}\x1b[201~`);
     setTimeout(() => {
       const sess = this.sessionManager.get(sessionId);
       if (!sess || sess.status === 'ended') return;
