@@ -2,6 +2,45 @@
 
 All notable changes to mcode are documented here.
 
+## [0.2.6] — 2026-04-17
+
+### New Features
+
+- **Gemini CLI support** — Gemini account profiles with config isolation and usage quota tracking via the Google Code Assist API
+- **Codex account profiles** — generalized hook reconciliation for managing Codex CLI accounts alongside Claude and Gemini
+- **Copilot usage quota** — tracks GitHub Copilot usage via the `gh` CLI
+- **Unified prompt library** — pinning, save-as-snippet, and `@` prefix lookup in a single view
+- **Dialog-based task editing** — inline task editing replaced with a dedicated edit dialog
+- **Plan Mode Response improvements** — three-option radio list replaces the Proceed/Revise toggle; merged into the unified CreateTaskDialog; Cmd+Shift+R opens the New Task dialog on the Plan Mode Response tab
+- **Claude Opus 4.7 pricing** — token cost tracker now prices claude-opus-4-7 sessions
+- **7d/30d averages on stats chart** — bar chart tooltip now shows 7- and 30-day averages with instant hover
+- **Styled tooltips** — prompt library action icons now have styled tooltips
+- **/mcode-release command** — automated release workflow for mcode itself
+- **cleanup-test script** — removes leftover test sessions
+
+### Bug Fixes
+
+- Fix startup crash by moving providerRegistry to module scope
+- Split prompt and Enter into two PTY writes so scheduled tasks auto-submit on Claude sessions
+- Mount NewSessionDialog at App root so Cmd+N works when the sidebar is collapsed
+- Inject Gemini OAuth constants into the Vitest unit test config
+- Return 0 instead of null for aiAssisted when no commits exist
+- Deduplicate Gemini quota snapshots by Google identity
+- Show waiting/starting sessions in the New Task dialog dropdown
+- Fix Codex quota not showing (rate_limits moved to payload level)
+- Fix Cmd+Shift+R plan mode shortcut blocked in release build
+- Refocus terminal after snippet insertion from command palette
+- Fix plan mode revise dispatch: text-input navigation, option hint stripping, and missing Enter
+- Prevent StatsPanel Cmd+R handler from swallowing Cmd+Shift+R
+- Fix plan mode response tasks not dispatching from the New Task dialog
+- Show Plan Mode Response toggle after restart; restore promptLabelledSessions
+- Wrap CommandPalette in Radix Dialog and render via portal for proper focus stacking
+- Clean up loggedPlanModeDeferrals in remaining task cancel/fail paths
+- Restore ptyInfoMap on broker recovery and ensure PTY exit ends sessions
+- Rename "Plan Response" to "Plan Mode Response" in the New Task dialog
+- Use production-available MCP tools in the cleanup-test script
+- Fix mcode dispatch
+
 ## [0.2.0] — 2026-03-27
 
 ### New Features
