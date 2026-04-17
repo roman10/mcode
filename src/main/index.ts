@@ -15,6 +15,7 @@ import { CommitTracker, registerCommitIpc } from './trackers/commit-tracker';
 import { GitChangesService, registerGitChangesIpc } from './git-changes';
 import { TokenTracker, registerTokenIpc } from './trackers/token-tracker';
 import { InputTracker, registerInputIpc } from './trackers/input-tracker';
+import { registerShellHistoryIpc } from './ipc/shell-history-ipc';
 import { QuotaProviderRegistry, QuotaService, ClaudeQuotaProvider, CodexQuotaProvider, CopilotQuotaProvider, GeminiQuotaProvider, registerQuotaIpc } from './quota';
 import { SleepBlocker } from './sleep-blocker';
 import { FileLister, registerFileIpc } from './file-lister';
@@ -446,6 +447,7 @@ app.whenReady().then(async () => {
   registerGitChangesIpc(gitChangesService);
   registerTokenIpc(tokenTracker);
   registerInputIpc(inputTracker);
+  registerShellHistoryIpc();
   registerQuotaIpc(quotaService);
   registerPreferencesIpc();
 

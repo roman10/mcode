@@ -35,6 +35,7 @@ import type {
   InputWeeklyTrend,
   InputCadenceInfo,
   PromptHistoryEntry,
+  ShellHistoryEntry,
   AccountProfile,
   AccountProfileWithProviders,
   AuthStatusResult,
@@ -419,6 +420,11 @@ contextBridge.exposeInMainWorld('mcode', {
 
     togglePin: (id: number): Promise<void> =>
       typedInvoke('prompt-history:toggle-pin', id),
+  },
+
+  shellHistory: {
+    recent: (limit?: number, query?: string): Promise<ShellHistoryEntry[]> =>
+      typedInvoke('shell-history:recent', limit, query),
   },
 
   git: {

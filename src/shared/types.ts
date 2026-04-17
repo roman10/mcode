@@ -31,6 +31,13 @@ export * from './types-git';
 export * from './types-tasks';
 export * from './types-todos';
 
+// --- Shell History ---
+
+export interface ShellHistoryEntry {
+  command: string;
+  ts: number | null;
+}
+
 // --- CLI / Auth Status ---
 
 export type CliAuthStatus = 'ok' | 'cli-not-found' | 'not-authenticated';
@@ -492,6 +499,10 @@ export interface MCodeAPI {
     recent(limit?: number): Promise<PromptHistoryEntry[]>;
     delete(id: number): Promise<void>;
     togglePin(id: number): Promise<void>;
+  };
+
+  shellHistory: {
+    recent(limit?: number, query?: string): Promise<ShellHistoryEntry[]>;
   };
 
   git: {

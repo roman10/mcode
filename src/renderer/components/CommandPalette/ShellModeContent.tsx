@@ -29,15 +29,37 @@ interface ShellModeContentProps {
   onSetInput: (value: string) => void;
 }
 
+function mergeHistory(palette: string[], shellFile: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const cmd of palette) {
+    if (!seen.has(cmd)) { seen.add(cmd); out.push(cmd); }
+  }
+  for (const cmd of shellFile) {
+    if (!seen.has(cmd)) { seen.add(cmd); out.push(cmd); }
+  }
+  return out;
+}
+
 function ShellModeContent({ query, onClose, onSetInput }: ShellModeContentProps): React.JSX.Element {
   const cwd = useMemo(() => resolveActiveCwd(), []);
   const cwdBasename = useMemo(() => basename(cwd), [cwd]);
-  const [history, setHistory] = useState<string[]>([]);
+  const [paletteHistory, setPaletteHistory] = useState<string[]>([]);
+  const [shellFileHistory, setShellFileHistory] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
-  // Load history on mount
+  const history = useMemo(
+    () => mergeHistory(paletteHistory, shellFileHistory),
+    [paletteHistory, shellFileHistory],
+  );
+
+  // Load palette history (localStorage) and shell history ($HISTFILE) on mount
   useEffect(() => {
-    loadShellHistory().then(setHistory).catch(() => {});
+    loadShellHistory().then(setPaletteHistory).catch(() => {});
+    window.mcode.shellHistory
+      .recent(500)
+      .then((entries) => setShellFileHistory(entries.map((e) => e.command)))
+      .catch(() => {});
   }, []);
 
   const handleRun = useCallback((cmd?: string) => {

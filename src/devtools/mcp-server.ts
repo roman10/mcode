@@ -17,6 +17,7 @@ import { registerTokenTools } from './tools/token-tools';
 import { registerSearchTools } from './tools/search-tools';
 import { registerSnippetTools } from './tools/snippet-tools';
 import { registerPromptHistoryTools } from './tools/prompt-history-tools';
+import { registerShellHistoryTools } from './tools/shell-history-tools';
 import { registerTodoTools } from './tools/todo-tools';
 import { registerTestTools } from './tools/test-tools';
 import type { McpServerContext } from './types';
@@ -43,6 +44,7 @@ function createServer(ctx: McpServerContext): McpServer {
   registerSearchTools(server, ctx);
   registerSnippetTools(server);
   registerPromptHistoryTools(server, ctx);
+  registerShellHistoryTools(server);
   registerTodoTools(server);
 
   if (ctx.mode === 'dev') {

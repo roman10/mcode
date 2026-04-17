@@ -13,6 +13,7 @@ import type {
   PromptHistoryEntry,
   QuotaSnapshot,
   SessionTokenUsage,
+  ShellHistoryEntry,
   TokenHeatmapEntry,
   TokenWeeklyTrend,
 } from './types';
@@ -42,6 +43,9 @@ export interface TrackersInvokeContract {
   'prompt-history:recent':              { params: [limit?: number]; result: PromptHistoryEntry[] };
   'prompt-history:delete':              { params: [id: number]; result: void };
   'prompt-history:toggle-pin':          { params: [id: number]; result: void };
+
+  // --- Shell History (read from user's $HISTFILE) ---
+  'shell-history:recent':               { params: [limit?: number, query?: string]; result: ShellHistoryEntry[] };
 
   // --- Commits ---
   'commits:get-daily-stats':            { params: [date?: string, provider?: string]; result: DailyCommitStats };
