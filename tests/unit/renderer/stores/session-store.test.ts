@@ -37,6 +37,7 @@ describe('session-store', () => {
       sessions: {},
       externalSessions: [],
       selectedSessionId: null,
+      lastFocusedPtySessionId: null,
       hookRuntime: { state: 'initializing', port: null, warning: null },
       exitCodes: {},
     });
@@ -71,6 +72,24 @@ describe('session-store', () => {
     expect(useSessionStore.getState().selectedSessionId).toBeNull();
   });
 
+  it('removeSession clears lastFocusedPtySessionId when it matches', () => {
+    useSessionStore.getState().addSession(makeSession('s1'));
+    useSessionStore.setState({ lastFocusedPtySessionId: 's1' });
+
+    useSessionStore.getState().removeSession('s1');
+
+    expect(useSessionStore.getState().lastFocusedPtySessionId).toBeNull();
+  });
+
+  it('removeSession preserves lastFocusedPtySessionId when it points elsewhere', () => {
+    useSessionStore.getState().addSession(makeSession('s1'));
+    useSessionStore.setState({ lastFocusedPtySessionId: 's2' });
+
+    useSessionStore.getState().removeSession('s1');
+
+    expect(useSessionStore.getState().lastFocusedPtySessionId).toBe('s2');
+  });
+
   it('selectSession sets selectedSessionId and clears attention for user source', () => {
     useSessionStore.getState().selectSession('s1', 'user');
     expect(useSessionStore.getState().selectedSessionId).toBe('s1');
@@ -81,6 +100,34 @@ describe('session-store', () => {
     useSessionStore.getState().selectSession('s1', 'system');
     expect(useSessionStore.getState().selectedSessionId).toBe('s1');
     expect(mockClearAttention).not.toHaveBeenCalled();
+  });
+
+  it('selectSession updates lastFocusedPtySessionId when id is non-null', () => {
+    useSessionStore.getState().selectSession('s1', 'user');
+    expect(useSessionStore.getState().lastFocusedPtySessionId).toBe('s1');
+
+    useSessionStore.getState().selectSession('s2', 'user');
+    expect(useSessionStore.getState().lastFocusedPtySessionId).toBe('s2');
+  });
+
+  it('selectSession(null) preserves lastFocusedPtySessionId', () => {
+    // A bottom-panel terminal could be the current pty target even if the tile
+    // selection gets cleared — don't clobber pty routing on null selects.
+    useSessionStore.setState({ lastFocusedPtySessionId: 'panel-sess' });
+
+    useSessionStore.getState().selectSession(null);
+
+    expect(useSessionStore.getState().selectedSessionId).toBeNull();
+    expect(useSessionStore.getState().lastFocusedPtySessionId).toBe('panel-sess');
+  });
+
+  it('setLastFocusedPtySession sets the field independently of selectedSessionId', () => {
+    useSessionStore.setState({ selectedSessionId: 'tile-sess' });
+
+    useSessionStore.getState().setLastFocusedPtySession('panel-sess');
+
+    expect(useSessionStore.getState().lastFocusedPtySessionId).toBe('panel-sess');
+    expect(useSessionStore.getState().selectedSessionId).toBe('tile-sess');
   });
 
   it('setLabel updates session label if it exists', () => {
