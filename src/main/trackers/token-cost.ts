@@ -16,6 +16,7 @@ interface ModelPricing {
 
 // Keyed by normalized model version (e.g. "opus-4.6")
 const MODEL_PRICING: Record<string, ModelPricing> = {
+  'opus-4.7':   { input: 5,    output: 25 },
   'opus-4.6':   { input: 5,    output: 25 },
   'opus-4.5':   { input: 5,    output: 25 },
   'opus-4.1':   { input: 15,   output: 75 },

@@ -3,6 +3,7 @@ import { normalizeModelVersion, normalizeModelFamily, normalizeGeminiModel, norm
 
 describe('normalizeModelVersion', () => {
   it('strips claude- prefix and date suffix', () => {
+    expect(normalizeModelVersion('claude-opus-4-7')).toBe('opus-4.7');
     expect(normalizeModelVersion('claude-opus-4-6')).toBe('opus-4.6');
     expect(normalizeModelVersion('claude-sonnet-4-5-20251022')).toBe('sonnet-4.5');
     expect(normalizeModelVersion('claude-haiku-4-5')).toBe('haiku-4.5');
