@@ -14,7 +14,10 @@ export function insertPromptText(text: string): boolean {
     target(text);
     return true;
   }
-  const sessionId = useSessionStore.getState().selectedSessionId;
+  // Prefer the last-focused PTY session (covers both tile and bottom-panel
+  // terminals). Fall back to selectedSessionId for first-load edge cases.
+  const s = useSessionStore.getState();
+  const sessionId = s.lastFocusedPtySessionId ?? s.selectedSessionId;
   if (!sessionId) return false;
   window.mcode.pty.write(sessionId, text);
   // Refocus the terminal after the command palette unmounts

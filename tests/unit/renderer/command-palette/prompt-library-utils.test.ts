@@ -22,6 +22,7 @@ describe('insertPromptText', () => {
     mockFocus.mockClear();
     mcode.pty.write.mockClear();
     useDialogStore.setState({ textInsertTarget: null });
+    useSessionStore.setState({ selectedSessionId: null, lastFocusedPtySessionId: null });
   });
 
   afterEach(() => {
@@ -53,6 +54,33 @@ describe('insertPromptText', () => {
 
     vi.runAllTimers();
     expect(mockFocus).not.toHaveBeenCalled();
+  });
+
+  it('writes to lastFocusedPtySessionId when it differs from selectedSessionId', () => {
+    // Simulates the bottom-panel terminal case: a panel terminal was focused
+    // (setting lastFocusedPtySessionId) while a different tile remains the
+    // tile-scoped selected session.
+    useSessionStore.setState({
+      selectedSessionId: 'tile-sess',
+      lastFocusedPtySessionId: 'sess-1',
+    });
+
+    const result = insertPromptText('panel text');
+
+    expect(result).toBe(true);
+    expect(mcode.pty.write).toHaveBeenCalledWith('sess-1', 'panel text');
+  });
+
+  it('falls back to selectedSessionId when lastFocusedPtySessionId is null', () => {
+    useSessionStore.setState({
+      selectedSessionId: 'sess-1',
+      lastFocusedPtySessionId: null,
+    });
+
+    const result = insertPromptText('fallback');
+
+    expect(result).toBe(true);
+    expect(mcode.pty.write).toHaveBeenCalledWith('sess-1', 'fallback');
   });
 
   it('delegates to textInsertTarget and does NOT focus terminal', () => {

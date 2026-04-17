@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useTerminalPanelStore, type PanelNode } from '../../stores/terminal-panel-store';
+import { useSessionStore } from '../../stores/session-store';
 import TerminalTabGroup from './TerminalTabGroup';
 
 interface SplitContainerProps {
@@ -65,6 +66,10 @@ export default function TerminalSplitContainer({ node }: SplitContainerProps): R
   const handleFocusGroup = useCallback(
     (tabGroupId: string) => {
       activateTabGroup(tabGroupId);
+      const ps = useTerminalPanelStore.getState();
+      const group = ps.tabGroups[tabGroupId];
+      const entry = group ? ps.terminals[group.activeTerminalId] : undefined;
+      if (entry) useSessionStore.getState().setLastFocusedPtySession(entry.sessionId);
     },
     [activateTabGroup],
   );
@@ -81,7 +86,7 @@ export default function TerminalSplitContainer({ node }: SplitContainerProps): R
     return (
       <div
         className="flex-1 min-h-0 min-w-0 flex flex-col"
-        onFocus={() => handleFocusGroup(node.tabGroupId)}
+        onPointerDownCapture={() => handleFocusGroup(node.tabGroupId)}
       >
         <TerminalTabGroup tabGroupId={node.tabGroupId} />
       </div>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { terminalRegistry } from '../../devtools/terminal-registry';
@@ -17,8 +17,15 @@ export default function TerminalTabGroup({
 
   // Auto-focus the xterm terminal when the active terminal changes (new terminal or tab switch).
   const activeSessionId = activeEntry?.sessionId;
+  const prevActiveRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!activeSessionId) return;
+    // Route pty input to this session only on a real tab switch — not on initial
+    // mount, which would clobber the tile that was selected before the panel mounted.
+    if (prevActiveRef.current !== undefined && prevActiveRef.current !== activeSessionId) {
+      useSessionStore.getState().setLastFocusedPtySession(activeSessionId);
+    }
+    prevActiveRef.current = activeSessionId;
     const timer = window.setTimeout(() => {
       terminalRegistry.get(activeSessionId)?.focus();
     }, 50);

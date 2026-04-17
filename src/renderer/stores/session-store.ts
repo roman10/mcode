@@ -5,6 +5,12 @@ interface SessionState {
   sessions: Record<string, SessionInfo>;
   externalSessions: ExternalSessionInfo[];
   selectedSessionId: string | null;
+  /**
+   * Last-focused PTY session across any terminal surface (tile or bottom panel).
+   * Used to route pty input like snippet insertion. Independent of
+   * `selectedSessionId`, which is tile-scoped.
+   */
+  lastFocusedPtySessionId: string | null;
   hookRuntime: HookRuntimeInfo;
   /** Exit codes keyed by sessionId. Populated by pty.onExit events. */
   exitCodes: Record<string, number>;
@@ -13,6 +19,7 @@ interface SessionState {
   upsertSession(session: SessionInfo): void;
   removeSession(id: string): void;
   selectSession(id: string | null, source?: 'user' | 'system'): void;
+  setLastFocusedPtySession(id: string | null): void;
   setLabel(id: string, label: string): void;
   setSessions(sessions: SessionInfo[]): void;
   setExternalSessions(sessions: ExternalSessionInfo[]): void;
@@ -24,6 +31,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   sessions: {},
   externalSessions: [],
   selectedSessionId: null,
+  lastFocusedPtySessionId: null,
   hookRuntime: { state: 'initializing', port: null, warning: null },
   exitCodes: {},
 
@@ -46,16 +54,25 @@ export const useSessionStore = create<SessionState>((set) => ({
         exitCodes: exitCodesRest,
         selectedSessionId:
           state.selectedSessionId === id ? null : state.selectedSessionId,
+        lastFocusedPtySessionId:
+          state.lastFocusedPtySessionId === id ? null : state.lastFocusedPtySessionId,
       };
     }),
 
   selectSession: (id, source = 'user') => {
-    set({ selectedSessionId: id });
+    set((state) => ({
+      selectedSessionId: id,
+      // Tile focus also routes pty input. On null (e.g. session removed),
+      // keep the previous pty target — null here isn't a "stop routing" signal.
+      lastFocusedPtySessionId: id ?? state.lastFocusedPtySessionId,
+    }));
     // Clear attention on explicit user focus
     if (id && source === 'user') {
       window.mcode.sessions.clearAttention(id).catch(() => {});
     }
   },
+
+  setLastFocusedPtySession: (id) => set({ lastFocusedPtySessionId: id }),
 
   setLabel: (id, label) =>
     set((state) => {
