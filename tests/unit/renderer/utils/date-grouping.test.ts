@@ -26,9 +26,9 @@ describe('groupSessionsByDate', () => {
     vi.setSystemTime(new Date('2026-03-22T12:00:00Z'));
 
     const sessions = [
-      makeSession({ sessionId: 's1', startedAt: '2026-03-22T10:00:00Z' }),
-      makeSession({ sessionId: 's2', startedAt: '2026-03-22T11:00:00Z' }),
-      makeSession({ sessionId: 's3', startedAt: '2026-03-21T10:00:00Z' }),
+      makeSession({ sessionId: 's1', startedAt: '2026-03-22T10:00:00Z', lastEventAt: null }),
+      makeSession({ sessionId: 's2', startedAt: '2026-03-22T11:00:00Z', lastEventAt: null }),
+      makeSession({ sessionId: 's3', startedAt: '2026-03-21T10:00:00Z', lastEventAt: null }),
     ];
 
     const groups = groupSessionsByDate(sessions);
@@ -37,6 +37,25 @@ describe('groupSessionsByDate', () => {
     expect(groups[0].sessions).toHaveLength(2);
     expect(groups[1].label).toBe('Yesterday');
     expect(groups[1].sessions).toHaveLength(1);
+  });
+
+  it('groups by lastEventAt when set, falling back to startedAt', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-22T12:00:00Z'));
+
+    const sessions = [
+      // Created yesterday, last active today → should appear under Today
+      makeSession({ sessionId: 's1', startedAt: '2026-03-21T10:00:00Z', lastEventAt: '2026-03-22T09:00:00Z' }),
+      // Created and last active yesterday → stays under Yesterday
+      makeSession({ sessionId: 's2', startedAt: '2026-03-21T08:00:00Z', lastEventAt: null }),
+    ];
+
+    const groups = groupSessionsByDate(sessions);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].label).toBe('Today');
+    expect(groups[0].sessions.map((s) => s.sessionId)).toEqual(['s1']);
+    expect(groups[1].label).toBe('Yesterday');
+    expect(groups[1].sessions.map((s) => s.sessionId)).toEqual(['s2']);
   });
 
   it('sorts groups newest first', () => {

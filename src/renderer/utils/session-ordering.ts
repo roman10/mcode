@@ -18,7 +18,7 @@ const statusOrder: Record<SessionStatus, number> = {
 /**
  * Canonical session ordering used by the sidebar and keyboard shortcuts.
  * Filters terminal sessions (they live in the bottom panel).
- * Sorts by attention → status → startedAt (newest first).
+ * Sorts by attention → status → lastEventAt ?? startedAt (newest first).
  */
 export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo>): SessionInfo[] {
   return Object.values(sessions)
@@ -27,7 +27,7 @@ export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo>)
       (a, b) =>
         (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||
         (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
-        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        new Date(b.lastEventAt ?? b.startedAt).getTime() - new Date(a.lastEventAt ?? a.startedAt).getTime(),
     );
 }
 

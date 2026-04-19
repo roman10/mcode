@@ -35,14 +35,25 @@ describe('getOrderedVisibleSessions', () => {
     expect(result.map((s) => s.status)).toEqual(['waiting', 'active', 'ended']);
   });
 
-  it('sorts by startedAt (newest first) within same attention and status', () => {
+  it('sorts by lastEventAt ?? startedAt (newest first) within same attention and status', () => {
     const sessions = {
-      s1: makeSession({ sessionId: 's1', startedAt: '2026-03-20T10:00:00Z' }),
-      s2: makeSession({ sessionId: 's2', startedAt: '2026-03-22T10:00:00Z' }),
-      s3: makeSession({ sessionId: 's3', startedAt: '2026-03-21T10:00:00Z' }),
+      s1: makeSession({ sessionId: 's1', startedAt: '2026-03-20T10:00:00Z', lastEventAt: null }),
+      s2: makeSession({ sessionId: 's2', startedAt: '2026-03-22T10:00:00Z', lastEventAt: null }),
+      s3: makeSession({ sessionId: 's3', startedAt: '2026-03-21T10:00:00Z', lastEventAt: null }),
     };
     const result = getOrderedVisibleSessions(sessions);
     expect(result.map((s) => s.sessionId)).toEqual(['s2', 's3', 's1']);
+  });
+
+  it('ranks by lastEventAt over startedAt when lastEventAt is set', () => {
+    const sessions = {
+      // Older creation time but recent activity → should rank first
+      s1: makeSession({ sessionId: 's1', startedAt: '2026-03-20T10:00:00Z', lastEventAt: '2026-03-22T11:00:00Z' }),
+      // Newer creation time but no activity → ranks second
+      s2: makeSession({ sessionId: 's2', startedAt: '2026-03-22T10:00:00Z', lastEventAt: null }),
+    };
+    const result = getOrderedVisibleSessions(sessions);
+    expect(result.map((s) => s.sessionId)).toEqual(['s1', 's2']);
   });
 
   it('returns empty array for empty input', () => {

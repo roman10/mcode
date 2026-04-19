@@ -31,7 +31,7 @@ export function groupSessionsByDate(sessions: SessionInfo[]): DateGroup[] {
 
   const groups = new Map<string, SessionInfo[]>();
   for (const session of sessions) {
-    const key = toDateKey(new Date(session.startedAt));
+    const key = toDateKey(new Date(session.lastEventAt ?? session.startedAt));
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(session);
   }
