@@ -206,7 +206,11 @@ function CostSection({
             )}
             {totals && (totalInputTokens > 0 || totals.outputTokens > 0) && (
               <div className="text-xs text-text-muted mt-0.5">
-                In: {formatTokens(totalInputTokens)} · Out: {formatTokens(totals.outputTokens)} · Total:{' '}
+                In: {formatTokens(totalInputTokens)}
+                {totals.inputTokens > 0 && totals.inputTokens !== totalInputTokens && (
+                  <> <span className="text-text-muted/70">({formatTokens(totals.inputTokens)} uncached)</span></>
+                )}
+                {' · '}Out: {formatTokens(totals.outputTokens)} · Total:{' '}
                 {formatTokens(totalInputTokens + totals.outputTokens)}
               </div>
             )}
