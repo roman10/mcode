@@ -19,19 +19,39 @@ import type { InputTracker } from './input-tracker';
 
 export class GeminiScanner {
   /**
+   * @param resolveTmpDirs - Returns absolute paths to every account's
+   *   `.gemini/tmp/` dir. When omitted, falls back to the default home only.
+   */
+  constructor(private resolveTmpDirs?: () => string[]) {}
+
+  /**
    * Scan all Gemini transcript directories for session JSON files.
    * Returns total number of new token_usage entries inserted.
    */
   async scanAll(inputTracker: InputTracker): Promise<number> {
-    const tmpDir = join(homedir(), '.gemini', 'tmp');
+    const tmpDirs = this.resolveTmpDirs?.() ?? [join(homedir(), '.gemini', 'tmp')];
+
+    let totalNew = 0;
+    for (const tmpDir of tmpDirs) {
+      totalNew += await this.scanTmpDir(tmpDir, inputTracker);
+    }
+
+    if (totalNew > 0) {
+      logger.info('gemini-scanner', `Scan complete, ${totalNew} new entries`);
+    }
+
+    return totalNew;
+  }
+
+  private async scanTmpDir(tmpDir: string, inputTracker: InputTracker): Promise<number> {
     let projectDirs: string[];
     try {
       projectDirs = await readdir(tmpDir);
     } catch {
-      return 0; // ~/.gemini/tmp/ doesn't exist
+      return 0; // tmp dir doesn't exist
     }
 
-    let totalNew = 0;
+    let newCount = 0;
     for (const proj of projectDirs) {
       const chatsDir = join(tmpDir, proj, 'chats');
       let files: string[];
@@ -45,19 +65,14 @@ export class GeminiScanner {
         if (!file.startsWith('session-') || !file.endsWith('.json')) continue;
         const filePath = join(chatsDir, file);
         try {
-          const count = await this.scanFile(filePath, inputTracker);
-          totalNew += count;
+          newCount += await this.scanFile(filePath, inputTracker);
         } catch {
           // Skip individual file errors
         }
       }
     }
 
-    if (totalNew > 0) {
-      logger.info('gemini-scanner', `Scan complete, ${totalNew} new entries`);
-    }
-
-    return totalNew;
+    return newCount;
   }
 
   /**

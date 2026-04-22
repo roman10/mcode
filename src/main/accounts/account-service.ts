@@ -123,6 +123,15 @@ export class AccountService {
     return this.homeManager.getAllSettingsPaths(this.list());
   }
 
+  /**
+   * Enumerate `<accountHome>/<relativePath>` across the default + all secondary
+   * accounts. Used by scanners to discover per-account state dirs for
+   * env-var-isolated providers (Copilot, Codex, Gemini).
+   */
+  listAllAccountPaths(relativePath: string): string[] {
+    return this.homeManager.listAllAccountPaths(this.list(), relativePath);
+  }
+
   // --- Provider-aware session environment ---
 
   /**

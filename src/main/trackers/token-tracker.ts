@@ -21,6 +21,7 @@ import { CopilotScanner } from './copilot-scanner';
 import { GeminiScanner } from './gemini-scanner';
 import { CodexScanner } from './codex-scanner';
 import { typedHandle } from '../ipc-helpers';
+import type { AccountService } from '../accounts';
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
 const HOOK_SCAN_DELAY_MS = 500;
@@ -65,15 +66,36 @@ export class TokenTracker {
   private getWebContents: () => WebContents | null;
   private inputTracker: InputTracker;
   private claudeScanner = new ClaudeScanner();
-  private copilotScanner = new CopilotScanner();
-  private geminiScanner = new GeminiScanner();
-  private codexScanner = new CodexScanner();
+  private copilotScanner: CopilotScanner;
+  private geminiScanner: GeminiScanner;
+  private codexScanner: CodexScanner;
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
   private scanning = false;
 
-  constructor(getWebContents: () => WebContents | null, inputTracker: InputTracker) {
+  constructor(
+    getWebContents: () => WebContents | null,
+    inputTracker: InputTracker,
+    accountService?: AccountService,
+  ) {
     this.getWebContents = getWebContents;
     this.inputTracker = inputTracker;
+    // Env-var-isolated providers (Copilot, Codex, Gemini) need per-account dir
+    // enumeration; Claude uses HOME+symlink so the default resolution is fine.
+    this.copilotScanner = new CopilotScanner(
+      accountService
+        ? () => accountService.listAllAccountPaths('.copilot/session-state')
+        : undefined,
+    );
+    this.codexScanner = new CodexScanner(
+      accountService
+        ? () => accountService.listAllAccountPaths('.codex/sessions')
+        : undefined,
+    );
+    this.geminiScanner = new GeminiScanner(
+      accountService
+        ? () => accountService.listAllAccountPaths('.gemini/tmp')
+        : undefined,
+    );
   }
 
   /** Wire the Copilot scanner's model detection callback to the session manager. */

@@ -25,33 +25,22 @@ export class CopilotScanner {
   onModelDetected?: (copilotSessionId: string, normalizedModel: string) => void;
 
   /**
+   * @param resolveStateDirs - Returns absolute paths to every account's
+   *   `.copilot/session-state/` dir. When omitted, falls back to the single
+   *   dir resolved from the current process env (default-account only).
+   */
+  constructor(private resolveStateDirs?: () => string[]) {}
+
+  /**
    * Scan all Copilot session directories for events.jsonl files.
    * Returns total number of new token_usage entries inserted.
    */
   async scanAll(inputTracker: InputTracker): Promise<number> {
-    const stateDir = resolveCopilotStateDir();
-    if (!stateDir) return 0;
-
-    let dirs: string[];
-    try {
-      dirs = await readdir(stateDir);
-    } catch {
-      return 0;
-    }
+    const stateDirs = this.resolveStateDirs?.() ?? defaultStateDirs();
 
     let totalNew = 0;
-    for (const dirname of dirs) {
-      if (!UUID_RE.test(dirname)) continue;
-
-      const eventsPath = join(stateDir, dirname, 'events.jsonl');
-      if (!existsSync(eventsPath)) continue;
-
-      try {
-        const count = await this.scanFile(eventsPath, dirname, inputTracker);
-        totalNew += count;
-      } catch {
-        // Skip individual file errors
-      }
+    for (const stateDir of stateDirs) {
+      totalNew += await this.scanStateDir(stateDir, inputTracker);
     }
 
     if (totalNew > 0) {
@@ -59,6 +48,30 @@ export class CopilotScanner {
     }
 
     return totalNew;
+  }
+
+  private async scanStateDir(stateDir: string, inputTracker: InputTracker): Promise<number> {
+    let dirs: string[];
+    try {
+      dirs = await readdir(stateDir);
+    } catch {
+      return 0;
+    }
+
+    let newCount = 0;
+    for (const dirname of dirs) {
+      if (!UUID_RE.test(dirname)) continue;
+
+      const eventsPath = join(stateDir, dirname, 'events.jsonl');
+      if (!existsSync(eventsPath)) continue;
+
+      try {
+        newCount += await this.scanFile(eventsPath, dirname, inputTracker);
+      } catch {
+        // Skip individual file errors
+      }
+    }
+    return newCount;
   }
 
   /**
@@ -179,6 +192,12 @@ export class CopilotScanner {
         last_scanned_at = excluded.last_scanned_at
     `).run(filePath, sessionId, projectDir, fileSize, fileSize, now);
   }
+}
+
+/** Fallback state-dir resolver when no account enumerator is injected. */
+function defaultStateDirs(): string[] {
+  const stateDir = resolveCopilotStateDir();
+  return stateDir ? [stateDir] : [];
 }
 
 /** Extract cwd from the session.start event in already-read content (avoids re-reading file). */

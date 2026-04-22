@@ -85,6 +85,96 @@ describe('AccountHomeManager', () => {
     });
   });
 
+  describe('listAllAccountPaths', () => {
+    // The helper always includes join(homedir(), relativePath) and filters
+    // to existing dirs. Tests assert on secondary-path behavior and tolerate
+    // the real-home entry being present or absent.
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = join(tmpdir(), `ahm-paths-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      mkdirSync(tmpDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('includes each existing secondary account dir', () => {
+      const work = join(tmpDir, 'work');
+      const personal = join(tmpDir, 'personal');
+      mkdirSync(join(work, '.copilot', 'session-state'), { recursive: true });
+      mkdirSync(join(personal, '.copilot', 'session-state'), { recursive: true });
+
+      const registry = new AccountProviderRegistry();
+      const manager = new AccountHomeManager(registry);
+      const paths = manager.listAllAccountPaths(
+        [
+          { accountId: 'default', name: 'Default', isDefault: true, homeDir: null, createdAt: '2026-01-01', lastUsedAt: null },
+          { accountId: 'work', name: 'Work', isDefault: false, homeDir: work, createdAt: '2026-01-01', lastUsedAt: null },
+          { accountId: 'personal', name: 'Personal', isDefault: false, homeDir: personal, createdAt: '2026-01-01', lastUsedAt: null },
+        ],
+        '.copilot/session-state',
+      );
+
+      expect(paths).toContain(join(work, '.copilot/session-state'));
+      expect(paths).toContain(join(personal, '.copilot/session-state'));
+    });
+
+    it('skips secondary accounts whose dir does not exist on disk', () => {
+      const real = join(tmpDir, 'real');
+      const missing = join(tmpDir, 'missing');
+      mkdirSync(join(real, '.gemini', 'tmp'), { recursive: true });
+      // Do not create `missing/.gemini/tmp`
+
+      const registry = new AccountProviderRegistry();
+      const manager = new AccountHomeManager(registry);
+      const paths = manager.listAllAccountPaths(
+        [
+          { accountId: 'real', name: 'Real', isDefault: false, homeDir: real, createdAt: '2026-01-01', lastUsedAt: null },
+          { accountId: 'missing', name: 'Missing', isDefault: false, homeDir: missing, createdAt: '2026-01-01', lastUsedAt: null },
+        ],
+        '.gemini/tmp',
+      );
+
+      expect(paths).toContain(join(real, '.gemini/tmp'));
+      expect(paths.some((p) => p.startsWith(missing))).toBe(false);
+    });
+
+    it('ignores default account (has no homeDir) without throwing', () => {
+      const registry = new AccountProviderRegistry();
+      const manager = new AccountHomeManager(registry);
+      // Should not throw when only the default account is present
+      const paths = manager.listAllAccountPaths(
+        [{ accountId: 'default', name: 'Default', isDefault: true, homeDir: null, createdAt: '2026-01-01', lastUsedAt: null }],
+        '.codex/sessions',
+      );
+      // May be empty if homedir()/.codex/sessions doesn't exist, or may have one entry.
+      // What matters: no exception and no fake/nonexistent paths.
+      for (const p of paths) {
+        expect(existsSync(p)).toBe(true);
+      }
+    });
+
+    it('deduplicates when a secondary dir equals the default', () => {
+      const real = join(tmpDir, 'real');
+      mkdirSync(join(real, '.x'), { recursive: true });
+
+      const registry = new AccountProviderRegistry();
+      const manager = new AccountHomeManager(registry);
+      // Two secondaries pointing at the same homeDir → one entry, not two
+      const paths = manager.listAllAccountPaths(
+        [
+          { accountId: 'a', name: 'A', isDefault: false, homeDir: real, createdAt: '2026-01-01', lastUsedAt: null },
+          { accountId: 'b', name: 'B', isDefault: false, homeDir: real, createdAt: '2026-01-01', lastUsedAt: null },
+        ],
+        '.x',
+      );
+      const matches = paths.filter((p) => p === join(real, '.x'));
+      expect(matches).toHaveLength(1);
+    });
+  });
+
   describe('syncSymlinks — symlink-to-directory migration', () => {
     let tmpDir: string;
 

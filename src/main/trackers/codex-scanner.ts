@@ -25,19 +25,40 @@ function resolveCodexSessionsDir(): string {
 
 export class CodexScanner {
   /**
+   * @param resolveSessionsDirs - Returns absolute paths to every account's
+   *   `.codex/sessions/` dir. When omitted, falls back to the single dir
+   *   resolved from the current process env (default-account only).
+   */
+  constructor(private resolveSessionsDirs?: () => string[]) {}
+
+  /**
    * Scan all Codex transcript directories for session JSONL files.
    * Returns total number of new token_usage entries inserted.
    */
   async scanAll(inputTracker: InputTracker): Promise<number> {
-    const sessionsDir = resolveCodexSessionsDir();
+    const sessionsDirs = this.resolveSessionsDirs?.() ?? [resolveCodexSessionsDir()];
+
+    let totalNew = 0;
+    for (const sessionsDir of sessionsDirs) {
+      totalNew += await this.scanSessionsDir(sessionsDir, inputTracker);
+    }
+
+    if (totalNew > 0) {
+      logger.info('codex-scanner', `Scan complete, ${totalNew} new entries`);
+    }
+
+    return totalNew;
+  }
+
+  private async scanSessionsDir(sessionsDir: string, inputTracker: InputTracker): Promise<number> {
     let yearDirs: string[];
     try {
       yearDirs = await readdir(sessionsDir);
     } catch {
-      return 0; // ~/.codex/sessions/ doesn't exist
+      return 0; // sessions dir doesn't exist
     }
 
-    let totalNew = 0;
+    let newCount = 0;
 
     // Walk year/month/day directory structure
     for (const year of yearDirs) {
@@ -70,8 +91,7 @@ export class CodexScanner {
           for (const file of files) {
             if (!file.startsWith('rollout-') || !file.endsWith('.jsonl')) continue;
             try {
-              const count = await this.scanFile(join(dayPath, file), inputTracker);
-              totalNew += count;
+              newCount += await this.scanFile(join(dayPath, file), inputTracker);
             } catch {
               // Skip individual file errors
             }
@@ -80,11 +100,7 @@ export class CodexScanner {
       }
     }
 
-    if (totalNew > 0) {
-      logger.info('codex-scanner', `Scan complete, ${totalNew} new entries`);
-    }
-
-    return totalNew;
+    return newCount;
   }
 
   /**

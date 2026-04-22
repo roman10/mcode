@@ -140,6 +140,24 @@ export class AccountHomeManager {
   }
 
   /**
+   * Enumerate `<accountHome>/<relativePath>` across the real HOME plus every
+   * secondary account, keeping only entries that exist on disk. Used by token
+   * scanners to discover per-account state dirs for providers that use env-var
+   * isolation (COPILOT_HOME, CODEX_HOME, GEMINI_CLI_HOME) where no symlink
+   * mirror exists — otherwise the main mcode process only sees the default
+   * account's data.
+   */
+  listAllAccountPaths(accounts: AccountProfile[], relativePath: string): string[] {
+    const paths = new Set<string>();
+    paths.add(join(homedir(), relativePath));
+    for (const account of accounts) {
+      if (account.isDefault || !account.homeDir) continue;
+      paths.add(join(account.homeDir, relativePath));
+    }
+    return [...paths].filter((p) => existsSync(p));
+  }
+
+  /**
    * Get all settings.json paths that need hook reconciliation, across all registered
    * providers that declare a settings file. Returns the primary paths (one per provider)
    * followed by the corresponding paths for each secondary account home.
