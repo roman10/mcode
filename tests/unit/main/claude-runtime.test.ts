@@ -418,6 +418,12 @@ describe('buildClaudeCreatePlan', () => {
     });
   });
 
+  it('accepts xhigh effort', () => {
+    const result = buildClaudeCreatePlan(makeCtx({ input: { effort: 'xhigh' } }));
+    expect(result.args).toEqual(['--effort', 'xhigh']);
+    expect(result.dbFields.effort).toBe('xhigh');
+  });
+
   it('correct dbFields mapping', () => {
     // enableAutoMode: true → 1
     let result = buildClaudeCreatePlan(makeCtx({ input: { enableAutoMode: true } }));
