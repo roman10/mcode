@@ -75,26 +75,20 @@ export class TokenTracker {
   constructor(
     getWebContents: () => WebContents | null,
     inputTracker: InputTracker,
-    accountService?: AccountService,
+    accountService: AccountService,
   ) {
     this.getWebContents = getWebContents;
     this.inputTracker = inputTracker;
     // Env-var-isolated providers (Copilot, Codex, Gemini) need per-account dir
-    // enumeration; Claude uses HOME+symlink so the default resolution is fine.
+    // enumeration; Claude uses HOME+symlink so its scanner doesn't.
     this.copilotScanner = new CopilotScanner(
-      accountService
-        ? () => accountService.listAllAccountPaths('.copilot/session-state')
-        : undefined,
+      () => accountService.listAllAccountPaths('.copilot/session-state'),
     );
     this.codexScanner = new CodexScanner(
-      accountService
-        ? () => accountService.listAllAccountPaths('.codex/sessions')
-        : undefined,
+      () => accountService.listAllAccountPaths('.codex/sessions'),
     );
     this.geminiScanner = new GeminiScanner(
-      accountService
-        ? () => accountService.listAllAccountPaths('.gemini/tmp')
-        : undefined,
+      () => accountService.listAllAccountPaths('.gemini/tmp'),
     );
   }
 

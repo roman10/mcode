@@ -14,7 +14,6 @@ import { getDb } from '../db';
 import { logger } from '../logger';
 import { parseCopilotShutdownTokens, parseCopilotHumanMessages } from './copilot-events-parser';
 import { normalizeCopilotModel } from './token-cost';
-import { resolveCopilotStateDir } from '../session/copilot-session-store';
 import { localDateStr } from './date-utils';
 import type { InputTracker } from './input-tracker';
 
@@ -26,17 +25,18 @@ export class CopilotScanner {
 
   /**
    * @param resolveStateDirs - Returns absolute paths to every account's
-   *   `.copilot/session-state/` dir. When omitted, falls back to the single
-   *   dir resolved from the current process env (default-account only).
+   *   `.copilot/session-state/` dir that exists on disk. Must enumerate
+   *   across default + secondary accounts — a single dir misses per-account
+   *   state for env-var-isolated providers.
    */
-  constructor(private resolveStateDirs?: () => string[]) {}
+  constructor(private resolveStateDirs: () => string[]) {}
 
   /**
    * Scan all Copilot session directories for events.jsonl files.
    * Returns total number of new token_usage entries inserted.
    */
   async scanAll(inputTracker: InputTracker): Promise<number> {
-    const stateDirs = this.resolveStateDirs?.() ?? defaultStateDirs();
+    const stateDirs = this.resolveStateDirs();
 
     let totalNew = 0;
     for (const stateDir of stateDirs) {
@@ -192,12 +192,6 @@ export class CopilotScanner {
         last_scanned_at = excluded.last_scanned_at
     `).run(filePath, sessionId, projectDir, fileSize, fileSize, now);
   }
-}
-
-/** Fallback state-dir resolver when no account enumerator is injected. */
-function defaultStateDirs(): string[] {
-  const stateDir = resolveCopilotStateDir();
-  return stateDir ? [stateDir] : [];
 }
 
 /** Extract cwd from the session.start event in already-read content (avoids re-reading file). */

@@ -120,20 +120,9 @@ describe('CopilotScanner — account enumeration', () => {
     expect(watermarks.some((w) => w.file_path.includes('/work/'))).toBe(true);
   });
 
-  it('falls back to the process-env state dir when no resolver is injected', async () => {
-    // Redirect the fallback at a known-empty dir so we can assert exactly
-    // zero new rows without being influenced by any real dev-machine data.
-    const emptyDir = join(root, 'empty-fallback-state');
-    mkdirSync(emptyDir, { recursive: true });
-    const prev = process.env['MCODE_COPILOT_STATE_DIR'];
-    process.env['MCODE_COPILOT_STATE_DIR'] = emptyDir;
-    try {
-      const scanner = new CopilotScanner();
-      const count = await scanner.scanAll(inputTracker);
-      expect(count).toBe(0);
-    } finally {
-      if (prev === undefined) delete process.env['MCODE_COPILOT_STATE_DIR'];
-      else process.env['MCODE_COPILOT_STATE_DIR'] = prev;
-    }
+  it('returns 0 when the resolver returns an empty list', async () => {
+    const scanner = new CopilotScanner(() => []);
+    const count = await scanner.scanAll(inputTracker);
+    expect(count).toBe(0);
   });
 });

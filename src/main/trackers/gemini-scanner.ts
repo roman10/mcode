@@ -10,7 +10,6 @@
 
 import { readdir, stat, readFile } from 'node:fs/promises';
 import { join, basename, dirname } from 'node:path';
-import { homedir } from 'node:os';
 import { getDb } from '../db';
 import { logger } from '../logger';
 import { parseGeminiTranscriptTokens, parseGeminiTranscriptHumanMessages } from './gemini-transcript-parser';
@@ -20,16 +19,17 @@ import type { InputTracker } from './input-tracker';
 export class GeminiScanner {
   /**
    * @param resolveTmpDirs - Returns absolute paths to every account's
-   *   `.gemini/tmp/` dir. When omitted, falls back to the default home only.
+   *   `.gemini/tmp/` dir that exists on disk. Must enumerate across
+   *   default + secondary accounts.
    */
-  constructor(private resolveTmpDirs?: () => string[]) {}
+  constructor(private resolveTmpDirs: () => string[]) {}
 
   /**
    * Scan all Gemini transcript directories for session JSON files.
    * Returns total number of new token_usage entries inserted.
    */
   async scanAll(inputTracker: InputTracker): Promise<number> {
-    const tmpDirs = this.resolveTmpDirs?.() ?? [join(homedir(), '.gemini', 'tmp')];
+    const tmpDirs = this.resolveTmpDirs();
 
     let totalNew = 0;
     for (const tmpDir of tmpDirs) {

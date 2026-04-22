@@ -11,32 +11,26 @@
 
 import { readdir, stat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { getDb } from '../db';
 import { logger } from '../logger';
 import { parseCodexTranscript } from './codex-transcript-parser';
 import { localDateStr } from './date-utils';
 import type { InputTracker } from './input-tracker';
 
-function resolveCodexSessionsDir(): string {
-  const codexHome = process.env['MCODE_CODEX_HOME'] ?? join(homedir(), '.codex');
-  return join(codexHome, 'sessions');
-}
-
 export class CodexScanner {
   /**
    * @param resolveSessionsDirs - Returns absolute paths to every account's
-   *   `.codex/sessions/` dir. When omitted, falls back to the single dir
-   *   resolved from the current process env (default-account only).
+   *   `.codex/sessions/` dir that exists on disk. Must enumerate across
+   *   default + secondary accounts.
    */
-  constructor(private resolveSessionsDirs?: () => string[]) {}
+  constructor(private resolveSessionsDirs: () => string[]) {}
 
   /**
    * Scan all Codex transcript directories for session JSONL files.
    * Returns total number of new token_usage entries inserted.
    */
   async scanAll(inputTracker: InputTracker): Promise<number> {
-    const sessionsDirs = this.resolveSessionsDirs?.() ?? [resolveCodexSessionsDir()];
+    const sessionsDirs = this.resolveSessionsDirs();
 
     let totalNew = 0;
     for (const sessionsDir of sessionsDirs) {
