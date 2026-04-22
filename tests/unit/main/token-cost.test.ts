@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { normalizeModelVersion, normalizeModelFamily, normalizeGeminiModel, normalizeCopilotModel, estimateCostUsd } from '../../../src/main/trackers/token-cost';
 
 describe('normalizeModelVersion', () => {
@@ -193,8 +193,37 @@ describe('estimateCostUsd', () => {
     expect(cost).toBe(0.25);
   });
 
-  it('returns 0 for unknown models', () => {
-    expect(estimateCostUsd('gpt-4', 1_000_000, 1_000_000, 0, 0, 0, false)).toBe(0);
+  it('does not bill OpenAI cache writes (no per-token write charge)', () => {
+    // Copilot rows normalized to gpt-* populate cacheWrite1hTokens, but OpenAI
+    // doesn't charge per-token for writes. Both write buckets should cost $0.
+    expect(estimateCostUsd('gpt-5.4', 0, 0, 1_000_000, 0, 0, false)).toBe(0);
+    expect(estimateCostUsd('gpt-5.4', 0, 0, 0, 1_000_000, 0, false)).toBe(0);
+  });
+
+  it('calculates Gemini cache read at 0.25x input', () => {
+    // gemini-2.5-pro: input $1.25/MTok → cache read = $0.3125/MTok (0.25x)
+    const cost = estimateCostUsd('gemini-2.5-pro', 0, 0, 0, 0, 1_000_000, false);
+    expect(cost).toBe(0.3125);
+  });
+
+  it('does not bill Gemini cache writes', () => {
+    expect(estimateCostUsd('gemini-2.5-pro', 0, 0, 1_000_000, 0, 0, false)).toBe(0);
+    expect(estimateCostUsd('gemini-2.5-pro', 0, 0, 0, 1_000_000, 0, false)).toBe(0);
+  });
+
+  it('returns 0 for unknown models and warns once', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // Use a unique model name so the module-level dedup Set doesn't swallow the warning
+      // from prior tests in this run.
+      const unknown = `unknown-model-${Math.random().toString(36).slice(2)}`;
+      expect(estimateCostUsd(unknown, 1_000_000, 1_000_000, 0, 0, 0, false)).toBe(0);
+      expect(estimateCostUsd(unknown, 1_000_000, 1_000_000, 0, 0, 0, false)).toBe(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toContain(unknown);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('returns 0 for zero tokens', () => {

@@ -1,72 +1,79 @@
 /**
- * Hardcoded Anthropic model pricing for estimated cost calculation.
- * Source: https://platform.claude.com/docs/en/docs/about-claude/pricing
- * Last verified: 2026-03-19
+ * Hardcoded model pricing for estimated cost calculation.
  *
- * Cache multipliers (applied to base input price):
- *   5-minute write = 1.25x
- *   1-hour write   = 2.0x
- *   Cache read      = 0.1x
+ * Sources (last verified 2026-04-22):
+ *   Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
+ *   Google:    https://ai.google.dev/gemini-api/docs/pricing
+ *   OpenAI:    https://developers.openai.com/api/docs/pricing
+ *
+ * Cache multipliers are per-provider (see CLAUDE_CACHE / OPENAI_CACHE / GEMINI_CACHE).
+ * Copilot rows inherit multipliers from whichever provider-model they normalize to,
+ * since Copilot sessions delegate to Claude, Gemini, or OpenAI under the hood.
  */
 
-interface ModelPricing {
+interface CacheMultipliers {
+  cacheWrite5mMult: number; // multiplier on input price
+  cacheWrite1hMult: number;
+  cacheReadMult: number;
+}
+
+interface ModelPricing extends CacheMultipliers {
   input: number;  // $ per MTok
   output: number; // $ per MTok
 }
 
+// Claude: 5m write 1.25x, 1h write 2x, cache read 0.1x (per Anthropic docs).
+const CLAUDE_CACHE: CacheMultipliers = { cacheWrite5mMult: 1.25, cacheWrite1hMult: 2.0, cacheReadMult: 0.1 };
+// OpenAI: cached input is 10% of input; no separate per-token write charge.
+const OPENAI_CACHE: CacheMultipliers = { cacheWrite5mMult: 0, cacheWrite1hMult: 0, cacheReadMult: 0.1 };
+// Gemini: cached input ≈ 25% of input on 2.5 Pro/Flash; no per-token write charge.
+const GEMINI_CACHE: CacheMultipliers = { cacheWrite5mMult: 0, cacheWrite1hMult: 0, cacheReadMult: 0.25 };
+
 // Keyed by normalized model version (e.g. "opus-4.6")
 const MODEL_PRICING: Record<string, ModelPricing> = {
-  'opus-4.7':   { input: 5,    output: 25 },
-  'opus-4.6':   { input: 5,    output: 25 },
-  'opus-4.5':   { input: 5,    output: 25 },
-  'opus-4.1':   { input: 15,   output: 75 },
-  'opus-4':     { input: 15,   output: 75 },
-  'sonnet-4.6': { input: 3,    output: 15 },
-  'sonnet-4.5': { input: 3,    output: 15 },
-  'sonnet-4':   { input: 3,    output: 15 },
-  'sonnet-3.7': { input: 3,    output: 15 },
-  'haiku-4.5':  { input: 1,    output: 5 },
-  'haiku-3.5':  { input: 0.80, output: 4 },
-  'haiku-3':    { input: 0.25, output: 1.25 },
+  'opus-4.7':   { input: 5,    output: 25,   ...CLAUDE_CACHE },
+  'opus-4.6':   { input: 5,    output: 25,   ...CLAUDE_CACHE },
+  'opus-4.5':   { input: 5,    output: 25,   ...CLAUDE_CACHE },
+  'opus-4.1':   { input: 15,   output: 75,   ...CLAUDE_CACHE },
+  'opus-4':     { input: 15,   output: 75,   ...CLAUDE_CACHE },
+  'sonnet-4.6': { input: 3,    output: 15,   ...CLAUDE_CACHE },
+  'sonnet-4.5': { input: 3,    output: 15,   ...CLAUDE_CACHE },
+  'sonnet-4':   { input: 3,    output: 15,   ...CLAUDE_CACHE },
+  'sonnet-3.7': { input: 3,    output: 15,   ...CLAUDE_CACHE },
+  'haiku-4.5':  { input: 1,    output: 5,    ...CLAUDE_CACHE },
+  'haiku-3.5':  { input: 0.80, output: 4,    ...CLAUDE_CACHE },
+  'haiku-3':    { input: 0.25, output: 1.25, ...CLAUDE_CACHE },
 };
 
 /**
  * Gemini model pricing (Developer API, ≤200k context tier).
- * Source: https://ai.google.dev/gemini-api/docs/pricing
- * Last verified: 2026-03-31
- *
  * Keyed by normalized Gemini model name (output of normalizeGeminiModel).
  * Thinking tokens are billed at the output rate.
  * Models with tiered pricing (≤200k / >200k) use the lower tier.
  */
 const GEMINI_PRICING: Record<string, ModelPricing> = {
-  'gemini-3.1-pro':        { input: 2.00,  output: 12.00 },
-  'gemini-3.1-flash-lite': { input: 0.25,  output: 1.50 },
-  'gemini-3-flash':        { input: 0.50,  output: 3.00 },
-  'gemini-2.5-pro':        { input: 1.25,  output: 10.00 },
-  'gemini-2.5-flash':      { input: 0.30,  output: 2.50 },
-  'gemini-2.5-flash-lite': { input: 0.10,  output: 0.40 },
-  'gemini-2.0-flash':      { input: 0.10,  output: 0.40 },  // deprecated, shutdown June 2026
+  'gemini-3.1-pro':        { input: 2.00,  output: 12.00, ...GEMINI_CACHE },
+  'gemini-3.1-flash-lite': { input: 0.25,  output: 1.50,  ...GEMINI_CACHE },
+  'gemini-3-flash':        { input: 0.50,  output: 3.00,  ...GEMINI_CACHE },
+  'gemini-2.5-pro':        { input: 1.25,  output: 10.00, ...GEMINI_CACHE },
+  'gemini-2.5-flash':      { input: 0.30,  output: 2.50,  ...GEMINI_CACHE },
+  'gemini-2.5-flash-lite': { input: 0.10,  output: 0.40,  ...GEMINI_CACHE },
+  'gemini-2.0-flash':      { input: 0.10,  output: 0.40,  ...GEMINI_CACHE }, // deprecated, shutdown June 2026
 };
 
 /**
- * OpenAI model pricing.
- * Source: https://developers.openai.com/api/docs/pricing
- * Last verified: 2026-03-31
- *
- * Cached input pricing: 10% of input price (same multiplier as Claude cache reads).
- * Codex models use the same underlying API pricing.
+ * OpenAI model pricing. Codex models use the same underlying API pricing.
  */
 const OPENAI_PRICING: Record<string, ModelPricing> = {
-  'gpt-5.4':            { input: 2.50,  output: 15.00 },
-  'gpt-5.4-mini':       { input: 0.75,  output: 4.50 },
-  'gpt-5.4-nano':       { input: 0.20,  output: 1.25 },
-  'gpt-5.3-codex':      { input: 1.75,  output: 14.00 },
-  'gpt-5.2':            { input: 1.75,  output: 14.00 },
-  'gpt-5.1':            { input: 1.25,  output: 10.00 },
-  'gpt-5.1-codex':      { input: 1.25,  output: 10.00 },
-  'gpt-5.1-codex-mini': { input: 0.25,  output: 2.00 },
-  'gpt-5':              { input: 1.25,  output: 10.00 },
+  'gpt-5.4':            { input: 2.50,  output: 15.00, ...OPENAI_CACHE },
+  'gpt-5.4-mini':       { input: 0.75,  output: 4.50,  ...OPENAI_CACHE },
+  'gpt-5.4-nano':       { input: 0.20,  output: 1.25,  ...OPENAI_CACHE },
+  'gpt-5.3-codex':      { input: 1.75,  output: 14.00, ...OPENAI_CACHE },
+  'gpt-5.2':            { input: 1.75,  output: 14.00, ...OPENAI_CACHE },
+  'gpt-5.1':            { input: 1.25,  output: 10.00, ...OPENAI_CACHE },
+  'gpt-5.1-codex':      { input: 1.25,  output: 10.00, ...OPENAI_CACHE },
+  'gpt-5.1-codex-mini': { input: 0.25,  output: 2.00,  ...OPENAI_CACHE },
+  'gpt-5':              { input: 1.25,  output: 10.00, ...OPENAI_CACHE },
 };
 
 const FAST_MODE_MULTIPLIER = 6;
@@ -131,6 +138,8 @@ export function normalizeModelFamily(model: string): string {
   return 'unknown';
 }
 
+const warnedUnknownModels = new Set<string>();
+
 /** Estimate cost in USD for a set of token counts. */
 export function estimateCostUsd(
   model: string,
@@ -151,15 +160,21 @@ export function estimateCostUsd(
     // Try OpenAI pricing (Codex models use clean names, no normalization needed)
     pricing = OPENAI_PRICING[model];
   }
-  if (!pricing) return 0;
+  if (!pricing) {
+    if (!warnedUnknownModels.has(model)) {
+      warnedUnknownModels.add(model);
+      console.warn(`[token-cost] No pricing for model "${model}"; cost reported as $0`);
+    }
+    return 0;
+  }
 
   const multiplier = isFastMode ? FAST_MODE_MULTIPLIER : 1;
   const cost =
     (inputTokens * pricing.input +
       outputTokens * pricing.output +
-      cacheWrite5m * pricing.input * 1.25 +
-      cacheWrite1h * pricing.input * 2.0 +
-      cacheRead * pricing.input * 0.1) *
+      cacheWrite5m * pricing.input * pricing.cacheWrite5mMult +
+      cacheWrite1h * pricing.input * pricing.cacheWrite1hMult +
+      cacheRead * pricing.input * pricing.cacheReadMult) *
     multiplier / 1_000_000;
 
   return Math.round(cost * 1_000_000) / 1_000_000; // 6 decimal places
