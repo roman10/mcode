@@ -122,14 +122,18 @@ export function parseCodexTranscript(content: string): CodexParseResult {
       const timestamp = typeof rawTimestamp === 'string' ? rawTimestamp : new Date().toISOString();
       if (!result.sessionId) continue;
 
+      // OpenAI Responses API reports input_tokens as the full prompt total (cached + uncached).
+      // Store uncached only to match the Anthropic convention used across the app.
+      const rawInput = usage.input_tokens ?? 0;
+      const cachedInput = usage.cached_input_tokens ?? 0;
       result.tokenEntries.push({
         messageId: `codex:${result.sessionId}:${timestamp}`,
         model: currentModel,
-        inputTokens: usage.input_tokens ?? 0,
+        inputTokens: Math.max(0, rawInput - cachedInput),
         outputTokens: usage.output_tokens ?? 0,
         cacheWrite5mTokens: 0,
         cacheWrite1hTokens: 0,
-        cacheReadTokens: usage.cached_input_tokens ?? 0,
+        cacheReadTokens: cachedInput,
         isFastMode: false,
         timestamp,
       });

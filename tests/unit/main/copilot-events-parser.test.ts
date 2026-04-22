@@ -28,15 +28,19 @@ describe('parseCopilotShutdownTokens', () => {
 
     const gpt = entries.find(e => e.model === 'gpt-5.4')!;
     expect(gpt.messageId).toBe('copilot:test-session-uuid:gpt-5.4');
-    expect(gpt.inputTokens).toBe(3303725);
+    // inputTokens stores the uncached slice: 3303725 - 2867968 (cacheRead) - 0 (cacheWrite)
+    expect(gpt.inputTokens).toBe(3303725 - 2867968);
     expect(gpt.outputTokens).toBe(15480);
     expect(gpt.cacheReadTokens).toBe(2867968);
+    // Round-trip invariant: stored columns sum back to the API-reported prompt total.
+    expect(gpt.inputTokens + gpt.cacheReadTokens + gpt.cacheWrite1hTokens).toBe(3303725);
     expect(gpt.isFastMode).toBe(false);
     expect(gpt.timestamp).toBe('2026-03-30T02:15:00.000Z');
     expect(gpt.premiumRequests).toBe(5);
 
     const claude = entries.find(e => e.model === 'claude-sonnet-4.5')!;
-    expect(claude.inputTokens).toBe(1327340);
+    expect(claude.inputTokens).toBe(1327340 - 1157243);
+    expect(claude.cacheReadTokens).toBe(1157243);
     expect(claude.outputTokens).toBe(8483);
     expect(claude.premiumRequests).toBe(0);
   });

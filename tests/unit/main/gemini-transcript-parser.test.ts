@@ -47,10 +47,12 @@ describe('parseGeminiTranscriptTokens', () => {
     const entries = parseGeminiTranscriptTokens(SAMPLE_TRANSCRIPT, 'session-1');
     expect(entries).toHaveLength(2);
 
+    // inputTokens stores the uncached slice: (input + tool) - cached.
+    // Gemini's `input` is the full promptTokenCount, which includes cached tokens.
     expect(entries[0]).toEqual({
       messageId: 'gemini:session-1:msg-2',
       model: 'gemini-3-flash',
-      inputTokens: 9390, // input + tool(0)
+      inputTokens: 9390, // (input 9390 + tool 0) - cached 0
       outputTokens: 113, // output(2) + thoughts(111)
       cacheWrite5mTokens: 0,
       cacheWrite1hTokens: 0,
@@ -62,7 +64,7 @@ describe('parseGeminiTranscriptTokens', () => {
     expect(entries[1]).toEqual({
       messageId: 'gemini:session-1:msg-4',
       model: 'gemini-2.5-pro',
-      inputTokens: 1010, // input(1000) + tool(10)
+      inputTokens: 810,  // (input 1000 + tool 10) - cached 200
       outputTokens: 80,  // output(50) + thoughts(30)
       cacheWrite5mTokens: 0,
       cacheWrite1hTokens: 0,
@@ -70,6 +72,8 @@ describe('parseGeminiTranscriptTokens', () => {
       isFastMode: false,
       timestamp: '2026-03-31T12:00:15Z',
     });
+    // Round-trip invariant: stored uncached + cacheRead == API-reported (input + tool).
+    expect(entries[1].inputTokens + entries[1].cacheReadTokens).toBe(1010);
   });
 
   it('skips user messages', () => {

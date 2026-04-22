@@ -73,14 +73,19 @@ export function parseCopilotShutdownTokens(
       const usage = metrics.usage;
       if (!usage) continue;
 
+      // Copilot reports inputTokens as the full prompt total (cached reads + cache writes + uncached).
+      // Store uncached only to match the Anthropic convention used across the app.
+      const rawInput = usage.inputTokens ?? 0;
+      const cacheRead = usage.cacheReadTokens ?? 0;
+      const cacheWrite = usage.cacheWriteTokens ?? 0;
       entries.push({
         messageId: `copilot:${sessionId}:${model}`,
         model,
-        inputTokens: usage.inputTokens ?? 0,
+        inputTokens: Math.max(0, rawInput - cacheRead - cacheWrite),
         outputTokens: usage.outputTokens ?? 0,
         cacheWrite5mTokens: 0,
-        cacheWrite1hTokens: usage.cacheWriteTokens ?? 0,
-        cacheReadTokens: usage.cacheReadTokens ?? 0,
+        cacheWrite1hTokens: cacheWrite,
+        cacheReadTokens: cacheRead,
         isFastMode: false,
         timestamp,
         premiumRequests: metrics.requests?.cost ?? 0,

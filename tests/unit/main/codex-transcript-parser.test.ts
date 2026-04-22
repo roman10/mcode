@@ -78,10 +78,12 @@ describe('parseCodexTranscript', () => {
     const result = parseCodexTranscript(jsonl(SESSION_META, TURN_CONTEXT, TOKEN_COUNT_1, TOKEN_COUNT_2));
     expect(result.tokenEntries).toHaveLength(2);
 
+    // inputTokens stores the uncached slice; cached_input_tokens is a subset of input_tokens
+    // in the OpenAI Responses API, so uncached = input_tokens - cached_input_tokens.
     expect(result.tokenEntries[0]).toEqual({
       messageId: 'codex:sess-abc:2026-03-27T00:25:12.011Z',
       model: 'gpt-5.4',
-      inputTokens: 11288,
+      inputTokens: 11288 - 9600,
       outputTokens: 294,
       cacheWrite5mTokens: 0,
       cacheWrite1hTokens: 0,
@@ -89,11 +91,13 @@ describe('parseCodexTranscript', () => {
       isFastMode: false,
       timestamp: '2026-03-27T00:25:12.011Z',
     });
+    // Round-trip: stored uncached + cacheRead equals the API-reported input_tokens.
+    expect(result.tokenEntries[0].inputTokens + result.tokenEntries[0].cacheReadTokens).toBe(11288);
 
     expect(result.tokenEntries[1]).toEqual({
       messageId: 'codex:sess-abc:2026-03-27T00:25:19.280Z',
       model: 'gpt-5.4',
-      inputTokens: 14515,
+      inputTokens: 14515 - 12000,
       outputTokens: 345,
       cacheWrite5mTokens: 0,
       cacheWrite1hTokens: 0,
@@ -117,7 +121,7 @@ describe('parseCodexTranscript', () => {
   it('skips token_count events where info is null (rate-limited)', () => {
     const result = parseCodexTranscript(jsonl(SESSION_META, TURN_CONTEXT, TOKEN_COUNT_NULL, TOKEN_COUNT_1));
     expect(result.tokenEntries).toHaveLength(1);
-    expect(result.tokenEntries[0].inputTokens).toBe(11288);
+    expect(result.tokenEntries[0].inputTokens).toBe(11288 - 9600);
   });
 
   it('skips token_count events before model is known', () => {

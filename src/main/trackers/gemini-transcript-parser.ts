@@ -44,9 +44,12 @@ interface GeminiTranscript {
  * Creates one ParsedUsageEntry per `type: "gemini"` message with token data.
  *
  * Token mapping:
- *   inputTokens  = tokens.input + tokens.tool  (prompt + function call overhead)
+ *   inputTokens  = (tokens.input + tokens.tool) - tokens.cached  (uncached prompt only)
  *   outputTokens = tokens.output + tokens.thoughts  (generation + reasoning)
  *   cacheRead    = tokens.cached
+ *
+ * Gemini's `tokens.input` is the full promptTokenCount (cached + uncached). Storing
+ * uncached only keeps `inputTokens` semantics consistent with the Anthropic convention.
  *
  * @param content - Full JSON file content
  * @param sessionId - Gemini session UUID (from transcript or caller)
@@ -76,14 +79,16 @@ export function parseGeminiTranscriptTokens(
     const timestamp = msg.timestamp ?? new Date().toISOString();
     const tokens = msg.tokens;
 
+    const cached = tokens.cached ?? 0;
+    const rawInput = (tokens.input ?? 0) + (tokens.tool ?? 0);
     entries.push({
       messageId: `gemini:${sessionId}:${messageId}`,
       model: normalizeGeminiModel(msg.model),
-      inputTokens: (tokens.input ?? 0) + (tokens.tool ?? 0),
+      inputTokens: Math.max(0, rawInput - cached),
       outputTokens: (tokens.output ?? 0) + (tokens.thoughts ?? 0),
       cacheWrite5mTokens: 0,
       cacheWrite1hTokens: 0,
-      cacheReadTokens: tokens.cached ?? 0,
+      cacheReadTokens: cached,
       isFastMode: false,
       timestamp,
     });

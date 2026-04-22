@@ -31,9 +31,12 @@ const MSG2_OUTPUT = 200;
 const MSG2_THOUGHTS = 80;
 const MSG2_CACHED = 0;
 
-const TOTAL_INPUT = (MSG1_INPUT + MSG1_TOOL) + (MSG2_INPUT + MSG2_TOOL);
-const TOTAL_OUTPUT = (MSG1_OUTPUT + MSG1_THOUGHTS) + (MSG2_OUTPUT + MSG2_THOUGHTS);
+// Gemini's `input` is the full promptTokenCount (includes cached). The parser
+// stores only the uncached slice in `inputTokens`, with cached tracked separately.
+const TOTAL_RAW_PROMPT = (MSG1_INPUT + MSG1_TOOL) + (MSG2_INPUT + MSG2_TOOL);
 const TOTAL_CACHE_READ = MSG1_CACHED + MSG2_CACHED;
+const TOTAL_INPUT_UNCACHED = TOTAL_RAW_PROMPT - TOTAL_CACHE_READ;
+const TOTAL_OUTPUT = (MSG1_OUTPUT + MSG1_THOUGHTS) + (MSG2_OUTPUT + MSG2_THOUGHTS);
 
 const MODEL_NAME = 'gemini-3-flash-preview';
 
@@ -158,11 +161,20 @@ describe('gemini token tracking', () => {
 
     expect(usage.claudeSessionId).toBe(GEMINI_SESSION_ID);
     expect(usage.messageCount).toBe(2);
-    expect(usage.totals.inputTokens).toBe(TOTAL_INPUT);
+    expect(usage.totals.inputTokens).toBe(TOTAL_INPUT_UNCACHED);
     expect(usage.totals.outputTokens).toBe(TOTAL_OUTPUT);
     expect(usage.totals.cacheReadTokens).toBe(TOTAL_CACHE_READ);
     expect(usage.totals.cacheWrite5mTokens).toBe(0);
     expect(usage.totals.cacheWrite1hTokens).toBe(0);
+    // Round-trip invariant: uncached + cached + writes should equal the full prompt tokens
+    // originally reported by the Gemini API. This locks the storage convention so any
+    // future regression (e.g. a new CLI storing raw input) will be caught here.
+    expect(
+      usage.totals.inputTokens +
+        usage.totals.cacheReadTokens +
+        usage.totals.cacheWrite5mTokens +
+        usage.totals.cacheWrite1hTokens,
+    ).toBe(TOTAL_RAW_PROMPT);
   });
 
   it('session usage includes correct model and family', async () => {
