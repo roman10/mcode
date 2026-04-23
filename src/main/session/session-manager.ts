@@ -12,6 +12,7 @@ import {
   getSession as repoGetSession,
   getSessionRecord,
   listSessions as repoListSessions,
+  countSessionsByAttentionLevel as repoCountSessionsByAttentionLevel,
   getSessionStatus,
   getSessionHookState,
   getActiveAgentStates,
@@ -142,6 +143,7 @@ export class SessionManager {
   private hookRuntimeGetter: () => HookRuntimeInfo;
   private accountManager: AccountService;
   private sessionListeners = new Set<SessionUpdateListener>();
+  private changeListeners = new Set<() => void>();
   /** Sessions that have already received a prompt-based auto-label (first UserPromptSubmit only). */
   private promptLabelledSessions = new Set<string>();
   private eventStore: SessionEventStore;
@@ -194,6 +196,26 @@ export class SessionManager {
     for (const listener of this.sessionListeners) {
       try {
         listener(session, previousStatus);
+      } catch {
+        // Listener errors must not break session state transitions
+      }
+    }
+  }
+
+  /**
+   * Subscribe to any broadcasted session change (status, attentionLevel,
+   * label, model, etc.). Fires once per call to broadcastSessionUpdate.
+   * Unlike onSessionUpdated, this does not require a status transition.
+   */
+  onSessionsChanged(listener: () => void): () => void {
+    this.changeListeners.add(listener);
+    return () => this.changeListeners.delete(listener);
+  }
+
+  private notifyChanged(): void {
+    for (const listener of this.changeListeners) {
+      try {
+        listener();
       } catch {
         // Listener errors must not break session state transitions
       }
@@ -808,6 +830,7 @@ export class SessionManager {
     if (wc && !wc.isDestroyed()) {
       wc.send('session:updated', session);
     }
+    this.notifyChanged();
   }
 
   private broadcastHookEvent(event: HookEvent): void {
@@ -934,6 +957,10 @@ export class SessionManager {
 
   list(): SessionInfo[] {
     return repoListSessions();
+  }
+
+  countSessionsByAttentionLevel(level: SessionAttentionLevel): number {
+    return repoCountSessionsByAttentionLevel(level);
   }
 
   /** Return distinct cwds from Claude sessions (lightweight alternative to list()). */

@@ -232,10 +232,6 @@ contextBridge.exposeInMainWorld('mcode', {
     selectDirectory: (): Promise<string | null> =>
       typedInvoke('app:select-directory'),
 
-    setDockBadge: (text: string): void => {
-      typedSend('app:set-dock-badge', text);
-    },
-
     getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 
     onError: (cb: (error: string) => void): (() => void) =>

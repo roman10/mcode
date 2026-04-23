@@ -30,6 +30,13 @@ export class BrokerClient extends EventEmitter implements IPtyManager {
   // Cached PTY info (cols/rows from spawn, pid unknown so 0)
   private ptyInfoMap = new Map<string, PtyInfo>();
 
+  // Outbound 'pty.data' event coalescer: merges chunks arriving within the
+  // same event-loop iteration into a single emit, so the renderer sees one
+  // IPC/term.write per tick instead of one per OS pty read.
+  private pendingEmit = new Map<string, string>();
+  private pendingEmitTimer = new Map<string, NodeJS.Immediate>();
+  private static readonly MAX_BATCH_BYTES = 64 * 1024;
+
   async connect(socketPath: string): Promise<void> {
     this.socketPath = socketPath;
     return this._connect();
@@ -94,10 +101,36 @@ export class BrokerClient extends EventEmitter implements IPtyManager {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    for (const t of this.pendingEmitTimer.values()) clearImmediate(t);
+    this.pendingEmitTimer.clear();
+    this.pendingEmit.clear();
     this._rejectAllPending('Broker client disconnecting');
     this.rl?.close();
     this.socket?.destroy();
     this.socket = null;
+  }
+
+  private _enqueueDataEmit(id: string, data: string): void {
+    const next = (this.pendingEmit.get(id) ?? '') + data;
+    this.pendingEmit.set(id, next);
+    if (next.length >= BrokerClient.MAX_BATCH_BYTES) {
+      this._flushDataEmit(id);
+      return;
+    }
+    if (!this.pendingEmitTimer.has(id)) {
+      this.pendingEmitTimer.set(id, setImmediate(() => this._flushDataEmit(id)));
+    }
+  }
+
+  private _flushDataEmit(id: string): void {
+    const timer = this.pendingEmitTimer.get(id);
+    if (timer) {
+      clearImmediate(timer);
+      this.pendingEmitTimer.delete(id);
+    }
+    const buf = this.pendingEmit.get(id);
+    this.pendingEmit.delete(id);
+    if (buf) this.emit('pty.data', id, buf);
   }
 
   private _rejectAllPending(reason: string): void {
@@ -211,26 +244,32 @@ export class BrokerClient extends EventEmitter implements IPtyManager {
       case 'pty.data': {
         const id = params.id as string;
         const data = params.data as string;
-        // Update local ring buffer and timestamp
+        // Update local ring buffer and timestamp per-chunk so synchronous
+        // consumers (getReplayData, getLastDataAt, quiescence polling) stay
+        // current; only the outward emit is coalesced below.
         const existing = this.ringBuffers.get(id) ?? '';
         const updated = existing + data;
         this.ringBuffers.set(id, updated.length > RING_BUFFER_MAX_BYTES ? updated.slice(-RING_BUFFER_MAX_BYTES) : updated);
         this.lastDataAtMap.set(id, Date.now());
-        this.emit('pty.data', id, data);
+        this._enqueueDataEmit(id, data);
         break;
       }
 
       case 'pty.exit': {
-        this.emit('pty.exit', params.id, params.code, params.signal);
-        const cb = this.exitCallbacks.get(params.id as string);
+        const id = params.id as string;
+        // Drain any buffered bytes before the exit signal so the renderer
+        // never sees the tail of output arrive after exit.
+        this._flushDataEmit(id);
+        this.emit('pty.exit', id, params.code, params.signal);
+        const cb = this.exitCallbacks.get(id);
         if (cb) {
           cb(params.code as number, params.signal as number | undefined);
-          this.exitCallbacks.delete(params.id as string);
+          this.exitCallbacks.delete(id);
         }
         // Clear local buffers when session ends
-        this.ringBuffers.delete(params.id as string);
-        this.lastDataAtMap.delete(params.id as string);
-        this.ptyInfoMap.delete(params.id as string);
+        this.ringBuffers.delete(id);
+        this.lastDataAtMap.delete(id);
+        this.ptyInfoMap.delete(id);
         break;
       }
 

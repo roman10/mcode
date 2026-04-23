@@ -209,6 +209,13 @@ export function listSessions(): SessionInfo[] {
   return rows.map(toSessionInfo);
 }
 
+export function countSessionsByAttentionLevel(level: string): number {
+  const row = getDb()
+    .prepare('SELECT COUNT(*) AS n FROM sessions WHERE attention_level = ?')
+    .get(level) as { n: number };
+  return row.n;
+}
+
 export function getSessionStatus(id: string): string | null {
   const row = getDb()
     .prepare('SELECT status FROM sessions WHERE session_id = ?')

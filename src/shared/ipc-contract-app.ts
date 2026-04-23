@@ -55,7 +55,7 @@ export interface AppInvokeContract {
 }
 
 export interface AppSendContract {
-  'app:set-dock-badge':                 { params: [text: string] };
+  // No renderer→main fire-and-forget events currently wired.
 }
 
 export interface AppPushContract {

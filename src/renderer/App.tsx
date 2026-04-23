@@ -99,20 +99,6 @@ function App(): React.JSX.Element {
     return unsub;
   }, []);
 
-  // Dock badge: count of action-attention sessions (those requiring user input)
-  useEffect(() => {
-    let prevCount = 0;
-    return useSessionStore.subscribe((state) => {
-      const highCount = Object.values(state.sessions).filter(
-        (s) => s.attentionLevel === 'action',
-      ).length;
-      if (highCount !== prevCount) {
-        prevCount = highCount;
-        window.mcode.app.setDockBadge(highCount > 0 ? String(highCount) : '');
-      }
-    });
-  }, []);
-
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const activeSidebarTab = useLayoutStore((s) => s.activeSidebarTab);

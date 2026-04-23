@@ -35,7 +35,7 @@ import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { fixPath } from './fix-path';
 import { buildApplicationMenu } from './menu';
-import { typedHandle, typedOn } from './ipc-helpers';
+import { typedHandle } from './ipc-helpers';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
 import type { HookRuntimeInfo, AppCommand } from '../shared/types';
 
@@ -158,10 +158,6 @@ function registerAppIpc(): void {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
-  });
-
-  typedOn('app:set-dock-badge', (text) => {
-    app.dock?.setBadge(text);
   });
 
   typedHandle('app:check-for-update', () => appUpdater.checkManual());
@@ -510,6 +506,20 @@ app.whenReady().then(async () => {
       commitTracker.onSessionCreated(session.cwd).catch(() => {});
     }
   });
+
+  // Dock badge: count of sessions needing user input. Owned in main so the
+  // renderer doesn't have to subscribe to the whole session store for a
+  // native-shell concern. Uses a COUNT(*) query to stay cheap on the hot
+  // broadcastSessionUpdate path.
+  let lastDockBadge = -1;
+  const syncDockBadge = (): void => {
+    const count = sessionManager.countSessionsByAttentionLevel('action');
+    if (count === lastDockBadge) return;
+    lastDockBadge = count;
+    app.dock?.setBadge(count > 0 ? String(count) : '');
+  };
+  sessionManager.onSessionsChanged(syncDockBadge);
+  syncDockBadge();
 
   // Periodic cleanup: prune old hook events + stale file watermarks
   sessionManager.pruneOldEvents();
