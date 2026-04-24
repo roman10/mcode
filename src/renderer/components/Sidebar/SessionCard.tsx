@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef, memo } from 'react';
 import type { SessionInfo } from '@shared/types';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
@@ -14,11 +14,16 @@ interface SessionCardProps {
   session: SessionInfo;
   isSelected: boolean;
   hasTile: boolean;
-  onSelect(): void;
-  onDoubleClick(): void;
-  onKill(): void;
-  onDelete(): void;
-  onRename(label: string): void;
+  /**
+   * Handlers receive sessionId so callers can memoize a single stable
+   * callback across all cards, letting React.memo skip re-renders of
+   * untouched cards when the sessions store mutates.
+   */
+  onSelect(sessionId: string): void;
+  onDoubleClick(sessionId: string): void;
+  onKill(sessionId: string): void;
+  onDelete(sessionId: string): void;
+  onRename(sessionId: string, label: string): void;
 }
 
 export interface SessionCardHandle {
@@ -69,7 +74,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
       const trimmed = editValue.trim();
       const full = labelIcon ? `${labelIcon} ${trimmed}` : trimmed;
       if (trimmed && full !== session.label) {
-        onRename(full);
+        onRename(session.sessionId, full);
       } else {
         setEditValue(labelText);
       }
@@ -105,13 +110,13 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
           startEditing();
           break;
         case 'open-tile':
-          onDoubleClick();
+          onDoubleClick(session.sessionId);
           break;
         case 'kill':
-          onKill();
+          onKill(session.sessionId);
           break;
         case 'delete':
-          onDelete();
+          onDelete(session.sessionId);
           break;
       }
     };
@@ -123,8 +128,8 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
             ? 'bg-bg-elevated'
             : 'hover:bg-bg-secondary'
         }`}
-        onClick={onSelect}
-        onDoubleClick={onDoubleClick}
+        onClick={() => onSelect(session.sessionId)}
+        onDoubleClick={() => onDoubleClick(session.sessionId)}
         onContextMenu={(e) => {
           e.preventDefault();
           setContextMenu({ x: e.clientX, y: e.clientY });
@@ -200,7 +205,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
                 className="text-text-secondary hover:text-text-primary text-xs p-0.5"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDoubleClick();
+                  onDoubleClick(session.sessionId);
                 }}
               >
                 +
@@ -213,7 +218,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
                 className="text-text-secondary hover:text-red-400 text-xs p-0.5"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onKill();
+                  onKill(session.sessionId);
                 }}
               >
                 x
@@ -225,7 +230,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
                 className="text-text-secondary hover:text-red-400 text-xs p-0.5"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete();
+                  onDelete(session.sessionId);
                 }}
               >
                 x
@@ -247,4 +252,4 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
   },
 );
 
-export default SessionCard;
+export default memo(SessionCard);

@@ -146,6 +146,15 @@ export class SessionManager {
   private changeListeners = new Set<() => void>();
   /** Sessions that have already received a prompt-based auto-label (first UserPromptSubmit only). */
   private promptLabelledSessions = new Set<string>();
+  /**
+   * Outbound 'session:updated' coalescer — merges repeat broadcasts for the
+   * same sessionId within one event-loop tick into a single IPC send carrying
+   * the latest snapshot. Mirrors the pty.data coalescer in BrokerClient.
+   * Bursts of hook events + state transitions otherwise fan out to dozens of
+   * renders per session per second.
+   */
+  private pendingBroadcasts = new Set<string>();
+  private broadcastFlushTimer: NodeJS.Immediate | null = null;
   private eventStore: SessionEventStore;
   readonly layoutRepo: LayoutRepository;
   private agentRuntimeAdapters: AgentRuntimeAdapterMap;
@@ -824,16 +833,37 @@ export class SessionManager {
   }
 
   broadcastSessionUpdate(sessionId: string): void {
-    const session = this.get(sessionId);
-    if (!session) return;
+    this.pendingBroadcasts.add(sessionId);
+    if (this.broadcastFlushTimer === null) {
+      this.broadcastFlushTimer = setImmediate(() => this.flushPendingBroadcasts());
+    }
+  }
+
+  private flushPendingBroadcasts(): void {
+    if (this.broadcastFlushTimer !== null) {
+      clearImmediate(this.broadcastFlushTimer);
+      this.broadcastFlushTimer = null;
+    }
+    if (this.pendingBroadcasts.size === 0) return;
+
+    const ids = Array.from(this.pendingBroadcasts);
+    this.pendingBroadcasts.clear();
+
     const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('session:updated', session);
+    const canSend = wc !== null && !wc.isDestroyed();
+    for (const id of ids) {
+      const session = this.get(id);
+      if (session && canSend) {
+        wc!.send('session:updated', session);
+      }
     }
     this.notifyChanged();
   }
 
   private broadcastHookEvent(event: HookEvent): void {
+    // Ensure any pending session:updated for the affected session lands in the
+    // renderer before the hook event, preserving the prior synchronous order.
+    this.flushPendingBroadcasts();
     const wc = this.getWebContents();
     if (wc && !wc.isDestroyed()) {
       wc.send('hook:event', event);

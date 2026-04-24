@@ -24,6 +24,17 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
 
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Record<string, SessionCardHandle | null>>({});
+  // Stable per-session ref-setter functions so React.memo on SessionCard
+  // isn't defeated by a fresh `ref` identity on every render.
+  const refSetters = useRef(new Map<string, (h: SessionCardHandle | null) => void>());
+  const getRefSetter = useCallback((sessionId: string): (h: SessionCardHandle | null) => void => {
+    let fn = refSetters.current.get(sessionId);
+    if (!fn) {
+      fn = (handle) => { cardRefs.current[sessionId] = handle; };
+      refSetters.current.set(sessionId, fn);
+    }
+    return fn;
+  }, []);
 
   const [externalExpanded, setExternalExpanded] = useState(false);
   const [externalLimit, setExternalLimit] = useState(20);
@@ -78,7 +89,7 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
   }, []);
 
   const handleDelete = useCallback(async (sessionId: string): Promise<void> => {
-    const session = sessions[sessionId];
+    const session = useSessionStore.getState().sessions[sessionId];
     if (!session) return;
     const confirmed = window.confirm(`Delete session "${session.label}"? This cannot be undone.`);
     if (!confirmed) return;
@@ -87,19 +98,24 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
     } catch (err) {
       console.error('Failed to delete session:', err);
     }
-  }, [sessions]);
+  }, []);
 
-  const handleRename = async (
-    sessionId: string,
-    label: string,
-  ): Promise<void> => {
+  const handleRename = useCallback(async (sessionId: string, label: string): Promise<void> => {
     try {
       await window.mcode.sessions.setLabel(sessionId, label);
       useSessionStore.getState().setLabel(sessionId, label);
     } catch (err) {
       console.error('Failed to rename session:', err);
     }
-  };
+  }, []);
+
+  const handleSelect = useCallback((sessionId: string): void => {
+    useLayoutStore.getState().focusTile(`session:${sessionId}`);
+    if (viewMode === 'kanban') {
+      expandKanbanSession(sessionId);
+    }
+    containerRef.current?.focus();
+  }, [viewMode, expandKanbanSession]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const tag = (e.target as HTMLElement).tagName;
@@ -204,22 +220,16 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
             </div>
             {!collapsed && group.sessions.map((session) => (
               <SessionCard
-                ref={(handle) => { cardRefs.current[session.sessionId] = handle; }}
+                ref={getRefSetter(session.sessionId)}
                 key={session.sessionId}
                 session={session}
                 isSelected={selectedSessionId === session.sessionId}
                 hasTile={tileSessionIds.has(session.sessionId)}
-                onSelect={() => {
-                  useLayoutStore.getState().focusTile(`session:${session.sessionId}`);
-                  if (viewMode === 'kanban') {
-                    expandKanbanSession(session.sessionId);
-                  }
-                  containerRef.current?.focus();
-                }}
-                onDoubleClick={() => handleDoubleClick(session.sessionId)}
-                onKill={() => handleKill(session.sessionId)}
-                onDelete={() => handleDelete(session.sessionId)}
-                onRename={(label) => handleRename(session.sessionId, label)}
+                onSelect={handleSelect}
+                onDoubleClick={handleDoubleClick}
+                onKill={handleKill}
+                onDelete={handleDelete}
+                onRename={handleRename}
               />
             ))}
           </div>
