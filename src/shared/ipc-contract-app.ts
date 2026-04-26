@@ -6,6 +6,7 @@ import type {
   CreateTaskInput,
   HookEvent,
   HookRuntimeInfo,
+  MemorySnapshot,
   Task,
   TaskChangeEvent,
   TaskFilter,
@@ -24,6 +25,7 @@ export interface AppInvokeContract {
   'app:open-update-page':               { params: []; result: void };
   'app:download-update':                { params: []; result: void };
   'app:install-update':                 { params: []; result: void };
+  'app:get-memory-snapshot':            { params: []; result: MemorySnapshot };
 
   // --- Tasks ---
   'task:create':                        { params: [input: CreateTaskInput]; result: Task };

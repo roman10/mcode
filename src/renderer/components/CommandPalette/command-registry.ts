@@ -113,6 +113,14 @@ export function getCommands(ctx: CommandContext): CommandEntry[] {
       execute: () => executeAppCommand({ command: 'show-settings' }),
     },
     {
+      id: 'show-memory-inspector',
+      label: 'Show Memory Inspector',
+      category: 'General',
+      keywords: ['memory', 'leak', 'diagnostics', 'heap', 'rss', 'inspector'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'show-memory-inspector' }),
+    },
+    {
       id: 'search-in-files',
       label: 'Search in Files',
       category: 'General',

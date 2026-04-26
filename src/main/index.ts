@@ -36,6 +36,7 @@ import { logger } from './logger';
 import { fixPath } from './fix-path';
 import { buildApplicationMenu } from './menu';
 import { typedHandle } from './ipc-helpers';
+import { captureMemorySnapshot } from './diagnostics';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
 import type { HookRuntimeInfo, AppCommand } from '../shared/types';
 
@@ -167,6 +168,8 @@ function registerAppIpc(): void {
     isQuitting = true; // bypass close-confirmation dialog before quitAndInstall
     appUpdater.installUpdate();
   });
+
+  typedHandle('app:get-memory-snapshot', () => captureMemorySnapshot(brokerClient));
 }
 
 function registerPreferencesIpc(): void {

@@ -8,6 +8,8 @@ import {
   TERMINAL_FONT_SIZE,
   TERMINAL_FONT_FAMILY,
   DEFAULT_SCROLLBACK_LINES,
+  HIDDEN_TILE_DISPOSE_MS,
+  MAX_SCROLLBACK_LINES,
   SCROLLBACK_PRESETS,
 } from '@shared/constants';
 import { getAgentDefinition, shouldHideTerminalCursor } from '@shared/session-agents';
@@ -29,13 +31,18 @@ interface TerminalInstanceProps {
   sessionId: string;
   sessionType?: string;
   scrollbackLines?: number;
-  /** When false the terminal is hidden via CSS but stays mounted (preserving scrollback). */
+  /** When false the terminal is hidden via CSS. After HIDDEN_TILE_DISPOSE_MS the
+   *  Terminal is fully disposed to free its scrollback; revealing it again
+   *  recreates the Terminal and replays the broker ring buffer. */
   isVisible?: boolean;
 }
 
 function resolveScrollback(value: number | undefined): number {
   const lines = value ?? DEFAULT_SCROLLBACK_LINES;
-  return lines === 0 ? Infinity : lines;
+  // Migration: legacy persisted value 0 ("unlimited") is coerced to MAX_SCROLLBACK_LINES.
+  // Any out-of-range value is also clamped so the buffer stays bounded.
+  if (lines <= 0) return MAX_SCROLLBACK_LINES;
+  return Math.min(lines, MAX_SCROLLBACK_LINES);
 }
 
 function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible = true }: TerminalInstanceProps): React.JSX.Element {
@@ -50,6 +57,20 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   const warningTimeoutRef = useRef<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [currentScrollback, setCurrentScrollback] = useState(scrollbackLines);
+  /** False when the tile has been hidden long enough that its xterm instance was disposed
+   *  to free scrollback memory. Flips back to true on reveal, which remounts the Terminal. */
+  const [shouldMount, setShouldMount] = useState(isVisible);
+
+  // Schedule disposal of the Terminal after the tile has been hidden for HIDDEN_TILE_DISPOSE_MS.
+  // On reveal, immediately remount.
+  useEffect(() => {
+    if (isVisible) {
+      setShouldMount(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setShouldMount(false), HIDDEN_TILE_DISPOSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isVisible]);
   const search = useTerminalSearch();
   const cwd = useSessionStore((s) => s.sessions[sessionId]?.cwd ?? '');
   const setSlashWarning = useSlashCommandWarningStore((s) => s.setWarning);
@@ -108,6 +129,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   }, [isVisible]);
 
   useEffect(() => {
+    if (!shouldMount) return;
     const container = termRef.current;
     if (!container || sessionType === undefined) return;
 
@@ -391,15 +413,16 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       term.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal setup runs once per sessionId; sessionType is read via ref
-  }, [clearSlashWarning, sessionId, setSlashWarning]);
+  }, [clearSlashWarning, sessionId, setSlashWarning, shouldMount]);
 
   const handleContextAction = useCallback((action: string) => {
     const term = termInstanceRef.current;
     if (!term) return;
 
     if (action.startsWith('scrollback:')) {
-      const value = parseInt(action.split(':')[1], 10);
-      term.options.scrollback = value === 0 ? Infinity : value;
+      const raw = parseInt(action.split(':')[1], 10);
+      const value = resolveScrollback(raw);
+      term.options.scrollback = value;
       setCurrentScrollback(value);
       window.mcode.sessions.setTerminalConfig(sessionId, { scrollbackLines: value });
       return;
@@ -445,7 +468,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
         label: 'Scrollback Lines',
         action: 'scrollback',
         children: SCROLLBACK_PRESETS.map((v) => ({
-          label: v === 0 ? 'Unlimited' : v.toLocaleString(),
+          label: v.toLocaleString(),
           action: `scrollback:${v}`,
           checked: effectiveScrollback === v,
         })),
@@ -455,7 +478,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', display: isVisible ? undefined : 'none' }}>
-      <div ref={termRef} style={{ width: '100%', height: '100%' }} />
+      {shouldMount ? (
+        <div ref={termRef} style={{ width: '100%', height: '100%' }} />
+      ) : (
+        <div style={{ width: '100%', height: '100%' }} />
+      )}
       {search.isOpen && (
         <SearchBar
           onFindNext={search.findNext}

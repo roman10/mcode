@@ -9,6 +9,7 @@ import KanbanLayout from './components/Kanban/KanbanLayout';
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog';
 import SettingsDialog from './components/SettingsDialog';
 import AccountsDialog from './components/AccountsDialog';
+import MemoryInspector from './components/MemoryInspector';
 import CommandPalette from './components/CommandPalette/CommandPalette';
 import TerminalPanel from './components/BottomPanel/TerminalPanel';
 import StatusBar from './components/BottomPanel/StatusBar';
@@ -136,6 +137,8 @@ function App(): React.JSX.Element {
   const setShowSettings = useDialogStore((s) => s.setShowSettings);
   const showAccountsDialog = useDialogStore((s) => s.showAccountsDialog);
   const setShowAccountsDialog = useDialogStore((s) => s.setShowAccountsDialog);
+  const showMemoryInspector = useDialogStore((s) => s.showMemoryInspector);
+  const setShowMemoryInspector = useDialogStore((s) => s.setShowMemoryInspector);
   const showCommandPalette = useDialogStore((s) => s.showCommandPalette);
   const setShowCommandPalette = useDialogStore((s) => s.setShowCommandPalette);
   const quickOpenInitialMode = useDialogStore((s) => s.quickOpenInitialMode);
@@ -257,6 +260,10 @@ function App(): React.JSX.Element {
       <AccountsDialog
         open={showAccountsDialog}
         onOpenChange={setShowAccountsDialog}
+      />
+      <MemoryInspector
+        open={showMemoryInspector}
+        onOpenChange={setShowMemoryInspector}
       />
       {showCommandPalette && (
         <CommandPalette

@@ -1,4 +1,4 @@
-import type { PtySpawnOptions } from './types';
+import type { BrokerDiagnostics, PtySpawnOptions } from './types';
 
 export interface PtyInfo {
   id: string;
@@ -19,4 +19,6 @@ export interface IPtyManager {
   getLastDataAt(id: string): number;
   /** Returns basic info about a PTY session, or null if not found. */
   getInfo(id: string): PtyInfo | null;
+  /** Memory accounting for diagnostics. */
+  getDiagnostics(): BrokerDiagnostics;
 }

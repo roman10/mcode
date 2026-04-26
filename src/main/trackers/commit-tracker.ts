@@ -6,6 +6,7 @@ import { getDb } from '../db';
 import { getPreferenceBool } from '../preferences';
 import { logger } from '../logger';
 import { typedHandle } from '../ipc-helpers';
+import { LruMap } from '../lru-map';
 import { localDateStr, todayDate, nDaysAgoStart } from './date-utils';
 import { AGENT_SESSION_TYPES } from '@shared/session-agents';
 import { extractCommandString } from '../hooks/hook-utils';
@@ -203,8 +204,10 @@ export class CommitTracker {
   private sessionManager: SessionManager;
   private getWebContents: () => WebContents | null;
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
-  private repoRootCache = new Map<string, string | null>();
-  private defaultBranchCache = new Map<string, string>();
+  // Bounded so users who touch hundreds of cwds over a session don't accumulate
+  // entries indefinitely. 200 is generous for any realistic workspace.
+  private repoRootCache = new LruMap<string, string | null>(200);
+  private defaultBranchCache = new LruMap<string, string>(200);
   private scanning = false;
 
   constructor(

@@ -16,6 +16,7 @@ interface DialogState {
   showKeyboardShortcuts: boolean;
   showSettings: boolean;
   showAccountsDialog: boolean;
+  showMemoryInspector: boolean;
   showCommandPalette: boolean;
   showCreateTaskDialog: boolean;
   createTaskDefaults: CreateTaskDefaults | null;
@@ -28,6 +29,7 @@ interface DialogState {
   setShowKeyboardShortcuts(show: boolean): void;
   setShowSettings(show: boolean): void;
   setShowAccountsDialog(show: boolean): void;
+  setShowMemoryInspector(show: boolean): void;
   setShowCommandPalette(show: boolean): void;
   setShowCreateTaskDialog(show: boolean): void;
   openCreateTaskDialog(defaults?: CreateTaskDefaults): void;
@@ -41,6 +43,7 @@ export const useDialogStore = create<DialogState>((set) => ({
   showKeyboardShortcuts: false,
   showSettings: false,
   showAccountsDialog: false,
+  showMemoryInspector: false,
   showCommandPalette: false,
   showCreateTaskDialog: false,
   createTaskDefaults: null,
@@ -52,6 +55,7 @@ export const useDialogStore = create<DialogState>((set) => ({
   setShowKeyboardShortcuts: (show) => set({ showKeyboardShortcuts: show }),
   setShowSettings: (show) => set({ showSettings: show }),
   setShowAccountsDialog: (show) => set({ showAccountsDialog: show }),
+  setShowMemoryInspector: (show) => set({ showMemoryInspector: show }),
   setShowCommandPalette: (show) => set({ showCommandPalette: show }),
   setShowCreateTaskDialog: (show) => set({ showCreateTaskDialog: show, ...(!show && { createTaskDefaults: null }) }),
   openCreateTaskDialog: (defaults) => set({ showCreateTaskDialog: true, createTaskDefaults: defaults ?? null }),

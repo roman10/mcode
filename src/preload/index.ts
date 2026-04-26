@@ -40,6 +40,7 @@ import type {
   AccountProfileWithProviders,
   AuthStatusResult,
   CliAuthStatus,
+  MemorySnapshot,
   QuotaSnapshot,
   SlashCommandEntry,
   SnippetEntry,
@@ -263,6 +264,9 @@ contextBridge.exposeInMainWorld('mcode', {
 
     installUpdate: (): Promise<void> =>
       typedInvoke('app:install-update'),
+
+    getMemorySnapshot: (): Promise<MemorySnapshot> =>
+      typedInvoke('app:get-memory-snapshot'),
   },
 
   tasks: {

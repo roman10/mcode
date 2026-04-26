@@ -195,6 +195,11 @@ export function buildApplicationMenu({ sendCommand, shutdownBroker, checkForUpda
             accelerator: 'CmdOrCtrl+Shift+X',
             click: () => sendCommand({ command: 'close-all-tiles' }),
           },
+          { type: 'separator' },
+          {
+            label: 'Memory Inspector',
+            click: () => sendCommand({ command: 'show-memory-inspector' }),
+          },
         ],
       },
       {

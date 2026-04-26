@@ -1,5 +1,5 @@
 import * as pty from 'node-pty';
-import type { PtySpawnOptions } from '../../shared/types';
+import type { BrokerDiagnostics, PtySpawnOptions } from '../../shared/types';
 import type { IPtyManager } from '../../shared/pty-manager-interface';
 import { PTY_KILL_TIMEOUT_MS, RING_BUFFER_MAX_BYTES } from '../../shared/constants';
 
@@ -191,5 +191,16 @@ export class PtyManager implements IPtyManager {
       id,
       pid: handle.process.pid,
     }));
+  }
+
+  getDiagnostics(): BrokerDiagnostics {
+    let ringBufferBytes = 0;
+    for (const handle of this.ptys.values()) ringBufferBytes += handle.ringBuffer.length;
+    return {
+      liveSessions: this.ptys.size,
+      ringBufferBytes,
+      pendingEmitKeys: 0,
+      pendingEmitBytes: 0,
+    };
   }
 }

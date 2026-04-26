@@ -130,6 +130,12 @@ export function executeAppCommand(command: AppCommand): void {
       break;
     }
 
+    case 'show-memory-inspector': {
+      const ds = useDialogStore.getState();
+      ds.setShowMemoryInspector(!ds.showMemoryInspector);
+      break;
+    }
+
     case 'switch-sidebar-tab': {
       const store = useLayoutStore.getState();
       // If switching to the activity tab while it's hidden, make it visible first

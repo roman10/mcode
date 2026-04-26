@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
 import type { ConsoleEntry, HmrEvent } from '../types';
 import { queryRenderer } from '../ipc';
+import { captureMemorySnapshot } from '../../main/diagnostics';
 
 export function registerAppTools(
   server: McpServer,
@@ -105,6 +106,17 @@ export function registerAppTools(
         isError: true,
       };
     }
+  });
+
+  server.registerTool('app_get_memory_snapshot', {
+    description:
+      'Capture a memory snapshot: main-process heap, V8 stats, per-process memory (main/GPU/renderers/broker), and broker PTY ring-buffer accounting. Use to investigate memory growth or verify leak fixes.',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    const snapshot = captureMemorySnapshot(ctx.ptyManager);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(snapshot, null, 2) }],
+    };
   });
 
   server.registerTool('app_get_hmr_events', {

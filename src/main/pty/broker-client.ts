@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { IPtyManager, PtyInfo } from '../../shared/pty-manager-interface';
 import type { PtySpawnOptions } from '../../shared/types';
 import { RING_BUFFER_MAX_BYTES, DEFAULT_COLS, DEFAULT_ROWS } from '../../shared/constants';
+import type { BrokerDiagnostics } from '../../shared/types';
 import { logger } from '../logger';
 import { typedHandle, typedOn } from '../ipc-helpers';
 
@@ -333,6 +334,19 @@ export class BrokerClient extends EventEmitter implements IPtyManager {
   /** Returns cached PTY info, or null if session not found. */
   getInfo(id: string): PtyInfo | null {
     return this.ptyInfoMap.get(id) ?? null;
+  }
+
+  getDiagnostics(): BrokerDiagnostics {
+    let ringBufferBytes = 0;
+    for (const buf of this.ringBuffers.values()) ringBufferBytes += buf.length;
+    let pendingEmitBytes = 0;
+    for (const buf of this.pendingEmit.values()) pendingEmitBytes += buf.length;
+    return {
+      liveSessions: this.ptyInfoMap.size,
+      ringBufferBytes,
+      pendingEmitKeys: this.pendingEmit.size,
+      pendingEmitBytes,
+    };
   }
 }
 
