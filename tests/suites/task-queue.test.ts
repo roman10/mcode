@@ -138,6 +138,43 @@ describe('task queue', () => {
     await killAndWaitEnded(client, session.sessionId);
   });
 
+  it('defers dispatch while PTY is freshly active (settle guard)', async () => {
+    const session = await createIdleLiveClaudeSession(client);
+    sessionIds.push(session.sessionId);
+    expect(session.hookMode).toBe('live');
+
+    // Let the initial spawn output age past the settle window so the guard
+    // would not block dispatch by itself.
+    await sleep(800);
+
+    // Bump the PTY's lastDataAt by sending input that the fake claude echoes,
+    // simulating Claude finishing its post-turn render right as we try to dispatch.
+    await client.callTool('terminal_send_keys', {
+      sessionId: session.sessionId,
+      keys: 'x\n',
+    });
+    await sleep(50); // let the echo land on the PTY
+
+    const startMs = Date.now();
+    const task = await createTask(client, {
+      prompt: 'guarded',
+      targetSessionId: session.sessionId,
+    });
+
+    // Without the guard, dispatchPending() runs synchronously after createTask
+    // and the task would dispatch in ≈0ms. With the guard the immediate attempt
+    // is skipped and dispatch happens on the next 2s polling tick.
+    await waitForTaskStatus(client, task.id, 'dispatched', 10000);
+    const elapsedMs = Date.now() - startMs;
+    expect(elapsedMs).toBeGreaterThanOrEqual(400);
+
+    // Cleanup
+    await injectHookEvent(client, session.sessionId, 'PreToolUse', { toolName: 'Bash' });
+    await injectHookEvent(client, session.sessionId, 'Stop');
+    await waitForTaskStatus(client, task.id, 'completed', 10000);
+    await killAndWaitEnded(client, session.sessionId);
+  });
+
   it('dispatches tasks sequentially on same session', async () => {
     const session = await createIdleLiveClaudeSession(client);
     sessionIds.push(session.sessionId);

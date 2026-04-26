@@ -78,6 +78,11 @@ function toTask(row: TaskRecord): Task {
 const DISPATCH_INTERVAL_MS = 2000;
 const SHIFT_TAB_DELAY_MS = 150;
 const SUBMIT_DELAY_MS = 100;
+// Minimum quiet time on the PTY before dispatching to a freshly-idle session.
+// Claude Code may still be re-rendering the prompt area and re-enabling
+// bracketed-paste mode (\x1b[?2004h) right after a turn ends; sending input
+// during that window corrupts our paste markers (stray bytes, dropped \r).
+const DISPATCH_SETTLE_MS = 500;
 
 // --- Permission mode cycling helpers (exported for testing) ---
 
@@ -561,6 +566,11 @@ export class TaskQueue {
       return;
     }
     if (session.status !== 'idle') return; // Wait for session to become idle
+
+    const lastDataAt = this.ptyManager.getLastDataAt(task.targetSessionId!);
+    if (lastDataAt > 0 && Date.now() - lastDataAt < DISPATCH_SETTLE_MS) {
+      return; // PTY still settling — retry on next dispatch tick
+    }
 
     // Check if we need to cycle permission mode before dispatching.
     // Shift+Tab cycling only applies to Claude; other agents set modes at session creation.
