@@ -2,6 +2,29 @@
 
 All notable changes to mcode are documented here.
 
+## [0.2.7] — 2026-04-26
+
+### New Features
+
+- **xhigh effort level for Claude Code** — adds an extra-high reasoning effort tier to Claude Code sessions
+- **Non-cached input tokens in Stats panel** — surfaces uncached input tokens alongside In/Out/Total
+- **Sort sessions by last activity** — sessions are now sorted and grouped by last activity time instead of creation time
+- **Shell history in `!` palette** — surfaces `$HISTFILE` commands in the `!` shell palette
+
+### Bug Fixes
+
+- Bound terminal scrollback and dispose hidden tiles to stop memory growth
+- Fix per-provider cache multipliers in token cost estimation
+- Backfill uncached input_tokens for existing Copilot/Codex/Gemini rows
+- Store uncached input tokens for Copilot, Codex, Gemini parsers
+- Scan per-account state dirs for Copilot, Codex, Gemini token usage
+- Route command-palette snippet insertion to bottom-panel terminals
+
+### Other Changes
+
+- Coalesce `session:updated` IPC, memoize SessionCard, and index `attention_level` for sidebar performance
+- Batch PTY emits and move dock-badge ownership to the main process
+
 ## [0.2.6] — 2026-04-17
 
 ### New Features
