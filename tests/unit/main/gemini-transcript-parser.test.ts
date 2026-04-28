@@ -215,3 +215,89 @@ describe('parseGeminiTranscriptHumanMessages', () => {
     expect(parseGeminiTranscriptHumanMessages(transcript)).toEqual([]);
   });
 });
+
+// Gemini CLI changed the on-disk format around 2026-04-22 to JSONL: line 1 is
+// a header (no `id`/`type`), subsequent lines are individual messages, and
+// `{"$set":{...}}` lines are mongo-style update markers that must be skipped.
+const JSONL_TRANSCRIPT = [
+  JSON.stringify({
+    sessionId: 'jsonl-session',
+    projectHash: 'hash999',
+    startTime: '2026-04-27T23:00:00Z',
+    lastUpdated: '2026-04-27T23:00:00Z',
+    kind: 'main',
+  }),
+  JSON.stringify({
+    id: 'msg-1',
+    timestamp: '2026-04-27T23:00:01Z',
+    type: 'user',
+    content: [{ text: 'say hello world' }],
+  }),
+  JSON.stringify({ $set: { lastUpdated: '2026-04-27T23:00:01.500Z' } }),
+  JSON.stringify({
+    id: 'msg-2',
+    timestamp: '2026-04-27T23:00:05Z',
+    type: 'gemini',
+    content: 'hello world',
+    tokens: { input: 9390, output: 2, cached: 0, thoughts: 111, tool: 0, total: 9503 },
+    model: 'gemini-3-flash-preview',
+  }),
+  JSON.stringify({ $set: { lastUpdated: '2026-04-27T23:00:05.500Z' } }),
+  JSON.stringify({
+    id: 'msg-3',
+    timestamp: '2026-04-27T23:00:10Z',
+    type: 'user',
+    content: [{ text: 'list the files' }],
+  }),
+  JSON.stringify({
+    id: 'msg-4',
+    timestamp: '2026-04-27T23:00:15Z',
+    type: 'gemini',
+    content: 'file1.ts\nfile2.ts',
+    tokens: { input: 1000, output: 50, cached: 200, thoughts: 30, tool: 10, total: 1290 },
+    model: 'models/gemini-2.5-pro-preview-05-06',
+  }),
+  '', // trailing newline
+].join('\n');
+
+describe('JSONL format support', () => {
+  it('parses tokens from a JSONL transcript identically to legacy JSON', () => {
+    const jsonlEntries = parseGeminiTranscriptTokens(JSONL_TRANSCRIPT, 'session-1');
+    const legacyEntries = parseGeminiTranscriptTokens(SAMPLE_TRANSCRIPT, 'session-1');
+
+    // Same models, same token math, same shape — only timestamps differ
+    expect(jsonlEntries.map((e) => e.model)).toEqual(legacyEntries.map((e) => e.model));
+    expect(jsonlEntries.map((e) => e.inputTokens)).toEqual(legacyEntries.map((e) => e.inputTokens));
+    expect(jsonlEntries.map((e) => e.outputTokens)).toEqual(legacyEntries.map((e) => e.outputTokens));
+    expect(jsonlEntries.map((e) => e.cacheReadTokens)).toEqual(legacyEntries.map((e) => e.cacheReadTokens));
+  });
+
+  it('parses human messages from a JSONL transcript', () => {
+    const entries = parseGeminiTranscriptHumanMessages(JSONL_TRANSCRIPT);
+    expect(entries).toHaveLength(2);
+    expect(entries[0].text).toBe('say hello world');
+    expect(entries[1].text).toBe('list the files');
+  });
+
+  it('skips $set update lines and the header line', () => {
+    // The header has no `id`/`type`; the $set lines have neither but match
+    // neither user nor gemini types. Without skipping them, we'd see extra
+    // entries or throw on missing fields.
+    const tokens = parseGeminiTranscriptTokens(JSONL_TRANSCRIPT, 's');
+    const humans = parseGeminiTranscriptHumanMessages(JSONL_TRANSCRIPT);
+    expect(tokens).toHaveLength(2); // only the two `type:"gemini"` messages
+    expect(humans).toHaveLength(2); // only the two `type:"user"` messages
+  });
+
+  it('tolerates malformed JSONL lines mid-stream', () => {
+    const content = [
+      JSON.stringify({ sessionId: 'x', kind: 'main' }),
+      'not-json-{',
+      JSON.stringify({
+        id: 'g1', timestamp: '2026-04-27T00:00:00Z', type: 'gemini', content: 'ok',
+        tokens: { input: 10, output: 1, total: 11 }, model: 'gemini-3-flash',
+      }),
+    ].join('\n');
+    expect(parseGeminiTranscriptTokens(content, 's')).toHaveLength(1);
+  });
+});

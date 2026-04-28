@@ -1,11 +1,13 @@
 /**
- * Scanner for Gemini CLI transcript JSON files.
+ * Scanner for Gemini CLI transcript files.
  *
  * Discovers session transcripts in ~/.gemini/tmp/ and parses them for token
  * usage and human input data. Uses the same watermark table as other scanners.
  *
- * Unlike Claude (incremental JSONL), Gemini transcripts are single JSON files
- * that must be read in full. The watermark tracks file_size to skip unchanged files.
+ * Gemini CLI changed transcript format around 2026-04-22 from a single JSON
+ * document (`session-*.json`) to JSONL (`session-*.jsonl`). The scanner accepts
+ * both extensions; format detection lives inside the parser. Files are read in
+ * full each scan, with a file_size watermark to skip unchanged files.
  */
 
 import { readdir, stat, readFile } from 'node:fs/promises';
@@ -16,6 +18,23 @@ import { parseGeminiTranscriptTokens, parseGeminiTranscriptHumanMessages } from 
 import { localDateStr } from './date-utils';
 import type { InputTracker } from './input-tracker';
 
+function extractSessionId(content: string, filePath: string): string {
+  const filenameId = basename(filePath).replace(/\.jsonl?$/, '');
+  try {
+    const obj = JSON.parse(content) as { sessionId?: string };
+    if (obj?.sessionId) return obj.sessionId;
+  } catch {
+    const firstLine = content.split('\n', 1)[0];
+    if (firstLine) {
+      try {
+        const obj = JSON.parse(firstLine) as { sessionId?: string };
+        if (obj?.sessionId) return obj.sessionId;
+      } catch { /* keep filename fallback */ }
+    }
+  }
+  return filenameId;
+}
+
 export class GeminiScanner {
   /**
    * @param resolveTmpDirs - Returns absolute paths to every account's
@@ -25,7 +44,7 @@ export class GeminiScanner {
   constructor(private resolveTmpDirs: () => string[]) {}
 
   /**
-   * Scan all Gemini transcript directories for session JSON files.
+   * Scan all Gemini transcript directories for session files.
    * Returns total number of new token_usage entries inserted.
    */
   async scanAll(inputTracker: InputTracker): Promise<number> {
@@ -62,7 +81,8 @@ export class GeminiScanner {
       }
 
       for (const file of files) {
-        if (!file.startsWith('session-') || !file.endsWith('.json')) continue;
+        if (!file.startsWith('session-')) continue;
+        if (!file.endsWith('.json') && !file.endsWith('.jsonl')) continue;
         const filePath = join(chatsDir, file);
         try {
           newCount += await this.scanFile(filePath, inputTracker);
@@ -76,7 +96,7 @@ export class GeminiScanner {
   }
 
   /**
-   * Scan a single Gemini transcript JSON file.
+   * Scan a single Gemini transcript file (`.json` or `.jsonl`).
    * Returns number of new token_usage entries inserted.
    */
   async scanFile(filePath: string, inputTracker: InputTracker): Promise<number> {
@@ -99,17 +119,11 @@ export class GeminiScanner {
     const lastOffset = tracked?.last_scanned_offset ?? 0;
     if (fileSize <= lastOffset) return 0;
 
-    // Read full file (Gemini transcripts are JSON, not streaming JSONL)
+    // Read full file. Gemini transcripts are either a single JSON object
+    // (legacy) or JSONL where line 1 is a header — `extractSessionId` handles
+    // both. The parser content-sniffs again for messages.
     const content = await readFile(filePath, 'utf-8');
-
-    // Extract session ID from transcript content
-    let transcriptSessionId: string;
-    try {
-      const parsed = JSON.parse(content) as { sessionId?: string };
-      transcriptSessionId = parsed.sessionId ?? basename(filePath, '.json');
-    } catch {
-      transcriptSessionId = basename(filePath, '.json');
-    }
+    const transcriptSessionId = extractSessionId(content, filePath);
 
     // Derive project dir from path: ~/.gemini/tmp/<projectDir>/chats/<file>
     const projectDir = basename(dirname(dirname(filePath)));
