@@ -62,7 +62,7 @@ function StatsPanel(): React.JSX.Element {
       }
       setCollapsedRestored(true);
     }).catch(() => setCollapsedRestored(true));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Persist whenever collapse state changes (skip the initial restore)
   useEffect(() => {
