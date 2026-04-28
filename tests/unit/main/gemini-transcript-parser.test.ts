@@ -197,6 +197,11 @@ describe('parseGeminiTranscriptHumanMessages', () => {
     expect(parseGeminiTranscriptHumanMessages('{')).toEqual([]);
   });
 
+  it('handles missing messages field', () => {
+    const transcript = JSON.stringify({ sessionId: 'abc' });
+    expect(parseGeminiTranscriptHumanMessages(transcript)).toEqual([]);
+  });
+
   it('handles missing nested fields in message content', () => {
     const transcript = JSON.stringify({
       messages: [
@@ -287,6 +292,18 @@ describe('JSONL format support', () => {
     const humans = parseGeminiTranscriptHumanMessages(JSONL_TRANSCRIPT);
     expect(tokens).toHaveLength(2); // only the two `type:"gemini"` messages
     expect(humans).toHaveLength(2); // only the two `type:"user"` messages
+  });
+
+  it('does NOT fall through to JSONL parsing when whole-file JSON parses but lacks messages', () => {
+    // A valid single-JSON object whose top level happens to look like a single
+    // message (id+type) must still return []. Falling through to JSONL would
+    // mis-treat it as one line of a JSONL stream and surface a phantom message.
+    const messageLikeButNotJsonl = JSON.stringify({
+      id: 'g1', type: 'gemini', content: 'x',
+      tokens: { input: 1, output: 1, total: 2 }, model: 'gemini-3-flash',
+    });
+    expect(parseGeminiTranscriptTokens(messageLikeButNotJsonl, 's')).toEqual([]);
+    expect(parseGeminiTranscriptHumanMessages(messageLikeButNotJsonl)).toEqual([]);
   });
 
   it('tolerates malformed JSONL lines mid-stream', () => {
