@@ -7,7 +7,7 @@ import { getPreferenceBool } from '../preferences';
 import { logger } from '../logger';
 import { typedHandle } from '../ipc-helpers';
 import { LruMap } from '../lru-map';
-import { localDateStr, todayDate, nDaysAgoStart } from './date-utils';
+import { localDateStr, todayDate, nDaysAgoStart, enumerateDates } from './date-utils';
 import { AGENT_SESSION_TYPES } from '@shared/session-agents';
 import { extractCommandString } from '../hooks/hook-utils';
 import type {
@@ -520,40 +520,33 @@ export class CommitTracker {
     };
   }
 
-  getHeatmap(days = 7, provider?: string): CommitHeatmapEntry[] {
+  getHeatmap(
+    startDateStr: string,
+    endDateStr: string,
+    provider?: string,
+    fillEmptyDays = true,
+  ): CommitHeatmapEntry[] {
     const db = getDb();
     const pf = commitProviderFilter(provider);
-
-    // Compute start date in local time to match how commit dates are stored
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - (days - 1));
-    const startDateStr = localDateStr(startDate);
 
     const rows = db.prepare(`
       SELECT date, COUNT(*) as count,
              COALESCE(SUM(insertions), 0) as insertions
       FROM commits
-      WHERE date >= ?${pf.clause}
+      WHERE date BETWEEN ? AND ?${pf.clause}
       GROUP BY date
       ORDER BY date ASC
-    `).all(startDateStr, ...pf.params) as { date: string; count: number; insertions: number }[];
+    `).all(startDateStr, endDateStr, ...pf.params) as { date: string; count: number; insertions: number }[];
 
-    // Fill in missing days with zero counts
-    const result: CommitHeatmapEntry[] = [];
-    const today = new Date();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = localDateStr(d);
-      const existing = rows.find((r) => r.date === dateStr);
-      result.push({
-        date: dateStr,
-        count: existing?.count ?? 0,
-        insertions: existing?.insertions ?? 0,
-      });
+    if (!fillEmptyDays) {
+      return rows.map((r) => ({ date: r.date, count: r.count, insertions: r.insertions }));
     }
 
-    return result;
+    const byDate = new Map(rows.map((r) => [r.date, r]));
+    return enumerateDates(startDateStr, endDateStr).map((date) => {
+      const r = byDate.get(date);
+      return { date, count: r?.count ?? 0, insertions: r?.insertions ?? 0 };
+    });
   }
 
   getStreaks(provider?: string): CommitStreakInfo {
@@ -840,8 +833,8 @@ export function registerCommitIpc(commitTracker: CommitTracker): void {
     return commitTracker.getDailyStats(date, provider);
   });
 
-  typedHandle('commits:get-heatmap', (days, provider) => {
-    return commitTracker.getHeatmap(days, provider);
+  typedHandle('commits:get-heatmap', (startDate, endDate, provider, fillEmptyDays) => {
+    return commitTracker.getHeatmap(startDate, endDate, provider, fillEmptyDays);
   });
 
   typedHandle('commits:get-streaks', (provider) => {

@@ -1,12 +1,13 @@
 import { useRef, useEffect } from 'react';
 import { useLayoutStore } from '../../stores/layout-store';
-import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId } from '../../utils/tile-id';
+import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId, isStatsDashboardTileId } from '../../utils/tile-id';
 import { useSessionStore } from '../../stores/session-store';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import TerminalTile from '../SessionTile/TerminalTile';
 import FileViewerTile from '../FileViewer/FileViewerTile';
 import DiffViewerTile from '../DiffViewer/DiffViewerTile';
 import CommitDiffViewerTile from '../DiffViewer/CommitDiffViewerTile';
+import StatsDashboardTile from '../Dashboard/StatsDashboardTile';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
@@ -104,6 +105,8 @@ function TileFactory({ tileId }: TileFactoryProps): React.JSX.Element {
     content = <CommitDiffViewerTile absolutePath={commitDiff.absolutePath} commitHash={commitDiff.commitHash} />;
   } else if (diffPath) {
     content = <DiffViewerTile absolutePath={diffPath} />;
+  } else if (isStatsDashboardTileId(tileId)) {
+    content = <StatsDashboardTile />;
   } else {
     content = (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">

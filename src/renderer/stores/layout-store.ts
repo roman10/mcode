@@ -10,6 +10,7 @@ import {
   FILE_TILE_PREFIX,
   DIFF_TILE_PREFIX,
   COMMIT_DIFF_TILE_PREFIX,
+  STATS_DASHBOARD_TILE,
   sessionIdFromTileId,
 } from '../utils/tile-id';
 import { useSessionStore } from './session-store';
@@ -100,6 +101,7 @@ interface LayoutState {
   stripFileTiles(): void;
   addDiffViewer(absolutePath: string, commitHash?: string): void;
   removeDiffTile(absolutePath: string): void;
+  openStatsDashboard(): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
   removeAnyTile(tileId: string): void;
@@ -521,6 +523,24 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const result = removeLeaf(state.mosaicTree, target);
       return { mosaicTree: result };
     });
+  },
+
+  openStatsDashboard: () => {
+    set((state) => {
+      const current = state.mosaicTree;
+      if (!current) {
+        return { mosaicTree: STATS_DASHBOARD_TILE };
+      }
+      const leaves = getLeaves(current);
+      if (leaves.includes(STATS_DASHBOARD_TILE)) {
+        return state;
+      }
+      return {
+        mosaicTree: createBalancedTreeFromLeaves([...leaves, STATS_DASHBOARD_TILE]) ?? STATS_DASHBOARD_TILE,
+      };
+    });
+    get().focusTile(STATS_DASHBOARD_TILE);
+    get().persist();
   },
 
   stripFileTiles: () =>

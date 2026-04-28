@@ -28,13 +28,13 @@ export interface TrackersInvokeContract {
   'tokens:get-daily-usage':             { params: [date?: string, provider?: string]; result: DailyTokenUsage };
   'tokens:get-model-breakdown':         { params: [days?: number, provider?: string]; result: ModelTokenBreakdown[] };
   'tokens:get-weekly-trend':            { params: [provider?: string]; result: TokenWeeklyTrend };
-  'tokens:get-heatmap':                 { params: [days?: number, provider?: string]; result: TokenHeatmapEntry[] };
+  'tokens:get-heatmap':                 { params: [startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean]; result: TokenHeatmapEntry[] };
   'tokens:refresh':                     { params: []; result: void };
   'quota:list':                         { params: [forceRefresh?: boolean]; result: QuotaSnapshot[] };
 
   // --- Input ---
   'input:get-daily-stats':              { params: [date?: string, provider?: string]; result: DailyInputStats };
-  'input:get-heatmap':                  { params: [days?: number, provider?: string]; result: InputHeatmapEntry[] };
+  'input:get-heatmap':                  { params: [startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean]; result: InputHeatmapEntry[] };
   'input:get-weekly-trend':             { params: [provider?: string]; result: InputWeeklyTrend };
   'input:get-cadence':                  { params: [date?: string, provider?: string]; result: InputCadenceInfo };
 
@@ -49,7 +49,7 @@ export interface TrackersInvokeContract {
 
   // --- Commits ---
   'commits:get-daily-stats':            { params: [date?: string, provider?: string]; result: DailyCommitStats };
-  'commits:get-heatmap':                { params: [days?: number, provider?: string]; result: CommitHeatmapEntry[] };
+  'commits:get-heatmap':                { params: [startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean]; result: CommitHeatmapEntry[] };
   'commits:get-streaks':                { params: [provider?: string]; result: CommitStreakInfo };
   'commits:get-cadence':                { params: [date?: string, provider?: string]; result: CommitCadenceInfo };
   'commits:get-weekly-trend':           { params: [provider?: string]; result: CommitWeeklyTrend };

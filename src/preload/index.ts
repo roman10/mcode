@@ -307,8 +307,8 @@ contextBridge.exposeInMainWorld('mcode', {
     getDailyStats: (date?: string, provider?: string): Promise<DailyCommitStats> =>
       typedInvoke('commits:get-daily-stats', date, provider),
 
-    getHeatmap: (days?: number, provider?: string): Promise<CommitHeatmapEntry[]> =>
-      typedInvoke('commits:get-heatmap', days, provider),
+    getHeatmap: (startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<CommitHeatmapEntry[]> =>
+      typedInvoke('commits:get-heatmap', startDate, endDate, provider, fillEmptyDays),
 
     getStreaks: (provider?: string): Promise<CommitStreakInfo> =>
       typedInvoke('commits:get-streaks', provider),
@@ -384,8 +384,8 @@ contextBridge.exposeInMainWorld('mcode', {
     getWeeklyTrend: (provider?: string): Promise<TokenWeeklyTrend> =>
       typedInvoke('tokens:get-weekly-trend', provider),
 
-    getHeatmap: (days?: number, provider?: string): Promise<TokenHeatmapEntry[]> =>
-      typedInvoke('tokens:get-heatmap', days, provider),
+    getHeatmap: (startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<TokenHeatmapEntry[]> =>
+      typedInvoke('tokens:get-heatmap', startDate, endDate, provider, fillEmptyDays),
 
     refresh: (): Promise<void> =>
       typedInvoke('tokens:refresh'),
@@ -398,8 +398,8 @@ contextBridge.exposeInMainWorld('mcode', {
     getDailyStats: (date?: string, provider?: string): Promise<DailyInputStats> =>
       typedInvoke('input:get-daily-stats', date, provider),
 
-    getHeatmap: (days?: number, provider?: string): Promise<InputHeatmapEntry[]> =>
-      typedInvoke('input:get-heatmap', days, provider),
+    getHeatmap: (startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<InputHeatmapEntry[]> =>
+      typedInvoke('input:get-heatmap', startDate, endDate, provider, fillEmptyDays),
 
     getWeeklyTrend: (provider?: string): Promise<InputWeeklyTrend> =>
       typedInvoke('input:get-weekly-trend', provider),

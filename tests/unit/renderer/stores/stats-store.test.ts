@@ -121,16 +121,17 @@ describe('stats-store', () => {
     it('fetches all 12 IPC calls and populates state', async () => {
       await useStatsStore.getState().refreshAll();
 
+      const dateLike = expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/);
       expect(tokensMock.getDailyUsage).toHaveBeenCalledWith(undefined, undefined);
-      expect(tokensMock.getHeatmap).toHaveBeenCalledWith(90, undefined);
+      expect(tokensMock.getHeatmap).toHaveBeenCalledWith(dateLike, dateLike, undefined);
       expect(tokensMock.getWeeklyTrend).toHaveBeenCalledWith(undefined);
       expect(commitsMock.getDailyStats).toHaveBeenCalledWith(undefined, undefined);
-      expect(commitsMock.getHeatmap).toHaveBeenCalledWith(90, undefined);
+      expect(commitsMock.getHeatmap).toHaveBeenCalledWith(dateLike, dateLike, undefined);
       expect(commitsMock.getStreaks).toHaveBeenCalledWith(undefined);
       expect(commitsMock.getCadence).toHaveBeenCalledWith(undefined, undefined);
       expect(commitsMock.getWeeklyTrend).toHaveBeenCalledWith(undefined);
       expect(inputMock.getDailyStats).toHaveBeenCalledWith(undefined, undefined);
-      expect(inputMock.getHeatmap).toHaveBeenCalledWith(90, undefined);
+      expect(inputMock.getHeatmap).toHaveBeenCalledWith(dateLike, dateLike, undefined);
       expect(inputMock.getWeeklyTrend).toHaveBeenCalledWith(undefined);
       expect(inputMock.getCadence).toHaveBeenCalledWith(undefined, undefined);
 

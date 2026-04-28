@@ -1,5 +1,5 @@
 import { getDb } from '../db';
-import { localDateStr } from './date-utils';
+import { localDateStr, enumerateDates } from './date-utils';
 import { typedHandle } from '../ipc-helpers';
 import type {
   DailyInputStats,
@@ -164,11 +164,13 @@ export class InputTracker {
     };
   }
 
-  getInputHeatmap(days = 7, provider?: string): InputHeatmapEntry[] {
+  getInputHeatmap(
+    startDateStr: string,
+    endDateStr: string,
+    provider?: string,
+    fillEmptyDays = true,
+  ): InputHeatmapEntry[] {
     const db = getDb();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - (days - 1));
-    const startDateStr = localDateStr(startDate);
     const pf = inputProviderFilter(provider);
 
     const rows = db.prepare(`
@@ -176,29 +178,28 @@ export class InputTracker {
              COUNT(*) as message_count,
              COALESCE(SUM(text_length), 0) as total_chars
       FROM human_input
-      WHERE date >= ?${pf.clause}
+      WHERE date BETWEEN ? AND ?${pf.clause}
       GROUP BY date
       ORDER BY date ASC
-    `).all(startDateStr, ...pf.params) as HeatmapRow[];
+    `).all(startDateStr, endDateStr, ...pf.params) as HeatmapRow[];
 
-    const rowMap = new Map(rows.map((r) => [r.date, r]));
-
-    // Fill missing days with zeros
-    const result: InputHeatmapEntry[] = [];
-    const today = new Date();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = localDateStr(d);
-      const existing = rowMap.get(dateStr);
-      result.push({
-        date: dateStr,
-        messageCount: existing?.message_count ?? 0,
-        totalCharacters: existing?.total_chars ?? 0,
-      });
+    if (!fillEmptyDays) {
+      return rows.map((r) => ({
+        date: r.date,
+        messageCount: r.message_count,
+        totalCharacters: r.total_chars,
+      }));
     }
 
-    return result;
+    const rowMap = new Map(rows.map((r) => [r.date, r]));
+    return enumerateDates(startDateStr, endDateStr).map((date) => {
+      const r = rowMap.get(date);
+      return {
+        date,
+        messageCount: r?.message_count ?? 0,
+        totalCharacters: r?.total_chars ?? 0,
+      };
+    });
   }
 
   getInputWeeklyTrend(provider?: string): InputWeeklyTrend {
@@ -349,8 +350,8 @@ export function registerInputIpc(inputTracker: InputTracker): void {
     return inputTracker.getDailyInputStats(date, provider);
   });
 
-  typedHandle('input:get-heatmap', (days, provider) => {
-    return inputTracker.getInputHeatmap(days, provider);
+  typedHandle('input:get-heatmap', (startDate, endDate, provider, fillEmptyDays) => {
+    return inputTracker.getInputHeatmap(startDate, endDate, provider, fillEmptyDays);
   });
 
   typedHandle('input:get-weekly-trend', (provider) => {

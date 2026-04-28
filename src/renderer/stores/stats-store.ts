@@ -14,6 +14,7 @@ import type {
   InputCadenceInfo,
 } from '@shared/types';
 import type { AgentSessionType } from '@shared/session-agents';
+import { todayStr, shiftDate } from '../utils/date-nav';
 
 interface StatsState {
   // Token data
@@ -61,6 +62,8 @@ export const useStatsStore = create<StatsState>((set, get) => ({
   refreshAll: async () => {
     const { selectedDate, providerFilter } = get();
     const provider = providerFilter ?? undefined;
+    const endStr = todayStr();
+    const startStr = shiftDate(endStr, -89);
     set({ loading: true });
     try {
       const [
@@ -78,15 +81,15 @@ export const useStatsStore = create<StatsState>((set, get) => ({
         inputCadence,
       ] = await Promise.all([
         window.mcode.tokens.getDailyUsage(selectedDate ?? undefined, provider),
-        window.mcode.tokens.getHeatmap(90, provider),
+        window.mcode.tokens.getHeatmap(startStr, endStr, provider),
         window.mcode.tokens.getWeeklyTrend(provider),
         window.mcode.commits.getDailyStats(selectedDate ?? undefined, provider),
-        window.mcode.commits.getHeatmap(90, provider),
+        window.mcode.commits.getHeatmap(startStr, endStr, provider),
         window.mcode.commits.getStreaks(provider),
         window.mcode.commits.getCadence(selectedDate ?? undefined, provider),
         window.mcode.commits.getWeeklyTrend(provider),
         window.mcode.input.getDailyStats(selectedDate ?? undefined, provider),
-        window.mcode.input.getHeatmap(90, provider),
+        window.mcode.input.getHeatmap(startStr, endStr, provider),
         window.mcode.input.getWeeklyTrend(provider),
         window.mcode.input.getCadence(selectedDate ?? undefined, provider),
       ]);

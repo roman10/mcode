@@ -505,7 +505,7 @@ export interface MCodeAPI {
 
   commits: {
     getDailyStats(date?: string, provider?: string): Promise<DailyCommitStats>;
-    getHeatmap(days?: number, provider?: string): Promise<CommitHeatmapEntry[]>;
+    getHeatmap(startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<CommitHeatmapEntry[]>;
     getStreaks(provider?: string): Promise<CommitStreakInfo>;
     getCadence(date?: string, provider?: string): Promise<CommitCadenceInfo>;
     getWeeklyTrend(provider?: string): Promise<CommitWeeklyTrend>;
@@ -525,14 +525,14 @@ export interface MCodeAPI {
     getDailyUsage(date?: string, provider?: string): Promise<DailyTokenUsage>;
     getModelBreakdown(days?: number, provider?: string): Promise<ModelTokenBreakdown[]>;
     getWeeklyTrend(provider?: string): Promise<TokenWeeklyTrend>;
-    getHeatmap(days?: number, provider?: string): Promise<TokenHeatmapEntry[]>;
+    getHeatmap(startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<TokenHeatmapEntry[]>;
     refresh(): Promise<void>;
     onUpdated(callback: () => void): () => void;
   };
 
   input: {
     getDailyStats(date?: string, provider?: string): Promise<DailyInputStats>;
-    getHeatmap(days?: number, provider?: string): Promise<InputHeatmapEntry[]>;
+    getHeatmap(startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<InputHeatmapEntry[]>;
     getWeeklyTrend(provider?: string): Promise<InputWeeklyTrend>;
     getCadence(date?: string, provider?: string): Promise<InputCadenceInfo>;
   };

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getPreferenceBool, setPreferenceBool } from '../../main/preferences';
+import { localDateStr } from '../../main/trackers/date-utils';
 import type { McpServerContext } from '../types';
 
 export function registerCommitTools(
@@ -27,7 +28,11 @@ export function registerCommitTools(
     },
     annotations: { readOnlyHint: true },
   }, async ({ days }) => {
-    const heatmap = ctx.commitTracker.getHeatmap(days);
+    const span = days ?? 7;
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - (span - 1));
+    const heatmap = ctx.commitTracker.getHeatmap(localDateStr(start), localDateStr(end));
     return {
       content: [{ type: 'text', text: JSON.stringify(heatmap, null, 2) }],
     };

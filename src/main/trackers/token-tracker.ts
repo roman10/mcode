@@ -4,7 +4,7 @@ import { getDb } from '../db';
 import { logger } from '../logger';
 import type { InputTracker } from './input-tracker';
 import { estimateCostUsd, normalizeModelFamily } from './token-cost';
-import { localDateStr } from './date-utils';
+import { localDateStr, enumerateDates } from './date-utils';
 import type {
   HookEvent,
   SessionTokenUsage,
@@ -43,14 +43,8 @@ interface UsageRow extends TokenAggRow {
   last_ts: string | null;
 }
 
-interface HeatmapRow {
+interface HeatmapModelRow extends TokenAggRow {
   date: string;
-  output_tokens: number;
-  message_count: number;
-  input_tokens: number;
-  cache_write_5m_tokens: number;
-  cache_write_1h_tokens: number;
-  cache_read_tokens: number;
 }
 
 interface WeekRow {
@@ -459,70 +453,66 @@ export class TokenTracker {
     };
   }
 
-  getHeatmap(days = 7, provider?: string): TokenHeatmapEntry[] {
+  getHeatmap(
+    startDateStr: string,
+    endDateStr: string,
+    provider?: string,
+    fillEmptyDays = true,
+  ): TokenHeatmapEntry[] {
     const db = getDb();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - (days - 1));
-    const startDateStr = localDateStr(startDate);
     const pf = providerFilter(provider);
 
+    // Single query: per-day, per-model, per-is_fast_mode rollup. Avoids the
+    // previous N+1 (one model-breakdown query per day) so multi-year ranges
+    // are feasible.
     const rows = db.prepare(`
-      SELECT date,
-             COALESCE(SUM(output_tokens), 0) as output_tokens,
-             COUNT(*) as message_count,
+      SELECT date, model, is_fast_mode,
              COALESCE(SUM(input_tokens), 0) as input_tokens,
+             COALESCE(SUM(output_tokens), 0) as output_tokens,
              COALESCE(SUM(cache_write_5m_tokens), 0) as cache_write_5m_tokens,
              COALESCE(SUM(cache_write_1h_tokens), 0) as cache_write_1h_tokens,
-             COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
+             COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+             COUNT(*) as message_count
       FROM token_usage
-      WHERE date >= ?${pf.clause}
-      GROUP BY date
-      ORDER BY date ASC
-    `).all(startDateStr, ...pf.params) as HeatmapRow[];
+      WHERE date BETWEEN ? AND ?${pf.clause}
+      GROUP BY date, model, is_fast_mode
+    `).all(startDateStr, endDateStr, ...pf.params) as HeatmapModelRow[];
 
-    // Compute per-day costs by querying model breakdown per day
-    const dayCosts = new Map<string, number>();
-    for (const row of rows) {
-      const dayModels = db.prepare(`
-        SELECT model,
-               SUM(input_tokens) as input_tokens,
-               SUM(output_tokens) as output_tokens,
-               SUM(cache_write_5m_tokens) as cache_write_5m_tokens,
-               SUM(cache_write_1h_tokens) as cache_write_1h_tokens,
-               SUM(cache_read_tokens) as cache_read_tokens,
-               is_fast_mode,
-               COUNT(*) as message_count
-        FROM token_usage WHERE date = ?${pf.clause} GROUP BY model, is_fast_mode
-      `).all(row.date, ...pf.params) as TokenAggRow[];
-
-      let cost = 0;
-      for (const m of dayModels) {
-        cost += estimateCostForTotals(m.model, rowToTotals(m), m.is_fast_mode === 1);
+    // Aggregate per-date in JS using existing cost helpers.
+    const byDate = new Map<string, TokenHeatmapEntry>();
+    for (const r of rows) {
+      const cost = estimateCostForTotals(r.model, rowToTotals(r), r.is_fast_mode === 1);
+      const existing = byDate.get(r.date);
+      const inputAll = r.input_tokens + r.cache_write_5m_tokens + r.cache_write_1h_tokens + r.cache_read_tokens;
+      if (existing) {
+        existing.inputTokens += inputAll;
+        existing.outputTokens += r.output_tokens;
+        existing.estimatedCostUsd += cost;
+        existing.messageCount += r.message_count;
+      } else {
+        byDate.set(r.date, {
+          date: r.date,
+          inputTokens: inputAll,
+          outputTokens: r.output_tokens,
+          estimatedCostUsd: cost,
+          messageCount: r.message_count,
+        });
       }
-      dayCosts.set(row.date, cost);
     }
 
-    // Fill missing days with zeros
-    const result: TokenHeatmapEntry[] = [];
-    const today = new Date();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = localDateStr(d);
-      const existing = rows.find((r) => r.date === dateStr);
-      result.push({
-        date: dateStr,
-        inputTokens: (existing?.input_tokens ?? 0) +
-                     (existing?.cache_write_5m_tokens ?? 0) +
-                     (existing?.cache_write_1h_tokens ?? 0) +
-                     (existing?.cache_read_tokens ?? 0),
-        outputTokens: existing?.output_tokens ?? 0,
-        estimatedCostUsd: dayCosts.get(dateStr) ?? 0,
-        messageCount: existing?.message_count ?? 0,
-      });
+    if (!fillEmptyDays) {
+      return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
     }
 
-    return result;
+    return enumerateDates(startDateStr, endDateStr).map((date) =>
+      byDate.get(date) ?? {
+        date,
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: 0,
+        messageCount: 0,
+      },
+    );
   }
 
   /** Remove watermarks for tracked files that no longer exist on disk. */
@@ -671,8 +661,8 @@ export function registerTokenIpc(tokenTracker: TokenTracker): void {
     return tokenTracker.getWeeklyTrend(provider);
   });
 
-  typedHandle('tokens:get-heatmap', (days, provider) => {
-    return tokenTracker.getHeatmap(days, provider);
+  typedHandle('tokens:get-heatmap', (startDate, endDate, provider, fillEmptyDays) => {
+    return tokenTracker.getHeatmap(startDate, endDate, provider, fillEmptyDays);
   });
 
   typedHandle('tokens:refresh', async () => {

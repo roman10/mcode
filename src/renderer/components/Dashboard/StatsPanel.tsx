@@ -1,7 +1,8 @@
 import { useEffect, useCallback, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Maximize2 } from 'lucide-react';
 import { useStatsStore } from '../../stores/stats-store';
 import { useQuotaStore } from '../../stores/quota-store';
+import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
 import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
 import OutputSection from './OutputSection';
@@ -179,6 +180,11 @@ function StatsPanel(): React.JSX.Element {
         <Tooltip content="Refresh (⌘R, ⇧ for full 90-day backfill)" side="bottom">
           <button className={btnClass} onClick={(e) => e.shiftKey ? handleForceRefresh() : handleRefresh()}>
             <RefreshCw size={12} strokeWidth={2} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Open full dashboard" side="bottom">
+          <button className={btnClass} onClick={() => useLayoutStore.getState().openStatsDashboard()}>
+            <Maximize2 size={12} strokeWidth={2} />
           </button>
         </Tooltip>
       </div>
