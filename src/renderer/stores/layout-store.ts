@@ -10,10 +10,12 @@ import {
   FILE_TILE_PREFIX,
   DIFF_TILE_PREFIX,
   COMMIT_DIFF_TILE_PREFIX,
-  STATS_DASHBOARD_TILE,
   sessionIdFromTileId,
 } from '../utils/tile-id';
 import { useSessionStore } from './session-store';
+
+/** Legacy tile id from when the stats dashboard was a mosaic tile; stripped on restore. */
+const LEGACY_STATS_DASHBOARD_TILE = 'stats-dashboard:main';
 
 /** Validate a persisted sidebar tab value, falling back to 'sessions' for unknown values. Exported for testing. */
 export function migrateTab(tab: string): SidebarTab {
@@ -101,7 +103,6 @@ interface LayoutState {
   stripFileTiles(): void;
   addDiffViewer(absolutePath: string, commitHash?: string): void;
   removeDiffTile(absolutePath: string): void;
-  openStatsDashboard(): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
   removeAnyTile(tileId: string): void;
@@ -525,24 +526,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     });
   },
 
-  openStatsDashboard: () => {
-    set((state) => {
-      const current = state.mosaicTree;
-      if (!current) {
-        return { mosaicTree: STATS_DASHBOARD_TILE };
-      }
-      const leaves = getLeaves(current);
-      if (leaves.includes(STATS_DASHBOARD_TILE)) {
-        return state;
-      }
-      return {
-        mosaicTree: createBalancedTreeFromLeaves([...leaves, STATS_DASHBOARD_TILE]) ?? STATS_DASHBOARD_TILE,
-      };
-    });
-    get().focusTile(STATS_DASHBOARD_TILE);
-    get().persist();
-  },
-
   stripFileTiles: () =>
     set((state) => {
       if (!state.mosaicTree) return state;
@@ -637,8 +620,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const viewMode: ViewMode = viewModePref === 'kanban' ? 'kanban' : 'tiles';
     const showActivityTab = showActivityTabPref === 'true';
     if (snapshot) {
+      // Migrate: the stats dashboard used to live as a mosaic tile; strip any leftover leaf.
+      const migratedTree = snapshot.mosaicTree
+        ? removeLeaf(snapshot.mosaicTree, LEGACY_STATS_DASHBOARD_TILE)
+        : snapshot.mosaicTree;
       set({
-        mosaicTree: snapshot.mosaicTree,
+        mosaicTree: migratedTree,
         sidebarWidth: snapshot.sidebarWidth,
         sidebarCollapsed: snapshot.sidebarCollapsed ?? false,
         activeSidebarTab: migrateTab(snapshot.activeSidebarTab ?? 'sessions'),

@@ -2,7 +2,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, Maximize2 } from 'lucide-react';
 import { useStatsStore } from '../../stores/stats-store';
 import { useQuotaStore } from '../../stores/quota-store';
-import { useLayoutStore } from '../../stores/layout-store';
+import { useDialogStore } from '../../stores/dialog-store';
 import Tooltip from '../shared/Tooltip';
 import { todayStr, shiftDate, formatDateLabel, daysDiff } from '../../utils/date-nav';
 import OutputSection from './OutputSection';
@@ -183,7 +183,7 @@ function StatsPanel(): React.JSX.Element {
           </button>
         </Tooltip>
         <Tooltip content="Open full dashboard" side="bottom">
-          <button className={btnClass} onClick={() => useLayoutStore.getState().openStatsDashboard()}>
+          <button className={btnClass} onClick={() => useDialogStore.getState().setShowStatsDashboard(true)}>
             <Maximize2 size={12} strokeWidth={2} />
           </button>
         </Tooltip>

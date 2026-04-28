@@ -18,6 +18,7 @@ interface DialogState {
   showAccountsDialog: boolean;
   showMemoryInspector: boolean;
   showCommandPalette: boolean;
+  showStatsDashboard: boolean;
   showCreateTaskDialog: boolean;
   createTaskDefaults: CreateTaskDefaults | null;
   quickOpenInitialMode: 'files' | 'commands' | 'shell' | 'snippets' | 'todos';
@@ -31,6 +32,7 @@ interface DialogState {
   setShowAccountsDialog(show: boolean): void;
   setShowMemoryInspector(show: boolean): void;
   setShowCommandPalette(show: boolean): void;
+  setShowStatsDashboard(show: boolean): void;
   setShowCreateTaskDialog(show: boolean): void;
   openCreateTaskDialog(defaults?: CreateTaskDefaults): void;
   openQuickOpen(mode: 'files' | 'commands' | 'shell' | 'snippets' | 'todos'): void;
@@ -45,6 +47,7 @@ export const useDialogStore = create<DialogState>((set) => ({
   showAccountsDialog: false,
   showMemoryInspector: false,
   showCommandPalette: false,
+  showStatsDashboard: false,
   showCreateTaskDialog: false,
   createTaskDefaults: null,
   quickOpenInitialMode: 'files' as const,
@@ -57,6 +60,7 @@ export const useDialogStore = create<DialogState>((set) => ({
   setShowAccountsDialog: (show) => set({ showAccountsDialog: show }),
   setShowMemoryInspector: (show) => set({ showMemoryInspector: show }),
   setShowCommandPalette: (show) => set({ showCommandPalette: show }),
+  setShowStatsDashboard: (show) => set({ showStatsDashboard: show }),
   setShowCreateTaskDialog: (show) => set({ showCreateTaskDialog: show, ...(!show && { createTaskDefaults: null }) }),
   openCreateTaskDialog: (defaults) => set({ showCreateTaskDialog: true, createTaskDefaults: defaults ?? null }),
 

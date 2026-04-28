@@ -11,6 +11,7 @@ import SettingsDialog from './components/SettingsDialog';
 import AccountsDialog from './components/AccountsDialog';
 import MemoryInspector from './components/MemoryInspector';
 import CommandPalette from './components/CommandPalette/CommandPalette';
+import StatsDashboardOverlay from './components/Dashboard/StatsDashboardOverlay';
 import TerminalPanel from './components/BottomPanel/TerminalPanel';
 import StatusBar from './components/BottomPanel/StatusBar';
 import { useSessionStore } from './stores/session-store';
@@ -271,6 +272,7 @@ function App(): React.JSX.Element {
           onClose={() => setShowCommandPalette(false)}
         />
       )}
+      <StatsDashboardOverlay />
       <NewSessionDialog
         open={showNewSessionDialog}
         initialSessionType={newSessionDialogType}

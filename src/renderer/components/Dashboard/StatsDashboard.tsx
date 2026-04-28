@@ -176,7 +176,7 @@ function HeatmapSection<T extends { date: string }>({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-function StatsDashboardTile(): React.JSX.Element {
+function StatsDashboard(): React.JSX.Element {
   const [range, setRange] = useState<RangePreset>('1y');
   const [providerFilter, setProviderFilter] = useState<AgentSessionType | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -568,4 +568,4 @@ function DashboardSection({
   );
 }
 
-export default StatsDashboardTile;
+export default StatsDashboard;

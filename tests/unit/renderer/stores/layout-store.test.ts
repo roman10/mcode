@@ -579,3 +579,52 @@ describe('migrateTab', () => {
     expect(migrateTab('tokens')).toBe('sessions');
   });
 });
+
+describe('restore: legacy stats-dashboard tile migration', () => {
+  it('strips a lone stats-dashboard:main leaf from the persisted tree', async () => {
+    (window as any).mcode.layout.load.mockResolvedValueOnce({
+      mosaicTree: 'stats-dashboard:main',
+      sidebarWidth: 280,
+      sidebarCollapsed: false,
+      activeSidebarTab: 'sessions',
+      terminalPanelState: null,
+    });
+    await useLayoutStore.getState().restore();
+    expect(useLayoutStore.getState().mosaicTree).toBeNull();
+  });
+
+  it('strips stats-dashboard:main from a mixed split and redistributes the remaining children', async () => {
+    (window as any).mcode.layout.load.mockResolvedValueOnce({
+      mosaicTree: {
+        type: 'split',
+        direction: 'row',
+        children: ['session:s1', 'stats-dashboard:main'],
+        splitPercentages: [60, 40],
+      },
+      sidebarWidth: 280,
+      sidebarCollapsed: false,
+      activeSidebarTab: 'sessions',
+      terminalPanelState: null,
+    });
+    await useLayoutStore.getState().restore();
+    expect(useLayoutStore.getState().mosaicTree).toBe('session:s1');
+  });
+
+  it('leaves trees without the legacy tile unchanged', async () => {
+    const tree = {
+      type: 'split' as const,
+      direction: 'row' as const,
+      children: ['session:a', 'session:b'],
+      splitPercentages: [50, 50],
+    };
+    (window as any).mcode.layout.load.mockResolvedValueOnce({
+      mosaicTree: tree,
+      sidebarWidth: 280,
+      sidebarCollapsed: false,
+      activeSidebarTab: 'sessions',
+      terminalPanelState: null,
+    });
+    await useLayoutStore.getState().restore();
+    expect(useLayoutStore.getState().mosaicTree).toEqual(tree);
+  });
+});

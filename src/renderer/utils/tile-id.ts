@@ -1,11 +1,6 @@
 export const FILE_TILE_PREFIX = 'file:';
 export const DIFF_TILE_PREFIX = 'diff:';
 export const COMMIT_DIFF_TILE_PREFIX = 'commit-diff:';
-export const STATS_DASHBOARD_TILE = 'stats-dashboard:main';
-
-export function isStatsDashboardTileId(tile: string): boolean {
-  return tile === STATS_DASHBOARD_TILE;
-}
 
 export function filePathFromTileId(tile: string): string | null {
   if (tile.startsWith(FILE_TILE_PREFIX)) {
