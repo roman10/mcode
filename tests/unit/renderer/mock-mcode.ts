@@ -57,8 +57,22 @@ export function setupMcodeMock(overrides: Record<string, any> = {}) {
     },
     tokens: {
       getDailyUsage: vi.fn().mockResolvedValue(null),
+      getSessionUsage: vi.fn().mockResolvedValue({
+        claudeSessionId: '',
+        models: [],
+        totals: {
+          inputTokens: 0, outputTokens: 0,
+          cacheWrite5mTokens: 0, cacheWrite1hTokens: 0, cacheReadTokens: 0,
+        },
+        estimatedCostUsd: 0,
+        messageCount: 0,
+        firstMessageAt: null,
+        lastMessageAt: null,
+        currentContext: null,
+      }),
       getHeatmap: vi.fn().mockResolvedValue([]),
       getWeeklyTrend: vi.fn().mockResolvedValue(null),
+      onUpdated: vi.fn(() => vi.fn()),
     },
     commits: {
       getDailyStats: vi.fn().mockResolvedValue(null),
