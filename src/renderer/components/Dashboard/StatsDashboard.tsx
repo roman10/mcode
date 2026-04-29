@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, X } from 'lucide-react';
 import HeatmapGrid from '../shared/HeatmapGrid';
 import MonthlyBarChart, { type MonthlyEntry } from '../shared/MonthlyBarChart';
 import Tooltip from '../shared/Tooltip';
@@ -176,7 +176,11 @@ function HeatmapSection<T extends { date: string }>({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-function StatsDashboard(): React.JSX.Element {
+interface StatsDashboardProps {
+  onClose?: () => void;
+}
+
+function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
   const [range, setRange] = useState<RangePreset>('1y');
   const [providerFilter, setProviderFilter] = useState<AgentSessionType | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -423,6 +427,17 @@ function StatsDashboard(): React.JSX.Element {
               <RefreshCw size={14} strokeWidth={2} className={loading ? 'animate-spin' : ''} />
             </button>
           </Tooltip>
+
+          {onClose && (
+            <Tooltip content="Close (Esc)" side="bottom">
+              <button
+                className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors cursor-pointer"
+                onClick={onClose}
+              >
+                <X size={14} strokeWidth={2} />
+              </button>
+            </Tooltip>
+          )}
         </div>
       </div>
 

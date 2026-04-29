@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import Tooltip from './Tooltip';
 
 const CELL_SIZE = 10;
 const GAP = 2;
@@ -139,13 +140,13 @@ function HeatmapGrid<T extends { date: string }>({
             const bg = colors[level];
             const isSelected = entry.date === selectedDate;
             return (
-              <div
-                key={entry.date}
-                className={`rounded-[2px] cursor-pointer ${bg} ${isSelected ? 'ring-1 ring-white/40' : ''}`}
-                style={{ width: CELL_SIZE, height: CELL_SIZE }}
-                title={getTooltip(entry)}
-                onClick={() => onSelect(entry.date)}
-              />
+              <Tooltip key={entry.date} content={getTooltip(entry)} side="top">
+                <div
+                  className={`rounded-[2px] cursor-pointer ${bg} ${isSelected ? 'ring-1 ring-white/40' : ''}`}
+                  style={{ width: CELL_SIZE, height: CELL_SIZE }}
+                  onClick={() => onSelect(entry.date)}
+                />
+              </Tooltip>
             );
           })}
         </div>

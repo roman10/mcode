@@ -15,7 +15,7 @@ function StatsDashboardOverlay(): React.JSX.Element {
           className="fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[95vw] h-[95vh] bg-bg-primary border border-border-default rounded-lg shadow-xl overflow-hidden flex flex-col"
         >
           <RadixDialog.Title className="sr-only">Stats Dashboard</RadixDialog.Title>
-          <StatsDashboard />
+          <StatsDashboard onClose={() => setOpen(false)} />
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>
