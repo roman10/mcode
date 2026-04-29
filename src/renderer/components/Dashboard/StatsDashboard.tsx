@@ -292,7 +292,6 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
   const spanYears = range === 'all' || range === '1y'
     ? (oldestSeen.slice(0, 4) !== today.slice(0, 4))
     : false;
-  const showMonthlyBars = range !== '90d';
 
   // Aggregate lifetime totals across the loaded range
   const totals = useMemo(() => {
@@ -485,7 +484,7 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
               />
             }
             monthly={
-              showMonthlyBars && monthlyCommits.length > 0 ? (
+              monthlyCommits.length > 0 ? (
                 <MonthlyBarChart
                   entries={monthlyCommits}
                   formatTooltipValue={(v) => `${formatNumber(v)} commits`}
@@ -510,7 +509,7 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
               />
             }
             monthly={
-              showMonthlyBars && monthlyCost.length > 0 ? (
+              monthlyCost.length > 0 ? (
                 <MonthlyBarChart
                   entries={monthlyCost}
                   formatTooltipValue={(v) => formatCost(v)}
@@ -535,7 +534,7 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
               />
             }
             monthly={
-              showMonthlyBars && monthlyInputMsgs.length > 0 ? (
+              monthlyInputMsgs.length > 0 ? (
                 <MonthlyBarChart
                   entries={monthlyInputMsgs}
                   formatTooltipValue={(v) => `${formatNumber(v)} prompts`}
