@@ -9,7 +9,11 @@ import { readdir, stat, open as fsOpen } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { getDb } from '../db';
-import { parseUsageFromChunk, parseHumanMessagesFromChunk } from './jsonl-usage-parser';
+import {
+  parseUsageFromChunk,
+  parseHumanMessagesFromChunk,
+  parseLatestCompactMarker,
+} from './jsonl-usage-parser';
 import type { InputTracker } from './input-tracker';
 import { localDateStr } from './date-utils';
 
@@ -107,8 +111,9 @@ export class ClaudeScanner {
       const isPartial = lastOffset > 0;
       const entries = parseUsageFromChunk(chunk, isPartial);
       const humanEntries = parseHumanMessagesFromChunk(chunk, isPartial);
+      const compactMarkerTs = parseLatestCompactMarker(chunk, isPartial);
 
-      if (entries.length === 0 && humanEntries.length === 0) {
+      if (entries.length === 0 && humanEntries.length === 0 && !compactMarkerTs) {
         // Update watermark even if no entries (file grew but no usage data)
         this.updateWatermark(filePath, fileSize);
         return 0;
@@ -124,6 +129,15 @@ export class ClaudeScanner {
            input_tokens, output_tokens, cache_write_5m_tokens, cache_write_1h_tokens,
            cache_read_tokens, is_fast_mode, message_timestamp, date, provider)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'claude')
+      `);
+      // `last_compact_at` bump is in the same transaction as token inserts
+      // so a partial failure can't stamp the marker without the matching
+      // rows. Guard `<` keeps it idempotent across re-scans.
+      const updateCompactStmt = db.prepare(`
+        UPDATE sessions
+           SET last_compact_at = ?
+         WHERE claude_session_id = ?
+           AND (last_compact_at IS NULL OR last_compact_at < ?)
       `);
 
       let newCount = 0;
@@ -145,6 +159,9 @@ export class ClaudeScanner {
             date,
           );
           if (result.changes > 0) newCount++;
+        }
+        if (compactMarkerTs) {
+          updateCompactStmt.run(compactMarkerTs, fileName, compactMarkerTs);
         }
       });
       insertAll();

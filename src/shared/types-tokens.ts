@@ -18,6 +18,23 @@ export interface ModelUsageSummary {
   messageCount: number;
 }
 
+/**
+ * Effective context occupancy at the moment of the latest assistant turn.
+ * `usedTokens` mirrors what Claude Code's own UI reports: the input-side
+ * tokens of the latest assistant message (input + cache writes + cache read).
+ *
+ * `null` when the session has no assistant messages yet, when the latest
+ * marker in the transcript is a `/compact` summary (the next turn will be
+ * post-compact), or when a `/clear` rotated to a new session id with no
+ * data yet. The badge hides in those cases rather than showing stale data.
+ */
+export interface CurrentContextUsage {
+  model: string;
+  usedTokens: number;
+  contextWindow: number | null;
+  percent: number | null;
+}
+
 export interface SessionTokenUsage {
   claudeSessionId: string;
   models: ModelUsageSummary[];
@@ -26,6 +43,7 @@ export interface SessionTokenUsage {
   messageCount: number;
   firstMessageAt: string | null;
   lastMessageAt: string | null;
+  currentContext: CurrentContextUsage | null;
 }
 
 export interface ProviderUsageSummary {

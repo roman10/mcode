@@ -140,6 +140,46 @@ export function extractLatestModel(chunk: string): string | null {
   return null;
 }
 
+// ── Compact-summary marker parsing ──────────────────────────────────────────
+
+/**
+ * Parse the latest `isCompactSummary: true` user-entry timestamp from a chunk.
+ * Used to detect manual `/compact` invocations: between the marker and the
+ * next assistant turn, the latest assistant message in the transcript is
+ * still pre-compact, so the context badge would otherwise show stale data.
+ *
+ * Returns null when no marker is present.
+ */
+export function parseLatestCompactMarker(
+  chunk: string,
+  isPartialStart: boolean,
+): string | null {
+  const lines = chunk.split('\n');
+  const startIdx = isPartialStart ? 1 : 0;
+
+  let latest: string | null = null;
+  for (let i = startIdx; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || !line.includes('"isCompactSummary"')) continue;
+
+    let obj: Record<string, unknown>;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    if (obj['type'] !== 'user') continue;
+    if (obj['isCompactSummary'] !== true) continue;
+
+    const ts = obj['timestamp'];
+    if (typeof ts !== 'string') continue;
+
+    if (!latest || ts > latest) latest = ts;
+  }
+  return latest;
+}
+
 // ── Human input parsing ─────────────────────────────────────────────────────
 
 export interface ParsedHumanEntry {

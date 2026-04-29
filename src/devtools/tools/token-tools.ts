@@ -20,6 +20,19 @@ export function registerTokenTools(
     };
   });
 
+  server.registerTool('tokens_get_session_context_usage', {
+    description: 'Get the current context-window occupancy for a session — the input-side tokens of the latest assistant turn, the model context window, and the resulting percent. Returns null when there is no data yet, or when the latest event in the transcript is a /compact summary (i.e. the next turn will be post-compact).',
+    inputSchema: {
+      sessionId: z.string().describe('The agent session ID (claudeSessionId from session info — same id used by tokens_get_session_usage)'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ sessionId }) => {
+    const usage = ctx.tokenTracker.getSessionUsage(sessionId);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(usage.currentContext, null, 2) }],
+    };
+  });
+
   server.registerTool('tokens_get_daily_usage', {
     description: 'Get aggregated token usage and estimated cost for a given day (default: today). Includes per-model breakdown and top sessions by cost.',
     inputSchema: {

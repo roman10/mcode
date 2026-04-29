@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseUsageFromChunk, parseHumanMessagesFromChunk, extractLatestModel } from '../../../src/main/trackers/jsonl-usage-parser';
+import {
+  parseUsageFromChunk,
+  parseHumanMessagesFromChunk,
+  parseLatestCompactMarker,
+  extractLatestModel,
+} from '../../../src/main/trackers/jsonl-usage-parser';
 
 function jsonl(...lines: unknown[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n');
@@ -369,5 +374,77 @@ describe('extractLatestModel', () => {
       { type: 'assistant', uuid: 'msg-1', timestamp: 'T1', message: { usage: { input_tokens: 1 } } },
     );
     expect(extractLatestModel(chunk)).toBeNull();
+  });
+});
+
+describe('parseLatestCompactMarker', () => {
+  it('returns null when no compact marker is present', () => {
+    const chunk = jsonl(
+      { type: 'assistant', uuid: 'a1', timestamp: 'T1', message: { model: 'claude-opus-4-6', usage: { input_tokens: 1 } } },
+      { type: 'user', uuid: 'u1', timestamp: 'T2', permissionMode: 'default', message: { content: 'hi' } },
+    );
+    expect(parseLatestCompactMarker(chunk, false)).toBeNull();
+  });
+
+  it('detects a single compact summary entry', () => {
+    const chunk = jsonl({
+      type: 'user',
+      uuid: 'compact-001',
+      timestamp: '2026-03-20T10:00:00Z',
+      isCompactSummary: true,
+      message: { content: 'This session is being continued from a previous conversation...' },
+    });
+    expect(parseLatestCompactMarker(chunk, false)).toBe('2026-03-20T10:00:00Z');
+  });
+
+  it('returns the latest of multiple compact markers', () => {
+    const chunk = jsonl(
+      { type: 'user', uuid: 'c1', timestamp: '2026-03-20T10:00:00Z', isCompactSummary: true, message: { content: 'first' } },
+      { type: 'user', uuid: 'c2', timestamp: '2026-03-20T11:00:00Z', isCompactSummary: true, message: { content: 'second' } },
+      { type: 'user', uuid: 'c3', timestamp: '2026-03-20T09:00:00Z', isCompactSummary: true, message: { content: 'earlier' } },
+    );
+    expect(parseLatestCompactMarker(chunk, false)).toBe('2026-03-20T11:00:00Z');
+  });
+
+  it('ignores compact-summary entries with non-user type', () => {
+    const chunk = jsonl({
+      type: 'assistant',
+      uuid: 'a1',
+      timestamp: 'T1',
+      isCompactSummary: true,
+      message: { model: 'claude-opus-4-6', usage: { input_tokens: 1 } },
+    });
+    expect(parseLatestCompactMarker(chunk, false)).toBeNull();
+  });
+
+  it('ignores user entries where isCompactSummary is missing or false', () => {
+    const chunk = jsonl(
+      { type: 'user', uuid: 'u1', timestamp: 'T1', permissionMode: 'default', message: { content: 'real input' } },
+      { type: 'user', uuid: 'u2', timestamp: 'T2', isCompactSummary: false, message: { content: 'not compact' } },
+    );
+    expect(parseLatestCompactMarker(chunk, false)).toBeNull();
+  });
+
+  it('skips a partial first line when isPartialStart is true', () => {
+    const chunk = jsonl(
+      { type: 'user', uuid: 'c1', timestamp: '2026-03-20T10:00:00Z', isCompactSummary: true, message: { content: 'partial' } },
+      { type: 'user', uuid: 'c2', timestamp: '2026-03-20T11:00:00Z', isCompactSummary: true, message: { content: 'full' } },
+    );
+    expect(parseLatestCompactMarker(chunk, true)).toBe('2026-03-20T11:00:00Z');
+  });
+
+  it('handles malformed lines gracefully', () => {
+    // First line contains the marker substring but is invalid JSON (mid-write
+    // truncation). Should exercise the JSON.parse catch and skip cleanly.
+    const chunk =
+      '{"type":"user","isCompactSummary":true,"timestamp":"T0","mess\n' +
+      jsonl({
+        type: 'user',
+        uuid: 'c1',
+        timestamp: 'T1',
+        isCompactSummary: true,
+        message: { content: 'real' },
+      });
+    expect(parseLatestCompactMarker(chunk, false)).toBe('T1');
   });
 });

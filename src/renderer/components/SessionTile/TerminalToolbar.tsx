@@ -10,6 +10,7 @@ import AgentIcon from '../shared/AgentIcon';
 import Tooltip from '../shared/Tooltip';
 import ModelPill from './ModelPill';
 import AccountPill from './AccountPill';
+import ContextUsagePill from './ContextUsagePill';
 import { canSessionQueueTasks } from '@shared/session-capabilities';
 import type { SessionStatus } from '@shared/types';
 import { useSlashCommandWarningStore } from '../../stores/slash-command-warning-store';
@@ -177,6 +178,7 @@ function TerminalToolbar({
           </span>
         </Tooltip>
       )}
+      <ContextUsagePill claudeSessionId={session?.claudeSessionId ?? null} />
 
       {/* Actions */}
       <div className="flex items-center gap-1 ml-2">

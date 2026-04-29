@@ -4,10 +4,12 @@ import { getDb } from '../db';
 import { logger } from '../logger';
 import type { InputTracker } from './input-tracker';
 import { estimateCostUsd, normalizeModelFamily } from './token-cost';
+import { getContextWindow } from './model-context';
 import { localDateStr, enumerateDates } from './date-utils';
 import type {
   HookEvent,
   SessionTokenUsage,
+  CurrentContextUsage,
   DailyTokenUsage,
   ModelTokenBreakdown,
   TokenWeeklyTrend,
@@ -225,6 +227,69 @@ export class TokenTracker {
       messageCount: totalMessages,
       firstMessageAt,
       lastMessageAt,
+      currentContext: this.getCurrentContext(sessionId),
+    };
+  }
+
+  /**
+   * Compute the effective context occupancy for the session — the input-side
+   * tokens of the latest assistant message, divided by the model's context
+   * window. Returns null when:
+   *   - there are no assistant messages yet (post-/clear, fresh session), or
+   *   - the latest event in the transcript is a /compact summary (the badge
+   *     should hide until the next assistant turn lands and reflects the
+   *     compacted prompt's small input).
+   */
+  private getCurrentContext(sessionId: string): CurrentContextUsage | null {
+    const db = getDb();
+
+    const latest = db.prepare(`
+      SELECT model,
+             provider,
+             input_tokens,
+             cache_write_5m_tokens,
+             cache_write_1h_tokens,
+             cache_read_tokens,
+             message_timestamp
+        FROM token_usage
+       WHERE agent_session_id = ?
+       ORDER BY message_timestamp DESC
+       LIMIT 1
+    `).get(sessionId) as {
+      model: string;
+      provider: AgentSessionType;
+      input_tokens: number;
+      cache_write_5m_tokens: number;
+      cache_write_1h_tokens: number;
+      cache_read_tokens: number;
+      message_timestamp: string;
+    } | undefined;
+
+    if (!latest) return null;
+
+    // Suppress when a /compact marker post-dates the latest assistant turn.
+    // Lookup is by the same id we use as agent_session_id for Claude rows.
+    const compactRow = db.prepare(`
+      SELECT last_compact_at FROM sessions
+       WHERE claude_session_id = ?
+    `).get(sessionId) as { last_compact_at: string | null } | undefined;
+    const lastCompactAt = compactRow?.last_compact_at ?? null;
+    if (lastCompactAt && lastCompactAt >= latest.message_timestamp) return null;
+
+    const usedTokens =
+      latest.input_tokens +
+      latest.cache_write_5m_tokens +
+      latest.cache_write_1h_tokens +
+      latest.cache_read_tokens;
+
+    const contextWindow = getContextWindow(latest.model, latest.provider);
+    const percent = contextWindow ? Math.round((usedTokens / contextWindow) * 100) : null;
+
+    return {
+      model: latest.model,
+      usedTokens,
+      contextWindow,
+      percent,
     };
   }
 
