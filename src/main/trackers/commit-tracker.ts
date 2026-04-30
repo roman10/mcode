@@ -531,21 +531,22 @@ export class CommitTracker {
 
     const rows = db.prepare(`
       SELECT date, COUNT(*) as count,
-             COALESCE(SUM(insertions), 0) as insertions
+             COALESCE(SUM(insertions), 0) as insertions,
+             COALESCE(SUM(deletions), 0) as deletions
       FROM commits
       WHERE date BETWEEN ? AND ?${pf.clause}
       GROUP BY date
       ORDER BY date ASC
-    `).all(startDateStr, endDateStr, ...pf.params) as { date: string; count: number; insertions: number }[];
+    `).all(startDateStr, endDateStr, ...pf.params) as { date: string; count: number; insertions: number; deletions: number }[];
 
     if (!fillEmptyDays) {
-      return rows.map((r) => ({ date: r.date, count: r.count, insertions: r.insertions }));
+      return rows.map((r) => ({ date: r.date, count: r.count, insertions: r.insertions, deletions: r.deletions }));
     }
 
     const byDate = new Map(rows.map((r) => [r.date, r]));
     return enumerateDates(startDateStr, endDateStr).map((date) => {
       const r = byDate.get(date);
-      return { date, count: r?.count ?? 0, insertions: r?.insertions ?? 0 };
+      return { date, count: r?.count ?? 0, insertions: r?.insertions ?? 0, deletions: r?.deletions ?? 0 };
     });
   }
 

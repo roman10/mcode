@@ -17,6 +17,7 @@ interface HeatmapEntry {
   date: string;
   count: number;
   insertions: number;
+  deletions: number;
 }
 
 interface Streaks {
@@ -100,6 +101,8 @@ describe('commit tracking', () => {
     for (const entry of heatmap) {
       expect(typeof entry.date).toBe('string');
       expect(typeof entry.count).toBe('number');
+      expect(typeof entry.insertions).toBe('number');
+      expect(typeof entry.deletions).toBe('number');
     }
   });
 

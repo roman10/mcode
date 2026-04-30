@@ -27,6 +27,7 @@ export interface CommitHeatmapEntry {
   date: string;
   count: number;
   insertions: number;
+  deletions: number;
 }
 
 export interface CommitStreakInfo {

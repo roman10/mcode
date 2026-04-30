@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, X } from 'lucide-react';
 import HeatmapGrid from '../shared/HeatmapGrid';
 import MonthlyBarChart, { type MonthlyEntry } from '../shared/MonthlyBarChart';
+import DivergingMonthlyBarChart, { type DivergingMonthlyEntry } from '../shared/DivergingMonthlyBarChart';
 import Tooltip from '../shared/Tooltip';
 import { todayStr, shiftDate, daysDiff, formatDateLabel } from '../../utils/date-nav';
 import { AGENT_SESSION_TYPES, getAgentDefinition } from '@shared/session-agents';
@@ -60,7 +61,10 @@ function commitLevel(entry: CommitHeatmapEntry): number {
 }
 
 function commitTooltip(entry: CommitHeatmapEntry): string {
-  return `${entry.date}: ${entry.count} commit${entry.count !== 1 ? 's' : ''}`;
+  const churn = entry.count > 0
+    ? ` · +${formatNumber(entry.insertions)} / −${formatNumber(entry.deletions)}`
+    : '';
+  return `${entry.date}: ${entry.count} commit${entry.count !== 1 ? 's' : ''}${churn}`;
 }
 
 function tokenLevel(entry: TokenHeatmapEntry): number {
@@ -297,9 +301,11 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
   const totals = useMemo(() => {
     let totalCommits = 0;
     let totalInsertions = 0;
+    let totalDeletions = 0;
     for (const e of commitHeatmap) {
       totalCommits += e.count;
       totalInsertions += e.insertions;
+      totalDeletions += e.deletions;
     }
     let totalCost = 0;
     let totalTokensIn = 0;
@@ -317,7 +323,7 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
       totalHumanMsgs += e.messageCount;
       totalChars += e.totalCharacters;
     }
-    return { totalCommits, totalInsertions, totalCost, totalTokensIn, totalTokensOut, totalMsgs, totalHumanMsgs, totalChars };
+    return { totalCommits, totalInsertions, totalDeletions, totalCost, totalTokensIn, totalTokensOut, totalMsgs, totalHumanMsgs, totalChars };
   }, [tokenHeatmap, commitHeatmap, inputHeatmap]);
 
   // Selected-day quick lookup. Built once per data refresh — find() per render
@@ -336,6 +342,22 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
   );
 
   const monthlyCommits = useMemo(() => aggregateMonthly(commitHeatmap, (e) => e.count), [commitHeatmap]);
+  const monthlyCommitLines = useMemo<DivergingMonthlyEntry[]>(() => {
+    const sums = new Map<string, { insertions: number; deletions: number }>();
+    for (const e of commitHeatmap) {
+      const month = e.date.slice(0, 7);
+      const cur = sums.get(month);
+      if (cur) {
+        cur.insertions += e.insertions;
+        cur.deletions += e.deletions;
+      } else {
+        sums.set(month, { insertions: e.insertions, deletions: e.deletions });
+      }
+    }
+    return Array.from(sums.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, v]) => ({ month, ...v }));
+  }, [commitHeatmap]);
   const monthlyCost = useMemo(() => aggregateMonthly(tokenHeatmap, (e) => e.estimatedCostUsd), [tokenHeatmap]);
   const monthlyInputMsgs = useMemo(() => aggregateMonthly(inputHeatmap, (e) => e.messageCount), [inputHeatmap]);
 
@@ -450,7 +472,18 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8 max-w-[1400px] mx-auto w-full">
           {/* Lifetime totals strip */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-            <SummaryStat label="Commits" value={formatNumber(totals.totalCommits)} sub={`${formatNumber(totals.totalInsertions)} insertions`} />
+            <SummaryStat
+              label="Commits"
+              value={formatNumber(totals.totalCommits)}
+              sub={
+                <>
+                  <span className="text-green-400">+{formatNumber(totals.totalInsertions)}</span>
+                  {' / '}
+                  <span className="text-red-400">−{formatNumber(totals.totalDeletions)}</span>
+                  {' lines'}
+                </>
+              }
+            />
             <SummaryStat label="Cost" value={formatCost(totals.totalCost)} sub={`${formatNumber(totals.totalMsgs)} msgs`} />
             <SummaryStat label="Tokens" value={formatTokens(totals.totalTokensIn + totals.totalTokensOut)} sub={`${formatTokens(totals.totalTokensOut)} out`} />
             <SummaryStat label="Prompts" value={formatNumber(totals.totalHumanMsgs)} sub={`${formatNumber(totals.totalChars)} chars`} />
@@ -462,7 +495,14 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
           {!isToday && (
             <div className="text-xs text-text-secondary border-l-2 border-accent/40 pl-3 py-1">
               <span className="text-text-primary font-medium">{formatDateLabel(viewDate)}:</span>{' '}
-              {selectedCommit?.count ?? 0} commit{selectedCommit?.count !== 1 ? 's' : ''} ·{' '}
+              {selectedCommit?.count ?? 0} commit{selectedCommit?.count !== 1 ? 's' : ''}
+              {(selectedCommit?.count ?? 0) > 0 && (
+                <>
+                  {' '}(<span className="text-green-400">+{formatNumber(selectedCommit?.insertions ?? 0)}</span>
+                  {' / '}
+                  <span className="text-red-400">−{formatNumber(selectedCommit?.deletions ?? 0)}</span>)
+                </>
+              )} ·{' '}
               {formatCost(selectedToken?.estimatedCostUsd ?? 0)} ·{' '}
               {selectedToken?.messageCount ?? 0} agent msg{selectedToken?.messageCount !== 1 ? 's' : ''} ·{' '}
               {selectedInput?.messageCount ?? 0} prompt{selectedInput?.messageCount !== 1 ? 's' : ''}
@@ -483,15 +523,28 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
                 spanYears={spanYears}
               />
             }
-            monthly={
-              monthlyCommits.length > 0 ? (
-                <MonthlyBarChart
-                  entries={monthlyCommits}
-                  formatTooltipValue={(v) => `${formatNumber(v)} commits`}
-                  colorScale="green"
-                />
-              ) : null
-            }
+            charts={[
+              {
+                label: 'Commits by month',
+                chart: monthlyCommits.length > 0 ? (
+                  <MonthlyBarChart
+                    entries={monthlyCommits}
+                    formatTooltipValue={(v) => `${formatNumber(v)} commits`}
+                    colorScale="green"
+                  />
+                ) : null,
+              },
+              {
+                label: 'Lines changed by month',
+                chart: monthlyCommitLines.length > 0 ? (
+                  <DivergingMonthlyBarChart
+                    entries={monthlyCommitLines}
+                    formatValue={formatNumber}
+                    unit="lines"
+                  />
+                ) : null,
+              },
+            ]}
           />
 
           {/* Cost (tokens) */}
@@ -508,15 +561,18 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
                 spanYears={spanYears}
               />
             }
-            monthly={
-              monthlyCost.length > 0 ? (
-                <MonthlyBarChart
-                  entries={monthlyCost}
-                  formatTooltipValue={(v) => formatCost(v)}
-                  colorScale="amber"
-                />
-              ) : null
-            }
+            charts={[
+              {
+                label: 'Monthly',
+                chart: monthlyCost.length > 0 ? (
+                  <MonthlyBarChart
+                    entries={monthlyCost}
+                    formatTooltipValue={(v) => formatCost(v)}
+                    colorScale="amber"
+                  />
+                ) : null,
+              },
+            ]}
           />
 
           {/* Input (human prompts) */}
@@ -533,15 +589,18 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
                 spanYears={spanYears}
               />
             }
-            monthly={
-              monthlyInputMsgs.length > 0 ? (
-                <MonthlyBarChart
-                  entries={monthlyInputMsgs}
-                  formatTooltipValue={(v) => `${formatNumber(v)} prompts`}
-                  colorScale="blue"
-                />
-              ) : null
-            }
+            charts={[
+              {
+                label: 'Monthly',
+                chart: monthlyInputMsgs.length > 0 ? (
+                  <MonthlyBarChart
+                    entries={monthlyInputMsgs}
+                    formatTooltipValue={(v) => `${formatNumber(v)} prompts`}
+                    colorScale="blue"
+                  />
+                ) : null,
+              },
+            ]}
           />
         </div>
       )}
@@ -549,7 +608,7 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
   );
 }
 
-function SummaryStat({ label, value, sub }: { label: string; value: string; sub?: string }): React.JSX.Element {
+function SummaryStat({ label, value, sub }: { label: string; value: string; sub?: React.ReactNode }): React.JSX.Element {
   return (
     <div className="rounded border border-border-default bg-bg-elevated/30 px-3 py-2">
       <div className="text-[10px] uppercase tracking-wide text-text-muted">{label}</div>
@@ -562,22 +621,24 @@ function SummaryStat({ label, value, sub }: { label: string; value: string; sub?
 function DashboardSection({
   title,
   heatmap,
-  monthly,
+  charts = [],
 }: {
   title: string;
   heatmap: React.ReactNode;
-  monthly: React.ReactNode;
+  charts?: Array<{ label: string; chart: React.ReactNode }>;
 }): React.JSX.Element {
   return (
     <div className="space-y-3">
       <div className="text-xs uppercase tracking-wide text-text-muted font-medium">{title}</div>
       <div>{heatmap}</div>
-      {monthly && (
-        <div className="pt-2">
-          <div className="text-[10px] text-text-muted mb-1 uppercase tracking-wide">Monthly</div>
-          {monthly}
-        </div>
-      )}
+      {charts
+        .filter(({ chart }) => chart)
+        .map(({ label, chart }, i) => (
+          <div key={label} className={i === 0 ? 'pt-2' : 'pt-3'}>
+            <div className="text-[10px] text-text-muted mb-1 uppercase tracking-wide">{label}</div>
+            {chart}
+          </div>
+        ))}
     </div>
   );
 }
