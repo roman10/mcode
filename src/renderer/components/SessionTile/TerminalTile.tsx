@@ -8,6 +8,7 @@ import { useDialogStore } from '../../stores/dialog-store';
 import { useSessionStore } from '../../stores/session-store';
 import { terminalRegistry } from '../../devtools/terminal-registry';
 import { shellEscapePath } from '@shared/shell-utils';
+import { scheduleDropPaste } from '../../utils/drop-paste-scheduler';
 import { canSessionQueueTasks } from '@shared/session-capabilities';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
@@ -113,10 +114,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
         const fp = window.mcode.app.getPathForFile(files[i]);
         if (fp) paths.push(shellEscapePath(fp));
       }
-      if (paths.length > 0) {
-        term.paste(paths.join(' '));
-        term.focus();
-      }
+      scheduleDropPaste(paths, term);
     },
     [sessionId],
   );

@@ -13,6 +13,7 @@ import {
   sessionIdFromTileId,
 } from '../utils/tile-id';
 import { useSessionStore } from './session-store';
+import { useTerminalPanelStore } from './terminal-panel-store';
 
 /** Legacy tile id from when the stats dashboard was a mosaic tile; stripped on restore. */
 const LEGACY_STATS_DASHBOARD_TILE = 'stats-dashboard:main';
@@ -23,11 +24,8 @@ export function migrateTab(tab: string): SidebarTab {
   return valid.includes(tab as SidebarTab) ? (tab as SidebarTab) : 'sessions';
 }
 
-/** Snapshot the terminal panel store for persistence (avoids circular import). */
+/** Snapshot the terminal panel store for persistence. */
 function getTerminalPanelSnapshot(): unknown {
-  const { useTerminalPanelStore } = require('./terminal-panel-store') as {
-    useTerminalPanelStore: { getState: () => Record<string, unknown> };
-  };
   const state = useTerminalPanelStore.getState();
   return {
     panelHeight: state.panelHeight,
@@ -635,9 +633,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
       // Restore terminal panel state
       if (snapshot.terminalPanelState && typeof snapshot.terminalPanelState === 'object') {
-        const { useTerminalPanelStore } = require('./terminal-panel-store') as {
-          useTerminalPanelStore: { setState: (state: Record<string, unknown>) => void };
-        };
         const ps = snapshot.terminalPanelState as Record<string, unknown>;
         useTerminalPanelStore.setState({
           panelHeight: typeof ps.panelHeight === 'number' ? ps.panelHeight : 200,
