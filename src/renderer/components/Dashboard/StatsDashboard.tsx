@@ -530,6 +530,7 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
                   <MonthlyBarChart
                     entries={monthlyCommits}
                     formatTooltipValue={(v) => `${formatNumber(v)} commits`}
+                    formatBarLabel={formatNumber}
                     colorScale="green"
                   />
                 ) : null,
@@ -568,6 +569,7 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
                   <MonthlyBarChart
                     entries={monthlyCost}
                     formatTooltipValue={(v) => formatCost(v)}
+                    formatBarLabel={formatCost}
                     colorScale="amber"
                   />
                 ) : null,
@@ -596,6 +598,7 @@ function StatsDashboard({ onClose }: StatsDashboardProps): React.JSX.Element {
                   <MonthlyBarChart
                     entries={monthlyInputMsgs}
                     formatTooltipValue={(v) => `${formatNumber(v)} prompts`}
+                    formatBarLabel={formatNumber}
                     colorScale="blue"
                   />
                 ) : null,

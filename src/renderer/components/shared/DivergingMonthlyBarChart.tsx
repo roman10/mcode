@@ -57,6 +57,24 @@ function DivergingMonthlyBarChart({
 
   return (
     <div style={{ position: 'relative' }}>
+      <div className="relative w-full" style={{ height: 14 }}>
+        {entries.map((entry, i) => {
+          if (i % labelStride !== 0) return null;
+          const net = entry.insertions - entry.deletions;
+          if (net === 0) return null;
+          const text = net >= 0 ? `+${formatValue(net)}` : `−${formatValue(-net)}`;
+          const color = net >= 0 ? 'text-green-400' : 'text-red-400';
+          return (
+            <span
+              key={`v-${entry.month}`}
+              className={`absolute text-[10px] -translate-x-1/2 bottom-0 ${color}`}
+              style={{ left: `${((i + 0.5) / entries.length) * 100}%` }}
+            >
+              {text}
+            </span>
+          );
+        })}
+      </div>
       <svg
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
         width="100%"

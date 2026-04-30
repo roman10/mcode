@@ -19,6 +19,8 @@ export interface MonthlyEntry {
 interface MonthlyBarChartProps {
   entries: MonthlyEntry[];
   formatTooltipValue: (value: number) => string;
+  /** When provided, renders an always-visible value label above each bar (subject to labelStride). */
+  formatBarLabel?: (value: number) => string;
   colorScale?: 'green' | 'emerald' | 'blue' | 'amber';
 }
 
@@ -30,6 +32,7 @@ function formatMonthLabel(yyyymm: string): string {
 function MonthlyBarChart({
   entries,
   formatTooltipValue,
+  formatBarLabel,
   colorScale = 'green',
 }: MonthlyBarChartProps): React.JSX.Element {
   const colors = COLORS[colorScale] ?? COLORS.green;
@@ -56,6 +59,21 @@ function MonthlyBarChart({
 
   return (
     <div style={{ position: 'relative' }}>
+      {formatBarLabel && (
+        <div className="relative w-full text-text-secondary" style={{ height: 14 }}>
+          {entries.map((entry, i) =>
+            i % labelStride === 0 && entry.value > 0 ? (
+              <span
+                key={`v-${entry.month}`}
+                className="absolute text-[10px] -translate-x-1/2 bottom-0"
+                style={{ left: `${((i + 0.5) / entries.length) * 100}%` }}
+              >
+                {formatBarLabel(entry.value)}
+              </span>
+            ) : null,
+          )}
+        </div>
+      )}
       <svg
         viewBox={`0 0 ${CHART_W} ${BAR_AREA_H}`}
         width="100%"
