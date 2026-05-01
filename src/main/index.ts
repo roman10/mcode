@@ -494,8 +494,12 @@ app.whenReady().then(async () => {
   // Start task queue dispatch loop
   taskQueue.start();
 
-  // Poll for permission prompts and stale session states (PTY-based fallback)
-  pollSessionStatesInterval = setInterval(() => sessionManager.pollSessionStates(), 2000);
+  // Safety net for state-detection drift. Primary detection is event-driven
+  // inside SessionManager (subscribes to broker pty.data + per-session
+  // quiescence timer). This 60s sweep recovers from rare drift cases (hook
+  // delivery failures, startup races) without paying the cost of a tight
+  // polling loop.
+  pollSessionStatesInterval = setInterval(() => sessionManager.pollSessionStates(), 60_000);
 
   // Start commit tracker, token tracker, and update checker
   commitTracker.start();
@@ -585,6 +589,7 @@ app.on('before-quit', (e) => {
       clearInterval(pollSessionStatesInterval);
       pollSessionStatesInterval = null;
     }
+    sessionManager.shutdownDetection();
 
     // Release sleep blocker
     sleepBlocker.detach();

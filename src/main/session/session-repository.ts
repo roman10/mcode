@@ -240,6 +240,15 @@ export function getActiveAgentStates(): PollableSessionRow[] {
     .all() as PollableSessionRow[];
 }
 
+export function getPollableSessionRow(sessionId: string): PollableSessionRow | null {
+  return (getDb()
+    .prepare(
+      `SELECT session_id, status, attention_level, last_tool, session_type FROM sessions
+       WHERE session_id = ? AND session_type != 'terminal'`,
+    )
+    .get(sessionId) as PollableSessionRow | undefined) ?? null;
+}
+
 export function getDetachedSessions(): Array<{ session_id: string; pre_detach_status: string | null; session_type: string }> {
   return getDb()
     .prepare(`SELECT session_id, pre_detach_status, session_type FROM sessions WHERE status = 'detached'`)

@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { readdir, open as fsOpen } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
-import type { IPtyManager } from '../../shared/pty-manager-interface';
+import type { IObservablePtyManager } from '../../shared/pty-manager-interface';
 import type { AccountService } from '../accounts';
 import { logger } from '../logger';
 import {
@@ -16,6 +16,7 @@ import {
   getSessionStatus,
   getSessionHookState,
   getActiveAgentStates,
+  getPollableSessionRow,
   getDetachedSessions,
   countActiveSessions as repoCountActiveSessions,
   hasActiveAgentSessions as repoHasActiveAgentSessions,
@@ -138,7 +139,7 @@ export type SessionUpdateListener = (
 ) => void;
 
 export class SessionManager {
-  private ptyManager: IPtyManager;
+  private ptyManager: IObservablePtyManager;
   private getWebContents: () => WebContents | null;
   private hookRuntimeGetter: () => HookRuntimeInfo;
   private accountManager: AccountService;
@@ -155,6 +156,13 @@ export class SessionManager {
    */
   private pendingBroadcasts = new Set<string>();
   private broadcastFlushTimer: NodeJS.Immediate | null = null;
+  /**
+   * Per-session quiescence timers. Each pty.data event re-arms a one-shot
+   * setTimeout(detectSessionState, PTY_QUIESCENCE_MS + 50) so that quiescence-
+   * gated state detections (idle ❯, permission prompts) fire shortly after
+   * the buffer settles, instead of waiting for the next periodic poll.
+   */
+  private quiescenceTimers = new Map<string, NodeJS.Timeout>();
   private eventStore: SessionEventStore;
   readonly layoutRepo: LayoutRepository;
   private agentRuntimeAdapters: AgentRuntimeAdapterMap;
@@ -163,7 +171,7 @@ export class SessionManager {
   hookBridgeReady: Record<string, boolean> = {};
 
   constructor(
-    ptyManager: IPtyManager,
+    ptyManager: IObservablePtyManager,
     getWebContents: () => WebContents | null,
     hookRuntimeGetter: () => HookRuntimeInfo,
     accountManager: AccountService,
@@ -193,6 +201,14 @@ export class SessionManager {
         }),
       }),
     };
+
+    // Event-driven session state detection. Per-chunk detection catches
+    // non-quiescence-gated transitions (e.g., user-choice menus where lastTool
+    // is already set by PreToolUse); the quiescence timer (re-armed each chunk)
+    // catches idle ❯ and permission-prompt detections that need a settled
+    // buffer. The 60s safety interval in main/index.ts is a backstop only.
+    this.ptyManager.on('pty.data', (id) => this.onPtyData(id));
+    this.ptyManager.on('pty.exit', (id) => this.onPtyExit(id));
   }
 
   /** Subscribe to session updates in the main process (used by TaskQueue). */
@@ -877,6 +893,7 @@ export class SessionManager {
 
     deleteSessionWithEvents(sessionId);
     this.promptLabelledSessions.delete(sessionId);
+    this.clearQuiescenceTimer(sessionId);
 
     logger.info('session', 'Deleted session', { sessionId });
 
@@ -891,7 +908,10 @@ export class SessionManager {
     if (ids.length === 0) return [];
 
     deleteSessionsWithEvents(ids);
-    for (const id of ids) this.promptLabelledSessions.delete(id);
+    for (const id of ids) {
+      this.promptLabelledSessions.delete(id);
+      this.clearQuiescenceTimer(id);
+    }
 
     logger.info('session', 'Deleted all ended sessions', { count: ids.length });
 
@@ -908,7 +928,10 @@ export class SessionManager {
     if (ids.length === 0) return [];
 
     deleteSessionsWithEvents(ids);
-    for (const id of ids) this.promptLabelledSessions.delete(id);
+    for (const id of ids) {
+      this.promptLabelledSessions.delete(id);
+      this.clearQuiescenceTimer(id);
+    }
 
     logger.info('session', 'Deleted all ended test sessions', { count: ids.length });
 
@@ -930,7 +953,10 @@ export class SessionManager {
     if (ids.length === 0) return 0;
 
     deleteSessionsWithEvents(ids);
-    for (const id of ids) this.promptLabelledSessions.delete(id);
+    for (const id of ids) {
+      this.promptLabelledSessions.delete(id);
+      this.clearQuiescenceTimer(id);
+    }
 
     logger.info('session', 'Deleted empty Claude sessions', { count: ids.length });
 
@@ -951,7 +977,10 @@ export class SessionManager {
     if (validIds.length === 0) return [];
 
     deleteSessionsWithEvents(validIds);
-    for (const id of validIds) this.promptLabelledSessions.delete(id);
+    for (const id of validIds) {
+      this.promptLabelledSessions.delete(id);
+      this.clearQuiescenceTimer(id);
+    }
 
     logger.info('session', 'Deleted batch of sessions', { count: validIds.length });
 
@@ -1154,26 +1183,41 @@ export class SessionManager {
   // --- PTY-based state detection ---
 
   private static readonly PTY_QUIESCENCE_MS = 5000;
+  /** Slack over PTY_QUIESCENCE_MS so the timer fires after isQuiescent flips true. */
+  private static readonly QUIESCENCE_TIMER_SLACK_MS = 50;
 
-  /** Poll active agent sessions and delegate state detection to runtime adapters. */
-  pollSessionStates(): void {
-    const rows = getActiveAgentStates();
-    const now = Date.now();
+  /**
+   * Run state detection for a single session. Called both event-driven (from
+   * pty.data and the per-session quiescence timer) and from the safety poll.
+   * Returns silently for non-pollable statuses (terminal, starting, ended,
+   * detached) and unknown sessions.
+   *
+   * Wrapped in try/catch because this runs inside a broker pty.data listener
+   * shared with the IPC-forward listener that streams output to the renderer.
+   * An unhandled throw here would halt EventEmitter dispatch and freeze the
+   * terminal UI until the next event.
+   */
+  private detectSessionState(sessionId: string): void {
+    try {
+      const row = getPollableSessionRow(sessionId);
+      if (!row) return;
+      if (row.status !== 'active' && row.status !== 'idle' && row.status !== 'waiting') return;
 
-    for (const row of rows) {
       const adapter = this.agentRuntimeAdapters[row.session_type as keyof AgentRuntimeAdapterMap];
-      if (!adapter?.pollState) continue;
+      if (!adapter?.pollState) return;
 
-      const buffer = this.ptyManager.getReplayData(row.session_id);
-      if (!buffer) continue;
+      const buffer = this.ptyManager.getReplayData(sessionId);
+      if (!buffer) return;
 
-      const lastDataAt = this.ptyManager.getLastDataAt(row.session_id);
-      const isQuiescent = lastDataAt > 0 && now - lastDataAt > SessionManager.PTY_QUIESCENCE_MS;
-
-      const hasPendingTasks = hasPendingTasksForSession(row.session_id);
+      const lastDataAt = this.ptyManager.getLastDataAt(sessionId);
+      const isQuiescent = lastDataAt > 0 && Date.now() - lastDataAt > SessionManager.PTY_QUIESCENCE_MS;
+      // hasPendingTasks is only consulted inside quiescence-gated branches in
+      // every runtime adapter (claude/codex/gemini/copilot). Skip the DB query
+      // on the high-frequency per-chunk path where isQuiescent is always false.
+      const hasPendingTasks = isQuiescent ? hasPendingTasksForSession(sessionId) : false;
 
       const update = adapter.pollState({
-        sessionId: row.session_id,
+        sessionId,
         status: row.status as SessionStatus,
         attentionLevel: row.attention_level as SessionAttentionLevel,
         lastTool: row.last_tool,
@@ -1183,13 +1227,65 @@ export class SessionManager {
         hasPendingTasks,
       });
 
-      if (!update) continue;
+      if (!update) return;
 
       if (update.attention) {
-        this.updateStatusWithAttention(row.session_id, update.status, update.attention.level, update.attention.reason);
+        this.updateStatusWithAttention(sessionId, update.status, update.attention.level, update.attention.reason);
       } else {
-        this.updateStatus(row.session_id, update.status);
+        this.updateStatus(sessionId, update.status);
       }
+    } catch (err) {
+      logger.error('session', 'detectSessionState failed', {
+        sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
+   * Handle a pty.data event for a session. Runs immediate detection (catches
+   * non-quiescence transitions) and re-arms the per-session quiescence timer
+   * (catches transitions that require a settled buffer).
+   */
+  private onPtyData(sessionId: string): void {
+    this.detectSessionState(sessionId);
+
+    const existing = this.quiescenceTimers.get(sessionId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.quiescenceTimers.delete(sessionId);
+      this.detectSessionState(sessionId);
+    }, SessionManager.PTY_QUIESCENCE_MS + SessionManager.QUIESCENCE_TIMER_SLACK_MS);
+    this.quiescenceTimers.set(sessionId, timer);
+  }
+
+  private onPtyExit(sessionId: string): void {
+    this.clearQuiescenceTimer(sessionId);
+  }
+
+  private clearQuiescenceTimer(sessionId: string): void {
+    const timer = this.quiescenceTimers.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      this.quiescenceTimers.delete(sessionId);
+    }
+  }
+
+  /** Clear all pending quiescence timers. Called on app shutdown. */
+  shutdownDetection(): void {
+    for (const timer of this.quiescenceTimers.values()) clearTimeout(timer);
+    this.quiescenceTimers.clear();
+  }
+
+  /**
+   * Safety-net poll over all active agent sessions. Primary detection path is
+   * event-driven via onPtyData; this exists to recover from drift (hook
+   * delivery failures, startup races) and runs at a low cadence (60s) from
+   * main/index.ts.
+   */
+  pollSessionStates(): void {
+    for (const row of getActiveAgentStates()) {
+      this.detectSessionState(row.session_id);
     }
   }
 

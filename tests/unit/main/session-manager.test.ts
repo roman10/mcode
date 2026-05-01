@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import { SessionManager } from '../../../src/main/session/session-manager';
 import { getDb, resetDbForTest } from '../../../src/main/db';
 import { truncateTestData } from '../db-helpers';
-import type { IPtyManager } from '../../../src/shared/pty-manager-interface';
+import type { IObservablePtyManager } from '../../../src/shared/pty-manager-interface';
 import type { AccountService } from '../../../src/main/accounts';
 import type { HookEvent, HookRuntimeInfo } from '../../../src/shared/types';
 
@@ -67,7 +68,7 @@ describe('SessionManager broadcast coalescing', () => {
   beforeEach(() => {
     truncateTestData(getDb());
     sent = [];
-    const ptyStub = {} as unknown as IPtyManager;
+    const ptyStub = new EventEmitter() as unknown as IObservablePtyManager;
     const accountStub = {} as unknown as AccountService;
     const hookRuntime: HookRuntimeInfo = { state: 'ready', port: 1234, warning: null };
     manager = new SessionManager(

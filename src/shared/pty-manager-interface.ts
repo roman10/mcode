@@ -7,6 +7,9 @@ export interface PtyInfo {
   rows: number;
 }
 
+export type PtyDataListener = (id: string, data: string) => void;
+export type PtyExitListener = (id: string, code: number, signal?: number) => void;
+
 export interface IPtyManager {
   spawn(options: PtySpawnOptions): string;
   write(id: string, data: string): void;
@@ -21,4 +24,18 @@ export interface IPtyManager {
   getInfo(id: string): PtyInfo | null;
   /** Memory accounting for diagnostics. */
   getDiagnostics(): BrokerDiagnostics;
+}
+
+/**
+ * Main-process PTY surface that also exposes pty.data / pty.exit events.
+ * Implemented by BrokerClient (which is an EventEmitter); SessionManager
+ * uses these events to drive event-driven session-state detection.
+ * The broker-side PtyManager does not implement this — it forwards
+ * data/exit via its constructor callbacks instead.
+ */
+export interface IObservablePtyManager extends IPtyManager {
+  on(event: 'pty.data', listener: PtyDataListener): this;
+  on(event: 'pty.exit', listener: PtyExitListener): this;
+  off(event: 'pty.data', listener: PtyDataListener): this;
+  off(event: 'pty.exit', listener: PtyExitListener): this;
 }

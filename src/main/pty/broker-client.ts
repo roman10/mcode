@@ -2,7 +2,7 @@ import * as net from 'node:net';
 import * as readline from 'node:readline';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import type { IPtyManager, PtyInfo } from '../../shared/pty-manager-interface';
+import type { IObservablePtyManager, PtyInfo } from '../../shared/pty-manager-interface';
 import type { PtySpawnOptions } from '../../shared/types';
 import { RING_BUFFER_MAX_BYTES, DEFAULT_COLS, DEFAULT_ROWS } from '../../shared/constants';
 import type { BrokerDiagnostics } from '../../shared/types';
@@ -14,7 +14,7 @@ interface PendingRequest {
   reject: (error: Error) => void;
 }
 
-export class BrokerClient extends EventEmitter implements IPtyManager {
+export class BrokerClient extends EventEmitter implements IObservablePtyManager {
   private socket: net.Socket | null = null;
   private rl: readline.Interface | null = null;
   private socketPath = '';
