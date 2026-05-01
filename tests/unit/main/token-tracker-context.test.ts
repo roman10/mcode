@@ -78,6 +78,7 @@ describe('TokenTracker.getSessionUsage — currentContext', () => {
   it('computes used = input + cache writes + cache read of latest message', () => {
     insertTokenRow({
       messageId: 'm1',
+      model: 'claude-sonnet-4-6',
       timestamp: '2026-04-29T10:00:00Z',
       inputTokens: 1_000,
       cacheRead: 80_000,
@@ -86,6 +87,7 @@ describe('TokenTracker.getSessionUsage — currentContext', () => {
     });
     insertTokenRow({
       messageId: 'm2',
+      model: 'claude-sonnet-4-6',
       timestamp: '2026-04-29T10:05:00Z',
       inputTokens: 2_000,
       cacheRead: 90_000,
@@ -95,11 +97,25 @@ describe('TokenTracker.getSessionUsage — currentContext', () => {
 
     const usage = makeTracker().getSessionUsage(sessionId);
     expect(usage.currentContext).toEqual({
-      model: 'claude-opus-4-7',
+      model: 'claude-sonnet-4-6',
       usedTokens: 2_000 + 0 + 1_000 + 90_000, // latest only
       contextWindow: 200_000,
       percent: Math.round((93_000 / 200_000) * 100),
     });
+  });
+
+  it('uses 1M window for opus-4.7 by default (native 1M tier)', () => {
+    insertTokenRow({
+      messageId: 'm1',
+      model: 'claude-opus-4-7',
+      timestamp: '2026-04-29T10:00:00Z',
+      inputTokens: 5_000,
+      cacheRead: 250_000,
+    });
+
+    const usage = makeTracker().getSessionUsage(sessionId);
+    expect(usage.currentContext?.contextWindow).toBe(1_000_000);
+    expect(usage.currentContext?.percent).toBe(26);
   });
 
   it('uses 1M window when raw model id has [1m] suffix', () => {

@@ -4,7 +4,7 @@ import { getDb } from '../db';
 import { logger } from '../logger';
 import type { InputTracker } from './input-tracker';
 import { estimateCostUsd, normalizeModelFamily } from './token-cost';
-import { getContextWindow } from './model-context';
+import { getContextWindow, setClaudeConfigPathsProvider } from './model-context';
 import { localDateStr, enumerateDates } from './date-utils';
 import type {
   HookEvent,
@@ -85,6 +85,11 @@ export class TokenTracker {
     );
     this.geminiScanner = new GeminiScanner(
       () => accountService.listAllAccountPaths('.gemini/tmp'),
+    );
+    // Per-account `.claude.json` is the source of truth for 1M-tier detection
+    // when the transcript model id lacks the "[1m]" suffix.
+    setClaudeConfigPathsProvider(
+      () => accountService.listAllAccountPaths('.claude/.claude.json'),
     );
   }
 
