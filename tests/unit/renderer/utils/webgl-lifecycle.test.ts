@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let capturedContextLossCallback: (() => void) | null = null;
 const mockDispose = vi.fn();
+const mockClearTextureAtlas = vi.fn();
 const mockOnContextLoss = vi.fn().mockImplementation((cb: () => void) => {
   capturedContextLossCallback = cb;
   return { dispose: vi.fn() };
@@ -13,6 +14,7 @@ vi.mock('@xterm/addon-webgl', () => ({
   WebglAddon: class MockWebglAddon {
     onContextLoss = mockOnContextLoss;
     dispose = mockDispose;
+    clearTextureAtlas = mockClearTextureAtlas;
   },
 }));
 
@@ -136,6 +138,22 @@ describe('webgl-lifecycle', () => {
     handle.detach();
     handle.detach(); // second call should be safe
     expect(getActiveWebglContextCount()).toBe(0);
+  });
+
+  // ----------------------------------------------------------------
+  // Atlas recovery (clearAtlas)
+  // ----------------------------------------------------------------
+
+  it('clearAtlas calls the addon when active and is a no-op after detach', () => {
+    const term = makeMockTerminal();
+    const handle = attachWebgl(term, 'sess-1');
+
+    handle.clearAtlas();
+    expect(mockClearTextureAtlas).toHaveBeenCalledTimes(1);
+
+    handle.detach();
+    handle.clearAtlas(); // post-detach: must not throw, must not call addon
+    expect(mockClearTextureAtlas).toHaveBeenCalledTimes(1);
   });
 
   it('increments and decrements context counter correctly across multiple terminals', () => {

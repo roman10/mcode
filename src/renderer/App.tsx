@@ -27,6 +27,7 @@ import { ErrorBoundary, ErrorFallback } from './components/shared/ErrorBoundary'
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
 import { useAppInitialization } from './hooks/useAppInitialization';
 import { useSessionSubscriptions } from './hooks/useSessionSubscriptions';
+import { useTerminalAtlasRecovery } from './hooks/useTerminalAtlasRecovery';
 import { useUpdateSubscriptions } from './hooks/useUpdateSubscriptions';
 import { useUpdateStore } from './stores/update-store';
 import UpdateBanner from './components/UpdateBanner';
@@ -37,6 +38,7 @@ function App(): React.JSX.Element {
   const { loading, error } = useAppInitialization();
   useSessionSubscriptions();
   useUpdateSubscriptions();
+  useTerminalAtlasRecovery();
 
   const flushPersist = useLayoutStore((s) => s.flushPersist);
 

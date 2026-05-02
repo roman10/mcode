@@ -23,6 +23,9 @@ export interface WebglHandle {
   readonly active: boolean;
   /** Try to re-attach WebGL if it was previously detached. */
   reattach(): boolean;
+  /** Clear the WebGL texture atlas to recover from silent atlas corruption
+   *  (e.g. after macOS sleep/wake or DPR change). No-op when detached. */
+  clearAtlas(): void;
 }
 
 /**
@@ -81,6 +84,14 @@ export function attachWebgl(term: Terminal, sessionId: string): WebglHandle {
     reattach(): boolean {
       if (webglAddon) return true;
       return attach();
+    },
+    clearAtlas(): void {
+      if (!webglAddon) return;
+      try {
+        webglAddon.clearTextureAtlas();
+      } catch {
+        // Addon may have been disposed concurrently
+      }
     },
   };
 }
