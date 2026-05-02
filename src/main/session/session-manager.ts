@@ -163,6 +163,10 @@ export class SessionManager {
    * the buffer settles, instead of waiting for the next periodic poll.
    */
   private quiescenceTimers = new Map<string, NodeJS.Timeout>();
+  /** 15s safety timers that force-transition sessions stuck in 'starting'. */
+  private startupTimers = new Map<string, NodeJS.Timeout>();
+  /** 500ms timers that auto-delete ended Claude sessions with no interaction. */
+  private autoDeleteTimers = new Map<string, NodeJS.Timeout>();
   private eventStore: SessionEventStore;
   readonly layoutRepo: LayoutRepository;
   private agentRuntimeAdapters: AgentRuntimeAdapterMap;
@@ -372,14 +376,14 @@ export class SessionManager {
     }
 
     // Safety net: if still starting after 15s, force-transition
-    setTimeout(() => {
+    this.armStartupTimer(sessionId, () => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
         const targetStatus = isAgentSession(sessionType) && !input.initialCommand ? 'idle' : 'active';
         logger.warn('session', 'Starting timeout, forcing status', { sessionId, targetStatus });
         this.updateStatus(sessionId, targetStatus);
       }
-    }, 15_000);
+    });
 
     logger.info('session', 'Created session', { sessionId, cwd, label, hookMode });
 
@@ -488,13 +492,13 @@ export class SessionManager {
       throw err;
     }
 
-    setTimeout(() => {
+    this.armStartupTimer(sessionId, () => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
         logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
         this.updateStatus(sessionId, 'idle');
       }
-    }, 15_000);
+    });
 
     logger.info('session', `Resumed ${prepared.logLabel} session`, {
       sessionId,
@@ -550,13 +554,13 @@ export class SessionManager {
     }
 
     // Safety net: if still starting after 15s, force-transition to idle
-    setTimeout(() => {
+    this.armStartupTimer(sessionId, () => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
         logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
         this.updateStatus(sessionId, 'idle');
       }
-    }, 15_000);
+    });
 
     logger.info('session', 'Imported external session', { sessionId, claudeSessionId, cwd });
 
@@ -650,13 +654,7 @@ export class SessionManager {
     // Auto-delete ended Claude sessions with no Claude session ID (no interaction occurred).
     if (status === 'ended' && session
       && session.sessionType === 'claude' && !session.claudeSessionId) {
-      setTimeout(() => {
-        try {
-          this.delete(sessionId);
-        } catch {
-          // Session may already be deleted
-        }
-      }, 500);
+      this.armAutoDeleteTimer(sessionId);
     }
   }
 
@@ -893,7 +891,7 @@ export class SessionManager {
 
     deleteSessionWithEvents(sessionId);
     this.promptLabelledSessions.delete(sessionId);
-    this.clearQuiescenceTimer(sessionId);
+    this.clearSessionTimers(sessionId);
 
     logger.info('session', 'Deleted session', { sessionId });
 
@@ -910,7 +908,7 @@ export class SessionManager {
     deleteSessionsWithEvents(ids);
     for (const id of ids) {
       this.promptLabelledSessions.delete(id);
-      this.clearQuiescenceTimer(id);
+      this.clearSessionTimers(id);
     }
 
     logger.info('session', 'Deleted all ended sessions', { count: ids.length });
@@ -930,7 +928,7 @@ export class SessionManager {
     deleteSessionsWithEvents(ids);
     for (const id of ids) {
       this.promptLabelledSessions.delete(id);
-      this.clearQuiescenceTimer(id);
+      this.clearSessionTimers(id);
     }
 
     logger.info('session', 'Deleted all ended test sessions', { count: ids.length });
@@ -955,7 +953,7 @@ export class SessionManager {
     deleteSessionsWithEvents(ids);
     for (const id of ids) {
       this.promptLabelledSessions.delete(id);
-      this.clearQuiescenceTimer(id);
+      this.clearSessionTimers(id);
     }
 
     logger.info('session', 'Deleted empty Claude sessions', { count: ids.length });
@@ -979,7 +977,7 @@ export class SessionManager {
     deleteSessionsWithEvents(validIds);
     for (const id of validIds) {
       this.promptLabelledSessions.delete(id);
-      this.clearQuiescenceTimer(id);
+      this.clearSessionTimers(id);
     }
 
     logger.info('session', 'Deleted batch of sessions', { count: validIds.length });
@@ -1271,10 +1269,59 @@ export class SessionManager {
     }
   }
 
-  /** Clear all pending quiescence timers. Called on app shutdown. */
+  private armStartupTimer(sessionId: string, fn: () => void, delay = 15_000): void {
+    const existing = this.startupTimers.get(sessionId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.startupTimers.delete(sessionId);
+      fn();
+    }, delay);
+    this.startupTimers.set(sessionId, timer);
+  }
+
+  private clearStartupTimer(sessionId: string): void {
+    const timer = this.startupTimers.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      this.startupTimers.delete(sessionId);
+    }
+  }
+
+  private armAutoDeleteTimer(sessionId: string, delay = 500): void {
+    if (this.autoDeleteTimers.has(sessionId)) return;
+    const timer = setTimeout(() => {
+      this.autoDeleteTimers.delete(sessionId);
+      try {
+        this.delete(sessionId);
+      } catch {
+        // Session may already be deleted
+      }
+    }, delay);
+    this.autoDeleteTimers.set(sessionId, timer);
+  }
+
+  private clearAutoDeleteTimer(sessionId: string): void {
+    const timer = this.autoDeleteTimers.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      this.autoDeleteTimers.delete(sessionId);
+    }
+  }
+
+  private clearSessionTimers(sessionId: string): void {
+    this.clearQuiescenceTimer(sessionId);
+    this.clearStartupTimer(sessionId);
+    this.clearAutoDeleteTimer(sessionId);
+  }
+
+  /** Clear all pending per-session timers. Called on app shutdown. */
   shutdownDetection(): void {
     for (const timer of this.quiescenceTimers.values()) clearTimeout(timer);
     this.quiescenceTimers.clear();
+    for (const timer of this.startupTimers.values()) clearTimeout(timer);
+    this.startupTimers.clear();
+    for (const timer of this.autoDeleteTimers.values()) clearTimeout(timer);
+    this.autoDeleteTimers.clear();
   }
 
   /**

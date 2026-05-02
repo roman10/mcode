@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLayoutStore } from '../../stores/layout-store';
 import TerminalTile from '../SessionTile/TerminalTile';
 import KanbanFilePanel from './KanbanFilePanel';
@@ -9,29 +9,33 @@ function KanbanExpandedContent({ sessionId }: { sessionId: string | null }): Rea
   const setKanbanSplitRatio = useLayoutStore((s) => s.setKanbanSplitRatio);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (containerRef.current) setIsDragging(true);
+  }, []);
+
+  // Attach drag listeners while dragging so unmount mid-drag tears them down via cleanup.
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (moveEvent: MouseEvent): void => {
       const container = containerRef.current;
       if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const ratio = Math.max(0.2, Math.min(0.8, (moveEvent.clientX - rect.left) / rect.width));
+      setKanbanSplitRatio(ratio);
+    };
+    const handleMouseUp = (): void => setIsDragging(false);
 
-      const handleMouseMove = (moveEvent: MouseEvent): void => {
-        const rect = container.getBoundingClientRect();
-        const ratio = Math.max(0.2, Math.min(0.8, (moveEvent.clientX - rect.left) / rect.width));
-        setKanbanSplitRatio(ratio);
-      };
-
-      const handleMouseUp = (): void => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    },
-    [setKanbanSplitRatio],
-  );
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, setKanbanSplitRatio]);
 
   const hasFiles = kanbanOpenFiles.length > 0;
 

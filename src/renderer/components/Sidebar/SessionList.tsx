@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { sessionIdFromTileId } from '../../utils/tile-id';
@@ -35,6 +35,17 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
     }
     return fn;
   }, []);
+
+  // Prune ref-setters and card refs for sessions that no longer exist; otherwise
+  // these maps grow unboundedly with every session ever rendered.
+  useEffect(() => {
+    for (const id of refSetters.current.keys()) {
+      if (!(id in sessions)) refSetters.current.delete(id);
+    }
+    for (const id of Object.keys(cardRefs.current)) {
+      if (!(id in sessions)) delete cardRefs.current[id];
+    }
+  }, [sessions]);
 
   const [externalExpanded, setExternalExpanded] = useState(false);
   const [externalLimit, setExternalLimit] = useState(20);

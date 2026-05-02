@@ -374,7 +374,7 @@ export class GitChangesService {
       const commits: CommitGraphNode[] = [];
       for (const block of commitBlocks) {
         const lines = block.split('\n');
-        if (lines.length < 7) continue;
+        if (lines.length < 8) continue;
 
         const hash = lines[0]?.trim() ?? '';
         if (!hash || hash.length < 7) continue;

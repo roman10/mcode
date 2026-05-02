@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -20,22 +20,34 @@ export function formatShortTime(isoString: string): string {
   return `${DAY_NAMES[then.getDay()]} ${hh}:${mm}`;
 }
 
-export function useRelativeTime(
-  isoString: string,
-  intervalMs = 30_000,
-): string {
-  const [formatted, setFormatted] = useState(() =>
-    formatShortTime(isoString),
-  );
+// Single shared 30s ticker so N consumers share one interval rather than N.
+const subscribers = new Set<() => void>();
+let intervalId: ReturnType<typeof setInterval> | null = null;
+let tick = 0;
 
-  useEffect(() => {
-    setFormatted(formatShortTime(isoString));
-    const id = setInterval(
-      () => setFormatted(formatShortTime(isoString)),
-      intervalMs,
-    );
-    return () => clearInterval(id);
-  }, [isoString, intervalMs]);
+function subscribeTick(cb: () => void): () => void {
+  subscribers.add(cb);
+  if (intervalId === null) {
+    intervalId = setInterval(() => {
+      tick++;
+      for (const fn of subscribers) fn();
+    }, 30_000);
+  }
+  return () => {
+    subscribers.delete(cb);
+    if (subscribers.size === 0 && intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+}
 
-  return formatted;
+function getTick(): number {
+  return tick;
+}
+
+export function useRelativeTime(isoString: string): string {
+  // Re-render on each shared tick; format on render so the value tracks `isoString` too.
+  useSyncExternalStore(subscribeTick, getTick, getTick);
+  return formatShortTime(isoString);
 }
