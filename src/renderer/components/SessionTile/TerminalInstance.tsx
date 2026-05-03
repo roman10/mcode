@@ -274,20 +274,21 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       window.mcode.pty.resize(sessionId, cols, rows);
     });
 
-    // Defer initial fit to after browser layout is finalized.
-    // Using setTimeout instead of requestAnimationFrame so this fires even
-    // when the Electron window is not actively painting (e.g. during tests).
-    const initialFitTimer = window.setTimeout(() => { fitAddon.fit(); }, 0);
-
-    // Replay buffered output before attaching live listener
-    window.mcode.pty
-      .getReplayData(sessionId)
-      .then((data) => {
-        if (data) term.write(data);
-      })
-      .catch(() => {
-        // Session may not exist yet or PTY already exited
-      });
+    // Fit before replay: cursor-position / clear-screen escapes in the
+    // buffered bytes are interpreted at the terminal's current cols/rows,
+    // so a fresh 80x24 grid would land replayed prompts off-screen.
+    // setTimeout (not rAF) so this fires when Electron isn't actively painting.
+    const initialFitTimer = window.setTimeout(() => {
+      fitAddon.fit();
+      window.mcode.pty
+        .getReplayData(sessionId)
+        .then((data) => {
+          if (data && termInstanceRef.current === term) term.write(data);
+        })
+        .catch(() => {
+          // Session may not exist yet or PTY already exited
+        });
+    }, 0);
 
     // PTY data → terminal
     const unsubData = window.mcode.pty.onData((id, data) => {
