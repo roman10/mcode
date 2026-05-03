@@ -163,6 +163,13 @@ export class SessionManager {
    * the buffer settles, instead of waiting for the next periodic poll.
    */
   private quiescenceTimers = new Map<string, NodeJS.Timeout>();
+  /**
+   * Per-session pending detection — coalesces multiple pty.data chunks within
+   * one tick into a single detectSessionState call on the next tick. Without
+   * this, sustained pty output saturates the main thread with sync DB+regex
+   * work, delaying inbound `pty:write` IPC and making typing feel laggy.
+   */
+  private pendingDetections = new Map<string, NodeJS.Immediate>();
   /** 15s safety timers that force-transition sessions stuck in 'starting'. */
   private startupTimers = new Map<string, NodeJS.Timeout>();
   /** 500ms timers that auto-delete ended Claude sessions with no interaction. */
@@ -1241,12 +1248,21 @@ export class SessionManager {
   }
 
   /**
-   * Handle a pty.data event for a session. Runs immediate detection (catches
-   * non-quiescence transitions) and re-arms the per-session quiescence timer
-   * (catches transitions that require a settled buffer).
+   * Handle a pty.data event for a session. Defers immediate detection by one
+   * tick via setImmediate so this synchronous broker listener returns control
+   * to the event loop before sync DB+regex work runs — otherwise sustained
+   * pty output (~100 chunks/s) blocks inbound `pty:write` IPC. Bursts within
+   * one tick collapse to a single detection per session. Also re-arms the
+   * per-session quiescence timer for transitions that need a settled buffer.
    */
   private onPtyData(sessionId: string): void {
-    this.detectSessionState(sessionId);
+    if (!this.pendingDetections.has(sessionId)) {
+      const handle = setImmediate(() => {
+        this.pendingDetections.delete(sessionId);
+        this.detectSessionState(sessionId);
+      });
+      this.pendingDetections.set(sessionId, handle);
+    }
 
     const existing = this.quiescenceTimers.get(sessionId);
     if (existing) clearTimeout(existing);
@@ -1259,6 +1275,7 @@ export class SessionManager {
 
   private onPtyExit(sessionId: string): void {
     this.clearQuiescenceTimer(sessionId);
+    this.clearPendingDetection(sessionId);
   }
 
   private clearQuiescenceTimer(sessionId: string): void {
@@ -1266,6 +1283,14 @@ export class SessionManager {
     if (timer) {
       clearTimeout(timer);
       this.quiescenceTimers.delete(sessionId);
+    }
+  }
+
+  private clearPendingDetection(sessionId: string): void {
+    const handle = this.pendingDetections.get(sessionId);
+    if (handle) {
+      clearImmediate(handle);
+      this.pendingDetections.delete(sessionId);
     }
   }
 
@@ -1312,6 +1337,7 @@ export class SessionManager {
     this.clearQuiescenceTimer(sessionId);
     this.clearStartupTimer(sessionId);
     this.clearAutoDeleteTimer(sessionId);
+    this.clearPendingDetection(sessionId);
   }
 
   /** Clear all pending per-session timers. Called on app shutdown. */
@@ -1322,6 +1348,8 @@ export class SessionManager {
     this.startupTimers.clear();
     for (const timer of this.autoDeleteTimers.values()) clearTimeout(timer);
     this.autoDeleteTimers.clear();
+    for (const handle of this.pendingDetections.values()) clearImmediate(handle);
+    this.pendingDetections.clear();
   }
 
   /**
