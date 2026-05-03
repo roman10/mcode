@@ -1,4 +1,4 @@
-import { terminalRegistry } from './terminal-registry';
+import { terminalRegistry, forceDisposeHiddenTile } from './terminal-registry';
 
 function readTerminalBuffer(sessionId: string, lines?: number): string {
   const term = terminalRegistry.get(sessionId);
@@ -334,6 +334,11 @@ export function initDevtoolsBridge(): void {
         const { useTerminalPanelStore } = await import('../stores/terminal-panel-store');
         useTerminalPanelStore.getState().removeTerminal(sessionId);
         result = true;
+        break;
+      }
+      case 'terminal-force-dispose-hidden': {
+        const { sessionId } = params as { sessionId: string };
+        result = { ok: forceDisposeHiddenTile(sessionId) };
         break;
       }
       case 'terminal-action': {

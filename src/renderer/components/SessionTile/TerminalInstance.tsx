@@ -13,7 +13,7 @@ import {
   SCROLLBACK_PRESETS,
 } from '@shared/constants';
 import { getAgentDefinition, shouldHideTerminalCursor } from '@shared/session-agents';
-import { terminalRegistry } from '../../devtools/terminal-registry';
+import { terminalRegistry, registerDisposeHiddenTile } from '../../devtools/terminal-registry';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useSlashCommandWarningStore } from '../../stores/slash-command-warning-store';
@@ -69,8 +69,18 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       return;
     }
     const timer = window.setTimeout(() => setShouldMount(false), HIDDEN_TILE_DISPOSE_MS);
-    return () => window.clearTimeout(timer);
-  }, [isVisible]);
+    // Devtools hook: lets integration tests trigger the same dispose path
+    // without waiting for the 5-minute timer. No-op when the tile is visible.
+    const unregister = registerDisposeHiddenTile(sessionId, () => {
+      window.clearTimeout(timer);
+      setShouldMount(false);
+      return true;
+    });
+    return () => {
+      window.clearTimeout(timer);
+      unregister();
+    };
+  }, [isVisible, sessionId]);
   const search = useTerminalSearch();
   const cwd = useSessionStore((s) => s.sessions[sessionId]?.cwd ?? '');
   const setSlashWarning = useSlashCommandWarningStore((s) => s.setWarning);

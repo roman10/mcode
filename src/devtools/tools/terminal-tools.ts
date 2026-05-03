@@ -331,4 +331,39 @@ export function registerTerminalTools(
       ],
     };
   });
+
+  server.registerTool('terminal_force_dispose_hidden', {
+    description: 'Test-only: trigger the same dispose path that fires after HIDDEN_TILE_DISPOSE_MS for a hidden bottom-panel tab, so dispose-then-replay can be exercised without waiting 5 minutes. No-op if the tile is currently visible. Returns {ok: true} when the dispose was triggered.',
+    inputSchema: {
+      sessionId: z.string().describe('The PTY session ID of the hidden tile'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId }) => {
+    if (!ctx.ptyManager.getInfo(sessionId)) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+    try {
+      const result = await queryRenderer<{ ok: boolean }>(
+        ctx.mainWindow,
+        'terminal-force-dispose-hidden',
+        { sessionId },
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to force dispose: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
 }
