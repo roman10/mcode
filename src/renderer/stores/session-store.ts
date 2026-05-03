@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import type { SessionInfo, ExternalSessionInfo, HookRuntimeInfo } from '@shared/types';
 
 interface SessionState {
@@ -99,3 +100,27 @@ export const useSessionStore = create<SessionState>((set) => ({
       exitCodes: { ...state.exitCodes, [sessionId]: code },
     })),
 }));
+
+/**
+ * Subscribe to a single session by id. Rerenders only when that session's
+ * reference changes — `upsertSession` preserves references for non-updated
+ * entries, so updates to other sessions don't trigger a rerender here.
+ */
+export const useSession = (id: string | null | undefined): SessionInfo | undefined =>
+  useSessionStore((s) => (id ? s.sessions[id] : undefined));
+
+/**
+ * Subscribe to the set of session ids. Rerenders only when sessions are added
+ * or removed (shallow array comparison). For per-row data, pair this with
+ * `useSession(id)` inside each row component.
+ */
+export const useSessionIds = (): string[] =>
+  useSessionStore(useShallow((s) => Object.keys(s.sessions)));
+
+/**
+ * Subscribe to the entire sessions Record. Escape hatch for consumers that
+ * genuinely need to iterate every session per render (filters, search). Hot-
+ * path components should prefer `useSession` / `useSessionIds`.
+ */
+export const useAllSessions = (): Record<string, SessionInfo> =>
+  useSessionStore((s) => s.sessions);
