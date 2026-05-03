@@ -143,12 +143,10 @@ describe('SessionManager broadcast coalescing', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it('flushes pending broadcasts before a hook event so renderer ordering is preserved', async () => {
+  it('does not force-flush pending session:updated when sending a hook event', async () => {
     insertSession('s1');
 
     manager.broadcastSessionUpdate('s1');
-    // Access the private method via index signature — this exercises the exact
-    // code path real callers (e.g. handleHookEvent) take.
     const event: HookEvent = {
       sessionId: 's1',
       claudeSessionId: null,
@@ -161,8 +159,11 @@ describe('SessionManager broadcast coalescing', () => {
     };
     (manager as unknown as { broadcastHookEvent: (e: HookEvent) => void }).broadcastHookEvent(event);
 
-    // No await here — the flush must have happened synchronously.
-    expect(sent.map((m) => m.channel)).toEqual(['session:updated', 'hook:event']);
+    // hook:event sends immediately; session:updated stays queued so bursts of
+    // hook events during tool use coalesce into a single broadcast per tick.
+    expect(sent.map((m) => m.channel)).toEqual(['hook:event']);
+    await tick();
+    expect(sent.map((m) => m.channel)).toEqual(['hook:event', 'session:updated']);
   });
 
   it('skips sending for ids whose session has been deleted before flush', async () => {

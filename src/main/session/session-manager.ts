@@ -882,9 +882,11 @@ export class SessionManager {
   }
 
   private broadcastHookEvent(event: HookEvent): void {
-    // Ensure any pending session:updated for the affected session lands in the
-    // renderer before the hook event, preserving the prior synchronous order.
-    this.flushPendingBroadcasts();
+    // Don't force-flush pending session:updated broadcasts here — hook events
+    // fire in bursts during tool use and the only renderer consumer
+    // (ActivityFeed) doesn't read session state when handling them. Letting
+    // session:updated keep coalescing across the burst removes a re-render
+    // storm in the sidebar / kanban / titlebar.
     const wc = this.getWebContents();
     if (wc && !wc.isDestroyed()) {
       wc.send('hook:event', event);
