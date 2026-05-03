@@ -178,5 +178,31 @@ describe('stats-store', () => {
       expect(useStatsStore.getState().selectedDate).toBeNull();
       expect(tokensMock.getDailyUsage).toHaveBeenCalledWith(undefined, undefined);
     });
+
+    it('drops a stale refreshDaily resolution when superseded by a newer call (epoch guard)', async () => {
+      // Hold the first call's getDailyUsage open; the second call resolves immediately
+      // with newer data. Without the epoch guard, the first call's late resolution
+      // would stomp the second call's state.
+      let resolveStale!: (val: typeof mockDailyUsage) => void;
+      const stalePromise = new Promise<typeof mockDailyUsage>((r) => { resolveStale = r; });
+      const newerUsage = { ...mockDailyUsage, estimatedCostUsd: 99.99 };
+
+      tokensMock.getDailyUsage
+        .mockImplementationOnce(() => stalePromise)
+        .mockResolvedValueOnce(newerUsage);
+
+      const stale = useStatsStore.getState().setSelectedDate('2025-03-10');
+      const newer = useStatsStore.getState().setSelectedDate('2025-03-15');
+      await newer;
+
+      expect(useStatsStore.getState().dailyUsage?.estimatedCostUsd).toBe(99.99);
+
+      // Now release the stale call — its result must be dropped, not applied.
+      resolveStale(mockDailyUsage);
+      await stale;
+
+      expect(useStatsStore.getState().dailyUsage?.estimatedCostUsd).toBe(99.99);
+      expect(useStatsStore.getState().selectedDate).toBe('2025-03-15');
+    });
   });
 });

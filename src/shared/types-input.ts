@@ -24,12 +24,6 @@ export interface InputHeatmapEntry {
   totalCharacters: number;
 }
 
-export interface InputWeeklyTrend {
-  thisWeek: { messageCount: number; totalCharacters: number };
-  lastWeek: { messageCount: number; totalCharacters: number };
-  pctChange: number | null;
-}
-
 export interface InputCadenceInfo {
   avgThinkTimeMinutes: number | null;
   peakHour: string | null;

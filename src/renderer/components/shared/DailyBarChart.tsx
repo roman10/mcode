@@ -27,6 +27,12 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
+/** Map a clientX onto a bar index. Returns null if rect is not yet measured. */
+function indexFromX(clientX: number, rect: DOMRect, days: number): number | null {
+  if (rect.width <= 0) return null;
+  return clamp(Math.floor(((clientX - rect.left) / rect.width) * days), 0, days - 1);
+}
+
 function DailyBarChart<T extends { date: string }>({
   entries,
   getValue,
@@ -73,9 +79,8 @@ function DailyBarChart<T extends { date: string }>({
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
     if (!rectRef.current) rectRef.current = e.currentTarget.getBoundingClientRect();
-    const rect = rectRef.current;
-    if (rect.width <= 0) return;
-    const index = clamp(Math.floor(((e.clientX - rect.left) / rect.width) * days), 0, days - 1);
+    const index = indexFromX(e.clientX, rectRef.current, days);
+    if (index == null) return;
     pendingRef.current = { index, x: e.clientX, y: e.clientY };
     scheduleFlush();
   }, [days, scheduleFlush]);
@@ -124,11 +129,13 @@ function DailyBarChart<T extends { date: string }>({
     .join(' ');
 
   const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
-    const rect = rectRef.current ?? e.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    const index = clamp(Math.floor(((e.clientX - rect.left) / rect.width) * days), 0, days - 1);
-    onSelect(dateRange[index]);
-  }, [days, dateRange, onSelect]);
+    if (!rectRef.current) rectRef.current = e.currentTarget.getBoundingClientRect();
+    const index = indexFromX(e.clientX, rectRef.current, days);
+    if (index == null) return;
+    // Compute the date inline — `dateRange` would otherwise be a fresh-array
+    // dep on every render, defeating the useCallback memoization.
+    onSelect(shiftDate(today, -(days - 1 - index)));
+  }, [days, today, onSelect]);
 
   const tooltipLines = hovered
     ? getTooltip(dateRange[hovered.index], values[hovered.index], rollingAvg[hovered.index], a30).split('\n')

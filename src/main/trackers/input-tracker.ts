@@ -4,7 +4,6 @@ import { typedHandle } from '../ipc-helpers';
 import type {
   DailyInputStats,
   InputHeatmapEntry,
-  InputWeeklyTrend,
   InputCadenceInfo,
   PromptHistoryEntry,
 } from '../../shared/types';
@@ -25,11 +24,6 @@ interface DailyAggRow {
 
 interface HeatmapRow {
   date: string;
-  message_count: number;
-  total_chars: number;
-}
-
-interface WeekRow {
   message_count: number;
   total_chars: number;
 }
@@ -200,42 +194,6 @@ export class InputTracker {
         totalCharacters: r?.total_chars ?? 0,
       };
     });
-  }
-
-  getInputWeeklyTrend(provider?: string): InputWeeklyTrend {
-    const db = getDb();
-    const pf = inputProviderFilter(provider);
-
-    const thisWeekRow = db.prepare(`
-      SELECT COUNT(*) as message_count,
-             COALESCE(SUM(text_length), 0) as total_chars
-      FROM human_input
-      WHERE date >= date('now', 'localtime', 'weekday 0', '-6 days')${pf.clause}
-    `).get(...pf.params) as WeekRow;
-
-    const lastWeekRow = db.prepare(`
-      SELECT COUNT(*) as message_count,
-             COALESCE(SUM(text_length), 0) as total_chars
-      FROM human_input
-      WHERE date >= date('now', 'localtime', 'weekday 0', '-13 days')
-        AND date < date('now', 'localtime', 'weekday 0', '-6 days')${pf.clause}
-    `).get(...pf.params) as WeekRow;
-
-    const pctChange = lastWeekRow.message_count > 0
-      ? Math.round(((thisWeekRow.message_count - lastWeekRow.message_count) / lastWeekRow.message_count) * 100)
-      : null;
-
-    return {
-      thisWeek: {
-        messageCount: thisWeekRow.message_count,
-        totalCharacters: thisWeekRow.total_chars,
-      },
-      lastWeek: {
-        messageCount: lastWeekRow.message_count,
-        totalCharacters: lastWeekRow.total_chars,
-      },
-      pctChange,
-    };
   }
 
   // ── Prompt history queries ──────────────────────────────────────────────
