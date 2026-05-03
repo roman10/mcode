@@ -3,14 +3,14 @@ import type { EffortLevel, PermissionMode } from './constants';
 import type { AgentSessionType } from './session-agents';
 import type {
   CommitHeatmapEntry, CommitStreakInfo, CommitCadenceInfo,
-  CommitWeeklyTrend, DailyCommitStats,
+  DailyCommitStats,
 } from './types-commits';
 import type {
   SessionTokenUsage, DailyTokenUsage, ModelTokenBreakdown,
-  TokenWeeklyTrend, TokenHeatmapEntry,
+  TokenHeatmapEntry,
 } from './types-tokens';
 import type {
-  DailyInputStats, InputHeatmapEntry, InputWeeklyTrend, InputCadenceInfo,
+  DailyInputStats, InputHeatmapEntry, InputCadenceInfo,
   PromptHistoryEntry,
 } from './types-input';
 import type {
@@ -508,7 +508,6 @@ export interface MCodeAPI {
     getHeatmap(startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<CommitHeatmapEntry[]>;
     getStreaks(provider?: string): Promise<CommitStreakInfo>;
     getCadence(date?: string, provider?: string): Promise<CommitCadenceInfo>;
-    getWeeklyTrend(provider?: string): Promise<CommitWeeklyTrend>;
     refresh(): Promise<void>;
     forceRescan(): Promise<void>;
     onUpdated(callback: () => void): () => void;
@@ -524,7 +523,6 @@ export interface MCodeAPI {
     getSessionUsage(sessionId: string): Promise<SessionTokenUsage>;
     getDailyUsage(date?: string, provider?: string): Promise<DailyTokenUsage>;
     getModelBreakdown(days?: number, provider?: string): Promise<ModelTokenBreakdown[]>;
-    getWeeklyTrend(provider?: string): Promise<TokenWeeklyTrend>;
     getHeatmap(startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<TokenHeatmapEntry[]>;
     refresh(): Promise<void>;
     onUpdated(callback: () => void): () => void;
@@ -533,7 +531,6 @@ export interface MCodeAPI {
   input: {
     getDailyStats(date?: string, provider?: string): Promise<DailyInputStats>;
     getHeatmap(startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<InputHeatmapEntry[]>;
-    getWeeklyTrend(provider?: string): Promise<InputWeeklyTrend>;
     getCadence(date?: string, provider?: string): Promise<InputCadenceInfo>;
   };
 

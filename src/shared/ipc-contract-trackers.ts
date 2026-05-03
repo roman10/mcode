@@ -2,20 +2,17 @@ import type {
   CommitCadenceInfo,
   CommitHeatmapEntry,
   CommitStreakInfo,
-  CommitWeeklyTrend,
   DailyCommitStats,
   DailyInputStats,
   DailyTokenUsage,
   InputCadenceInfo,
   InputHeatmapEntry,
-  InputWeeklyTrend,
   ModelTokenBreakdown,
   PromptHistoryEntry,
   QuotaSnapshot,
   SessionTokenUsage,
   ShellHistoryEntry,
   TokenHeatmapEntry,
-  TokenWeeklyTrend,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -27,7 +24,6 @@ export interface TrackersInvokeContract {
   'tokens:get-session-usage':           { params: [sessionId: string]; result: SessionTokenUsage };
   'tokens:get-daily-usage':             { params: [date?: string, provider?: string]; result: DailyTokenUsage };
   'tokens:get-model-breakdown':         { params: [days?: number, provider?: string]; result: ModelTokenBreakdown[] };
-  'tokens:get-weekly-trend':            { params: [provider?: string]; result: TokenWeeklyTrend };
   'tokens:get-heatmap':                 { params: [startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean]; result: TokenHeatmapEntry[] };
   'tokens:refresh':                     { params: []; result: void };
   'quota:list':                         { params: [forceRefresh?: boolean]; result: QuotaSnapshot[] };
@@ -35,7 +31,6 @@ export interface TrackersInvokeContract {
   // --- Input ---
   'input:get-daily-stats':              { params: [date?: string, provider?: string]; result: DailyInputStats };
   'input:get-heatmap':                  { params: [startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean]; result: InputHeatmapEntry[] };
-  'input:get-weekly-trend':             { params: [provider?: string]; result: InputWeeklyTrend };
   'input:get-cadence':                  { params: [date?: string, provider?: string]; result: InputCadenceInfo };
 
   // --- Prompt History ---
@@ -52,7 +47,6 @@ export interface TrackersInvokeContract {
   'commits:get-heatmap':                { params: [startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean]; result: CommitHeatmapEntry[] };
   'commits:get-streaks':                { params: [provider?: string]; result: CommitStreakInfo };
   'commits:get-cadence':                { params: [date?: string, provider?: string]; result: CommitCadenceInfo };
-  'commits:get-weekly-trend':           { params: [provider?: string]; result: CommitWeeklyTrend };
   'commits:refresh':                    { params: []; result: void };
   'commits:force-rescan':               { params: []; result: void };
 }

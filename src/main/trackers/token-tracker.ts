@@ -727,10 +727,6 @@ export function registerTokenIpc(tokenTracker: TokenTracker): void {
     return tokenTracker.getModelBreakdown(days, provider);
   });
 
-  typedHandle('tokens:get-weekly-trend', (provider) => {
-    return tokenTracker.getWeeklyTrend(provider);
-  });
-
   typedHandle('tokens:get-heatmap', (startDate, endDate, provider, fillEmptyDays) => {
     return tokenTracker.getHeatmap(startDate, endDate, provider, fillEmptyDays);
   });

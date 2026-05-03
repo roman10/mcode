@@ -846,10 +846,6 @@ export function registerCommitIpc(commitTracker: CommitTracker): void {
     return commitTracker.getCadence(date, provider);
   });
 
-  typedHandle('commits:get-weekly-trend', (provider) => {
-    return commitTracker.getWeeklyTrend(provider);
-  });
-
   typedHandle('commits:refresh', async () => {
     await commitTracker.scanAll();
   });

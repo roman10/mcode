@@ -354,10 +354,6 @@ export function registerInputIpc(inputTracker: InputTracker): void {
     return inputTracker.getInputHeatmap(startDate, endDate, provider, fillEmptyDays);
   });
 
-  typedHandle('input:get-weekly-trend', (provider) => {
-    return inputTracker.getInputWeeklyTrend(provider);
-  });
-
   typedHandle('input:get-cadence', (date, provider) => {
     return inputTracker.getInputCadence(date, provider);
   });

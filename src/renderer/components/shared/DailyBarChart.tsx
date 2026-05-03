@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { todayStr, shiftDate } from '../../utils/date-nav';
 
 const CHART_W = 600;
@@ -21,6 +21,12 @@ interface DailyBarChartProps<T extends { date: string }> {
   days?: number;
 }
 
+interface HoverState { index: number; x: number; y: number }
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
 function DailyBarChart<T extends { date: string }>({
   entries,
   getValue,
@@ -31,13 +37,57 @@ function DailyBarChart<T extends { date: string }>({
   days = 90,
 }: DailyBarChartProps<T>): React.JSX.Element {
   const colors = COLORS[colorScale] ?? COLORS.green;
-  const [hovered, setHovered] = useState<{ index: number; x: number; y: number } | null>(null);
+  const [hovered, setHovered] = useState<HoverState | null>(null);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<SVGGElement>, index: number) => {
-    setHovered({ index, x: e.clientX, y: e.clientY });
+  // Throttle pointer-driven setHovered to one update per animation frame.
+  // Hover happens at native event rate (often 1000Hz on trackpads) but bars
+  // only re-render visibly on selectedDate change, so capping at rAF eliminates
+  // wasted reconciles without changing the user-visible tooltip cadence.
+  const rafRef = useRef<number | null>(null);
+  const pendingRef = useRef<HoverState | null>(null);
+  const rectRef = useRef<DOMRect | null>(null);
+
+  useEffect(() => {
+    const onResize = (): void => { rectRef.current = null; };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
   }, []);
 
-  const handleMouseLeave = useCallback(() => setHovered(null), []);
+  const scheduleFlush = useCallback((): void => {
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      if (pendingRef.current) setHovered(pendingRef.current);
+    });
+  }, []);
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
+    rectRef.current = e.currentTarget.getBoundingClientRect();
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
+    if (!rectRef.current) rectRef.current = e.currentTarget.getBoundingClientRect();
+    const rect = rectRef.current;
+    if (rect.width <= 0) return;
+    const index = clamp(Math.floor(((e.clientX - rect.left) / rect.width) * days), 0, days - 1);
+    pendingRef.current = { index, x: e.clientX, y: e.clientY };
+    scheduleFlush();
+  }, [days, scheduleFlush]);
+
+  const handleMouseLeave = useCallback((): void => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingRef.current = null;
+    setHovered(null);
+  }, []);
 
   const today = todayStr();
   const dateRange: string[] = [];
@@ -73,6 +123,13 @@ function DailyBarChart<T extends { date: string }>({
     .map((avg, i) => `${midX(i).toFixed(1)},${barTop(avg).toFixed(1)}`)
     .join(' ');
 
+  const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
+    const rect = rectRef.current ?? e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const index = clamp(Math.floor(((e.clientX - rect.left) / rect.width) * days), 0, days - 1);
+    onSelect(dateRange[index]);
+  }, [days, dateRange, onSelect]);
+
   const tooltipLines = hovered
     ? getTooltip(dateRange[hovered.index], values[hovered.index], rollingAvg[hovered.index], a30).split('\n')
     : [];
@@ -84,8 +141,12 @@ function DailyBarChart<T extends { date: string }>({
         width="100%"
         height={BAR_AREA_H}
         preserveAspectRatio="none"
-        style={{ display: 'block' }}
+        style={{ display: 'block', cursor: 'pointer' }}
         aria-hidden="true"
+        onMouseEnter={handleMouseEnter}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
       >
         {/* 30-day average dashed reference line */}
         {avg30Y != null && (
@@ -102,16 +163,7 @@ function DailyBarChart<T extends { date: string }>({
           const isSelected = date === selectedDate;
           const x = barLeft(i);
           return (
-            <g
-              key={date}
-              onClick={() => onSelect(date)}
-              onMouseMove={e => handleMouseMove(e, i)}
-              onMouseLeave={handleMouseLeave}
-              style={{ cursor: 'pointer' }}
-            >
-              {/* Full-height transparent hit area */}
-              <rect x={x} y={0} width={barW} height={BAR_AREA_H} fill="transparent" />
-              {/* Bar */}
+            <g key={date}>
               {h > 0.5 && (
                 <rect
                   x={x}

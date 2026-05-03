@@ -18,7 +18,6 @@ import type {
   CommitHeatmapEntry,
   CommitStreakInfo,
   CommitCadenceInfo,
-  CommitWeeklyTrend,
   FileListResult,
   FileReadResult,
   GitStatusResult,
@@ -28,11 +27,9 @@ import type {
   SessionTokenUsage,
   DailyTokenUsage,
   ModelTokenBreakdown,
-  TokenWeeklyTrend,
   TokenHeatmapEntry,
   DailyInputStats,
   InputHeatmapEntry,
-  InputWeeklyTrend,
   InputCadenceInfo,
   PromptHistoryEntry,
   ShellHistoryEntry,
@@ -316,9 +313,6 @@ contextBridge.exposeInMainWorld('mcode', {
     getCadence: (date?: string, provider?: string): Promise<CommitCadenceInfo> =>
       typedInvoke('commits:get-cadence', date, provider),
 
-    getWeeklyTrend: (provider?: string): Promise<CommitWeeklyTrend> =>
-      typedInvoke('commits:get-weekly-trend', provider),
-
     refresh: (): Promise<void> =>
       typedInvoke('commits:refresh'),
 
@@ -381,9 +375,6 @@ contextBridge.exposeInMainWorld('mcode', {
     getModelBreakdown: (days?: number, provider?: string): Promise<ModelTokenBreakdown[]> =>
       typedInvoke('tokens:get-model-breakdown', days, provider),
 
-    getWeeklyTrend: (provider?: string): Promise<TokenWeeklyTrend> =>
-      typedInvoke('tokens:get-weekly-trend', provider),
-
     getHeatmap: (startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<TokenHeatmapEntry[]> =>
       typedInvoke('tokens:get-heatmap', startDate, endDate, provider, fillEmptyDays),
 
@@ -400,9 +391,6 @@ contextBridge.exposeInMainWorld('mcode', {
 
     getHeatmap: (startDate: string, endDate: string, provider?: string, fillEmptyDays?: boolean): Promise<InputHeatmapEntry[]> =>
       typedInvoke('input:get-heatmap', startDate, endDate, provider, fillEmptyDays),
-
-    getWeeklyTrend: (provider?: string): Promise<InputWeeklyTrend> =>
-      typedInvoke('input:get-weekly-trend', provider),
 
     getCadence: (date?: string, provider?: string): Promise<InputCadenceInfo> =>
       typedInvoke('input:get-cadence', date, provider),
