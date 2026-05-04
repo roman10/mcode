@@ -28,10 +28,7 @@ import {
   buildUnsupportedSlashCommandWarning,
   stripTerminalInputControlSequences,
 } from '../../utils/slash-command-validation';
-
-// Module-level singleton so the per-chunk pty.onData hot path doesn't allocate
-// a new TextEncoder on every event.
-const utf8Encoder = new TextEncoder();
+import { utf8ByteLength } from '../../utils/utf8-byte-length';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -437,7 +434,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // catching up); the gate on hiddenAtOffsetRef decides whether to write.
     const unsubData = window.mcode.pty.onData((id, data) => {
       if (id !== sessionId) return;
-      byteOffsetRef.current += utf8Encoder.encode(data).byteLength;
+      byteOffsetRef.current += utf8ByteLength(data);
       if (hiddenAtOffsetRef.current !== null) return;
       term.write(data);
     });

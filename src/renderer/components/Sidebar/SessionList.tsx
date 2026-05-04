@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { sessionIdFromTileId } from '../../utils/tile-id';
@@ -52,11 +52,13 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
   const [loadingMore, setLoadingMore] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
 
-  // Canonical ordering: attention → status → startedAt (shared with keyboard shortcuts)
-  const sorted = getOrderedVisibleSessions(sessions);
+  // Canonical ordering: attention → status → startedAt (shared with keyboard shortcuts).
+  // Memoized so coalesced session:updated bursts that don't change `sessions`
+  // identity (or only change unrelated state) skip the sort/filter/group work.
+  const sorted = useMemo(() => getOrderedVisibleSessions(sessions), [sessions]);
   const isFiltering = filterQuery.length > 0;
-  const filtered = filterSessions(sorted, filterQuery);
-  const groups = groupSessionsByDate(filtered);
+  const filtered = useMemo(() => filterSessions(sorted, filterQuery), [sorted, filterQuery]);
+  const groups = useMemo(() => groupSessionsByDate(filtered), [filtered]);
 
   // Track user overrides for date group collapse state
   // Keys not in this record use defaults: today=expanded, past=collapsed

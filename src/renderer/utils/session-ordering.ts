@@ -21,14 +21,20 @@ const statusOrder: Record<SessionStatus, number> = {
  * Sorts by attention → status → lastEventAt ?? startedAt (newest first).
  */
 export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo>): SessionInfo[] {
-  return Object.values(sessions)
-    .filter((s) => s.sessionType !== 'terminal')
-    .sort(
-      (a, b) =>
-        (attentionOrder[a.attentionLevel] ?? 9) - (attentionOrder[b.attentionLevel] ?? 9) ||
-        (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) ||
-        new Date(b.lastEventAt ?? b.startedAt).getTime() - new Date(a.lastEventAt ?? a.startedAt).getTime(),
-    );
+  // Decorate-sort-undecorate: parse the timestamp once per session instead of
+  // 2× per pairwise comparison. Hot path under coalesced session:updated bursts.
+  const decorated: Array<{ s: SessionInfo; ts: number }> = [];
+  for (const s of Object.values(sessions)) {
+    if (s.sessionType === 'terminal') continue;
+    decorated.push({ s, ts: Date.parse(s.lastEventAt ?? s.startedAt) });
+  }
+  decorated.sort(
+    (a, b) =>
+      (attentionOrder[a.s.attentionLevel] ?? 9) - (attentionOrder[b.s.attentionLevel] ?? 9) ||
+      (statusOrder[a.s.status] ?? 9) - (statusOrder[b.s.status] ?? 9) ||
+      b.ts - a.ts,
+  );
+  return decorated.map((d) => d.s);
 }
 
 /**
