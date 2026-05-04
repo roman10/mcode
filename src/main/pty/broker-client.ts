@@ -3,11 +3,12 @@ import * as readline from 'node:readline';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import type { IObservablePtyManager, PtyInfo } from '../../shared/pty-manager-interface';
-import type { PtySpawnOptions } from '../../shared/types';
+import type { PtyReplayDelta, PtySpawnOptions } from '../../shared/types';
 import { RING_BUFFER_MAX_BYTES, DEFAULT_COLS, DEFAULT_ROWS } from '../../shared/constants';
 import type { BrokerDiagnostics } from '../../shared/types';
 import { logger } from '../logger';
 import { typedHandle, typedOn } from '../ipc-helpers';
+import { RingBuffer } from './ring-buffer';
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -26,7 +27,7 @@ export class BrokerClient extends EventEmitter implements IObservablePtyManager 
   private shuttingDown = false;
 
   // Local ring buffers — kept in sync by streaming pty.data events
-  private ringBuffers = new Map<string, string>();
+  private ringBuffers = new Map<string, RingBuffer>();
   private lastDataAtMap = new Map<string, number>();
   // Cached PTY info (cols/rows from spawn, pid unknown so 0)
   private ptyInfoMap = new Map<string, PtyInfo>();
@@ -168,7 +169,9 @@ export class BrokerClient extends EventEmitter implements IObservablePtyManager 
   async populateFromBroker(id: string, ptyInfo?: { pid: number }): Promise<void> {
     const data = await this._request<string>('pty.replay', { id });
     if (data) {
-      this.ringBuffers.set(id, data.slice(-RING_BUFFER_MAX_BYTES));
+      const rb = new RingBuffer(RING_BUFFER_MAX_BYTES);
+      rb.append(data); // RingBuffer enforces the cap on append
+      this.ringBuffers.set(id, rb);
       this.lastDataAtMap.set(id, Date.now());
     }
     // Restore PTY info so getInfo() works for recovered sessions.
@@ -248,9 +251,12 @@ export class BrokerClient extends EventEmitter implements IObservablePtyManager 
         // Update local ring buffer and timestamp per-chunk so synchronous
         // consumers (getReplayData, getLastDataAt, quiescence polling) stay
         // current; only the outward emit is coalesced below.
-        const existing = this.ringBuffers.get(id) ?? '';
-        const updated = existing + data;
-        this.ringBuffers.set(id, updated.length > RING_BUFFER_MAX_BYTES ? updated.slice(-RING_BUFFER_MAX_BYTES) : updated);
+        let rb = this.ringBuffers.get(id);
+        if (!rb) {
+          rb = new RingBuffer(RING_BUFFER_MAX_BYTES);
+          this.ringBuffers.set(id, rb);
+        }
+        rb.append(data);
         this.lastDataAtMap.set(id, Date.now());
         this._enqueueDataEmit(id, data);
         break;
@@ -323,7 +329,20 @@ export class BrokerClient extends EventEmitter implements IObservablePtyManager 
 
   /** Synchronous — returns locally cached ring buffer content. */
   getReplayData(id: string): string {
-    return this.ringBuffers.get(id) ?? '';
+    return this.ringBuffers.get(id)?.read() ?? '';
+  }
+
+  /**
+   * Synchronous delta replay against the local ring buffer. Used by
+   * TerminalInstance to catch up after a hide → reveal without re-writing
+   * already-displayed content. Returns `dataStartOffset > offset` when the
+   * caller's offset has fallen out of the window (caller should `term.clear()`
+   * before writing).
+   */
+  getReplaySince(id: string, offset: number): PtyReplayDelta {
+    const rb = this.ringBuffers.get(id);
+    if (!rb) return { data: '', dataStartOffset: 0, currentOffset: 0 };
+    return rb.readSince(offset);
   }
 
   /** Synchronous — returns timestamp of last received pty.data event. */
@@ -338,7 +357,7 @@ export class BrokerClient extends EventEmitter implements IObservablePtyManager 
 
   getDiagnostics(): BrokerDiagnostics {
     let ringBufferBytes = 0;
-    for (const buf of this.ringBuffers.values()) ringBufferBytes += buf.length;
+    for (const rb of this.ringBuffers.values()) ringBufferBytes += rb.byteLength();
     let pendingEmitBytes = 0;
     for (const buf of this.pendingEmit.values()) pendingEmitBytes += buf.length;
     return {
@@ -365,5 +384,9 @@ export function registerPtyIpc(brokerClient: BrokerClient): void {
 
   typedHandle('pty:replay', (sessionId) => {
     return brokerClient.fetchReplayFromBroker(sessionId);
+  });
+
+  typedHandle('pty:replay-since', (sessionId, offset) => {
+    return brokerClient.getReplaySince(sessionId, offset);
   });
 }

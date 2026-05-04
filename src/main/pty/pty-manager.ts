@@ -2,6 +2,7 @@ import * as pty from 'node-pty';
 import type { BrokerDiagnostics, PtySpawnOptions } from '../../shared/types';
 import type { IPtyManager } from '../../shared/pty-manager-interface';
 import { PTY_KILL_TIMEOUT_MS, RING_BUFFER_MAX_BYTES } from '../../shared/constants';
+import { RingBuffer } from './ring-buffer';
 
 interface Logger {
   info(module: string, message: string, data?: Record<string, unknown>): void;
@@ -16,7 +17,7 @@ interface PtyHandle {
   process: pty.IPty;
   cols: number;
   rows: number;
-  ringBuffer: string;
+  ringBuffer: RingBuffer;
   lastDataAt: number;
   exitPromise: Promise<void>;
 }
@@ -84,10 +85,7 @@ export class PtyManager implements IPtyManager {
       const handle = this.ptys.get(id);
       if (handle) {
         handle.lastDataAt = Date.now();
-        handle.ringBuffer += data;
-        if (handle.ringBuffer.length > RING_BUFFER_MAX_BYTES) {
-          handle.ringBuffer = handle.ringBuffer.slice(-RING_BUFFER_MAX_BYTES);
-        }
+        handle.ringBuffer.append(data);
       }
 
       this.onData(id, data);
@@ -106,7 +104,7 @@ export class PtyManager implements IPtyManager {
       process: proc,
       cols,
       rows,
-      ringBuffer: '',
+      ringBuffer: new RingBuffer(RING_BUFFER_MAX_BYTES),
       lastDataAt: 0,
       exitPromise,
     };
@@ -175,7 +173,7 @@ export class PtyManager implements IPtyManager {
 
   getReplayData(id: string): string {
     const handle = this.ptys.get(id);
-    return handle?.ringBuffer ?? '';
+    return handle?.ringBuffer.read() ?? '';
   }
 
   getLastDataAt(id: string): number {
@@ -195,7 +193,7 @@ export class PtyManager implements IPtyManager {
 
   getDiagnostics(): BrokerDiagnostics {
     let ringBufferBytes = 0;
-    for (const handle of this.ptys.values()) ringBufferBytes += handle.ringBuffer.length;
+    for (const handle of this.ptys.values()) ringBufferBytes += handle.ringBuffer.byteLength();
     return {
       liveSessions: this.ptys.size,
       ringBufferBytes,

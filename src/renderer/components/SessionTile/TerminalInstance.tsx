@@ -29,6 +29,10 @@ import {
   stripTerminalInputControlSequences,
 } from '../../utils/slash-command-validation';
 
+// Module-level singleton so the per-chunk pty.onData hot path doesn't allocate
+// a new TextEncoder on every event.
+const utf8Encoder = new TextEncoder();
+
 interface TerminalInstanceProps {
   sessionId: string;
   sessionType?: string;
@@ -57,6 +61,15 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   const slashCommandBufferRef = useRef('');
   const knownSlashCommandsRef = useRef<Set<string>>(new Set());
   const warningTimeoutRef = useRef<number | null>(null);
+  // Local mirror of broker's per-session monotonic byte offset. Seeded from
+  // getReplaySince(0) at mount and incremented per pty.onData chunk so the
+  // value stays in lockstep with broker between catch-up resyncs.
+  const byteOffsetRef = useRef<number>(0);
+  // Set when the tile transitions to hidden; cleared after the reveal-time
+  // catch-up completes. Doubles as the "drop live writes" gate — a non-null
+  // value means the xterm should not be written to (either tile is hidden,
+  // or we're mid-catch-up and live chunks are flowing through the queue).
+  const hiddenAtOffsetRef = useRef<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [currentScrollback, setCurrentScrollback] = useState(scrollbackLines);
   /** False when the tile has been hidden long enough that its xterm instance was disposed
@@ -156,6 +169,73 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       if (handle.active) handle.detach();
     }
   }, [isVisible]);
+
+  // Hide → reveal catch-up. While hidden, the pty.onData handler drops live
+  // term.write calls (it still increments byteOffsetRef so the mirror stays
+  // in sync with broker). On reveal, fetch only the bytes that arrived
+  // during the hidden window via getReplaySince(hiddenAtOffsetRef) — preserves
+  // pre-hide xterm scrollback. Falls back to term.clear() + full replay only
+  // when the broker ring buffer wrapped past the hide-time offset.
+  //
+  // Only applies when xterm is currently mounted (shouldMount). After the
+  // 5-min HIDDEN_TILE_DISPOSE_MS dispose path, the xterm is recreated and
+  // the initial-replay path covers catch-up.
+  useEffect(() => {
+    if (!shouldMount) return;
+
+    if (!isVisible) {
+      hiddenAtOffsetRef.current = byteOffsetRef.current;
+      return;
+    }
+
+    if (hiddenAtOffsetRef.current === null) return;
+    const startOffset = hiddenAtOffsetRef.current;
+    const term = termInstanceRef.current;
+    if (!term) {
+      hiddenAtOffsetRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const r1 = await window.mcode.pty.getReplaySince(sessionId, startOffset);
+        if (cancelled || termInstanceRef.current !== term) return;
+        if (r1.dataStartOffset > startOffset) term.clear();
+        if (r1.data) term.write(r1.data);
+        let cursor = r1.currentOffset;
+        // Bridge anything that arrived during the await. Bounded so heavy
+        // output doesn't trap us in this loop; if we hit the cap, the next
+        // live chunk closes the remaining gap (it's now ahead of cursor).
+        // Note: we do NOT overwrite byteOffsetRef from cursor here. The local
+        // mirror is faithfully maintained by per-chunk increments in the
+        // pty.onData handler; overwriting from `cursor` (broker's offset at
+        // the last IPC response time, possibly behind what pty.onData has
+        // seen via in-flight pty:data events) would desync the mirror.
+        for (let i = 0; i < 5 && cursor < byteOffsetRef.current; i++) {
+          const r = await window.mcode.pty.getReplaySince(sessionId, cursor);
+          if (cancelled || termInstanceRef.current !== term) return;
+          if (r.data) term.write(r.data);
+          // No-progress guard: broker reports the same offset (or earlier) we
+          // already had. Happens when the session was deleted/unknown — broker
+          // returns the {0,0,0} fallback. Without this we'd waste the full
+          // MAX_BRIDGE budget on identical IPC roundtrips.
+          if (r.currentOffset <= cursor) break;
+          cursor = r.currentOffset;
+        }
+      } catch (err) {
+        // IPC failure — clear the gate so live writes resume. Visible state
+        // may be stale; the 5-min dispose-and-remount path is the backstop.
+        console.warn('[TerminalInstance] hide/reveal catch-up failed', err);
+      } finally {
+        if (!cancelled) hiddenAtOffsetRef.current = null;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isVisible, shouldMount, sessionId]);
 
   useEffect(() => {
     if (!shouldMount) return;
@@ -323,25 +403,43 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       webglRef.current?.clearAtlas();
     });
 
+    // (Re)mount: clear any stale hide tracking and reset the byte mirror.
+    // The initial replay below seeds byteOffsetRef from broker's authoritative
+    // currentOffset so subsequent hide/reveal catch-ups query the right delta.
+    hiddenAtOffsetRef.current = null;
+    byteOffsetRef.current = 0;
+
     // Fit before replay: cursor-position / clear-screen escapes in the
     // buffered bytes are interpreted at the terminal's current cols/rows,
     // so a fresh 80x24 grid would land replayed prompts off-screen.
     // setTimeout (not rAF) so this fires when Electron isn't actively painting.
     const initialFitTimer = window.setTimeout(() => {
       fitAddon.fit();
+      // getReplaySince(0) returns the same content as the legacy pty:replay
+      // path plus broker's currentOffset, used to seed byteOffsetRef. A few
+      // bytes of skew is possible if live chunks arrive during the IPC await
+      // — acceptable since the catch-up path on hide/reveal handles the
+      // small-window case via the bridge loop.
       window.mcode.pty
-        .getReplayData(sessionId)
-        .then((data) => {
-          if (data && termInstanceRef.current === term) term.write(data);
+        .getReplaySince(sessionId, 0)
+        .then((r) => {
+          if (termInstanceRef.current !== term) return;
+          if (r.data) term.write(r.data);
+          byteOffsetRef.current = r.currentOffset;
         })
         .catch(() => {
           // Session may not exist yet or PTY already exited
         });
     }, 0);
 
-    // PTY data → terminal
+    // PTY data → terminal. byteOffsetRef increments unconditionally so it
+    // mirrors broker's offset even while we're dropping writes (hidden/
+    // catching up); the gate on hiddenAtOffsetRef decides whether to write.
     const unsubData = window.mcode.pty.onData((id, data) => {
-      if (id === sessionId) term.write(data);
+      if (id !== sessionId) return;
+      byteOffsetRef.current += utf8Encoder.encode(data).byteLength;
+      if (hiddenAtOffsetRef.current !== null) return;
+      term.write(data);
     });
 
     // PTY exit → terminal

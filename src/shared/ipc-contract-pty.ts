@@ -1,4 +1,4 @@
-import type { PtyExitPayload } from './types';
+import type { PtyExitPayload, PtyReplayDelta } from './types';
 
 // ---------------------------------------------------------------------------
 // PTY domain IPC channels
@@ -7,6 +7,7 @@ import type { PtyExitPayload } from './types';
 export interface PtyInvokeContract {
   'pty:kill':                           { params: [id: string]; result: void };
   'pty:replay':                         { params: [sessionId: string]; result: string };
+  'pty:replay-since':                   { params: [sessionId: string, offset: number]; result: PtyReplayDelta };
 }
 
 export interface PtySendContract {

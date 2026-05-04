@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   LayoutStateSnapshot,
   PtyExitPayload,
+  PtyReplayDelta,
   SessionInfo,
   SessionCreateInput,
   SessionDefaults,
@@ -129,6 +130,9 @@ contextBridge.exposeInMainWorld('mcode', {
 
     getReplayData: (sessionId: string): Promise<string> =>
       typedInvoke('pty:replay', sessionId),
+
+    getReplaySince: (sessionId: string, offset: number): Promise<PtyReplayDelta> =>
+      typedInvoke('pty:replay-since', sessionId, offset),
   },
 
   sessions: {

@@ -334,6 +334,19 @@ export interface PtyExitPayload {
   signal?: number;
 }
 
+/**
+ * Delta replay response from `pty:replay-since`. `dataStartOffset > offset`
+ * (the caller's argument) signals that the broker ring buffer wrapped past
+ * the requested offset — the caller should clear its terminal before writing
+ * `data`. `dataStartOffset === offset` means `data` is exactly the bytes
+ * appended since `offset`. Empty `data` means the caller is up to date.
+ */
+export interface PtyReplayDelta {
+  data: string;
+  dataStartOffset: number;
+  currentOffset: number;
+}
+
 // --- Devtools ---
 
 // --- Memory diagnostics ---
@@ -415,6 +428,7 @@ export interface MCodeAPI {
       callback: (sessionId: string, payload: PtyExitPayload) => void,
     ): () => void;
     getReplayData(sessionId: string): Promise<string>;
+    getReplaySince(sessionId: string, offset: number): Promise<PtyReplayDelta>;
   };
 
   sessions: {

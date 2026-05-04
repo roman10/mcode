@@ -174,4 +174,40 @@ describe('BrokerClient', () => {
       expect(client.getInfo('nonexistent')).toBeNull();
     });
   });
+
+  describe('getReplaySince', () => {
+    it('returns empty payload for unknown sessions', () => {
+      const r = client.getReplaySince('nonexistent', 0);
+      expect(r).toEqual({ data: '', dataStartOffset: 0, currentOffset: 0 });
+    });
+
+    it('returns full buffer when called with offset 0', () => {
+      handleEvent('pty.data', { id: 'sess-rs', data: 'hello world' });
+      const r = client.getReplaySince('sess-rs', 0);
+      expect(r.data).toBe('hello world');
+      expect(r.dataStartOffset).toBe(0);
+      expect(r.currentOffset).toBe(11);
+    });
+
+    it('returns delta from offset within window', () => {
+      handleEvent('pty.data', { id: 'sess-delta', data: 'abc' });
+      const snap = client.getReplaySince('sess-delta', 0).currentOffset; // 3
+      handleEvent('pty.data', { id: 'sess-delta', data: 'def' });
+      const r = client.getReplaySince('sess-delta', snap);
+      expect(r.data).toBe('def');
+      expect(r.dataStartOffset).toBe(3);
+      expect(r.currentOffset).toBe(6);
+    });
+
+    it('signals drop with dataStartOffset > offset when offset fell out of window', () => {
+      // Fill past the cap so the earliest offset advances.
+      const big = 'x'.repeat(RING_BUFFER_MAX_BYTES);
+      handleEvent('pty.data', { id: 'sess-drop', data: big });
+      handleEvent('pty.data', { id: 'sess-drop', data: 'tail' });
+      const r = client.getReplaySince('sess-drop', 0);
+      expect(r.dataStartOffset).toBeGreaterThan(0);
+      expect(r.currentOffset).toBe(RING_BUFFER_MAX_BYTES + 4);
+      expect(r.data.endsWith('tail')).toBe(true);
+    });
+  });
 });
