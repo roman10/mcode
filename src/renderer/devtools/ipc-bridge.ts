@@ -356,6 +356,18 @@ export function initDevtoolsBridge(): void {
         result = { ok: forceDisposeHiddenTile(sessionId) };
         break;
       }
+      case 'terminal-get-preserve-scrollback': {
+        const { useTerminalStore } = await import('../stores/terminal-store');
+        result = { enabled: useTerminalStore.getState().preserveScrollback };
+        break;
+      }
+      case 'terminal-set-preserve-scrollback': {
+        const { enabled } = params as { enabled: boolean };
+        const { useTerminalStore } = await import('../stores/terminal-store');
+        useTerminalStore.getState().setPreserveScrollback(enabled);
+        result = { enabled };
+        break;
+      }
       case 'terminal-action': {
         const { sessionId, action } = params as { sessionId: string; action: string };
         const term = terminalRegistry.get(sessionId);

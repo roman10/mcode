@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useEditorStore } from '../stores/editor-store';
 import { useLayoutStore } from '../stores/layout-store';
+import { useTerminalStore } from '../stores/terminal-store';
 import Dialog from './shared/Dialog';
 
 interface SettingsDialogProps {
@@ -14,6 +15,8 @@ function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.
   const [mcpServerEnabled, setMcpServerEnabled] = useState(false);
   const vimEnabled = useEditorStore((s) => s.vimEnabled);
   const setVimEnabled = useEditorStore((s) => s.setVimEnabled);
+  const preserveScrollback = useTerminalStore((s) => s.preserveScrollback);
+  const setPreserveScrollback = useTerminalStore((s) => s.setPreserveScrollback);
   const showActivityTab = useLayoutStore((s) => s.showActivityTab);
   const setShowActivityTab = useLayoutStore((s) => s.setShowActivityTab);
 
@@ -157,6 +160,39 @@ function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.
             <span
               className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
                 vimEnabled ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </label>
+      </div>
+
+      {/* Terminal */}
+      <div className="mt-4">
+        <h3 className="text-text-secondary text-xs font-medium uppercase tracking-wide mb-3">
+          Terminal
+        </h3>
+
+        <label className="flex items-center justify-between cursor-pointer group">
+          <div className="flex-1 mr-3">
+            <div className="text-sm text-text-primary">Preserve scrollback during TUI redraws</div>
+            <div className="text-xs text-text-muted mt-0.5">
+              Keep terminal history when CLI tools (Claude Code, Gemini, Copilot) redraw their
+              interfaces. Off by default because the suppression can leave rendering fragments —
+              turn on if you rely on long scrollback inside agent sessions.
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={preserveScrollback}
+            onClick={() => setPreserveScrollback(!preserveScrollback)}
+            className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+              preserveScrollback ? 'bg-accent' : 'bg-bg-primary'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                preserveScrollback ? 'translate-x-4' : 'translate-x-0'
               }`}
             />
           </button>

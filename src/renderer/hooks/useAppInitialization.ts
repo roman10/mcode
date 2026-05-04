@@ -4,6 +4,7 @@ import { useSessionStore } from '../stores/session-store';
 import { useLayoutStore } from '../stores/layout-store';
 import { useTaskStore } from '../stores/task-store';
 import { useEditorStore } from '../stores/editor-store';
+import { useTerminalStore } from '../stores/terminal-store';
 import { useAccountsStore } from '../stores/accounts-store';
 import { useTerminalPanelStore } from '../stores/terminal-panel-store';
 import { sessionIdFromTileId } from '../utils/tile-id';
@@ -62,6 +63,9 @@ export async function loadInitialData(signal: { cancelled: boolean }): Promise<v
 
   // Load editor preferences (vim mode, etc.)
   await useEditorStore.getState().load();
+
+  // Load terminal preferences (scrollback-erase suppression, etc.)
+  await useTerminalStore.getState().load();
 
   // Load accounts (non-blocking, used by AccountsDialog and SessionCard)
   useAccountsStore.getState().refresh().catch(() => {});

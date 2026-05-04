@@ -220,6 +220,62 @@ export function registerTerminalTools(
     }
   });
 
+  server.registerTool('terminal_get_preserve_scrollback', {
+    description: 'Read the current value of the "Preserve scrollback during TUI redraws" Setting. When enabled, mcode suppresses \\x1b[3J (Erase Scrollback) so CLI tools cannot wipe the xterm.js scrollback buffer.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    try {
+      const result = await queryRenderer<{ enabled: boolean }>(
+        ctx.mainWindow,
+        'terminal-get-preserve-scrollback',
+        {},
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to read preference: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('terminal_set_preserve_scrollback', {
+    description: 'Toggle the "Preserve scrollback during TUI redraws" Setting. Drives the same store the Settings dialog uses, so live terminals pick up the change without remounting.',
+    inputSchema: {
+      enabled: z.boolean().describe('true to suppress \\x1b[3J (preserve scrollback), false to allow it (native xterm.js behavior)'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ enabled }) => {
+    try {
+      const result = await queryRenderer<{ enabled: boolean }>(
+        ctx.mainWindow,
+        'terminal-set-preserve-scrollback',
+        { enabled },
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to set preference: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('terminal_wait_for_content', {
     description: 'Wait until a regex pattern appears in the terminal buffer. Polls every 250ms.',
     inputSchema: {

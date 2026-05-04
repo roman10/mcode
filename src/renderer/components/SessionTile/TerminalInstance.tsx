@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
+import { Terminal, type IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { attachWebgl } from '../../utils/webgl-lifecycle';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -17,6 +17,7 @@ import { terminalRegistry, registerDisposeHiddenTile } from '../../devtools/term
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
+import { useTerminalStore } from '../../stores/terminal-store';
 import { useSlashCommandWarningStore } from '../../stores/slash-command-warning-store';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
@@ -192,12 +193,29 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       term.write('\x1b[?25l'); // hide cursor initially; agent CLI shows when ready
     }
 
-    // Suppress \x1b[3J (Erase Scrollback) to preserve terminal history.
-    // CLI tools (Claude Code, Gemini, Copilot) send this during TUI redraws,
-    // which destroys the xterm.js scrollback buffer. ED 0/1/2 (erase visible
-    // regions) still work normally — only the scrollback-clearing variant is blocked.
-    const edHandler = term.parser.registerCsiHandler({ final: 'J' }, params => params[0] === 3);
-    const edHandlerDec = term.parser.registerCsiHandler({ prefix: '?', final: 'J' }, params => params[0] === 3);
+    // Suppressing \x1b[3J (Erase Scrollback) preserves history when CLI tools
+    // (Claude Code, Gemini, Copilot) send it during TUI redraws, but can leak
+    // rendering remnants when a TUI repaints a shorter frame than before.
+    // Off by default; users opt in via Settings → Terminal. ED 0/1/2 always pass.
+    let edHandler: IDisposable | null = null;
+    let edHandlerDec: IDisposable | null = null;
+    const installEraseSuppression = (): void => {
+      if (edHandler) return;
+      edHandler = term.parser.registerCsiHandler({ final: 'J' }, params => params[0] === 3);
+      edHandlerDec = term.parser.registerCsiHandler({ prefix: '?', final: 'J' }, params => params[0] === 3);
+    };
+    const removeEraseSuppression = (): void => {
+      edHandler?.dispose();
+      edHandlerDec?.dispose();
+      edHandler = null;
+      edHandlerDec = null;
+    };
+    if (useTerminalStore.getState().preserveScrollback) installEraseSuppression();
+    const unsubPreserveScrollback = useTerminalStore.subscribe((s, prev) => {
+      if (s.preserveScrollback === prev.preserveScrollback) return;
+      if (s.preserveScrollback) installEraseSuppression();
+      else removeEraseSuppression();
+    });
 
     terminalRegistry.set(sessionId, term);
 
@@ -430,8 +448,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       clearTimeout(resizeTimer);
       if (warningTimeoutRef.current !== null) clearTimeout(warningTimeoutRef.current);
       clearSlashWarning(sessionId);
-      edHandler.dispose();
-      edHandlerDec.dispose();
+      unsubPreserveScrollback();
+      removeEraseSuppression();
       unsubResize.dispose();
       unsubTitle.dispose();
       unsubData();
