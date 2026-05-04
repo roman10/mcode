@@ -16,6 +16,7 @@ import { getAgentDefinition, shouldHideTerminalCursor } from '@shared/session-ag
 import { terminalRegistry, registerDisposeHiddenTile } from '../../devtools/terminal-registry';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { useSessionStore } from '../../stores/session-store';
+import { useLayoutStore } from '../../stores/layout-store';
 import { useSlashCommandWarningStore } from '../../stores/slash-command-warning-store';
 import ContextMenu, { type MenuItem } from '../shared/ContextMenu';
 import SearchBar from './SearchBar';
@@ -112,6 +113,23 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       if (s.panelHeight !== lastH) {
         lastH = s.panelHeight;
         // Delay one tick so the DOM layout has propagated from the state change.
+        window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
+      }
+    });
+    return unsub;
+  }, []);
+
+  // Backstop for tile resize/maximize: ResizeObserver normally fires on mosaic
+  // layout transitions, but Electron's render loop can drop those callbacks
+  // when the window isn't actively painting. Subscribing directly to the
+  // layout state guarantees fit() runs on every maximize / restore / split.
+  useEffect(() => {
+    let lastTree = useLayoutStore.getState().mosaicTree;
+    let lastRestoreTree = useLayoutStore.getState().restoreTree;
+    const unsub = useLayoutStore.subscribe((s) => {
+      if (s.mosaicTree !== lastTree || s.restoreTree !== lastRestoreTree) {
+        lastTree = s.mosaicTree;
+        lastRestoreTree = s.restoreTree;
         window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
       }
     });
@@ -282,6 +300,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // upstream in Claude Code's own SIGWINCH / reflow handling.
     const unsubResize = term.onResize(({ cols, rows }) => {
       window.mcode.pty.resize(sessionId, cols, rows);
+      // Glyph atlas can hold stale rasters from the prior grid geometry;
+      // clearing here matches the recovery used for DPR/wake/visibility.
+      webglRef.current?.clearAtlas();
     });
 
     // Fit before replay: cursor-position / clear-screen escapes in the

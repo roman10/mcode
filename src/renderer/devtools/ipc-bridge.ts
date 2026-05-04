@@ -84,6 +84,21 @@ export function initDevtoolsBridge(): void {
         result = true;
         break;
       }
+      case 'layout-maximize': {
+        const { sessionId } = params as { sessionId: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().maximize(sessionId);
+        useLayoutStore.getState().persist();
+        result = true;
+        break;
+      }
+      case 'layout-restore-from-maximize': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().restoreFromMaximize();
+        useLayoutStore.getState().persist();
+        result = true;
+        break;
+      }
       case 'layout-tile-count': {
         const { useLayoutStore } = await import('../stores/layout-store');
         const { getLeaves } = await import('react-mosaic-component');

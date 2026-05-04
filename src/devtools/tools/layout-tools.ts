@@ -139,6 +139,60 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('layout_maximize', {
+    description: 'Maximize a tile to occupy the full mosaic area (other tiles preserved in restore-tree)',
+    inputSchema: {
+      sessionId: z.string().describe('The session ID whose tile to maximize'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId }) => {
+    const session = ctx.sessionManager.get(sessionId);
+    if (!session) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'layout-maximize', { sessionId });
+      return {
+        content: [{ type: 'text', text: `Maximized tile for session ${sessionId}` }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to maximize tile: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('layout_restore_from_maximize', {
+    description: 'Restore the mosaic layout from a maximized tile back to its prior split layout',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'layout-restore-from-maximize', {});
+      return {
+        content: [{ type: 'text', text: 'Restored from maximize' }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to restore from maximize: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_get_tile_count', {
     description: 'Get the number of visible tiles in the mosaic layout',
     annotations: { readOnlyHint: true },
