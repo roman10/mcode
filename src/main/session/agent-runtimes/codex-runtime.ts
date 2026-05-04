@@ -84,7 +84,8 @@ export function buildCodexCreatePlan(ctx: AgentCreateContext): PreparedCreate {
 
   const args: string[] = [];
   if (bridgeReady) args.push('--enable', 'codex_hooks');
-  if (input.permissionMode === 'fullAuto') args.push('--full-auto');
+  // codex 0.128.0 dropped the `--full-auto` shortcut; expand it explicitly.
+  if (input.permissionMode === 'fullAuto') args.push('--sandbox', 'workspace-write', '--ask-for-approval', 'on-failure');
   if (input.permissionMode === 'bypassAll') args.push('--dangerously-bypass-approvals-and-sandbox');
   if (input.initialPrompt) args.push(input.initialPrompt);
 
@@ -106,7 +107,7 @@ export function buildCodexResumePlan(ctx: AgentPrepareResumeContext): PreparedRe
 
   const args: string[] = [];
   if (codexBridgeReady) args.push('--enable', 'codex_hooks');
-  if (ctx.row.permissionMode === 'fullAuto') args.push('--full-auto');
+  if (ctx.row.permissionMode === 'fullAuto') args.push('--sandbox', 'workspace-write', '--ask-for-approval', 'on-failure');
   if (ctx.row.permissionMode === 'bypassAll') args.push('--dangerously-bypass-approvals-and-sandbox');
   args.push('resume', ctx.row.codexThreadId);
 

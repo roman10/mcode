@@ -71,14 +71,14 @@ describe('buildCodexCreatePlan', () => {
     expect(result.env).toEqual({});
   });
 
-  it('passes --full-auto when permissionMode is fullAuto', () => {
+  it('passes workspace-write sandbox + on-failure approval when permissionMode is fullAuto', () => {
     const result = buildCodexCreatePlan({
       input: { cwd: '/repo', sessionType: 'codex', permissionMode: 'fullAuto' },
       command: 'codex',
       hookRuntime: { state: 'ready', port: 4312, warning: null },
       agentHookBridgeReady: false,
     });
-    expect(result.args).toContain('--full-auto');
+    expect(result.args).toEqual(['--sandbox', 'workspace-write', '--ask-for-approval', 'on-failure']);
     expect(result.dbFields.permissionMode).toBe('fullAuto');
   });
 
@@ -100,7 +100,8 @@ describe('buildCodexCreatePlan', () => {
       hookRuntime: { state: 'ready', port: 4312, warning: null },
       agentHookBridgeReady: false,
     });
-    expect(result.args).not.toContain('--full-auto');
+    expect(result.args).not.toContain('--sandbox');
+    expect(result.args).not.toContain('--ask-for-approval');
     expect(result.args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
     expect(result.dbFields.permissionMode).toBeNull();
   });
@@ -112,8 +113,9 @@ describe('buildCodexCreatePlan', () => {
       hookRuntime: { state: 'ready', port: 4312, warning: null },
       agentHookBridgeReady: false,
     });
-    const flagIdx = result.args.indexOf('--full-auto');
+    const flagIdx = result.args.indexOf('--sandbox');
     const promptIdx = result.args.indexOf('fix bugs');
+    expect(flagIdx).toBeGreaterThanOrEqual(0);
     expect(flagIdx).toBeLessThan(promptIdx);
   });
 
@@ -221,7 +223,7 @@ describe('codex-runtime', () => {
     })).toThrow('Cannot resume: no Codex thread ID recorded');
   });
 
-  it('passes --full-auto on resume when stored permissionMode is fullAuto', () => {
+  it('passes sandbox + approval flags on resume when stored permissionMode is fullAuto', () => {
     const result = buildCodexResumePlan({
       sessionId: 'session-1',
       row: {
@@ -240,8 +242,7 @@ describe('codex-runtime', () => {
       hookRuntime: { state: 'ready', port: 4312, warning: null },
       agentHookBridgeReady: false,
     });
-    expect(result.args).toContain('--full-auto');
-    expect(result.args.indexOf('--full-auto')).toBeLessThan(result.args.indexOf('resume'));
+    expect(result.args).toEqual(['--sandbox', 'workspace-write', '--ask-for-approval', 'on-failure', 'resume', 'thread-123']);
   });
 
   it('passes --dangerously-bypass-approvals-and-sandbox on resume when stored permissionMode is bypassAll', () => {
@@ -285,7 +286,8 @@ describe('codex-runtime', () => {
       hookRuntime: { state: 'ready', port: 4312, warning: null },
       agentHookBridgeReady: false,
     });
-    expect(result.args).not.toContain('--full-auto');
+    expect(result.args).not.toContain('--sandbox');
+    expect(result.args).not.toContain('--ask-for-approval');
     expect(result.args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
   });
 
