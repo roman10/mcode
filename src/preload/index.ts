@@ -238,6 +238,9 @@ contextBridge.exposeInMainWorld('mcode', {
     onCommand: (cb: (command: AppCommand) => void): (() => void) =>
       typedListen('app:command', cb),
 
+    onWake: (cb: () => void): (() => void) =>
+      typedListen('app:wake', cb),
+
     onUpdateAvailable: (cb: (info: { version: string }) => void): (() => void) =>
       typedListen('app:update-available', cb),
 

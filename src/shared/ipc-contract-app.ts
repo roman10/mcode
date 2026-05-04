@@ -65,6 +65,7 @@ export interface AppPushContract {
   'task:changed':                       { params: [event: TaskChangeEvent] };
   'app:command':                        { params: [command: AppCommand] };
   'app:error':                          { params: [error: string] };
+  'app:wake':                           { params: [] };
   'app:update-available':               { params: [info: { version: string }] };
   'app:update-download-progress':       { params: [info: { percent: number }] };
   'app:update-downloaded':              { params: [info: { version: string }] };

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, dialog, shell } from 'electron';
+import { app, BrowserWindow, powerMonitor, session, dialog, shell } from 'electron';
 import { join } from 'node:path';
 import { is } from '@electron-toolkit/utils';
 import { BrokerClient, registerPtyIpc } from './pty/broker-client';
@@ -569,6 +569,19 @@ app.whenReady().then(async () => {
     commitTracker.scanAll().catch(() => {});
     tokenTracker.scanAll().catch(() => {});
   });
+
+  // Notify the renderer when the OS wakes from screen lock or system suspend.
+  // macOS screen lock with mcode in foreground does NOT fire visibilitychange
+  // (the lock screen is a compositor overlay, not an occluding window) and
+  // typically does NOT re-fire window.focus on unlock either, so the renderer's
+  // DOM-event-driven xterm WebGL atlas recovery never runs after a long lock.
+  // Forwarding powerMonitor events gives it a definitive wake signal.
+  const sendWake = (): void => {
+    const wc = getWebContents();
+    if (wc && !wc.isDestroyed()) wc.send('app:wake');
+  };
+  powerMonitor.on('unlock-screen', sendWake);
+  powerMonitor.on('resume', sendWake);
 });
 
 // Graceful shutdown: persist layout, end sessions, kill PTYs, close DB

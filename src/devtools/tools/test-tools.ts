@@ -232,4 +232,20 @@ export function registerTestTools(
       };
     }
   });
+
+  server.registerTool('app_simulate_wake', {
+    description:
+      'Send the app:wake IPC event to the renderer, simulating the powerMonitor unlock-screen / resume signal that fires on macOS screen unlock or system wake. Used by tests to exercise the xterm WebGL atlas recovery path without an actual lock.',
+    annotations: { readOnlyHint: false },
+  }, async () => {
+    const wc = ctx.mainWindow.webContents;
+    if (wc.isDestroyed()) {
+      return {
+        content: [{ type: 'text', text: 'Window destroyed' }],
+        isError: true,
+      };
+    }
+    wc.send('app:wake');
+    return { content: [{ type: 'text', text: 'ok' }] };
+  });
 }

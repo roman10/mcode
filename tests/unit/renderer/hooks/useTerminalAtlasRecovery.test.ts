@@ -55,14 +55,41 @@ function installMatchMediaShim(): {
   };
 }
 
+type WakeCb = () => void;
+function installWakeShim(): {
+  fire: () => void;
+  cleanup: () => void;
+  subscriberCount: () => number;
+} {
+  let cb: WakeCb | null = null;
+  const original = (window as unknown as { mcode?: unknown }).mcode;
+  (window as unknown as { mcode: unknown }).mcode = {
+    app: {
+      onWake: (next: WakeCb): (() => void) => {
+        cb = next;
+        return () => { cb = null; };
+      },
+    },
+  };
+  return {
+    fire: () => cb?.(),
+    cleanup: () => {
+      (window as unknown as { mcode?: unknown }).mcode = original;
+    },
+    subscriberCount: () => (cb ? 1 : 0),
+  };
+}
+
 describe('useTerminalAtlasRecovery / installAtlasRecoveryListeners', () => {
   let mq: ReturnType<typeof installMatchMediaShim>;
+  let wake: ReturnType<typeof installWakeShim>;
   let teardown: (() => void) | null = null;
   let logSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     terminalRegistry.clear();
     mq = installMatchMediaShim();
+    wake = installWakeShim();
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     Object.defineProperty(document, 'hidden', { configurable: true, value: false });
   });
@@ -71,6 +98,7 @@ describe('useTerminalAtlasRecovery / installAtlasRecoveryListeners', () => {
     teardown?.();
     teardown = null;
     mq.cleanup();
+    wake.cleanup();
     logSpy.mockRestore();
     vi.useRealTimers();
   });
@@ -151,8 +179,46 @@ describe('useTerminalAtlasRecovery / installAtlasRecoveryListeners', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new Event('focus'));
     mq.fireChange();
+    wake.fire();
 
     expect(t1.clearTextureAtlas).not.toHaveBeenCalled();
+    expect(wake.subscriberCount()).toBe(0);
+  });
+
+  it('clears atlas on app:wake event', () => {
+    const t1 = fakeTerm();
+    const t2 = fakeTerm();
+    terminalRegistry.set('s1', t1 as never);
+    terminalRegistry.set('s2', t2 as never);
+
+    teardown = installAtlasRecoveryListeners();
+    wake.fire();
+
+    expect(t1.clearTextureAtlas).toHaveBeenCalledTimes(1);
+    expect(t2.clearTextureAtlas).toHaveBeenCalledTimes(1);
+  });
+
+  it('app:wake recovery is not throttled (independent of focus throttle window)', () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    vi.setSystemTime(now);
+
+    const t1 = fakeTerm();
+    terminalRegistry.set('s1', t1 as never);
+
+    teardown = installAtlasRecoveryListeners();
+
+    // Burn the focus throttle window so any shared throttle would block subsequent wakes.
+    window.dispatchEvent(new Event('focus'));
+    expect(t1.clearTextureAtlas).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(now + 1_000);
+    wake.fire();
+    expect(t1.clearTextureAtlas).toHaveBeenCalledTimes(2);
+
+    vi.setSystemTime(now + 2_000);
+    wake.fire();
+    expect(t1.clearTextureAtlas).toHaveBeenCalledTimes(3);
   });
 
   it('survives a terminal whose clearTextureAtlas throws', () => {

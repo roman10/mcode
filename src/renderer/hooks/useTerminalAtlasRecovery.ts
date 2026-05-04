@@ -53,10 +53,17 @@ export function installAtlasRecoveryListeners(): () => void {
   window.addEventListener('focus', onFocus);
   bindDprListener();
 
+  // macOS screen lock with mcode in foreground fires neither visibilitychange
+  // nor focus, so the recovery above never runs after unlock. Main forwards
+  // powerMonitor 'unlock-screen' / 'resume' as 'app:wake' for that path.
+  // No throttle: wake is rare and definitive.
+  const unsubWake = window.mcode?.app?.onWake?.(() => clearAllAtlases('wake'));
+
   return () => {
     document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('focus', onFocus);
     if (mql && onDprChange) mql.removeEventListener('change', onDprChange);
+    unsubWake?.();
   };
 }
 
