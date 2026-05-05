@@ -11,6 +11,10 @@ export const SCROLLBACK_PRESETS = [1000, 2500, 5000, 10000, 20000] as const;
 /** After this many ms hidden, dispose the xterm.js Terminal entirely to free its scrollback.
  *  On reveal, the terminal is recreated and replays the broker ring buffer (~512 KB tail). */
 export const HIDDEN_TILE_DISPOSE_MS = 5 * 60 * 1000;
+/** Minimum gap between WebGL atlas clears for a single terminal. clearTextureAtlas()
+ *  is ~1ms; the throttle exists so rapid focus/tab cycling doesn't thrash. Resize and
+ *  app:wake bypass it by passing 0 to the throttled helpers. */
+export const ATLAS_RECLEAR_THROTTLE_MS = 2000;
 export const DEFAULT_SIDEBAR_WIDTH = 280;
 export const MIN_SIDEBAR_WIDTH = 200;
 export const MAX_SIDEBAR_WIDTH = 500;

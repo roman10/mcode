@@ -11,9 +11,16 @@ import {
   HIDDEN_TILE_DISPOSE_MS,
   MAX_SCROLLBACK_LINES,
   SCROLLBACK_PRESETS,
+  ATLAS_RECLEAR_THROTTLE_MS,
 } from '@shared/constants';
 import { getAgentDefinition, shouldHideTerminalCursor } from '@shared/session-agents';
-import { terminalRegistry, registerDisposeHiddenTile, setTerminalLive } from '../../devtools/terminal-registry';
+import {
+  terminalRegistry,
+  registerDisposeHiddenTile,
+  setTerminalLive,
+  clearAtlasThrottled,
+  forgetAtlasClear,
+} from '../../devtools/terminal-registry';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
@@ -411,9 +418,18 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     const webgl = attachWebgl(term, sessionId);
     webglRef.current = webgl;
 
-    // When the terminal gains focus and WebGL was lost, try to re-attach.
-    // This recovers rendering quality after transient context exhaustion.
-    const focusHandler = () => {
+    // User-attention recovery on focus. Two jobs:
+    //   1. Clear the WebGL atlas — catch-all for silent corruption (macOS
+    //      sleep/wake, GPU process recycle, DPR change without resize).
+    //      Throttled per-terminal via the registry's shared timestamp so a
+    //      simultaneous window-focus event doesn't double-clear.
+    //   2. Reattach WebGL when it was previously detached (visibility hide,
+    //      MAX_WEBGL_CONTEXTS cap). 500ms delay lets visibility-driven
+    //      reattaches settle first.
+    // Capture-phase on the container because xterm focuses its inner textarea
+    // (xterm.js exposes no onFocus event of its own).
+    const focusHandler = (): void => {
+      clearAtlasThrottled(sessionId, ATLAS_RECLEAR_THROTTLE_MS);
       if (!webgl.active) {
         window.setTimeout(() => {
           if (!webgl.active && termInstanceRef.current === term) {
@@ -432,8 +448,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     const unsubResize = term.onResize(({ cols, rows }) => {
       window.mcode.pty.resize(sessionId, cols, rows);
       // Glyph atlas can hold stale rasters from the prior grid geometry;
-      // clearing here matches the recovery used for DPR/wake/visibility.
-      webglRef.current?.clearAtlas();
+      // threshold 0 = always clear, but the registry helper still updates the
+      // shared timestamp so a focus event right after no-ops.
+      clearAtlasThrottled(sessionId, 0);
     });
 
     // (Re)mount: gate live writes until the initial replay completes. Without
@@ -615,6 +632,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       termInstanceRef.current = null;
       fitAddonRef.current = null;
       terminalRegistry.delete(sessionId);
+      forgetAtlasClear(sessionId);
       setTerminalLive(sessionId, false);
       cancelledInitial = true;
       clearTimeout(initialFitTimer);
@@ -628,9 +646,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       unsubData();
       unsubExit();
       container.removeEventListener('contextmenu', handleContextMenu);
+      container.removeEventListener('focus', focusHandler, true);
       resizeObserver.disconnect();
       mutationObserver?.disconnect();
-      container.removeEventListener('focus', focusHandler, true);
       webgl.detach();
       webglRef.current = null;
       term.dispose();

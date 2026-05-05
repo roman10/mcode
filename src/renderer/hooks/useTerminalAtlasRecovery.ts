@@ -1,68 +1,31 @@
 import { useEffect } from 'react';
-import { terminalRegistry } from '../devtools/terminal-registry';
-
-const FOCUS_THROTTLE_MS = 30_000;
-
-function clearAllAtlases(reason: string): void {
-  let count = 0;
-  terminalRegistry.forEach((term) => {
-    try {
-      term.clearTextureAtlas();
-      count++;
-    } catch {
-      // Terminal may have been disposed mid-iteration
-    }
-  });
-  if (count > 0) {
-    console.log(`[atlas-recovery] ${reason} — cleared atlas on ${count} terminal${count === 1 ? '' : 's'}`);
-  }
-}
+import { clearAllAtlasesThrottled } from '../devtools/terminal-registry';
+import { ATLAS_RECLEAR_THROTTLE_MS } from '@shared/constants';
 
 /**
  * Installs the listeners that drive atlas recovery and returns a teardown.
  * Exported so it can be tested without a React render context.
  */
 export function installAtlasRecoveryListeners(): () => void {
-  let lastFocusRecoveryAt = 0;
-
-  const onVisibilityChange = (): void => {
-    if (!document.hidden) clearAllAtlases('visibilitychange');
-  };
-
+  // Window focus is the broad "user is back" signal — covers Cmd-tab back to
+  // the app. Per-terminal click focus is handled in TerminalInstance and
+  // shares the same `lastAtlasClearAt` timestamp via the registry helpers, so
+  // a window-focus event right after a per-terminal focus no-ops.
   const onFocus = (): void => {
-    const now = Date.now();
-    if (now - lastFocusRecoveryAt < FOCUS_THROTTLE_MS) return;
-    lastFocusRecoveryAt = now;
-    clearAllAtlases('focus');
+    clearAllAtlasesThrottled(ATLAS_RECLEAR_THROTTLE_MS);
   };
 
-  let mql: MediaQueryList | null = null;
-  let onDprChange: ((e: MediaQueryListEvent) => void) | null = null;
-  function bindDprListener(): void {
-    mql = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    onDprChange = (): void => {
-      clearAllAtlases('dpr-change');
-      // matchMedia query is now stale — re-bind with the new DPR.
-      if (mql && onDprChange) mql.removeEventListener('change', onDprChange);
-      bindDprListener();
-    };
-    mql.addEventListener('change', onDprChange);
-  }
+  // macOS lock/unlock with mcode in the foreground fires no focus or
+  // visibilitychange event, so the recovery above wouldn't run after unlock.
+  // Main forwards powerMonitor 'unlock-screen' / 'resume' as 'app:wake' for
+  // exactly this case. Threshold 0: always clear, since wake is rare and
+  // definitive (the atlas is almost certainly stale across sleep).
+  const unsubWake = window.mcode?.app?.onWake?.(() => clearAllAtlasesThrottled(0));
 
-  document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('focus', onFocus);
-  bindDprListener();
-
-  // macOS screen lock with mcode in foreground fires neither visibilitychange
-  // nor focus, so the recovery above never runs after unlock. Main forwards
-  // powerMonitor 'unlock-screen' / 'resume' as 'app:wake' for that path.
-  // No throttle: wake is rare and definitive.
-  const unsubWake = window.mcode?.app?.onWake?.(() => clearAllAtlases('wake'));
 
   return () => {
-    document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('focus', onFocus);
-    if (mql && onDprChange) mql.removeEventListener('change', onDprChange);
     unsubWake?.();
   };
 }
@@ -70,16 +33,23 @@ export function installAtlasRecoveryListeners(): () => void {
 /**
  * Recovers xterm.js WebGL texture atlases that get silently corrupted by events
  * Chromium does not surface as `WEBGL_lose_context` — notably macOS sleep/wake
- * (per xterm.js docs) and DPR changes when dragging the window between displays
+ * (per xterm.js docs) and DPR changes when the window moves between displays
  * of different scale.
  *
- * Symptom without this: terminals render mostly black except for the cursor and
- * any glyphs written after the corruption (newly cached on the fly). The
- * `WebglAddon.onContextLoss` handler does NOT fire for these cases.
+ * Symptom without recovery: cells render fragments of other glyphs because the
+ * GPU atlas has drifted from xterm's glyph map. The `WebglAddon.onContextLoss`
+ * handler does NOT fire for these cases.
  *
- * Mount once at the App level. Iterates `terminalRegistry` on each trigger and
- * calls `Terminal.clearTextureAtlas()`, which is a no-op when the DOM renderer
- * is active.
+ * Strategy: clear the atlas when the user turns attention to a terminal,
+ * throttled per terminal via the registry's shared `lastAtlasClearAt` so
+ * simultaneous renderer-wide and per-terminal triggers don't double-clear.
+ *
+ * - Per-terminal focus is handled by `TerminalInstance` directly so a click on
+ *   a corrupted terminal recovers it.
+ * - Renderer-wide signals live here: window `focus` covers Cmd-tab back to
+ *   mcode; `app:wake` covers macOS lock/unlock without window focus loss.
+ *
+ * Mount once at the App level.
  */
 export function useTerminalAtlasRecovery(): void {
   useEffect(() => installAtlasRecoveryListeners(), []);
