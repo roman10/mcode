@@ -73,49 +73,51 @@ function CommandPalette({ initialMode, onClose }: CommandPaletteProps): React.JS
               return defaultFilter(value, q, keywords);
             }}
           >
-            <Command.Input
-              ref={inputRef}
-              value={input}
-              onValueChange={setInput}
-              placeholder={
-                mode === 'shell'
-                  ? '! Type a shell command...'
-                  : mode === 'commands'
-                    ? '> Type a command...'
-                    : mode === 'snippets'
-                      ? '@ Search prompt library...'
-                      : mode === 'todos'
-                        ? '+ Add or search TODOs...'
-                        : 'Search files by name...'
-              }
-              className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
-                         outline-none placeholder:text-text-muted"
-            />
-            <Command.List className="max-h-[50vh] overflow-y-auto py-1 border-t border-border-subtle">
-              {mode === 'todos' ? (
-                <TodoItems query={searchQuery} onClose={onClose} />
-              ) : mode === 'snippets' ? (
-                <PromptLibraryItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
-              ) : mode === 'shell' ? (
-                <ShellModeContent query={searchQuery} onClose={onClose} onSetInput={setInput} />
-              ) : mode === 'files' ? (
-                <>
-                  <FileSearchItems query={searchQuery} onClose={onClose} />
-                  {/* Hints for other modes */}
-                  {!searchQuery && (
-                    <div className="px-4 py-1.5 text-xs text-text-muted border-t border-border-subtle mt-1">
-                      Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">!</kbd> to run a shell command
-                      {' · '}
-                      Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">@</kbd> to search prompt library
-                      {' · '}
-                      Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">+</kbd> to add a TODO
-                    </div>
+            {mode === 'shell' ? (
+              <ShellModeContent input={input} setInput={setInput} onClose={onClose} />
+            ) : (
+              <>
+                <Command.Input
+                  ref={inputRef}
+                  value={input}
+                  onValueChange={setInput}
+                  placeholder={
+                    mode === 'commands'
+                      ? '> Type a command...'
+                      : mode === 'snippets'
+                        ? '@ Search prompt library...'
+                        : mode === 'todos'
+                          ? '+ Add or search TODOs...'
+                          : 'Search files by name...'
+                  }
+                  className="w-full px-4 py-3 bg-transparent text-text-primary text-sm
+                             outline-none placeholder:text-text-muted"
+                />
+                <Command.List className="max-h-[50vh] overflow-y-auto py-1 border-t border-border-subtle">
+                  {mode === 'todos' ? (
+                    <TodoItems query={searchQuery} onClose={onClose} />
+                  ) : mode === 'snippets' ? (
+                    <PromptLibraryItems query={searchQuery} onClose={onClose} escapeOverrideRef={escapeOverrideRef} />
+                  ) : mode === 'files' ? (
+                    <>
+                      <FileSearchItems query={searchQuery} onClose={onClose} />
+                      {/* Hints for other modes */}
+                      {!searchQuery && (
+                        <div className="px-4 py-1.5 text-xs text-text-muted border-t border-border-subtle mt-1">
+                          Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">!</kbd> to run a shell command
+                          {' · '}
+                          Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">@</kbd> to search prompt library
+                          {' · '}
+                          Type <kbd className="px-1 py-0.5 bg-bg-primary rounded border border-border-default font-mono">+</kbd> to add a TODO
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <CommandItems onClose={onClose} />
                   )}
-                </>
-              ) : (
-                <CommandItems onClose={onClose} />
-              )}
-            </Command.List>
+                </Command.List>
+              </>
+            )}
           </Command>
         </RadixDialog.Content>
       </RadixDialog.Portal>

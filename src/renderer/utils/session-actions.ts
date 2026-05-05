@@ -65,6 +65,13 @@ export function resolveActiveCwd(): string {
   return sorted[0]?.cwd ?? window.mcode.app.getHomeDir();
 }
 
+function firstLineLabel(cmd: string): string {
+  const lines = cmd.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  const first = lines[0] ?? cmd.trim();
+  const truncated = first.length > 80 ? first.slice(0, 79) + '…' : first;
+  return lines.length > 1 ? `${truncated} ↵` : truncated;
+}
+
 /**
  * Run a shell command in a new terminal tab in the bottom panel.
  */
@@ -73,17 +80,18 @@ export async function runShellCommand(
   cwd?: string,
 ): Promise<void> {
   const effectiveCwd = cwd ?? resolveActiveCwd();
+  const label = firstLineLabel(commandString);
 
   const session = await window.mcode.sessions.create({
     cwd: effectiveCwd,
     sessionType: 'terminal',
-    label: commandString,
+    label,
     initialCommand: commandString,
   });
 
   useTerminalPanelStore.getState().addTerminal({
     sessionId: session.sessionId,
-    label: commandString,
+    label,
     cwd: effectiveCwd,
     repo: basename(effectiveCwd),
   });
