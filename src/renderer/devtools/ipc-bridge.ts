@@ -1,8 +1,12 @@
-import { terminalRegistry, forceDisposeHiddenTile } from './terminal-registry';
+import { terminalRegistry, forceDisposeHiddenTile, isTerminalLive } from './terminal-registry';
 
 function readTerminalBuffer(sessionId: string, lines?: number): string {
   const term = terminalRegistry.get(sessionId);
   if (!term) return '';
+  // Hidden / mid-replay terminals intentionally drop live writes, so their
+  // xterm scrollback is stale. Returning empty here makes the main process
+  // fall back to the broker ring buffer, which has authoritative bytes.
+  if (!isTerminalLive(sessionId)) return '';
 
   const buffer = term.buffer.active;
   const totalRows = buffer.length;

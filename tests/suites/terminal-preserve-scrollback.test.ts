@@ -45,7 +45,10 @@ describe('terminal preserve-scrollback setting', () => {
     // Print the marker, push it well off-screen with a long seq so it lives
     // in scrollback (not viewport) regardless of terminal height, then echo
     // a unique end-token we can wait on without racing the command echo.
-    const endToken = `END-${marker}`;
+    // The end-token must NOT contain the marker as a substring, otherwise
+    // post-wipe assertions like `not.toContain(marker)` always fail because
+    // the end-token (which lives in viewport, not scrollback) contains it.
+    const endToken = `done-${marker.length}-${Math.random().toString(36).slice(2, 12)}`;
     await client.callTool('terminal_send_keys', {
       sessionId,
       keys: `echo ${marker}; seq 300; echo ${endToken}\\r`,

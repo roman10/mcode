@@ -13,7 +13,7 @@ import {
   SCROLLBACK_PRESETS,
 } from '@shared/constants';
 import { getAgentDefinition, shouldHideTerminalCursor } from '@shared/session-agents';
-import { terminalRegistry, registerDisposeHiddenTile } from '../../devtools/terminal-registry';
+import { terminalRegistry, registerDisposeHiddenTile, setTerminalLive } from '../../devtools/terminal-registry';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
@@ -55,6 +55,12 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   const webglRef = useRef<ReturnType<typeof attachWebgl> | null>(null);
   const sessionTypeRef = useRef(sessionType);
   sessionTypeRef.current = sessionType;
+  // Mirror of isVisible that the async initial-replay closure can read at
+  // finally-time. The setup effect captures isVisible at mount only, so a
+  // stale closure read would clobber the hide-effect's gate after a
+  // visible→hidden transition during initial replay.
+  const isVisibleRef = useRef(isVisible);
+  isVisibleRef.current = isVisible;
   const slashCommandBufferRef = useRef('');
   const knownSlashCommandsRef = useRef<Set<string>>(new Set());
   const warningTimeoutRef = useRef<number | null>(null);
@@ -62,11 +68,15 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   // getReplaySince(0) at mount and incremented per pty.onData chunk so the
   // value stays in lockstep with broker between catch-up resyncs.
   const byteOffsetRef = useRef<number>(0);
-  // Set when the tile transitions to hidden; cleared after the reveal-time
-  // catch-up completes. Doubles as the "drop live writes" gate — a non-null
-  // value means the xterm should not be written to (either tile is hidden,
-  // or we're mid-catch-up and live chunks are flowing through the queue).
+  // Catch-up offset for the next reveal: set when the tile becomes hidden
+  // (or stays hidden through initial replay), cleared once a reveal-time
+  // catch-up has run. null means no pending catch-up.
   const hiddenAtOffsetRef = useRef<number | null>(null);
+  // "Drop live writes" gate, separate from the catch-up offset above so the
+  // initial replay (which gates writes but has no catch-up offset) doesn't
+  // trip the hide/reveal effect. True during initial replay, while hidden,
+  // and mid-catch-up; cleared once writes can flow into xterm directly.
+  const dropLiveWritesRef = useRef<boolean>(true);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [currentScrollback, setCurrentScrollback] = useState(scrollbackLines);
   /** False when the tile has been hidden long enough that its xterm instance was disposed
@@ -182,6 +192,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
 
     if (!isVisible) {
       hiddenAtOffsetRef.current = byteOffsetRef.current;
+      dropLiveWritesRef.current = true;
+      setTerminalLive(sessionId, false);
       return;
     }
 
@@ -193,6 +205,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       return;
     }
 
+    dropLiveWritesRef.current = true;
     let cancelled = false;
     (async () => {
       try {
@@ -225,7 +238,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
         // may be stale; the 5-min dispose-and-remount path is the backstop.
         console.warn('[TerminalInstance] hide/reveal catch-up failed', err);
       } finally {
-        if (!cancelled) hiddenAtOffsetRef.current = null;
+        if (!cancelled) {
+          hiddenAtOffsetRef.current = null;
+          dropLiveWritesRef.current = false;
+          setTerminalLive(sessionId, true);
+        }
       }
     })();
 
@@ -400,42 +417,70 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       webglRef.current?.clearAtlas();
     });
 
-    // (Re)mount: clear any stale hide tracking and reset the byte mirror.
-    // The initial replay below seeds byteOffsetRef from broker's authoritative
-    // currentOffset so subsequent hide/reveal catch-ups query the right delta.
+    // (Re)mount: gate live writes until the initial replay completes. Without
+    // the gate, pty.onData chunks arriving during the replay's IPC await would
+    // be written alongside the replay data — the replay's snapshot also
+    // includes those bytes (broker appends synchronously per chunk), so we'd
+    // double-write. The bridge loop below catches up bytes added between the
+    // IPC send and response.
     hiddenAtOffsetRef.current = null;
+    dropLiveWritesRef.current = true;
     byteOffsetRef.current = 0;
+    setTerminalLive(sessionId, false);
 
     // Fit before replay: cursor-position / clear-screen escapes in the
     // buffered bytes are interpreted at the terminal's current cols/rows,
     // so a fresh 80x24 grid would land replayed prompts off-screen.
     // setTimeout (not rAF) so this fires when Electron isn't actively painting.
+    let cancelledInitial = false;
     const initialFitTimer = window.setTimeout(() => {
       fitAddon.fit();
-      // getReplaySince(0) returns the same content as the legacy pty:replay
-      // path plus broker's currentOffset, used to seed byteOffsetRef. A few
-      // bytes of skew is possible if live chunks arrive during the IPC await
-      // — acceptable since the catch-up path on hide/reveal handles the
-      // small-window case via the bridge loop.
-      window.mcode.pty
-        .getReplaySince(sessionId, 0)
-        .then((r) => {
-          if (termInstanceRef.current !== term) return;
+      (async () => {
+        try {
+          const r = await window.mcode.pty.getReplaySince(sessionId, 0);
+          if (cancelledInitial || termInstanceRef.current !== term) return;
           if (r.data) term.write(r.data);
-          byteOffsetRef.current = r.currentOffset;
-        })
-        .catch(() => {
+          let cursor = r.currentOffset;
+          // Catch up bytes that arrived after the snapshot was taken but
+          // before this resolves (live pty.onData incremented byteOffsetRef
+          // without writing, since the gate is active).
+          for (let i = 0; i < 5 && cursor < byteOffsetRef.current; i++) {
+            const r2 = await window.mcode.pty.getReplaySince(sessionId, cursor);
+            if (cancelledInitial || termInstanceRef.current !== term) return;
+            if (r2.data) term.write(r2.data);
+            if (r2.currentOffset <= cursor) break;
+            cursor = r2.currentOffset;
+          }
+          byteOffsetRef.current = Math.max(byteOffsetRef.current, cursor);
+        } catch {
           // Session may not exist yet or PTY already exited
-        });
+        } finally {
+          if (!cancelledInitial && termInstanceRef.current === term) {
+            if (isVisibleRef.current) {
+              // Tile still visible: open the gate so live writes resume.
+              dropLiveWritesRef.current = false;
+              setTerminalLive(sessionId, true);
+            } else {
+              // Tile went hidden during the initial replay. Record the
+              // current byte offset as the catch-up start so the next reveal
+              // queries the right delta (pty.onData kept incrementing
+              // byteOffsetRef while the gate dropped writes).
+              hiddenAtOffsetRef.current = byteOffsetRef.current;
+              setTerminalLive(sessionId, false);
+            }
+          }
+        }
+      })();
     }, 0);
 
     // PTY data → terminal. byteOffsetRef increments unconditionally so it
-    // mirrors broker's offset even while we're dropping writes (hidden/
-    // catching up); the gate on hiddenAtOffsetRef decides whether to write.
+    // mirrors broker's offset even while we're dropping writes (initial
+    // replay / hidden / catching up); dropLiveWritesRef gates whether the
+    // chunk reaches xterm.
     const unsubData = window.mcode.pty.onData((id, data) => {
       if (id !== sessionId) return;
       byteOffsetRef.current += utf8ByteLength(data);
-      if (hiddenAtOffsetRef.current !== null) return;
+      if (dropLiveWritesRef.current) return;
       term.write(data);
     });
 
@@ -539,6 +584,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       termInstanceRef.current = null;
       fitAddonRef.current = null;
       terminalRegistry.delete(sessionId);
+      setTerminalLive(sessionId, false);
+      cancelledInitial = true;
       clearTimeout(initialFitTimer);
       clearTimeout(resizeTimer);
       if (warningTimeoutRef.current !== null) clearTimeout(warningTimeoutRef.current);

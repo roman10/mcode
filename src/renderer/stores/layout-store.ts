@@ -13,7 +13,7 @@ import {
   sessionIdFromTileId,
 } from '../utils/tile-id';
 import { useSessionStore } from './session-store';
-import { useTerminalPanelStore } from './terminal-panel-store';
+import { useTerminalPanelStore, type PanelNode, type TabGroup, type TerminalEntry } from './terminal-panel-store';
 
 /** Legacy tile id from when the stats dashboard was a mosaic tile; stripped on restore. */
 const LEGACY_STATS_DASHBOARD_TILE = 'stats-dashboard:main';
@@ -633,7 +633,14 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
       // Restore terminal panel state
       if (snapshot.terminalPanelState && typeof snapshot.terminalPanelState === 'object') {
-        const ps = snapshot.terminalPanelState as Record<string, unknown>;
+        const ps = snapshot.terminalPanelState as {
+          panelHeight?: unknown;
+          panelVisible?: unknown;
+          tabGroups?: Record<string, TabGroup>;
+          splitTree?: PanelNode | null;
+          activeTabGroupId?: string | null;
+          terminals?: Record<string, TerminalEntry>;
+        };
         useTerminalPanelStore.setState({
           panelHeight: typeof ps.panelHeight === 'number' ? ps.panelHeight : 200,
           panelVisible: Boolean(ps.panelVisible),
