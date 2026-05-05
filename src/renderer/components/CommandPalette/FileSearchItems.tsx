@@ -3,17 +3,12 @@ import { Command } from 'cmdk';
 import uFuzzy from '@leeoniya/ufuzzy';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useSessionStore } from '../../stores/session-store';
-import { basename } from '../../utils/path-utils';
+import { normalizeCwd } from '../../utils/path-utils';
 import { getFileIcon } from '../../utils/file-icons';
 import HighlightedText from './HighlightedText';
+import { dedupeFileEntries, type FileEntry } from './file-entry-dedup';
 
 const uf = new uFuzzy({ intraMode: 1 });
-
-interface FileEntry {
-  path: string;
-  cwd: string;
-  repo: string;
-}
 
 interface FilteredEntry extends FileEntry {
   ranges: number[] | null;
@@ -31,20 +26,31 @@ function FileSearchItems({ query, onClose }: FileSearchItemsProps): React.JSX.El
   const [loading, setLoading] = useState(true);
   const [repoCount, setRepoCount] = useState(0);
 
-  // Determine primary cwd (selected session or most recent)
+  // Only consider sessions the user could plausibly want to search files for.
+  // Ended sessions linger in the store (session-repository.listSessions returns
+  // them all so kanban / activity views can show them) but their cwds shouldn't
+  // pollute Quick Open.
+  const aliveSessions = useMemo(
+    () => Object.values(sessions).filter((s) => s.status !== 'ended'),
+    [sessions],
+  );
+
+  // Determine primary cwd (selected session or most recent alive session)
   const primaryCwd = useMemo(() => {
     const selected = selectedSessionId ? sessions[selectedSessionId] : null;
-    if (selected) return selected.cwd;
-    const sorted = Object.values(sessions).sort(
+    if (selected && selected.status !== 'ended') return normalizeCwd(selected.cwd);
+    const sorted = [...aliveSessions].sort(
       (a, b) => b.startedAt.localeCompare(a.startedAt),
     );
-    return sorted[0]?.cwd ?? null;
-  }, [sessions, selectedSessionId]);
+    const cwd = sorted[0]?.cwd;
+    return cwd ? normalizeCwd(cwd) : null;
+  }, [sessions, selectedSessionId, aliveSessions]);
 
-  // Collect unique cwds from all sessions, stabilized to avoid re-fetching
-  // when unrelated session fields change (status, lastEventAt, etc.)
+  // Collect unique cwds, normalized so trailing-slash variants collapse to a
+  // single root. Stabilized to avoid re-fetching when unrelated session fields
+  // change (status transitions among alive states, lastEventAt, etc.)
   const uniqueCwdsRaw = useMemo(() => {
-    const cwds = new Set(Object.values(sessions).map((s) => s.cwd));
+    const cwds = new Set(aliveSessions.map((s) => normalizeCwd(s.cwd)));
     if (cwds.size === 0) return [];
     const arr = [...cwds];
     if (primaryCwd) {
@@ -55,7 +61,7 @@ function FileSearchItems({ query, onClose }: FileSearchItemsProps): React.JSX.El
       }
     }
     return arr;
-  }, [sessions, primaryCwd]);
+  }, [aliveSessions, primaryCwd]);
 
   const prevCwdsKeyRef = useRef('');
   const uniqueCwdsRef = useRef<string[]>([]);
@@ -78,20 +84,12 @@ function FileSearchItems({ query, onClose }: FileSearchItemsProps): React.JSX.El
     Promise.allSettled(
       uniqueCwds.map((cwd) => window.mcode.files.list(cwd).then((r) => ({ cwd, files: r.files }))),
     ).then((results) => {
-      const combined: FileEntry[] = [];
-      for (const result of results) {
-        if (result.status !== 'fulfilled') continue;
-        const { cwd, files } = result.value;
-        const repo = basename(cwd);
-        for (const path of files) {
-          combined.push({ path, cwd, repo });
-        }
-      }
-      setEntries(combined);
+      const fulfilled = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+      setEntries(dedupeFileEntries(fulfilled, primaryCwd));
       setRepoCount(uniqueCwds.length);
       setLoading(false);
     });
-  }, [uniqueCwds]);
+  }, [uniqueCwds, primaryCwd]);
 
   // Build path array for uFuzzy (parallel to entries)
   const paths = useMemo(() => entries.map((e) => e.path), [entries]);
