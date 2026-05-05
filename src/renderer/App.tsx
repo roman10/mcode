@@ -22,6 +22,8 @@ import { useChangesStore } from './stores/changes-store';
 import { useTodoStore } from './stores/todo-store';
 import { executeAppCommand } from './utils/app-commands';
 import { autoExpandInKanban } from './utils/session-actions';
+import { ensureSlashCommandsScan } from './utils/slash-command-cache';
+import { markFresh } from './utils/fresh-sessions';
 import TitleBar from './components/TitleBar';
 import { ErrorBoundary, ErrorFallback } from './components/shared/ErrorBoundary';
 import CreateTaskDialog from './components/shared/CreateTaskDialog';
@@ -32,6 +34,7 @@ import { useUpdateSubscriptions } from './hooks/useUpdateSubscriptions';
 import { useUpdateStore } from './stores/update-store';
 import UpdateBanner from './components/UpdateBanner';
 import { canSessionBeDefaultTaskTarget } from '@shared/session-capabilities';
+import { isAgentSessionType } from '@shared/session-agents';
 import type { CreateTaskInput, SessionCreateInput, SidebarTab } from '@shared/types';
 
 function App(): React.JSX.Element {
@@ -167,7 +170,17 @@ function App(): React.JSX.Element {
 
   const handleCreateSession = async (input: SessionCreateInput): Promise<void> => {
     try {
+      // Warm the slash-command cache in parallel with PTY cold-start so the
+      // tile-mount path can read it synchronously instead of issuing its own scan.
+      const sessionType = input.sessionType ?? 'claude';
+      if (isAgentSessionType(sessionType)) {
+        ensureSlashCommandsScan(sessionType, input.cwd);
+      }
+
       const session = await window.mcode.sessions.create(input);
+      // First mount of this session can skip the initial pty:replay-since(0)
+      // round-trip — the broker ring buffer is empty by construction.
+      markFresh(session.sessionId);
       addSession(session);
 
       if (splitIntent) {

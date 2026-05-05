@@ -29,6 +29,11 @@ import {
   stripTerminalInputControlSequences,
 } from '../../utils/slash-command-validation';
 import { utf8ByteLength } from '../../utils/utf8-byte-length';
+import {
+  ensureSlashCommandsScan,
+  getSlashCommandsCached,
+} from '../../utils/slash-command-cache';
+import { consumeFresh } from '../../utils/fresh-sessions';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -114,16 +119,16 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       knownSlashCommandsRef.current = new Set();
       return;
     }
+    const cached = getSlashCommandsCached(agent.sessionType, cwd);
+    if (cached) {
+      knownSlashCommandsRef.current = cached;
+      return;
+    }
     let stale = false;
-    window.mcode.slashCommands.scan(agent.sessionType, cwd).then((commands) => {
-      if (!stale) {
-        knownSlashCommandsRef.current = new Set(commands.map((cmd) => cmd.name.toLowerCase()));
-      }
-    }).catch(() => {
-      if (!stale) knownSlashCommandsRef.current = new Set();
+    ensureSlashCommandsScan(agent.sessionType, cwd).then((set) => {
+      if (!stale) knownSlashCommandsRef.current = set;
     });
     return () => { stale = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionType is read via ref
   }, [cwd]);
 
   // fit() while hidden would resize xterm to the 0×0 container, hand bash a
@@ -437,10 +442,21 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // includes those bytes (broker appends synchronously per chunk), so we'd
     // double-write. The bridge loop below catches up bytes added between the
     // IPC send and response.
+    //
+    // Exception: a freshly-created session has an empty broker ring buffer by
+    // construction, so the replay round-trip would just return zero bytes. We
+    // skip it and open the gate immediately, removing one IPC roundtrip and
+    // one event-loop tick from the user-perceived "tile is empty" window.
+    const skipInitialReplay = consumeFresh(sessionId) && isVisibleRef.current;
     hiddenAtOffsetRef.current = null;
-    dropLiveWritesRef.current = true;
     byteOffsetRef.current = 0;
-    setTerminalLive(sessionId, false);
+    if (skipInitialReplay) {
+      dropLiveWritesRef.current = false;
+      setTerminalLive(sessionId, true);
+    } else {
+      dropLiveWritesRef.current = true;
+      setTerminalLive(sessionId, false);
+    }
 
     // Fit before replay: cursor-position / clear-screen escapes in the
     // buffered bytes are interpreted at the terminal's current cols/rows,
@@ -449,6 +465,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     let cancelledInitial = false;
     const initialFitTimer = window.setTimeout(() => {
       safeFit();
+      if (skipInitialReplay) return;
       (async () => {
         try {
           const r = await window.mcode.pty.getReplaySince(sessionId, 0);
