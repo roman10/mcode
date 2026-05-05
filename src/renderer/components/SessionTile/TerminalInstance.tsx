@@ -126,6 +126,20 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionType is read via ref
   }, [cwd]);
 
+  // fit() while hidden would resize xterm to the 0×0 container, hand bash a
+  // SIGWINCH at the tiny grid, and the resulting prompt-redraw bytes would
+  // sit in the broker ring for the catch-up replay. Replaying those at the
+  // restored full size garbles the screen because the embedded cursor
+  // positions assume the tiny grid. Skip when the tile isn't visible (or the
+  // container hasn't laid out yet); the visibility effect re-runs fit() on
+  // reveal.
+  const safeFit = useCallback((): void => {
+    if (!isVisibleRef.current) return;
+    const c = termRef.current;
+    if (!c || c.clientWidth === 0 || c.clientHeight === 0) return;
+    fitAddonRef.current?.fit();
+  }, []);
+
   // Subscribe to terminal panel height changes so that fit() is called even when
   // ResizeObserver doesn't fire (e.g. in background/non-painting Electron windows).
   useEffect(() => {
@@ -134,11 +148,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       if (s.panelHeight !== lastH) {
         lastH = s.panelHeight;
         // Delay one tick so the DOM layout has propagated from the state change.
-        window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
+        window.setTimeout(safeFit, 0);
       }
     });
     return unsub;
-  }, []);
+  }, [safeFit]);
 
   // Backstop for tile resize/maximize: ResizeObserver normally fires on mosaic
   // layout transitions, but Electron's render loop can drop those callbacks
@@ -151,19 +165,19 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       if (s.mosaicTree !== lastTree || s.restoreTree !== lastRestoreTree) {
         lastTree = s.mosaicTree;
         lastRestoreTree = s.restoreTree;
-        window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
+        window.setTimeout(safeFit, 0);
       }
     });
     return unsub;
-  }, []);
+  }, [safeFit]);
 
   // Re-fit the terminal when it becomes visible (display:none → visible).
   // Hidden elements have zero dimensions so fit() must wait until visible.
   useEffect(() => {
     if (!isVisible) return;
-    const timer = window.setTimeout(() => { fitAddonRef.current?.fit(); }, 0);
+    const timer = window.setTimeout(safeFit, 0);
     return () => clearTimeout(timer);
-  }, [isVisible]);
+  }, [isVisible, safeFit]);
 
   // Detach WebGL from hidden terminals to free contexts (capped at 6);
   // re-attach when the terminal becomes visible again.
@@ -434,7 +448,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // setTimeout (not rAF) so this fires when Electron isn't actively painting.
     let cancelledInitial = false;
     const initialFitTimer = window.setTimeout(() => {
-      fitAddon.fit();
+      safeFit();
       (async () => {
         try {
           const r = await window.mcode.pty.getReplaySince(sessionId, 0);
@@ -564,7 +578,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     let resizeTimer = 0;
     const scheduleFit = (): void => {
       clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(() => { fitAddon.fit(); }, 0);
+      resizeTimer = window.setTimeout(safeFit, 0);
     };
 
     const resizeObserver = new ResizeObserver(() => { scheduleFit(); });
