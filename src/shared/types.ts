@@ -443,6 +443,12 @@ export interface MCodeAPI {
     clearAttention(sessionId: string): Promise<void>;
     clearAllAttention(): Promise<void>;
     resume(sessionId: string, accountId?: string): Promise<SessionInfo>;
+    fork(
+      sessionId: string,
+      targetCli: 'claude' | 'codex' | 'gemini' | 'copilot',
+      mode: 'compacted' | 'full',
+    ): Promise<SessionInfo>;
+    forkPreview(sessionId: string): Promise<{ summary: string; usedCli: string }>;
     listExternal(limit?: number): Promise<ExternalSessionInfo[]>;
     importExternal(claudeSessionId: string, cwd: string, label?: string): Promise<SessionInfo>;
     onUpdated(callback: (session: SessionInfo) => void): () => void;

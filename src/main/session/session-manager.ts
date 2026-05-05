@@ -45,8 +45,10 @@ import {
 } from './session-repository';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
 import { normalizeModelVersion, normalizeGeminiModel, normalizeCopilotModel } from '../trackers/token-cost';
-import { isAgentSession, type AgentSessionType } from '../../shared/session-agents';
+import { isAgentSession, AGENT_SESSION_TYPES, getAgentDefinition, type AgentSessionType } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
+import { readSessionTranscript } from './transcript-reader';
+import { compact } from './compactor';
 import {
   buildSessionLabel,
   getDefaultSessionCommand,
@@ -81,6 +83,7 @@ import type { HookEventName } from './session-state-machine';
 import {
   DEFAULT_COLS,
   DEFAULT_ROWS,
+  HANDOFF_SEED_MAX_CHARS,
   HOOK_TOOL_INPUT_MAX_BYTES,
 } from '../../shared/constants';
 import { SessionEventStore } from './session-event-store';
@@ -97,6 +100,25 @@ import type {
 } from '../../shared/types';
 import { typedHandle } from '../ipc-helpers';
 
+
+/**
+ * Strip a leading agent icon (and any whitespace after it) from a session label.
+ * Mirrors the renderer's splitLabelIcon: handles both Claude's canonical ✳ and its
+ * Braille spinner range (U+2800–U+28FF), plus the explicit icons of every other
+ * registered agent. Used during fork to carry the meaningful label text across.
+ */
+function stripAgentIconPrefix(label: string): string {
+  // Claude's canonical ✳ (U+2733) plus its Braille spinner range (U+2800–U+28FF).
+  // Same character set as the renderer's splitLabelIcon.
+  const claudeMatch = label.match(/^[⠀-⣿✳]\s*/);
+  if (claudeMatch) return label.slice(claudeMatch[0].length);
+  for (const sessionType of AGENT_SESSION_TYPES) {
+    if (sessionType === 'claude') continue;
+    const icon = getAgentDefinition(sessionType)?.icon;
+    if (icon && label.startsWith(icon)) return label.slice(icon.length).trimStart();
+  }
+  return label;
+}
 
 /**
  * Extract the last `customTitle` from a Claude Code JSONL file.
@@ -515,6 +537,118 @@ export class SessionManager {
     const session = this.get(sessionId)!;
     this.broadcastSessionUpdate(sessionId);
     return session;
+  }
+
+  /**
+   * Cross-CLI handoff: read the source session's transcript, optionally compact
+   * it via a headless CLI invocation, and spawn a new session in the target CLI
+   * seeded with that text as its first user message. The source session is left
+   * untouched (running stays running, ended stays ended). Returns the new session.
+   */
+  async forkSession(
+    sourceSessionId: string,
+    targetCli: AgentSessionType,
+    mode: 'compacted' | 'full',
+  ): Promise<SessionInfo> {
+    const source = getSessionRecord(sourceSessionId);
+    if (!source) throw new Error(`Session not found: ${sourceSessionId}`);
+    if (source.session_type === targetCli) {
+      throw new Error(`Cannot fork to the same CLI (${targetCli})`);
+    }
+    if (!isAgentSession(source.session_type)) {
+      throw new Error(`Cannot fork a ${source.session_type} session`);
+    }
+
+    const sourceCli = source.session_type as AgentSessionType;
+
+    const ptyReplayBuffer = this.ptyManager.getReplayData(sourceSessionId) ?? '';
+    const transcript = await readSessionTranscript({
+      sessionType: sourceCli,
+      cwd: source.cwd,
+      claudeSessionId: source.claude_session_id,
+      ptyReplayBuffer,
+    });
+
+    if (!transcript.trim()) {
+      throw new Error(
+        'No transcript available to hand off. ' +
+        (sourceCli === 'claude'
+          ? 'The Claude JSONL transcript could not be read.'
+          : `Forking a ${sourceCli} session requires it to be running so its scrollback is available.`),
+      );
+    }
+
+    let seed: string;
+    if (mode === 'compacted') {
+      // Prefer the source CLI for compaction: it knows the conversation style and
+      // the user is already authenticated against it. Falls through to other
+      // CLIs internally if source has no headless mode.
+      const sourceAccountEnv = this.accountManager.getSessionEnv(
+        source.account_id ?? undefined,
+        sourceCli,
+      );
+      const result = await compact({
+        transcript,
+        preferCli: sourceCli,
+        env: sourceAccountEnv,
+      });
+      seed = `Continuing from a ${sourceCli} session. Summary of prior work:\n\n${result.summary}`;
+    } else {
+      const truncated = transcript.length > HANDOFF_SEED_MAX_CHARS;
+      const body = truncated
+        ? `${transcript.slice(0, HANDOFF_SEED_MAX_CHARS)}\n\n[transcript truncated]`
+        : transcript;
+      seed = `Continuing from a ${sourceCli} session. Full transcript follows:\n\n${body}`;
+    }
+
+    // Carry over the source's meaningful label text (without its agent-icon
+    // prefix) so the fork is recognisable in the sidebar. Without this,
+    // create()'s auto-label logic would derive the label from the seed text's
+    // first line ("Continuing from a claude session…") and every fork would
+    // look the same.
+    const carriedLabel = stripAgentIconPrefix(source.label).slice(0, 50);
+
+    // Hand off via the existing create() path so all adapter wiring (account env,
+    // hook bridge, label generation, afterCreate capture) runs identically to a
+    // user-initiated new session.
+    return this.create({
+      cwd: source.cwd,
+      sessionType: targetCli,
+      label: carriedLabel || undefined,
+      initialPrompt: seed,
+      accountId: source.account_id ?? undefined,
+    });
+  }
+
+  /**
+   * Run only the compaction half of a handoff so the dialog can show a preview
+   * before the user commits. Source session is not modified and no new session
+   * is created. Returns the summary text and the CLI that produced it.
+   */
+  async previewHandoff(sourceSessionId: string): Promise<{ summary: string; usedCli: AgentSessionType }> {
+    const source = getSessionRecord(sourceSessionId);
+    if (!source) throw new Error(`Session not found: ${sourceSessionId}`);
+    if (!isAgentSession(source.session_type)) {
+      throw new Error(`Cannot preview handoff for a ${source.session_type} session`);
+    }
+    const sourceCli = source.session_type as AgentSessionType;
+
+    const ptyReplayBuffer = this.ptyManager.getReplayData(sourceSessionId) ?? '';
+    const transcript = await readSessionTranscript({
+      sessionType: sourceCli,
+      cwd: source.cwd,
+      claudeSessionId: source.claude_session_id,
+      ptyReplayBuffer,
+    });
+    if (!transcript.trim()) {
+      throw new Error('No transcript available to summarize.');
+    }
+
+    const sourceAccountEnv = this.accountManager.getSessionEnv(
+      source.account_id ?? undefined,
+      sourceCli,
+    );
+    return compact({ transcript, preferCli: sourceCli, env: sourceAccountEnv });
   }
 
   /** Import and resume an external Claude Code session not tracked by mcode. */
@@ -1504,6 +1638,14 @@ export function registerSessionIpc(sessionManager: SessionManager): void {
 
   typedHandle('session:resume', ({ sessionId, accountId }) => {
     return sessionManager.resume(sessionId, accountId);
+  });
+
+  typedHandle('session:fork', ({ sessionId, targetCli, mode }) => {
+    return sessionManager.forkSession(sessionId, targetCli, mode);
+  });
+
+  typedHandle('session:fork-preview', ({ sessionId }) => {
+    return sessionManager.previewHandoff(sessionId);
   });
 
   typedHandle('session:list-external', async (limit) => {

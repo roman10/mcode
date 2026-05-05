@@ -168,6 +168,16 @@ contextBridge.exposeInMainWorld('mcode', {
     resume: (sessionId: string, accountId?: string): Promise<SessionInfo> =>
       typedInvoke('session:resume', { sessionId, accountId }),
 
+    fork: (
+      sessionId: string,
+      targetCli: 'claude' | 'codex' | 'gemini' | 'copilot',
+      mode: 'compacted' | 'full',
+    ): Promise<SessionInfo> =>
+      typedInvoke('session:fork', { sessionId, targetCli, mode }),
+
+    forkPreview: (sessionId: string): Promise<{ summary: string; usedCli: string }> =>
+      typedInvoke('session:fork-preview', { sessionId }),
+
     listExternal: (limit?: number): Promise<ExternalSessionInfo[]> =>
       typedInvoke('session:list-external', limit),
 

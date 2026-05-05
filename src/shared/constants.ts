@@ -118,6 +118,23 @@ export const KNOWN_HOOK_EVENTS = [
 ] as const;
 export type KnownHookEvent = (typeof KNOWN_HOOK_EVENTS)[number];
 
+// Cross-CLI session handoff
+/** Hard cap on the seed text passed as initialPrompt to the target CLI.
+ *  CLI args are bounded by ARG_MAX (~1MB on macOS); we leave generous headroom. */
+export const HANDOFF_SEED_MAX_CHARS = 100_000;
+
+/** Prompt fed to the chosen CLI in headless one-shot mode to produce a handoff summary. */
+export const HANDOFF_COMPACTION_PROMPT = [
+  'You are summarising a coding session so it can be continued in a different AI coding CLI.',
+  'Below is the conversation transcript. Produce a concise handoff summary covering:',
+  '1. The user\'s overall goal and current sub-task.',
+  '2. Decisions already made and approaches ruled out.',
+  '3. Key files / functions touched and what changed.',
+  '4. Open questions or next steps.',
+  'Write it as plain prose for another agent to read at the start of a new conversation.',
+  'Do not invent details that are not in the transcript. No preamble — start with the summary.',
+].join('\n');
+
 // Auto-update
 export const GITHUB_OWNER = 'roman10';
 export const GITHUB_REPO = 'mcode';

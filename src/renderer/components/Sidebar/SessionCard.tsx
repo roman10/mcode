@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef, memo } from 'react';
 import type { SessionInfo } from '@shared/types';
+import { isAgentSessionType } from '@shared/session-agents';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
@@ -24,6 +25,7 @@ interface SessionCardProps {
   onKill(sessionId: string): void;
   onDelete(sessionId: string): void;
   onRename(sessionId: string, label: string): void;
+  onHandoff(sessionId: string): void;
 }
 
 export interface SessionCardHandle {
@@ -46,6 +48,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
     onKill,
     onDelete,
     onRename,
+    onHandoff,
   }, ref) {
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState('');
@@ -93,10 +96,14 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
     const canOpenTile = !hasTile && (session.status !== 'ended' || resumable);
     const isEnded = session.status === 'ended';
 
+    const canHandoff = isAgentSessionType(session.sessionType);
     const contextMenuItems: MenuItem[] = [
       { label: 'Rename', action: 'rename', shortcut: 'F2' },
       ...(canOpenTile
         ? [{ label: isEnded ? 'View / Resume' : 'Open Tile', action: 'open-tile', shortcut: '↵' }]
+        : []),
+      ...(canHandoff
+        ? [{ label: 'Continue in another CLI…', action: 'handoff' }]
         : []),
       { label: '', action: 'sep1', separator: true },
       isEnded
@@ -117,6 +124,9 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
           break;
         case 'delete':
           onDelete(session.sessionId);
+          break;
+        case 'handoff':
+          onHandoff(session.sessionId);
           break;
       }
     };

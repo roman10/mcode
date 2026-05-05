@@ -7,7 +7,8 @@ import SessionCard from './SessionCard';
 import type { SessionCardHandle } from './SessionCard';
 import { getOrderedVisibleSessions, filterSessions } from '../../utils/session-ordering';
 import { toDateKey, groupSessionsByDate } from '../../utils/date-grouping';
-import type { ExternalSessionInfo } from '@shared/types';
+import type { ExternalSessionInfo, SessionInfo } from '@shared/types';
+import HandoffDialog from '../shared/HandoffDialog';
 
 function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.Element {
   const sessions = useSessionStore((s) => s.sessions);
@@ -111,6 +112,12 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
     } catch (err) {
       console.error('Failed to delete session:', err);
     }
+  }, []);
+
+  const [handoffSession, setHandoffSession] = useState<SessionInfo | null>(null);
+  const handleHandoff = useCallback((sessionId: string): void => {
+    const session = useSessionStore.getState().sessions[sessionId];
+    if (session) setHandoffSession(session);
   }, []);
 
   const handleRename = useCallback(async (sessionId: string, label: string): Promise<void> => {
@@ -243,11 +250,18 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
                 onKill={handleKill}
                 onDelete={handleDelete}
                 onRename={handleRename}
+                onHandoff={handleHandoff}
               />
             ))}
           </div>
         );
       })}
+
+      <HandoffDialog
+        open={handoffSession !== null}
+        sourceSession={handoffSession}
+        onOpenChange={(o) => { if (!o) setHandoffSession(null); }}
+      />
 
       {!isFiltering && externalSessions.length > 0 && (
         <div className="mt-2 border-t border-border-default pt-2">

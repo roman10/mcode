@@ -202,6 +202,35 @@ export function registerSessionTools(
     };
   });
 
+  server.registerTool('session_fork', {
+    description: 'Hand off a session to a different CLI. Reads the source transcript, optionally compacts it via a headless CLI invocation, and creates a new session in the target CLI seeded with that text. Source session is left untouched.',
+    inputSchema: {
+      sessionId: z.string().describe('Source session ID to hand off from'),
+      targetCli: z.enum(['claude', 'codex', 'gemini', 'copilot']).describe('Destination CLI for the new session'),
+      mode: z.enum(['compacted', 'full']).describe('"compacted" runs a summarization model first; "full" passes the transcript verbatim'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ sessionId, targetCli, mode }) => {
+    try {
+      const session = await ctx.sessionManager.forkSession(sessionId, targetCli, mode);
+      try {
+        if (!ctx.mainWindow.isDestroyed()) {
+          await queryRenderer<void>(ctx.mainWindow, 'session-created', { session });
+        }
+      } catch {
+        // Notification failure should not mask a successful fork
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(session, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('session_resume', {
     description: 'Resume an ended session in place',
     inputSchema: {

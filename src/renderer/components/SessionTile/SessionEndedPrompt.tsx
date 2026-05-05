@@ -9,6 +9,8 @@ import {
   getResumeUnavailableMessage,
 } from '../../utils/session-resume';
 import { getSessionInstallHelp } from '@shared/session-capabilities';
+import { isAgentSessionType } from '@shared/session-agents';
+import HandoffDialog from '../shared/HandoffDialog';
 
 interface SessionEndedPromptProps {
   sessionId: string;
@@ -22,6 +24,8 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
   const [resuming, setResuming] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [handoffOpen, setHandoffOpen] = useState(false);
+  const canHandoff = isAgentSessionType(session?.sessionType);
   const accountInitialized = useRef(false);
 
   const canResume = canResumeSession(session);
@@ -124,7 +128,24 @@ function SessionEndedPrompt({ sessionId }: SessionEndedPromptProps): React.JSX.E
         >
           {creating ? 'Starting...' : 'Start New Session'}
         </button>
+        {canHandoff && (
+          <button
+            className="px-4 py-2 text-sm bg-bg-elevated hover:bg-bg-tertiary text-text-primary rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={() => setHandoffOpen(true)}
+            disabled={busy}
+          >
+            Continue in another CLI…
+          </button>
+        )}
       </div>
+
+      {canHandoff && (
+        <HandoffDialog
+          open={handoffOpen}
+          sourceSession={session ?? null}
+          onOpenChange={setHandoffOpen}
+        />
+      )}
 
       {getResumeUnavailableMessage(session) && (
         <div className="text-xs text-text-muted">
