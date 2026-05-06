@@ -1,6 +1,12 @@
 import { useEffect } from 'react';
 import { clearAllAtlasesThrottled } from '../devtools/terminal-registry';
+import { requestRecreateAllWebgl } from '../utils/webgl-lifecycle';
 import { ATLAS_RECLEAR_THROTTLE_MS, ATLAS_SWEEP_INTERVAL_MS } from '@shared/constants';
+
+/** Coalesce back-to-back powerMonitor events (unlock-screen + resume often
+ *  fire within ~50ms of each other). Recreating GL contexts twice in a tick
+ *  hitches noticeably. */
+const WAKE_DEBOUNCE_MS = 100;
 
 /**
  * Installs the listeners that drive atlas recovery and returns a teardown.
@@ -26,9 +32,27 @@ export function installAtlasRecoveryListeners(): () => void {
   // macOS lock/unlock with mcode in the foreground fires no focus or
   // visibilitychange event, so the recovery above wouldn't run after unlock.
   // Main forwards powerMonitor 'unlock-screen' / 'resume' as 'app:wake' for
-  // exactly this case. Threshold 0: always clear, since wake is rare and
-  // definitive (the atlas is almost certainly stale across sleep).
-  const unsubWake = window.mcode?.app?.onWake?.(() => clearAllAtlasesThrottled(0));
+  // exactly this case.
+  //
+  // Sleep/wake doesn't just stale the atlas — it can silently invalidate the
+  // WebGL context itself (Chromium reports it as alive but the GPU resources
+  // are dead, and onContextLoss does NOT fire). clearTextureAtlas() then
+  // writes to a defunct texture and the terminal stays black. We dispatch a
+  // recreate request first so each TerminalInstance disposes and reattaches
+  // its WebglAddon; the atlas clear that follows is belt-and-suspenders for
+  // any handle that's currently inactive (e.g. capped via MAX_WEBGL_CONTEXTS)
+  // and won't get touched by the recreate path.
+  let pendingWake = 0;
+  const onWake = (): void => {
+    if (document.hidden) return;  // visibility effect heals on next reveal
+    if (pendingWake) window.clearTimeout(pendingWake);
+    pendingWake = window.setTimeout(() => {
+      pendingWake = 0;
+      requestRecreateAllWebgl();
+      clearAllAtlasesThrottled(0);
+    }, WAKE_DEBOUNCE_MS);
+  };
+  const unsubWake = window.mcode?.app?.onWake?.(onWake);
 
   // Belt-and-suspenders: corruption from GPU process recycle, refresh-rate or
   // color-profile change, and other Chromium-internal events fires no signal
@@ -47,25 +71,36 @@ export function installAtlasRecoveryListeners(): () => void {
     window.removeEventListener('focus', onFocus);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     window.clearInterval(sweepInterval);
+    if (pendingWake) window.clearTimeout(pendingWake);
     unsubWake?.();
   };
 }
 
 /**
- * Recovers xterm.js WebGL texture atlases that get silently corrupted by events
- * Chromium does not surface as `WEBGL_lose_context` — notably macOS sleep/wake
- * (per xterm.js docs), GPU process recycle, and other display-stack changes.
+ * Recovers xterm.js terminals from GPU-side state that Chromium does not
+ * surface as `WEBGL_lose_context` — notably macOS sleep/wake (per xterm.js
+ * docs), GPU process recycle, and other display-stack changes. Two distinct
+ * failure modes are covered:
  *
- * Symptom without recovery: cells render fragments of other glyphs because the
- * GPU atlas has drifted from xterm's glyph map. The `WebglAddon.onContextLoss`
- * handler does NOT fire for these cases.
+ *   1. Texture-atlas drift — cells render fragments of other glyphs because
+ *      the GPU atlas no longer matches xterm's glyph map. `clearTextureAtlas()`
+ *      fixes this.
+ *   2. Silently-dead WebGL context — `webgl.active` reports true but the
+ *      underlying GPU resources are gone, so atlas clears write to nothing
+ *      and the terminal renders fully black. Only disposing and recreating
+ *      the WebglAddon recovers. `WebglAddon.onContextLoss` does NOT fire.
  *
  * Strategy: every signal that the user is interacting with mcode triggers a
- * fleet-wide clear (per-terminal `lastAtlasClearAt` throttle prevents
- * redundancy). A periodic sweep covers silent-corruption events that fire no
- * signal at all. The four triggers, in order of decreasing specificity:
+ * fleet-wide atlas clear (per-terminal `lastAtlasClearAt` throttle prevents
+ * redundancy). The wake signal additionally fans out a recreate request that
+ * each TerminalInstance handles for itself. A periodic sweep covers the
+ * silent-corruption events that fire no signal at all. Triggers in order of
+ * decreasing specificity:
  *
- * - `app:wake` (powerMonitor unlock-screen / resume) — definitive, no throttle.
+ * - `app:wake` (powerMonitor unlock-screen / resume) — debounced 100ms; first
+ *   recreates every visible terminal's WebGL context (sleep/wake can silently
+ *   kill contexts without firing onContextLoss, so atlas-clear alone fails),
+ *   then clears atlases as belt-and-suspenders for capped/inactive handles.
  * - Per-terminal container `focus` — fires fleet-wide so a click on any visible
  *   tile recovers all of them; not just the clicked one.
  * - Window `focus` and `document.visibilitychange` — Cmd-tab and Cmd-H.

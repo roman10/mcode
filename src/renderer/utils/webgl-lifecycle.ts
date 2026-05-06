@@ -25,6 +25,43 @@ export interface WebglHandle {
   reattach(): boolean;
 }
 
+type RecreateListener = () => void;
+const recreateListeners = new Set<RecreateListener>();
+
+/**
+ * Subscribe to "please dispose+reattach your WebGL handle" requests.
+ * Used by TerminalInstance to react to wake-time recovery — sleep/wake can
+ * silently invalidate WebGL contexts without firing onContextLoss, and the
+ * only thing that recovers is a fresh WebglAddon. Each subscriber decides
+ * whether/how to react based on its own visibility / handle state.
+ *
+ * Returns an unsubscribe function. Listeners are invoked synchronously and
+ * isolated via try/catch so one throw can't suppress siblings.
+ */
+export function onWebglRecreateRequested(listener: RecreateListener): () => void {
+  recreateListeners.add(listener);
+  return () => { recreateListeners.delete(listener); };
+}
+
+/**
+ * Fan out a recreate request to every subscriber. Called from the wake
+ * recovery path in useTerminalAtlasRecovery.
+ */
+export function requestRecreateAllWebgl(): void {
+  recreateListeners.forEach((l) => {
+    try {
+      l();
+    } catch (e) {
+      console.warn('[WebGL] recreate listener threw:', e);
+    }
+  });
+}
+
+/** Test hook: drop every registered listener so tests start from a clean slate. */
+export function clearWebglRecreateListenersForTesting(): void {
+  recreateListeners.clear();
+}
+
 /**
  * Attach a WebglAddon to an xterm Terminal with context-loss handling
  * and a cap on total active WebGL contexts.

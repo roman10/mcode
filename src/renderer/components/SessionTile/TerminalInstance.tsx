@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal, type IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { attachWebgl } from '../../utils/webgl-lifecycle';
+import { attachWebgl, onWebglRecreateRequested } from '../../utils/webgl-lifecycle';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { darkTheme } from '../../styles/theme';
 import {
@@ -434,6 +434,8 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // (xterm.js exposes no onFocus event of its own).
     const focusHandler = (): void => {
       clearAllAtlasesThrottled(ATLAS_RECLEAR_THROTTLE_MS);
+      // Reattach branch covers MAX_WEBGL_CONTEXTS-eviction recovery — kept after
+      // the wake recreate path landed because cap eviction has no wake signal.
       if (!webgl.active) {
         window.setTimeout(() => {
           if (!webgl.active && termInstanceRef.current === term) {
@@ -443,6 +445,19 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       }
     };
     container.addEventListener('focus', focusHandler, true);
+
+    // Wake-time WebGL recovery. Sleep/wake (and other display-stack events)
+    // can leave webgl.active === true while the underlying GPU resources are
+    // dead — onContextLoss does NOT fire and clearTextureAtlas() writes to a
+    // defunct texture, so the terminal stays black. Only disposing the
+    // WebglAddon and creating a fresh one recovers. The hidden / inactive
+    // checks defer to the visibility effect, which already reattaches on reveal.
+    const unsubRecreate = onWebglRecreateRequested(() => {
+      if (!isVisibleRef.current) return;
+      if (!webgl.active) return;
+      webgl.detach();
+      webgl.reattach();
+    });
 
     // PTY resize chain (verified correct at runtime — PTY and xterm cols always match):
     //   ResizeObserver(container) → rAF → fitAddon.fit() → xterm.resize()
@@ -647,6 +662,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       unsubExit();
       container.removeEventListener('contextmenu', handleContextMenu);
       container.removeEventListener('focus', focusHandler, true);
+      unsubRecreate();
       resizeObserver.disconnect();
       mutationObserver?.disconnect();
       webgl.detach();

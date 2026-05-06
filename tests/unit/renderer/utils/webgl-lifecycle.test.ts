@@ -25,6 +25,9 @@ const {
   attachWebgl,
   getActiveWebglContextCount,
   resetActiveWebglContextCount,
+  onWebglRecreateRequested,
+  requestRecreateAllWebgl,
+  clearWebglRecreateListenersForTesting,
 } = await import('../../../../src/renderer/utils/webgl-lifecycle');
 
 describe('webgl-lifecycle', () => {
@@ -32,6 +35,7 @@ describe('webgl-lifecycle', () => {
     vi.clearAllMocks();
     capturedContextLossCallback = null;
     resetActiveWebglContextCount();
+    clearWebglRecreateListenersForTesting();
   });
 
   // ----------------------------------------------------------------
@@ -150,5 +154,88 @@ describe('webgl-lifecycle', () => {
     h1.detach();
     h3.detach();
     expect(getActiveWebglContextCount()).toBe(0);
+  });
+
+  // ----------------------------------------------------------------
+  // Recreate request pub/sub — drives wake-time WebGL recovery.
+  // Sleep/wake can silently invalidate GL contexts; subscribers
+  // (TerminalInstance) react by disposing and reattaching their WebglAddon.
+  // ----------------------------------------------------------------
+
+  it('invokes every registered listener on requestRecreateAllWebgl', () => {
+    const a = vi.fn();
+    const b = vi.fn();
+    onWebglRecreateRequested(a);
+    onWebglRecreateRequested(b);
+
+    requestRecreateAllWebgl();
+
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a teardown that unsubscribes the listener', () => {
+    const listener = vi.fn();
+    const unsub = onWebglRecreateRequested(listener);
+
+    requestRecreateAllWebgl();
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsub();
+    requestRecreateAllWebgl();
+    expect(listener).toHaveBeenCalledTimes(1);  // not called again
+  });
+
+  it('isolates a throwing listener from siblings', () => {
+    const before = vi.fn();
+    const thrower = vi.fn(() => { throw new Error('boom'); });
+    const after = vi.fn();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    onWebglRecreateRequested(before);
+    onWebglRecreateRequested(thrower);
+    onWebglRecreateRequested(after);
+
+    expect(() => requestRecreateAllWebgl()).not.toThrow();
+    expect(before).toHaveBeenCalledTimes(1);
+    expect(thrower).toHaveBeenCalledTimes(1);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it('detach + reattach in sequence (the wake recovery shape) yields a fresh addon load', () => {
+    const term = makeMockTerminal();
+    const handle = attachWebgl(term, 'sess-wake');
+    expect(mockLoadAddon).toHaveBeenCalledTimes(1);
+    expect(handle.active).toBe(true);
+
+    // Simulate the wake recreate path: detach, then reattach.
+    handle.detach();
+    handle.reattach();
+
+    expect(mockDispose).toHaveBeenCalledTimes(1);
+    expect(mockLoadAddon).toHaveBeenCalledTimes(2);  // fresh addon loaded
+    expect(handle.active).toBe(true);
+    expect(getActiveWebglContextCount()).toBe(1);
+  });
+
+  it('recreating six active handles in tight loop never exceeds the cap', () => {
+    const handles = [];
+    for (let i = 0; i < 6; i++) {
+      handles.push(attachWebgl(makeMockTerminal(), `sess-${i}`));
+    }
+    expect(getActiveWebglContextCount()).toBe(6);
+
+    // Mimic requestRecreateAllWebgl fan-out with each TerminalInstance's
+    // detach+reattach: counter drops to 5 then back to 6 each iteration.
+    for (const h of handles) {
+      h.detach();
+      h.reattach();
+    }
+
+    expect(getActiveWebglContextCount()).toBe(6);
+    expect(handles.every((h) => h.active)).toBe(true);
   });
 });
