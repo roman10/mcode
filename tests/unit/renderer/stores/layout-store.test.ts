@@ -49,7 +49,7 @@ describe('layout-store', () => {
       kanbanActiveFile: null,
       kanbanSplitRatio: 0.5,
       splitIntent: null,
-      restoreTree: null,
+      maximizedTileId: null,
       pendingFileLine: null,
       selectedTileId: null,
     });
@@ -186,31 +186,48 @@ describe('layout-store', () => {
       expect(result.splitPercentages?.[1]).toBeCloseTo(50.5);
     });
 
-    it('restores remaining tiles when removing a maximized tile', () => {
+    it('lifts maximize and removes the leaf when removing a maximized tile', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       useLayoutStore.getState().addTile('s3');
 
       useLayoutStore.getState().maximize('s2');
-      // mosaicTree is now 'session:s2', restoreTree has {s1, s2, s3}
+      // maximizedTileId is now 'session:s2'; mosaicTree still has {s1, s2, s3}
 
       useLayoutStore.getState().removeTile('s2');
 
-      // Should restore remaining tiles, not show "No sessions"
+      // The leaf is gone from the tree AND the overlay is lifted, so the
+      // remaining tiles render normally.
       expect(getTree()).not.toBeNull();
       expect(countTiles()).toBe(2);
       expect(getLeafIds()).toContain('session:s1');
       expect(getLeafIds()).toContain('session:s3');
-      expect(useLayoutStore.getState().restoreTree).toBeNull();
+      expect(getLeafIds()).not.toContain('session:s2');
+      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
     });
 
-    it('sets tree to null when removing maximized tile that is the only session', () => {
+    it('sets tree to null and lifts maximize when removing the last (maximized) session', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().maximize('s1');
       useLayoutStore.getState().removeTile('s1');
 
       expect(getTree()).toBeNull();
-      expect(useLayoutStore.getState().restoreTree).toBeNull();
+      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+    });
+
+    it('leaves maximize untouched when removing a non-maximized tile', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addTile('s2');
+      useLayoutStore.getState().addTile('s3');
+      useLayoutStore.getState().maximize('s2');
+
+      useLayoutStore.getState().removeTile('s1');
+
+      expect(useLayoutStore.getState().maximizedTileId).toBe('session:s2');
+      const leaves = getLeafIds();
+      expect(leaves).toContain('session:s2');
+      expect(leaves).toContain('session:s3');
+      expect(leaves).not.toContain('session:s1');
     });
   });
 
@@ -281,18 +298,20 @@ describe('layout-store', () => {
   });
 
   describe('maximize and restore', () => {
-    it('replaces tree with single tile and saves restore point', () => {
+    it('sets maximizedTileId without touching the tree (overlay model)', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       const beforeTree = getTree();
 
       useLayoutStore.getState().maximize('s1');
 
-      expect(getTree()).toBe('session:s1');
-      expect(useLayoutStore.getState().restoreTree).toEqual(beforeTree);
+      // Tree is preserved so every TerminalInstance stays mounted across the
+      // cycle. The overlay is driven entirely by maximizedTileId.
+      expect(getTree()).toEqual(beforeTree);
+      expect(useLayoutStore.getState().maximizedTileId).toBe('session:s1');
     });
 
-    it('restores previous tree', () => {
+    it('clears maximizedTileId on restore (tree was never changed)', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       const beforeTree = getTree();
@@ -301,10 +320,10 @@ describe('layout-store', () => {
       useLayoutStore.getState().restoreFromMaximize();
 
       expect(getTree()).toEqual(beforeTree);
-      expect(useLayoutStore.getState().restoreTree).toBeNull();
+      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
     });
 
-    it('adds new tile alongside maximized tile in mosaicTree', () => {
+    it('adds new tile to mosaicTree while maximized; maximizedTileId untouched', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       useLayoutStore.getState().addTile('s3');
@@ -312,29 +331,17 @@ describe('layout-store', () => {
 
       useLayoutStore.getState().addTile('s4');
 
+      // All tiles live in the single tree; the new one sits hidden under
+      // the overlay until the user restores.
       const leaves = getLeafIds();
       expect(leaves).toContain('session:s1');
+      expect(leaves).toContain('session:s2');
+      expect(leaves).toContain('session:s3');
       expect(leaves).toContain('session:s4');
-      expect(leaves).not.toContain('session:s2');
-      expect(leaves).not.toContain('session:s3');
+      expect(useLayoutStore.getState().maximizedTileId).toBe('session:s1');
     });
 
-    it('adds new tile to restoreTree when maximized', () => {
-      useLayoutStore.getState().addTile('s1');
-      useLayoutStore.getState().addTile('s2');
-      useLayoutStore.getState().addTile('s3');
-      useLayoutStore.getState().maximize('s1');
-
-      useLayoutStore.getState().addTile('s4');
-
-      const restoreLeaves = getLeaves(useLayoutStore.getState().restoreTree!);
-      expect(restoreLeaves).toContain('session:s1');
-      expect(restoreLeaves).toContain('session:s2');
-      expect(restoreLeaves).toContain('session:s3');
-      expect(restoreLeaves).toContain('session:s4');
-    });
-
-    it('restore after adding tile while maximized includes new tile', () => {
+    it('restoring after adding tiles while maximized exposes them all', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       useLayoutStore.getState().maximize('s1');
@@ -346,7 +353,19 @@ describe('layout-store', () => {
       expect(leaves).toContain('session:s1');
       expect(leaves).toContain('session:s2');
       expect(leaves).toContain('session:s3');
-      expect(useLayoutStore.getState().restoreTree).toBeNull();
+      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+    });
+
+    it('removeAnyTile lifts maximize when removing the maximized tile', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addTile('s2');
+      useLayoutStore.getState().maximize('s1');
+
+      useLayoutStore.getState().removeAnyTile('session:s1');
+
+      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+      expect(getLeafIds()).not.toContain('session:s1');
+      expect(getLeafIds()).toContain('session:s2');
     });
   });
 
@@ -438,6 +457,15 @@ describe('layout-store', () => {
       expect(state.kanbanExpandedSessionId).toBeNull();
       expect(state.kanbanOpenFiles).toEqual([]);
       expect(state.kanbanActiveFile).toBeNull();
+    });
+
+    it('clears tiles-mode maximize on view switch', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().maximize('s1');
+
+      useLayoutStore.getState().setViewMode('kanban');
+
+      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
     });
   });
 

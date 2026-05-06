@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import TerminalToolbar from './TerminalToolbar';
 import TileTaskPanel from './TileTaskPanel';
 import TerminalInstance from './TerminalInstance';
@@ -7,6 +8,7 @@ import { useLayoutStore } from '../../stores/layout-store';
 import { useDialogStore } from '../../stores/dialog-store';
 import { useSessionStore } from '../../stores/session-store';
 import { terminalRegistry } from '../../devtools/terminal-registry';
+import { MosaicOverlayContext } from '../Layout/MosaicLayout';
 import { shellEscapePath } from '@shared/shell-utils';
 import { scheduleDropPaste } from '../../utils/drop-paste-scheduler';
 import { canSessionQueueTasks } from '@shared/session-capabilities';
@@ -34,9 +36,19 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
 
   const isFocused = useSessionStore((s) => s.selectedSessionId === sessionId);
   const viewMode = useLayoutStore((s) => s.viewMode);
-  const isMaximized = useLayoutStore((s) =>
-    s.viewMode === 'kanban' ? s.kanbanExpandedSessionId !== null : s.restoreTree !== null,
-  );
+  const myTileId = `session:${sessionId}`;
+  const maximizedTileId = useLayoutStore((s) => s.maximizedTileId);
+  const kanbanExpandedSessionId = useLayoutStore((s) => s.kanbanExpandedSessionId);
+  const isMaximized =
+    viewMode === 'kanban'
+      ? kanbanExpandedSessionId !== null
+      : maximizedTileId === myTileId;
+  // In tiles mode, when another tile is maximized this tile is hidden under
+  // the overlay; we keep it mounted but apply display:none so xterm's renderer
+  // skips paint without triggering the isVisible-driven dispose / detach paths.
+  const isHiddenByMaximize =
+    viewMode !== 'kanban' && maximizedTileId !== null && maximizedTileId !== myTileId;
+  const overlayEl = useContext(MosaicOverlayContext);
 
   const handleClose = (): void => {
     if (viewMode === 'kanban') {
@@ -57,7 +69,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
         store.expandKanbanSession(sessionId);
       }
     } else {
-      if (store.restoreTree) {
+      if (store.maximizedTileId) {
         store.restoreFromMaximize();
       } else {
         store.maximize(sessionId);
@@ -184,18 +196,8 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     return () => clearTimeout(timer);
   }, [isFocused, sessionId]);
 
-  return (
-    <div
-      ref={containerRef}
-      className={`relative flex flex-col h-full w-full bg-bg-primary outline-none border-t-2 transition-colors ${isFocused ? 'border-t-accent' : 'border-t-transparent'}`}
-      tabIndex={-1}
-      onPointerDown={handleFocus}
-      onKeyDown={handleKeyDown}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
+  const tileBody = (
+    <>
       <TerminalToolbar sessionId={sessionId} onClose={handleClose} isMaximized={isMaximized} onToggleMaximize={handleToggleMaximize} />
       <TileTaskPanel sessionId={sessionId} />
       <div className="flex-1 min-h-0 min-w-0 pl-1">
@@ -208,6 +210,42 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       {isDragOver && (
         <div className="absolute inset-0 border-2 border-accent/60 rounded bg-accent/5 pointer-events-none z-10" />
       )}
+    </>
+  );
+
+  // When maximized, portal the body into MosaicLayout's overlay layer. The
+  // wrapper div stays mounted in its mosaic pane (display:none) so that
+  // TerminalInstance, its xterm Terminal, and its WebGL atlas are preserved
+  // across maximize/restore — only the DOM position of the rendered output
+  // moves. React synthetic events from portaled descendants bubble through
+  // the React tree (not the DOM), reaching the wrapper's handlers below, so
+  // we don't duplicate them on the inner portal div.
+  const wrapperClassName = `relative flex flex-col h-full w-full bg-bg-primary outline-none border-t-2 transition-colors ${isFocused ? 'border-t-accent' : 'border-t-transparent'}`;
+
+  // Hide the in-tree wrapper whenever the body is portaled away or another
+  // tile is maximized. Portals render independently of their React parent's
+  // display state, so display:none here doesn't affect the overlay content.
+  const hideWrapper = isHiddenByMaximize || (isMaximized && overlayEl !== null);
+
+  return (
+    <div
+      ref={containerRef}
+      className={wrapperClassName}
+      style={hideWrapper ? { display: 'none' } : undefined}
+      tabIndex={-1}
+      onPointerDown={handleFocus}
+      onKeyDown={handleKeyDown}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {isMaximized && overlayEl
+        ? createPortal(
+            <div className={wrapperClassName}>{tileBody}</div>,
+            overlayEl,
+          )
+        : tileBody}
     </div>
   );
 }

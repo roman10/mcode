@@ -67,7 +67,11 @@ interface LayoutState {
   kanbanSplitRatio: number; // transient, 0-1, default 0.5
   sessionFilterQuery: string; // transient, not persisted
   splitIntent: SplitIntent | null;
-  restoreTree: MosaicNode<string> | null;
+  /** Transient overlay state. Non-null = a tile is maximized as a fullscreen
+   *  overlay above the (still-rendered) mosaic. `mosaicTree` is unaffected by
+   *  maximize/restore so every TerminalInstance stays mounted across the
+   *  cycle, preserving xterm Terminals, WebGL atlases, and broker offsets. */
+  maximizedTileId: string | null;
   pendingFileLine: { path: string; line: number } | null;
   /** Tracks the focused tile ID (session, file, or diff viewer). Transient, not persisted. */
   selectedTileId: string | null;
@@ -251,7 +255,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   kanbanSplitRatio: 0.5,
   sessionFilterQuery: '',
   splitIntent: null,
-  restoreTree: null,
+  maximizedTileId: null,
   pendingFileLine: null,
   selectedTileId: null,
 
@@ -282,16 +286,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const allLeaves = [...leaves, newTile];
       const newMosaicTree = createBalancedTreeFromLeaves(allLeaves) ?? newTile;
 
-      // If maximized, also add to restoreTree so the tile appears when restoring
-      if (state.restoreTree) {
-        const restoreLeaves = getLeaves(state.restoreTree);
-        if (!restoreLeaves.includes(newTile)) {
-          const newRestoreTree =
-            createBalancedTreeFromLeaves([...restoreLeaves, newTile]) ?? state.restoreTree;
-          return { mosaicTree: newMosaicTree, restoreTree: newRestoreTree };
-        }
-      }
-
       return { mosaicTree: newMosaicTree };
     }),
 
@@ -320,16 +314,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         newMosaicTree = insertAdjacentLeaf(current, anchorTile, newTile, direction);
       }
 
-      // If maximized, also add to restoreTree so the tile appears when restoring
-      if (state.restoreTree) {
-        const restoreLeaves = getLeaves(state.restoreTree);
-        if (!restoreLeaves.includes(newTile)) {
-          const newRestoreTree =
-            createBalancedTreeFromLeaves([...restoreLeaves, newTile]) ?? state.restoreTree;
-          return { mosaicTree: newMosaicTree, restoreTree: newRestoreTree };
-        }
-      }
-
       return { mosaicTree: newMosaicTree };
     }),
 
@@ -339,20 +323,25 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const current = state.mosaicTree;
       if (!current) return state;
 
-      // If maximized and removing the maximized tile, restore from restoreTree minus this tile
-      if (state.restoreTree && typeof current === 'string' && current === target) {
-        const newRestoreTree = removeLeaf(state.restoreTree, target);
-        return { mosaicTree: newRestoreTree, restoreTree: null };
-      }
+      // If the removed tile was the maximized overlay, lift the overlay too —
+      // otherwise we'd leave a stale maximizedTileId pointing at a tile that
+      // no longer exists in the tree.
+      const liftMaximize = state.maximizedTileId === target;
 
       if (typeof current === 'string') {
-        return current === target ? { mosaicTree: null } : state;
+        if (current !== target) return state;
+        return liftMaximize
+          ? { mosaicTree: null, maximizedTileId: null }
+          : { mosaicTree: null };
       }
 
-      return { mosaicTree: removeLeaf(current, target) };
+      const newMosaicTree = removeLeaf(current, target);
+      return liftMaximize
+        ? { mosaicTree: newMosaicTree, maximizedTileId: null }
+        : { mosaicTree: newMosaicTree };
     }),
 
-  removeAllTiles: () => set({ mosaicTree: null }),
+  removeAllTiles: () => set({ mosaicTree: null, maximizedTileId: null }),
 
   replaceTile: (oldSessionId, newSessionId) =>
     set((state) => {
@@ -390,6 +379,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       kanbanExpandedSessionId: null,
       kanbanOpenFiles: [],
       kanbanActiveFile: null,
+      // Drop the tiles-mode overlay state on view switch — symmetric with
+      // kanbanExpandedSessionId — otherwise switching to kanban and back
+      // would flash the tile briefly in its mosaic pane before re-portaling
+      // into the overlay on the second render.
+      maximizedTileId: null,
     });
     window.mcode.preferences.set('viewMode', mode).catch(console.error);
   },
@@ -565,29 +559,22 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       return { mosaicTree: result };
     }),
 
-  maximize: (sessionId) =>
-    set((state) => ({
-      restoreTree: state.mosaicTree,
-      mosaicTree: tileId(sessionId),
-    })),
+  // Maximize is a CSS overlay, not a tree restructure. The mosaic stays mounted
+  // underneath; only the overlay layer above it shows the maximized tile via a
+  // React Portal in MosaicLayout. Keeping every TerminalInstance mounted across
+  // the cycle preserves xterm Terminals, WebGL atlases, and broker offsets.
+  maximize: (sessionId) => set({ maximizedTileId: tileId(sessionId) }),
 
-  restoreFromMaximize: () =>
-    set((state) => {
-      if (!state.restoreTree) return state;
-      // Prune dead sessions from the restore tree using current live leaves
-      // We can't easily get live session IDs here, so just restore as-is.
-      // Dead tiles will show "Session not found" and can be closed.
-      return {
-        mosaicTree: state.restoreTree,
-        restoreTree: null,
-      };
-    }),
+  restoreFromMaximize: () => set({ maximizedTileId: null }),
 
   removeAnyTile: (tileId) =>
     set((state) => {
       if (!state.mosaicTree) return state;
+      const liftMaximize = state.maximizedTileId === tileId;
       const result = removeLeaf(state.mosaicTree, tileId);
-      return { mosaicTree: result };
+      return liftMaximize
+        ? { mosaicTree: result, maximizedTileId: null }
+        : { mosaicTree: result };
     }),
 
   persist: () => {
@@ -659,6 +646,14 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((state) => {
       if (!state.mosaicTree) return state;
       const pruned = pruneTree(state.mosaicTree, liveSessionIds);
-      return { mosaicTree: pruned };
+      // If the maximized tile's session was pruned, drop the overlay too —
+      // otherwise maximizedTileId points at a tile that no longer exists.
+      const maxSessionId = state.maximizedTileId
+        ? sessionIdFromTileId(state.maximizedTileId)
+        : null;
+      const liftMaximize = maxSessionId !== null && !liveSessionIds.has(maxSessionId);
+      return liftMaximize
+        ? { mosaicTree: pruned, maximizedTileId: null }
+        : { mosaicTree: pruned };
     }),
 }));

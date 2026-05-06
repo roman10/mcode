@@ -13,8 +13,12 @@ import {
 // Verifies that maximizing a coding-session tile in the mosaic reflows the
 // terminal: fitAddon must run, xterm.resize must change cols, and pty.resize
 // must propagate. ResizeObserver normally fires on the resulting DOM reflow,
-// but TerminalInstance also subscribes to layout-store mosaicTree/restoreTree
+// but TerminalInstance also subscribes to layout-store mosaicTree/maximizedTileId
 // transitions as a backstop for when Electron's render loop is paused.
+// The maximized tile is portaled into MosaicLayout's overlay layer rather than
+// replacing the mosaic tree, so every TerminalInstance stays mounted across the
+// cycle — but the maximized tile's container still resizes (mosaic pane bounds
+// → overlay layer bounds and back), which is what this test exercises.
 describe('tile maximize reflows terminal', () => {
   const client = new McpTestClient();
   const sessionIds: string[] = [];
@@ -77,7 +81,7 @@ describe('tile maximize reflows terminal', () => {
     expect(whileMax.cols).toBeGreaterThan(beforeMax.cols);
 
     // Restore back to the split layout — the maximized tile must shrink again,
-    // proving the layout-store backstop also fires on restoreTree → null.
+    // proving the layout-store backstop also fires on maximizedTileId → null.
     await client.callTool('layout_restore_from_maximize');
     await sleep(600);
 

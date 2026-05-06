@@ -170,13 +170,16 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   // layout transitions, but Electron's render loop can drop those callbacks
   // when the window isn't actively painting. Subscribing directly to the
   // layout state guarantees fit() runs on every maximize / restore / split.
+  // maximizedTileId drives the overlay portal in MosaicLayout — when it flips
+  // the maximized tile's container changes size (mosaic pane → overlay layer
+  // bounds and back), so we must re-fit on that transition too.
   useEffect(() => {
     let lastTree = useLayoutStore.getState().mosaicTree;
-    let lastRestoreTree = useLayoutStore.getState().restoreTree;
+    let lastMaximizedTileId = useLayoutStore.getState().maximizedTileId;
     const unsub = useLayoutStore.subscribe((s) => {
-      if (s.mosaicTree !== lastTree || s.restoreTree !== lastRestoreTree) {
+      if (s.mosaicTree !== lastTree || s.maximizedTileId !== lastMaximizedTileId) {
         lastTree = s.mosaicTree;
-        lastRestoreTree = s.restoreTree;
+        lastMaximizedTileId = s.maximizedTileId;
         window.setTimeout(safeFit, 0);
       }
     });
