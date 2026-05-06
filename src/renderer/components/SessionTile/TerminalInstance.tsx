@@ -18,7 +18,7 @@ import {
   terminalRegistry,
   registerDisposeHiddenTile,
   setTerminalLive,
-  clearAtlasThrottled,
+  clearAllAtlasesThrottled,
   forgetAtlasClear,
 } from '../../devtools/terminal-registry';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
@@ -419,17 +419,18 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     webglRef.current = webgl;
 
     // User-attention recovery on focus. Two jobs:
-    //   1. Clear the WebGL atlas — catch-all for silent corruption (macOS
-    //      sleep/wake, GPU process recycle, DPR change without resize).
-    //      Throttled per-terminal via the registry's shared timestamp so a
-    //      simultaneous window-focus event doesn't double-clear.
+    //   1. Clear the atlas of every registered terminal — focus is the user's
+    //      "I'm interacting with mcode" signal, but in a multi-tile layout the
+    //      user's visual attention spans tiles they didn't click. Per-terminal
+    //      2s throttle in the registry suppresses redundant clears across
+    //      rapid clicks and the simultaneous window-focus event.
     //   2. Reattach WebGL when it was previously detached (visibility hide,
     //      MAX_WEBGL_CONTEXTS cap). 500ms delay lets visibility-driven
     //      reattaches settle first.
     // Capture-phase on the container because xterm focuses its inner textarea
     // (xterm.js exposes no onFocus event of its own).
     const focusHandler = (): void => {
-      clearAtlasThrottled(sessionId, ATLAS_RECLEAR_THROTTLE_MS);
+      clearAllAtlasesThrottled(ATLAS_RECLEAR_THROTTLE_MS);
       if (!webgl.active) {
         window.setTimeout(() => {
           if (!webgl.active && termInstanceRef.current === term) {
@@ -447,10 +448,6 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // upstream in Claude Code's own SIGWINCH / reflow handling.
     const unsubResize = term.onResize(({ cols, rows }) => {
       window.mcode.pty.resize(sessionId, cols, rows);
-      // Glyph atlas can hold stale rasters from the prior grid geometry;
-      // threshold 0 = always clear, but the registry helper still updates the
-      // shared timestamp so a focus event right after no-ops.
-      clearAtlasThrottled(sessionId, 0);
     });
 
     // (Re)mount: gate live writes until the initial replay completes. Without

@@ -12,9 +12,16 @@ export const SCROLLBACK_PRESETS = [1000, 2500, 5000, 10000, 20000] as const;
  *  On reveal, the terminal is recreated and replays the broker ring buffer (~512 KB tail). */
 export const HIDDEN_TILE_DISPOSE_MS = 5 * 60 * 1000;
 /** Minimum gap between WebGL atlas clears for a single terminal. clearTextureAtlas()
- *  is ~1ms; the throttle exists so rapid focus/tab cycling doesn't thrash. Resize and
- *  app:wake bypass it by passing 0 to the throttled helpers. */
+ *  is ~1ms; the throttle exists so rapid focus/tab cycling doesn't thrash. app:wake
+ *  bypasses it by passing 0 to the throttled helpers. */
 export const ATLAS_RECLEAR_THROTTLE_MS = 2000;
+/** Belt-and-suspenders periodic sweep that clears every terminal's WebGL atlas while
+ *  the window has focus. Catches the silent-corruption class no event surfaces:
+ *  GPU process recycle, refresh-rate / HDR / color-profile change, etc. ~1ms per
+ *  terminal once a minute is negligible; the sweep uses this same value as both
+ *  cadence and per-terminal throttle so terminals just cleared by a focus event
+ *  skip the next tick. */
+export const ATLAS_SWEEP_INTERVAL_MS = 60_000;
 export const DEFAULT_SIDEBAR_WIDTH = 280;
 export const MIN_SIDEBAR_WIDTH = 200;
 export const MAX_SIDEBAR_WIDTH = 500;
