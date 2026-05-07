@@ -466,6 +466,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // upstream in Claude Code's own SIGWINCH / reflow handling.
     const unsubResize = term.onResize(({ cols, rows }) => {
       window.mcode.pty.resize(sessionId, cols, rows);
+      // xterm's WebGL atlas can drift after term.resize() (cells rendering
+      // fragments of other glyphs). Clear synchronously here — the focus-driven
+      // clearAllAtlasesThrottled path is gated by a 2s throttle that silently
+      // no-ops for the just-touched tile, leaving its drift on screen.
+      term.clearTextureAtlas();
     });
 
     // (Re)mount: gate live writes until the initial replay completes. Without
