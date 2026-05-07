@@ -168,12 +168,12 @@ export function registerTerminalTools(
   });
 
   server.registerTool('terminal_execute_action', {
-    description: 'Execute an action on a terminal instance (selectAll, copy, clear). For copy, returns the currently selected text. Use selectAll before copy to get all content. Paste is not supported — use terminal_send_keys to write text to the terminal instead.',
+    description: 'Execute an action on a terminal instance (selectAll, copy, clear, refit). For copy, returns the currently selected text. Use selectAll before copy to get all content. Paste is not supported — use terminal_send_keys to write text to the terminal instead. Refit forces fitAddon.fit() and a redraw — use to recover from narrow-rendering after a maximize transition.',
     inputSchema: {
       sessionId: z.string().describe('The PTY session ID'),
       action: z
-        .enum(['copy', 'selectAll', 'clear'])
-        .describe('Action to execute: copy (get selection), selectAll (select all text), clear (clear scrollback)'),
+        .enum(['copy', 'selectAll', 'clear', 'refit'])
+        .describe('Action to execute: copy (get selection), selectAll (select all text), clear (clear scrollback), refit (force fit + atlas clear + redraw to recover from narrow rendering)'),
     },
     annotations: { readOnlyHint: false },
   }, async ({ sessionId, action }) => {

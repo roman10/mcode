@@ -20,6 +20,9 @@ import {
   setTerminalLive,
   clearAllAtlasesThrottled,
   forgetAtlasClear,
+  setTerminalFitAddon,
+  forgetTerminalFitAddon,
+  verifyAndCorrectFit,
 } from '../../devtools/terminal-registry';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { useSessionStore } from '../../stores/session-store';
@@ -173,18 +176,43 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   // maximizedTileId drives the overlay portal in MosaicLayout — when it flips
   // the maximized tile's container changes size (mosaic pane → overlay layer
   // bounds and back), so we must re-fit on that transition too.
+  //
+  // The setTimeout(0) below can fire before the browser's layout pass settles
+  // the newly-visible overlay size, so it may fit to a transient narrow width
+  // and lock the terminal in a narrow column. Two follow-up passes —
+  // requestAnimationFrame (post first paint) and setTimeout(100) — call
+  // verifyAndCorrectFit, which compares fitAddon.proposeDimensions() against
+  // the live cols/rows and re-fits only on mismatch. Idempotent and cheap;
+  // covers both timing windows where the initial fit could land wrong.
   useEffect(() => {
     let lastTree = useLayoutStore.getState().mosaicTree;
     let lastMaximizedTileId = useLayoutStore.getState().maximizedTileId;
+    let pendingRaf = 0;
+    let pendingT100 = 0;
     const unsub = useLayoutStore.subscribe((s) => {
       if (s.mosaicTree !== lastTree || s.maximizedTileId !== lastMaximizedTileId) {
         lastTree = s.mosaicTree;
         lastMaximizedTileId = s.maximizedTileId;
         window.setTimeout(safeFit, 0);
+        if (pendingRaf) cancelAnimationFrame(pendingRaf);
+        if (pendingT100) clearTimeout(pendingT100);
+        pendingRaf = requestAnimationFrame(() => {
+          pendingRaf = 0;
+          safeFit();
+          verifyAndCorrectFit(sessionId);
+        });
+        pendingT100 = window.setTimeout(() => {
+          pendingT100 = 0;
+          verifyAndCorrectFit(sessionId);
+        }, 100);
       }
     });
-    return unsub;
-  }, [safeFit]);
+    return () => {
+      unsub();
+      if (pendingRaf) cancelAnimationFrame(pendingRaf);
+      if (pendingT100) clearTimeout(pendingT100);
+    };
+  }, [safeFit, sessionId]);
 
   // Re-fit the terminal when it becomes visible (display:none → visible).
   // Hidden elements have zero dimensions so fit() must wait until visible.
@@ -306,6 +334,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
 
     const fitAddon = new FitAddon();
     fitAddonRef.current = fitAddon;
+    setTerminalFitAddon(sessionId, fitAddon);
     const webLinksAddon = new WebLinksAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
@@ -652,6 +681,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       termInstanceRef.current = null;
       fitAddonRef.current = null;
       terminalRegistry.delete(sessionId);
+      forgetTerminalFitAddon(sessionId);
       forgetAtlasClear(sessionId);
       setTerminalLive(sessionId, false);
       cancelledInitial = true;

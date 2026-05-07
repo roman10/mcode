@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Maximize2, Minimize2, Plus, Square, TimerOff, X } from 'lucide-react';
+import { Maximize2, Minimize2, Plus, RefreshCw, Square, TimerOff, X } from 'lucide-react';
 import { useSessionStore } from '../../stores/session-store';
 import { useTaskStore } from '../../stores/task-store';
 import { useAccountsStore } from '../../stores/accounts-store';
@@ -20,6 +20,7 @@ interface TerminalToolbarProps {
   onClose(): void;
   isMaximized: boolean;
   onToggleMaximize(): void;
+  onRefit(): void;
 }
 
 const statusLabels: Record<SessionStatus, string> = {
@@ -45,6 +46,7 @@ function TerminalToolbar({
   onClose,
   isMaximized,
   onToggleMaximize,
+  onRefit,
 }: TerminalToolbarProps): React.JSX.Element {
   const session = useSessionStore((s) => s.sessions[sessionId]);
   const label = session?.label ?? 'Unknown';
@@ -210,6 +212,15 @@ function TerminalToolbar({
             </button>
           </Tooltip>
         )}
+        <Tooltip content="Refit terminal (recover from narrow rendering)" side="bottom">
+          <button
+            aria-label="Refit terminal"
+            className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors"
+            onClick={onRefit}
+          >
+            <RefreshCw size={14} strokeWidth={1.5} />
+          </button>
+        </Tooltip>
         <Tooltip content={isMaximized ? 'Restore layout (⌘↵)' : 'Maximize tile (⌘↵)'} side="bottom">
           <button
             aria-label={isMaximized ? 'Restore layout' : 'Maximize tile'}

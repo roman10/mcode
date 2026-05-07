@@ -1,4 +1,5 @@
 import type { Terminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
 
 /**
  * Global registry of active Terminal instances, keyed by session ID.
@@ -6,6 +7,21 @@ import type { Terminal } from '@xterm/xterm';
  * The devtools IPC bridge reads from this to serve buffer requests.
  */
 export const terminalRegistry = new Map<string, Terminal>();
+
+/**
+ * Per-session FitAddon, registered alongside the Terminal so the
+ * verify-and-correct path (post-maximize) and the manual force-refit recovery
+ * can call `proposeDimensions()` / `fit()` without reaching into xterm internals.
+ */
+const fitAddonRegistry = new Map<string, FitAddon>();
+
+export function setTerminalFitAddon(sessionId: string, fitAddon: FitAddon): void {
+  fitAddonRegistry.set(sessionId, fitAddon);
+}
+
+export function forgetTerminalFitAddon(sessionId: string): void {
+  fitAddonRegistry.delete(sessionId);
+}
 
 /**
  * Per-terminal timestamp of the last `clearTextureAtlas()` call. Shared across
@@ -118,4 +134,72 @@ export function registerDisposeHiddenTile(
 
 export function forceDisposeHiddenTile(sessionId: string): boolean {
   return disposeHiddenTileHandlers.get(sessionId)?.() ?? false;
+}
+
+/**
+ * Detect-and-correct narrow-rendering after a layout transition.
+ *
+ * Background: when a tile is maximized, the overlay div flips from display:none
+ * to block, the body is portaled in, and `setTimeout(0)` schedules `safeFit()`.
+ * That callback can fire before the browser's layout pass has settled the new
+ * overlay size, so `container.clientWidth` reads a transient narrow value, fit
+ * computes narrow cols, and the terminal locks there with no corrective second
+ * pass. This helper runs at rAF / 100ms after the transition: by then the
+ * overlay has its true bounds, so `proposeDimensions()` returns the correct
+ * cols/rows. If it disagrees with the live `term.cols/rows` by more than 1,
+ * we re-fit. Idempotent — safe to call repeatedly.
+ *
+ * Returns whether a corrective fit ran. Silent on hidden / unmounted terminals
+ * (`proposeDimensions` returns undefined for a 0×0 container).
+ */
+export function verifyAndCorrectFit(sessionId: string): boolean {
+  const term = terminalRegistry.get(sessionId);
+  const fitAddon = fitAddonRegistry.get(sessionId);
+  if (!term || !fitAddon) return false;
+  let proposed: { cols: number; rows: number } | undefined;
+  try {
+    proposed = fitAddon.proposeDimensions();
+  } catch {
+    return false;
+  }
+  if (!proposed) return false;
+  const colsDelta = Math.abs(proposed.cols - term.cols);
+  const rowsDelta = Math.abs(proposed.rows - term.rows);
+  if (colsDelta <= 1 && rowsDelta <= 1) return false;
+  try {
+    fitAddon.fit();
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Manual recovery: clear the WebGL atlas, re-fit unconditionally (bypassing
+ * the visibility gate `safeFit` enforces), and force a redraw of the visible
+ * rows. Used by the toolbar's "Refit terminal" button and the matching MCP
+ * action so users / tests can recover from a wedged narrow-render that
+ * survived the auto-fix passes.
+ *
+ * Atlas clear only — no `requestRecreateAllWebgl()`. Narrow-render is a
+ * sizing bug, not a context-loss bug; keep the manual path cheap.
+ *
+ * Returns whether the refit ran (false if the session is unknown).
+ */
+export function forceRefit(sessionId: string): boolean {
+  const term = terminalRegistry.get(sessionId);
+  const fitAddon = fitAddonRegistry.get(sessionId);
+  if (!term || !fitAddon) return false;
+  clearAtlasThrottled(sessionId, 0);
+  try {
+    fitAddon.fit();
+  } catch {
+    return false;
+  }
+  try {
+    if (term.rows > 0) term.refresh(0, term.rows - 1);
+  } catch {
+    // refresh can throw on a disposed terminal; the fit above is the load-bearing call.
+  }
+  return true;
 }

@@ -1,4 +1,9 @@
-import { terminalRegistry, forceDisposeHiddenTile, isTerminalLive } from './terminal-registry';
+import {
+  terminalRegistry,
+  forceDisposeHiddenTile,
+  isTerminalLive,
+  forceRefit,
+} from './terminal-registry';
 
 function readTerminalBuffer(sessionId: string, lines?: number): string {
   const term = terminalRegistry.get(sessionId);
@@ -390,6 +395,9 @@ export function initDevtoolsBridge(): void {
           case 'clear':
             term.clear();
             result = { ok: true };
+            break;
+          case 'refit':
+            result = { ok: forceRefit(sessionId) };
             break;
           default:
             result = { error: `Unknown action: ${action}` };

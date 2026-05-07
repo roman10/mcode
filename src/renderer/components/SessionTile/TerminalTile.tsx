@@ -7,7 +7,7 @@ import SessionEndedPrompt from './SessionEndedPrompt';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useDialogStore } from '../../stores/dialog-store';
 import { useSessionStore } from '../../stores/session-store';
-import { terminalRegistry } from '../../devtools/terminal-registry';
+import { terminalRegistry, forceRefit } from '../../devtools/terminal-registry';
 import { MosaicOverlayContext } from '../Layout/MosaicLayout';
 import { shellEscapePath } from '@shared/shell-utils';
 import { scheduleDropPaste } from '../../utils/drop-paste-scheduler';
@@ -198,7 +198,13 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
 
   const tileBody = (
     <>
-      <TerminalToolbar sessionId={sessionId} onClose={handleClose} isMaximized={isMaximized} onToggleMaximize={handleToggleMaximize} />
+      <TerminalToolbar
+        sessionId={sessionId}
+        onClose={handleClose}
+        isMaximized={isMaximized}
+        onToggleMaximize={handleToggleMaximize}
+        onRefit={() => forceRefit(sessionId)}
+      />
       <TileTaskPanel sessionId={sessionId} />
       <div className="flex-1 min-h-0 min-w-0 pl-1">
         {status === 'ended' ? (
