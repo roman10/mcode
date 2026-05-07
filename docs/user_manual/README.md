@@ -23,7 +23,7 @@ Detailed product documentation for mcode. If you want the project overview, down
 
 ## Accounts and environment setup
 
-- [Account Management](accounts.md) - manage Claude accounts inside mcode
+- [Profiles](accounts.md) - manage isolated profiles for Claude, Codex, Gemini, and Copilot
 - [Multi-Account GitHub Setup](multi-account-github.md) - configure GitHub SSH and `gh` CLI for multiple accounts
 - [Copilot Quota Tracking](copilot-quota.md) - set up `gh` CLI for Copilot premium request quota display
 

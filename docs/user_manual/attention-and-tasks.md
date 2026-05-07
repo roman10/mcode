@@ -29,7 +29,7 @@ The task queue lets you schedule prompts to be dispatched to sessions. Tasks are
 
 ### Creating a task
 
-Press `Cmd+Shift+T` to open the New Task dialog. Fill in:
+Press `Cmd+Shift+T` to open the New Task dialog. When at least one Claude session is open and live, the dialog shows a **New prompt / Plan Mode response** toggle at the top — see [Plan Mode Response](#plan-mode-response) below. For a regular prompt task, fill in:
 
 - **Prompt** — the instruction to send
 - **Working directory** — the project folder for the task
@@ -54,7 +54,23 @@ When a session has pending or in-progress tasks, a collapsible **Tasks** bar app
 
 For queued tasks you can hover to reveal:
 - **Up/down arrows** — reorder the task within the queue
-- **Pencil icon** — edit the task prompt inline; `Cmd+Enter` to save, `Escape` to cancel
+- **Pencil icon** — open the Edit Task dialog; `Cmd+Enter` to save, `Escape` to cancel
 - **× icon** — cancel the task
 
 Click the Tasks bar header to collapse or expand the panel.
+
+## Plan Mode Response
+
+When a Claude session finishes plan mode and is waiting for you to accept, modify, or reject the plan, you can queue your response as a task instead of typing it directly into the terminal. This is useful when juggling many sessions — you queue the response and move on, and mcode dispatches it the moment that session is ready.
+
+**Open the Plan Mode Response dialog** with `Cmd+Shift+R`, or open the regular New Task dialog (`Cmd+Shift+T`) and switch to the **Plan Mode response** tab at the top. The tab only appears when at least one open Claude session can receive a plan response.
+
+### Choose one of three actions
+
+| Option | Effect |
+|---|---|
+| **Yes, auto-accept edits** | Approves the plan and lets Claude apply edits without further prompts |
+| **Yes, manually approve edits** | Approves the plan but leaves Claude in a mode that asks before each edit |
+| **Tell Claude what to change** | Sends a revise instruction. A prompt field appears so you can describe what to change. |
+
+Plan-response tasks are dispatched the same way as normal tasks — they queue against the target Claude session and run when it's ready. The working directory is locked to the target session's cwd, and the permission mode is inherited from the target session (the field is hidden in this mode).

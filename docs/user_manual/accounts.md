@@ -1,37 +1,49 @@
-# Account Management
+# Profiles
 
-mcode supports multiple AI provider accounts. This lets you run sessions under different accounts — for example, to separate personal and work usage, or to stay within usage limits.
+mcode lets you keep multiple isolated workspaces — each with its own credentials for every supported AI CLI — and pick which one a session runs under. Use this to separate personal and work usage, stay within usage limits, or test alternate accounts without disturbing your default setup.
 
-> This page covers the in-app Accounts dialog, which is specifically for Claude Code and Copilot CLI sessions. Gemini and Codex authenticate through their CLI tools — run `gemini` or `codex` once to complete their respective auth flows; mcode does not manage those credentials. For setting up multi-account GitHub access over SSH, see [Multi-Account GitHub](multi-account-github.md).
+> The in-app dialog is labelled **Profiles**. It manages credentials for all four supported agents — Claude Code, Codex CLI, Gemini CLI, and Copilot CLI — by giving each profile its own isolated config directory.
+>
+> Looking for multi-account git/GitHub setup over SSH? See [Multi-Account GitHub](multi-account-github.md). That is independent from the in-app profiles described here.
 
-## Opening the Accounts dialog
+## Opening the Profiles dialog
 
-Click the **Accounts** button in the sidebar footer (next to the Settings gear icon).
+Click the **Profiles** icon (people icon) in the sidebar footer, next to the Settings gear.
 
-## Account list
+## What a profile is
 
-Each account block shows the account name and its status for each supported provider:
+Each profile is an isolated workspace. The **default** profile uses your system `$HOME`, so it inherits whatever you have already authenticated outside mcode. Secondary profiles get their own config directories, so logging in inside one profile doesn't touch the others.
 
-- **Green dot** — verified (authenticated, identity shown)
-- **Amber dot** — not authenticated
-- **"default" badge** — marks the primary account used when no account is explicitly selected
+Every profile shows one row per supported CLI (Claude, Codex, Gemini, Copilot). Each row indicates that CLI's connection status within that profile.
 
-## Adding a secondary account
+## Status indicators
 
-1. Click **+ Add account**. A new account is created.
-2. The app background-verifies all supported providers. If you are already authenticated in your default environment, it might auto-detect your identity.
-3. If not authenticated, click **Login** next to the provider (Claude or Copilot). A terminal tile opens automatically to run the authentication flow. Follow the prompts to log in.
-4. Once logged in, click **Verify** next to the provider to confirm it authenticated successfully.
-5. After the first provider is verified, you will be prompted to name the account (suggested based on your email/username).
+| Dot | Meaning |
+|---|---|
+| Green | Connected (the CLI is authenticated in this profile; the verified identity is shown next to the row) |
+| Red | The CLI binary is not installed on your machine. Click **Install** for help. |
+| Gray | Not connected — the CLI is installed but no credentials exist for this profile yet |
 
-## Verifying an account
+The default profile is labelled `default · uses your system $HOME`. Secondary profiles show their name and a delete (trash) icon.
 
-Click the **refresh icon** next to any provider in an account block to check its current authentication status. Use this after re-authenticating in a terminal or if the status seems stale.
+## Adding a profile
 
-## Deleting an account
+1. Click **+ Add Profile**. A new profile is created and mcode background-verifies every supported CLI for it. If you happened to already be authenticated in your default environment, an identity may auto-detect.
+2. For each CLI you want enabled in this profile, click **Connect** next to its row. A terminal tile opens automatically running that CLI's auth flow — follow the prompts to sign in. Profile-specific config is written into the profile's isolated directory, not your `$HOME`.
+3. The first time mcode detects a successful auth in a freshly created profile, it prompts you to **name the profile** (suggested from your email/username). You can save the suggestion or skip and rename later.
 
-Click the trash icon on any secondary account row to remove it. The default account cannot be deleted.
+## Verifying a connection
 
-## Selecting an account for a session
+Click the small **circular arrows** (refresh) icon at the right of any CLI row to re-check its status. Use this after re-authenticating in a terminal or if the row looks stale.
 
-When multiple accounts are configured, an **Account** dropdown appears in the New Session dialog for supported session types (Claude and Copilot). Select which account to use and the agent process runs with that account's credentials.
+## Deleting a profile
+
+Click the trash icon in a secondary profile's header. The default profile cannot be deleted.
+
+## Selecting a profile for a new session
+
+When more than one profile exists, the New Session dialog shows an **Account** dropdown listing each profile and the identity verified for that agent. The agent process runs against the selected profile's config, so credentials and per-CLI settings stay scoped to that profile.
+
+## How isolation works
+
+mcode points each CLI at a profile-specific config directory (for example `CLAUDE_CONFIG_DIR`, Codex/Gemini/Copilot equivalents). Logging in or running tools inside one profile leaves the others untouched. Quotas and usage stats roll up per profile in the [Stats panel](sidebar-panels.md#stats).

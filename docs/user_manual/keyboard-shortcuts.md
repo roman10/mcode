@@ -9,6 +9,7 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+N` | New session |
 | `Cmd+T` | New terminal |
 | `Cmd+Shift+T` | New task |
+| `Cmd+Shift+R` | New plan mode response |
 | `Cmd+P` | Quick Open (file search) |
 | `Cmd+Shift+P` | Command Palette |
 | `Cmd+\` | Toggle sidebar |
@@ -18,13 +19,12 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+Shift+A` | Show Activity |
 | `Cmd+Shift+B` | Show Stats |
 | `Cmd+Shift+C` | Show Changes |
-| `Cmd+Shift+E` | Run Shell Command |
+| `Cmd+Shift+E` | Run Shell Command (`!` palette) |
 | `Cmd+Shift+F` | Search in Files |
-| `Cmd+Shift+H` | Prompt History |
-| `Cmd+Shift+I` | Show Todos |
+| `Cmd+Shift+I` | Show Todos (`+` palette) |
 | `Cmd+Shift+L` | Toggle layout mode |
 | `Cmd+Shift+M` | Clear all attention |
-| `Cmd+Shift+S` | Snippets |
+| `Cmd+Shift+S` | Prompt Library (`@` palette) |
 | `Cmd+R` | Refresh Stats |
 | `Ctrl+Backtick` | Toggle [Terminal Panel](terminal-panel.md) |
 | `Cmd+W` | Close tile |
@@ -55,7 +55,6 @@ Press `Cmd+/` at any time to open the shortcut reference dialog inside mcode.
 | `Cmd+D` | Split horizontal |
 | `Cmd+Shift+D` | Split vertical |
 | `Cmd+Enter` | Toggle maximize |
-| `Cmd+Shift+Q` | Toggle auto-close |
 | `Cmd+=` | Zoom in |
 | `Cmd+-` | Zoom out |
 | `Cmd+0` | Reset zoom |

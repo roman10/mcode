@@ -57,7 +57,7 @@ Switch panels by clicking the icons or with `Cmd+Shift+F` (Search), `Cmd+Shift+C
 
 On the **Sessions tab**, action buttons appear in the sidebar header: Close all tiles, Delete ended sessions, Mark all read, New terminal (`Cmd+T`), and New session (`Cmd+N`).
 
-The session list shows all sessions grouped by date (Today, Yesterday, then by date):
+The session list shows all sessions grouped by last-activity date (Today, Yesterday, then by date), most-recent first within each group:
 
 - **Green dot** — Active session (the agent is actively working)
 - **Blue dot** — Idle (session is waiting for input)
@@ -95,8 +95,8 @@ Double-click the title in the toolbar to rename the session inline.
      - Copilot: `autopilot` (default), `allowAll`
      - Codex: `fullAuto` (default), `bypassAll`
      - Gemini: `plan`, `autoEdit` (default), `yolo`
-   - **Effort** (Claude only) — controls reasoning depth (`low`, `medium`, `high`, `max`)
-   - **Enable auto mode** (Claude only) — allows the session to use Claude's auto permission mode; off by default (Team plan feature)
+   - **Effort** (Claude only) — controls reasoning depth (`low`, `medium`, `high`, `xhigh`, `max`); leave at `default` for no flag
+   - **Enable auto mode** (Claude only) — unlocks `auto` in Claude's `Shift+Tab` permission cycle; off by default (Team plan feature)
    - **Account** (Claude and Copilot, shown when multiple accounts are configured) — select which account to use
    - **Run in isolated worktree** (Claude only) — creates a git worktree so the session works on an isolated branch; optional branch name field appears when checked
 3. Click **Create Session**
@@ -189,6 +189,7 @@ Press `Cmd+/` to see the full shortcut reference. A few essentials:
 | `Cmd+Enter` | Maximize / restore tile |
 | `Cmd+F` | Find in terminal |
 | `Cmd+Shift+T` | New task |
+| `Cmd+Shift+R` | New plan mode response (Claude) |
 | `Cmd+Shift+L` | Toggle layout mode |
 | `Cmd+,` | Settings |
 | `Cmd+\` | Toggle sidebar |

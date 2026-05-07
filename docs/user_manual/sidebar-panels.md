@@ -22,12 +22,14 @@ A live stream of hook events from all sessions — tool calls, session lifecycle
 |---|---|
 | SessionStart | A session was created |
 | SessionEnd | A session ended |
+| UserPromptSubmit | You submitted a prompt to the agent |
 | PreToolUse | Agent is about to use a tool |
 | PostToolUse | A tool call completed |
 | PostToolUseFailure | A tool call failed |
 | Stop | Agent finished its turn |
 | PermissionRequest | Agent is waiting for tool approval |
 | Notification | A notification from the agent |
+| BeforeModel | Gemini-only — emitted just before each model call |
 
 ### Filters
 
@@ -83,8 +85,9 @@ By default only commits on the main branch are tracked. To include all branches,
 ### AI Cost
 
 - **Headline stats** — estimated cost for the selected day, message count, cost per message
-- **Token breakdown** — input tokens, output tokens, total tokens
+- **Token breakdown** — input tokens, output tokens, total tokens, plus non-cached input tokens (the input bytes you actually paid full rate for, after cache hits are excluded)
 - **7-day heatmap** — green shading shows cost per day; click a cell to view that day's data
+- **Daily bar charts** — Tokens and Cost bars per day with 7d/30d/90d rollups in the header and a dashed 30-day average reference line; hovering a bar shows the day's value plus 7-day and 30-day averages
 - **Model breakdown** — pills for each model used (e.g., Opus, Sonnet, Haiku, GPT-4o, Gemini Pro) with cost and percentage
 - **Cache efficiency** — cache hit rate percentage (shown when cache reads exist)
 - **Top sessions** — the sessions with the highest token usage for the selected day
