@@ -21,6 +21,10 @@ interface TerminalTileProps {
 
 function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Stable portal target inside this tile. The Portal's children render here
+  // when not maximized; switching the target between this and the overlay
+  // (maximize) reparents the DOM without remounting React subtree.
+  const [localTarget, setLocalTarget] = useState<HTMLDivElement | null>(null);
   const removeTile = useLayoutStore((s) => s.removeTile);
   const persist = useLayoutStore((s) => s.persist);
   const status = useSessionStore((s) => s.sessions[sessionId]?.status);
@@ -219,19 +223,17 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     </>
   );
 
-  // When maximized, portal the body into MosaicLayout's overlay layer. The
-  // wrapper div stays mounted in its mosaic pane (display:none) so that
-  // TerminalInstance, its xterm Terminal, and its WebGL atlas are preserved
-  // across maximize/restore — only the DOM position of the rendered output
-  // moves. React synthetic events from portaled descendants bubble through
-  // the React tree (not the DOM), reaching the wrapper's handlers below, so
-  // we don't duplicate them on the inner portal div.
+  // tileBody lives inside a single Portal whose target switches between an
+  // in-tile anchor and the maximize overlay. React reparents a Portal's DOM
+  // when only its containerInfo changes — children stay mounted — so the
+  // xterm Terminal, FitAddon, WebGL atlas, and broker offset survive every
+  // maximize/restore cycle. Synthetic events bubble through the React tree,
+  // so the outer wrapper's pointer/keyboard/drag handlers still fire on
+  // portaled content; no need to duplicate them on the inner div.
   const wrapperClassName = `relative flex flex-col h-full w-full bg-bg-primary outline-none border-t-2 transition-colors ${isFocused ? 'border-t-accent' : 'border-t-transparent'}`;
-
-  // Hide the in-tree wrapper whenever the body is portaled away or another
-  // tile is maximized. Portals render independently of their React parent's
-  // display state, so display:none here doesn't affect the overlay content.
-  const hideWrapper = isHiddenByMaximize || (isMaximized && overlayEl !== null);
+  const inOverlay = isMaximized && overlayEl !== null;
+  const hideWrapper = isHiddenByMaximize || inOverlay;
+  const portalTarget = inOverlay ? overlayEl : localTarget;
 
   return (
     <div
@@ -246,12 +248,20 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {isMaximized && overlayEl
-        ? createPortal(
-            <div className={wrapperClassName}>{tileBody}</div>,
-            overlayEl,
-          )
-        : tileBody}
+      {/* Stable in-tile portal anchor. display:contents so its children are
+          layout children of the outer wrapper, preserving the flex-column
+          arrangement of toolbar / task panel / terminal. */}
+      <div ref={setLocalTarget} style={{ display: 'contents' }} />
+      {portalTarget &&
+        createPortal(
+          <div
+            className={inOverlay ? wrapperClassName : undefined}
+            style={inOverlay ? undefined : { display: 'contents' }}
+          >
+            {tileBody}
+          </div>,
+          portalTarget,
+        )}
     </div>
   );
 }
