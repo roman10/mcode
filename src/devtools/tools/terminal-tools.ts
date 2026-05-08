@@ -145,6 +145,35 @@ export function registerTerminalTools(
     };
   });
 
+  server.registerTool('terminal_get_instance_token', {
+    description: 'Return a token that is stable for the lifetime of a single xterm Terminal instance. Use to assert that a layout transition (maximize, restore, hide/reveal) did not unmount and recreate TerminalInstance: same session calling this before and after the transition should return the same token.',
+    inputSchema: {
+      sessionId: z.string().describe('The PTY session ID'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ sessionId }) => {
+    if (!ctx.ptyManager.getInfo(sessionId)) {
+      return {
+        content: [{ type: 'text', text: `Session ${sessionId} not found` }],
+        isError: true,
+      };
+    }
+    const token = await queryRenderer<string | null>(
+      ctx.mainWindow,
+      'terminal-instance-token',
+      { sessionId },
+    );
+    if (!token) {
+      return {
+        content: [{ type: 'text', text: 'Terminal not mounted in renderer' }],
+        isError: true,
+      };
+    }
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ token }) }],
+    };
+  });
+
   server.registerTool('terminal_resize', {
     description: 'Resize a terminal PTY to the specified dimensions',
     inputSchema: {

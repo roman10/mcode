@@ -91,4 +91,35 @@ describe('tile maximize reflows terminal', () => {
     );
     expect(afterRestore.cols).toBeLessThan(whileMax.cols);
   });
+
+  // The dimension-only check above passes whether the xterm Terminal is
+  // preserved or rebuilt at the same size, because fit() reproduces the
+  // dimensions either way. The instance token distinguishes the two: same
+  // token across the cycle means the same Terminal object — and with it the
+  // FitAddon, WebGL atlas, scrollback, and broker offset — survived.
+  it('preserves the same xterm Terminal across maximize and restore', async () => {
+    const before = await client.callToolJson<{ token: string }>(
+      'terminal_get_instance_token',
+      { sessionId: session1Id },
+    );
+    expect(before.token).toBeTruthy();
+
+    await client.callTool('layout_maximize', { sessionId: session1Id });
+    await sleep(600);
+
+    const whileMax = await client.callToolJson<{ token: string }>(
+      'terminal_get_instance_token',
+      { sessionId: session1Id },
+    );
+    expect(whileMax.token).toBe(before.token);
+
+    await client.callTool('layout_restore_from_maximize');
+    await sleep(600);
+
+    const afterRestore = await client.callToolJson<{ token: string }>(
+      'terminal_get_instance_token',
+      { sessionId: session1Id },
+    );
+    expect(afterRestore.token).toBe(before.token);
+  });
 });

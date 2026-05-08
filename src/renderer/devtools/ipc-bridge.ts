@@ -377,6 +377,26 @@ export function initDevtoolsBridge(): void {
         result = { enabled };
         break;
       }
+      case 'terminal-instance-token': {
+        // Returns a token that is stable for the lifetime of a single xterm
+        // Terminal object. Used by tests to verify that maximize/restore
+        // doesn't churn TerminalInstance — if a maximize cycle dropped the
+        // token to undefined or replaced it with a different value, the
+        // component had been unmounted and remounted underneath us.
+        const { sessionId } = params as { sessionId: string };
+        const term = terminalRegistry.get(sessionId);
+        if (!term) {
+          result = null;
+          break;
+        }
+        type Stamped = typeof term & { __mcodeInstanceToken?: string };
+        const stamped = term as Stamped;
+        if (!stamped.__mcodeInstanceToken) {
+          stamped.__mcodeInstanceToken = `term-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        }
+        result = stamped.__mcodeInstanceToken;
+        break;
+      }
       case 'terminal-action': {
         const { sessionId, action } = params as { sessionId: string; action: string };
         const term = terminalRegistry.get(sessionId);
