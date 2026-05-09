@@ -149,13 +149,24 @@ export function forceDisposeHiddenTile(sessionId: string): boolean {
  * cols/rows. If it disagrees with the live `term.cols/rows` by more than 1,
  * we re-fit. Idempotent — safe to call repeatedly.
  *
- * Returns whether a corrective fit ran. Silent on hidden / unmounted terminals
- * (`proposeDimensions` returns undefined for a 0×0 container).
+ * Visibility guard: FitAddon.proposeDimensions() reads
+ * `getComputedStyle(parent).width`, which returns the *specified* value ("100%")
+ * for display:none ancestors instead of a resolved pixel value. parseInt("100%")
+ * = 100, so without the guard we'd compute ~10 cols on every hidden tile (e.g.
+ * the non-maximized tiles whose wrappers go display:none under an overlay) and
+ * shrink them to a narrow grid that survives until the next visible refit.
+ * `parent.clientWidth` IS resolved (returns 0 under display:none), so we mirror
+ * the same gate `safeFit` uses at TerminalInstance.tsx and skip hidden tiles
+ * entirely. They re-fit naturally when revealed via ResizeObserver.
+ *
+ * Returns whether a corrective fit ran.
  */
 export function verifyAndCorrectFit(sessionId: string): boolean {
   const term = terminalRegistry.get(sessionId);
   const fitAddon = fitAddonRegistry.get(sessionId);
   if (!term || !fitAddon) return false;
+  const parent = term.element?.parentElement;
+  if (!parent || parent.clientWidth === 0 || parent.clientHeight === 0) return false;
   let proposed: { cols: number; rows: number } | undefined;
   try {
     proposed = fitAddon.proposeDimensions();
