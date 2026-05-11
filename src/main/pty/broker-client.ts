@@ -332,6 +332,11 @@ export class BrokerClient extends EventEmitter implements IObservablePtyManager 
     return this.ringBuffers.get(id)?.read() ?? '';
   }
 
+  /** Synchronous tail decode against the local ring buffer. See `IPtyManager.getReplayDataTail`. */
+  getReplayDataTail(id: string, bytes: number): string {
+    return this.ringBuffers.get(id)?.readTail(bytes) ?? '';
+  }
+
   /**
    * Synchronous delta replay against the local ring buffer. Used by
    * TerminalInstance to catch up after a hide → reveal without re-writing

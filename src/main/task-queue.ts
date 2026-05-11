@@ -87,7 +87,7 @@ const DISPATCH_SETTLE_MS = 500;
 // --- Permission mode cycling helpers (exported for testing) ---
 
 import { buildModeCycle } from '../shared/task-utils';
-import { AGENT_PERMISSION_MODES, type PermissionMode } from '../shared/constants';
+import { AGENT_PERMISSION_MODES, POLL_TAIL_BYTES, type PermissionMode } from '../shared/constants';
 export { buildModeCycle };
 
 /**
@@ -723,7 +723,7 @@ export class TaskQueue {
     }
     if (session.status !== 'waiting') return; // Wait for session to enter plan mode
 
-    const buffer = this.ptyManager.getReplayData(task.targetSessionId!);
+    const buffer = this.ptyManager.getReplayDataTail(task.targetSessionId!, POLL_TAIL_BYTES);
     const planBufferTail = buffer?.slice(-2000);
     if (!planBufferTail || !isAtUserChoice(planBufferTail)) {
       if (!this.loggedPlanModeDeferrals.has(task.id)) {
@@ -910,7 +910,7 @@ export class TaskQueue {
     if (session.status === 'waiting' && state.hasStarted && row.plan_mode_action) {
       const agentDef = getAgentDefinition(session.sessionType);
       if (agentDef?.supportsPlanMode) {
-        const buffer = this.ptyManager.getReplayData(session.sessionId);
+        const buffer = this.ptyManager.getReplayDataTail(session.sessionId, POLL_TAIL_BYTES);
         if (buffer && isAtUserChoice(buffer.slice(-2000))) {
           state.completedViaIdle = true;
           this.completeTask(taskId);
@@ -959,7 +959,7 @@ export class TaskQueue {
         // Plan mode tasks in 'waiting' still need the user-choice menu check —
         // a bare 'waiting' status could be a permission prompt, not completion.
         if (session?.status === 'waiting' && task.planModeAction) {
-          const buffer = this.ptyManager.getReplayData(task.sessionId);
+          const buffer = this.ptyManager.getReplayDataTail(task.sessionId, POLL_TAIL_BYTES);
           if (!buffer || !isAtUserChoice(buffer.slice(-2000))) continue;
         }
         logger.info('task', 'Session confirmed idle via fallback polling, completing task', {
@@ -976,7 +976,7 @@ export class TaskQueue {
       if (lastDataAt === 0) continue;
       if (now - lastDataAt < PROMPT_QUIESCENCE_MS) continue;
 
-      const buffer = this.ptyManager.getReplayData(task.sessionId);
+      const buffer = this.ptyManager.getReplayDataTail(task.sessionId, POLL_TAIL_BYTES);
       if (!buffer) continue;
 
       const bufferTail = buffer.slice(-2000);

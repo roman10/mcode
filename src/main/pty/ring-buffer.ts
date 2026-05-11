@@ -45,6 +45,23 @@ export class RingBuffer {
     return this.buf.toString('utf8', start, this.len);
   }
 
+  /**
+   * Decode and return up to the last `bytes` bytes of the readable window.
+   * Same U+FFFD leading-boundary caveat as `read()` — a partial UTF-8
+   * codepoint at the cut may decode to U+FFFD. For polling consumers
+   * (permission-prompt / user-choice scans) this is invisible inside the
+   * ANSI byte stream.
+   *
+   * Hot-path companion to `read()`: skips the full ~512 KB decode when only
+   * the recent tail is needed.
+   */
+  readTail(bytes: number): string {
+    if (bytes <= 0) return '';
+    const window = Math.min(this.len, this.capacity);
+    const take = Math.min(bytes, window);
+    return this.buf.toString('utf8', this.len - take, this.len);
+  }
+
   byteLength(): number {
     return Math.min(this.len, this.capacity);
   }

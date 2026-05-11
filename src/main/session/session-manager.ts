@@ -85,6 +85,7 @@ import {
   DEFAULT_ROWS,
   HANDOFF_SEED_MAX_CHARS,
   HOOK_TOOL_INPUT_MAX_BYTES,
+  POLL_TAIL_BYTES,
 } from '../../shared/constants';
 import { SessionEventStore } from './session-event-store';
 import { LayoutRepository } from './layout-repository';
@@ -1347,7 +1348,7 @@ export class SessionManager {
       const adapter = this.agentRuntimeAdapters[row.session_type as keyof AgentRuntimeAdapterMap];
       if (!adapter?.pollState) return;
 
-      const buffer = this.ptyManager.getReplayData(sessionId);
+      const buffer = this.ptyManager.getReplayDataTail(sessionId, POLL_TAIL_BYTES);
       if (!buffer) return;
 
       const lastDataAt = this.ptyManager.getLastDataAt(sessionId);

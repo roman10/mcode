@@ -29,6 +29,11 @@ class StubPtyManager extends EventEmitter {
   getReplayData(id: string): string {
     return this.buffers.get(id) ?? '';
   }
+  getReplayDataTail(id: string, bytes: number): string {
+    const buf = this.buffers.get(id) ?? '';
+    // Test fixtures are ASCII; char count == byte count.
+    return buf.length <= bytes ? buf : buf.slice(-bytes);
+  }
   getLastDataAt(id: string): number {
     return this.lastDataAt.get(id) ?? 0;
   }

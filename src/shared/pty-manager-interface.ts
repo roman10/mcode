@@ -16,8 +16,18 @@ export interface IPtyManager {
   resize(id: string, cols: number, rows: number): void;
   kill(id: string): Promise<void>;
   killAll(): Promise<void>;
-  /** Returns cached ring buffer content synchronously. */
+  /**
+   * Returns cached ring buffer content synchronously. Decodes the entire
+   * ~512 KB window — use only when the full transcript is required
+   * (renderer replay, fork/resume, devtools dump). For recent-content scans
+   * (permission-prompt detection, user-choice menus), prefer `getReplayDataTail`.
+   */
   getReplayData(id: string): string;
+  /**
+   * Tail-only variant of `getReplayData`. Decodes only the last `bytes` bytes
+   * of the ring buffer. Use on hot paths that scan recent output.
+   */
+  getReplayDataTail(id: string, bytes: number): string;
   /** Returns timestamp (ms) of last PTY data received, 0 if never. */
   getLastDataAt(id: string): number;
   /** Returns basic info about a PTY session, or null if not found. */

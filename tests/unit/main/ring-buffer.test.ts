@@ -120,6 +120,67 @@ describe('RingBuffer', () => {
     });
   });
 
+  describe('readTail', () => {
+    it('returns empty string when nothing appended', () => {
+      const rb = new RingBuffer(1024);
+      expect(rb.readTail(2000)).toBe('');
+    });
+
+    it('returns the whole buffer when bytes >= len', () => {
+      const rb = new RingBuffer(1024);
+      rb.append('hello world');
+      expect(rb.readTail(2000)).toBe('hello world');
+      expect(rb.readTail(11)).toBe('hello world');
+    });
+
+    it('returns exactly the last N bytes when bytes < len (ASCII)', () => {
+      const rb = new RingBuffer(1024);
+      rb.append('abcdefghij'); // 10 ASCII bytes
+      expect(rb.readTail(4)).toBe('ghij');
+      expect(rb.readTail(1)).toBe('j');
+    });
+
+    it('matches read() when bytes >= capacity', () => {
+      const rb = new RingBuffer(16);
+      rb.append('x'.repeat(40));
+      expect(rb.readTail(16)).toBe(rb.read());
+      expect(rb.readTail(1024)).toBe(rb.read());
+    });
+
+    it('caps at the capacity window after compaction', () => {
+      const rb = new RingBuffer(8);
+      // Force compaction: fill buf (capacity*2 = 16 bytes), then append more.
+      rb.append('ABCDEFGHIJKLMNOP'); // len 16, no compaction yet
+      rb.append('QRST');             // triggers compaction: keep last 8 → 'IJKLMNOP', then write 'QRST'
+      // Readable window now: 'MNOPQRST' (last 8 of the logical stream).
+      expect(rb.read()).toBe('MNOPQRST');
+      // readTail(100) must not exceed the readable window.
+      expect(rb.readTail(100)).toBe('MNOPQRST');
+      expect(rb.readTail(100).length).toBe(8);
+      // readTail(4) returns the exact tail of the window.
+      expect(rb.readTail(4)).toBe('QRST');
+    });
+
+    it('returns empty when bytes <= 0', () => {
+      const rb = new RingBuffer(1024);
+      rb.append('abc');
+      expect(rb.readTail(0)).toBe('');
+      expect(rb.readTail(-5)).toBe('');
+    });
+
+    it('decodes a UTF-8 boundary cut to a replacement char without throwing', () => {
+      const rb = new RingBuffer(1024);
+      rb.append('日本語'); // 9 bytes (3 chars × 3 bytes)
+      // Cut 5 bytes from the end — lands inside the middle codepoint.
+      // Should not throw and should be valid UTF-16 (replacement char acceptable
+      // for any partial leading codepoint).
+      const tail = rb.readTail(5);
+      expect(typeof tail).toBe('string');
+      // The last full codepoint must still be present.
+      expect(tail.endsWith('語')).toBe(true);
+    });
+  });
+
   describe('memory profile', () => {
     it('byteLength stays bounded under sustained appends', () => {
       const rb = new RingBuffer(1024);

@@ -176,6 +176,11 @@ export class PtyManager implements IPtyManager {
     return handle?.ringBuffer.read() ?? '';
   }
 
+  getReplayDataTail(id: string, bytes: number): string {
+    const handle = this.ptys.get(id);
+    return handle?.ringBuffer.readTail(bytes) ?? '';
+  }
+
   getLastDataAt(id: string): number {
     return this.ptys.get(id)?.lastDataAt ?? 0;
   }

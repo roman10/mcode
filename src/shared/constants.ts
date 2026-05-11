@@ -4,6 +4,12 @@ export const TERMINAL_FONT_SIZE = 13;
 export const TERMINAL_FONT_FAMILY = "'JetBrains Mono', 'Fira Code', monospace";
 export const PTY_KILL_TIMEOUT_MS = 3000;
 export const RING_BUFFER_MAX_BYTES = 512 * 1024; // ~512KB per session
+/** Tail size requested by `getReplayDataTail` on the polling hot path.
+ *  Every poll consumer caps its effective scan at the last 2000 chars
+ *  (see prompt-detect.ts), so 8 KB UTF-8 (≥ 2048 chars worst case) is
+ *  ample headroom while keeping the per-tick decode 64× cheaper than
+ *  `getReplayData`'s full ~512 KB window. */
+export const POLL_TAIL_BYTES = 8 * 1024;
 export const BROKER_AUTO_SHUTDOWN_DELAY_MS = 30_000; // 30s idle before broker exits
 export const DEFAULT_SCROLLBACK_LINES = 5000;
 export const MAX_SCROLLBACK_LINES = 20000;
