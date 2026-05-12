@@ -155,6 +155,39 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     fitAddonRef.current?.fit();
   }, []);
 
+  // Multi-pass refit scheduler. setTimeout(0) catches the common post-layout
+  // case; rAF + setTimeout(100) backstop when the immediate fit lands on
+  // transient dimensions (the failure mode b1773fd was introduced for). All
+  // three passes are debounced against the shared refs, so call sites can
+  // fire it freely; overlapping triggers collapse into a single cycle.
+  const pendingFitT0Ref = useRef(0);
+  const pendingFitRafRef = useRef(0);
+  const pendingFitT100Ref = useRef(0);
+  const scheduleRefit = useCallback((): void => {
+    if (pendingFitT0Ref.current) clearTimeout(pendingFitT0Ref.current);
+    if (pendingFitRafRef.current) cancelAnimationFrame(pendingFitRafRef.current);
+    if (pendingFitT100Ref.current) clearTimeout(pendingFitT100Ref.current);
+    pendingFitT0Ref.current = window.setTimeout(() => {
+      pendingFitT0Ref.current = 0;
+      safeFit();
+    }, 0);
+    pendingFitRafRef.current = requestAnimationFrame(() => {
+      pendingFitRafRef.current = 0;
+      safeFit();
+      verifyAndCorrectFit(sessionId);
+    });
+    pendingFitT100Ref.current = window.setTimeout(() => {
+      pendingFitT100Ref.current = 0;
+      verifyAndCorrectFit(sessionId);
+    }, 100);
+  }, [safeFit, sessionId]);
+
+  useEffect(() => () => {
+    if (pendingFitT0Ref.current) clearTimeout(pendingFitT0Ref.current);
+    if (pendingFitRafRef.current) cancelAnimationFrame(pendingFitRafRef.current);
+    if (pendingFitT100Ref.current) clearTimeout(pendingFitT100Ref.current);
+  }, []);
+
   // Subscribe to terminal panel height changes so that fit() is called even when
   // ResizeObserver doesn't fire (e.g. in background/non-painting Electron windows).
   useEffect(() => {
@@ -162,12 +195,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     const unsub = useTerminalPanelStore.subscribe((s) => {
       if (s.panelHeight !== lastH) {
         lastH = s.panelHeight;
-        // Delay one tick so the DOM layout has propagated from the state change.
-        window.setTimeout(safeFit, 0);
+        scheduleRefit();
       }
     });
     return unsub;
-  }, [safeFit]);
+  }, [scheduleRefit]);
 
   // Backstop for tile resize/maximize: ResizeObserver normally fires on mosaic
   // layout transitions, but Electron's render loop can drop those callbacks
@@ -176,43 +208,44 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   // maximizedTileId drives the overlay portal in MosaicLayout — when it flips
   // the maximized tile's container changes size (mosaic pane → overlay layer
   // bounds and back), so we must re-fit on that transition too.
-  //
-  // The setTimeout(0) below can fire before the browser's layout pass settles
-  // the newly-visible overlay size, so it may fit to a transient narrow width
-  // and lock the terminal in a narrow column. Two follow-up passes —
-  // requestAnimationFrame (post first paint) and setTimeout(100) — call
-  // verifyAndCorrectFit, which compares fitAddon.proposeDimensions() against
-  // the live cols/rows and re-fits only on mismatch. Idempotent and cheap;
-  // covers both timing windows where the initial fit could land wrong.
   useEffect(() => {
     let lastTree = useLayoutStore.getState().mosaicTree;
     let lastMaximizedTileId = useLayoutStore.getState().maximizedTileId;
-    let pendingRaf = 0;
-    let pendingT100 = 0;
     const unsub = useLayoutStore.subscribe((s) => {
       if (s.mosaicTree !== lastTree || s.maximizedTileId !== lastMaximizedTileId) {
         lastTree = s.mosaicTree;
         lastMaximizedTileId = s.maximizedTileId;
-        window.setTimeout(safeFit, 0);
-        if (pendingRaf) cancelAnimationFrame(pendingRaf);
-        if (pendingT100) clearTimeout(pendingT100);
-        pendingRaf = requestAnimationFrame(() => {
-          pendingRaf = 0;
-          safeFit();
-          verifyAndCorrectFit(sessionId);
-        });
-        pendingT100 = window.setTimeout(() => {
-          pendingT100 = 0;
-          verifyAndCorrectFit(sessionId);
-        }, 100);
+        scheduleRefit();
       }
     });
-    return () => {
-      unsub();
-      if (pendingRaf) cancelAnimationFrame(pendingRaf);
-      if (pendingT100) clearTimeout(pendingT100);
-    };
-  }, [safeFit, sessionId]);
+    return unsub;
+  }, [scheduleRefit]);
+
+  // TileTaskPanel inserts the plan-mode "Needs response" banner (and the panel
+  // wrapper itself, if no tasks were queued) when the session transitions to
+  // status='waiting' + attentionReason='Waiting for your response'; the state
+  // ExitPlanMode / AskUserQuestion drive via session-state-machine. That adds a
+  // flex child above the terminal and shrinks termRef. ResizeObserver picks up
+  // most reflows, but the dimension-mismatch failure mode b1773fd documented
+  // for the post-maximize setTimeout(0) fit applies to it too: a single
+  // ResizeObserver-scheduled fit can land before layout fully settles and lock
+  // the terminal at stale rows. Subscribe to the session fields TileTaskPanel
+  // actually reads so the multi-pass refit runs deterministically on banner
+  // toggle, independent of ResizeObserver timing.
+  useEffect(() => {
+    let lastStatus = useSessionStore.getState().sessions[sessionId]?.status;
+    let lastReason = useSessionStore.getState().sessions[sessionId]?.attentionReason;
+    const unsub = useSessionStore.subscribe((s) => {
+      const cur = s.sessions[sessionId];
+      if (!cur) return;
+      if (cur.status !== lastStatus || cur.attentionReason !== lastReason) {
+        lastStatus = cur.status;
+        lastReason = cur.attentionReason;
+        scheduleRefit();
+      }
+    });
+    return unsub;
+  }, [sessionId, scheduleRefit]);
 
   // Re-fit the terminal when it becomes visible (display:none → visible).
   // Hidden elements have zero dimensions so fit() must wait until visible.
@@ -654,17 +687,11 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     };
     container.addEventListener('contextmenu', handleContextMenu);
 
-    // Resize handling with setTimeout debounce.
-    // requestAnimationFrame is not used here because it does not fire when the
-    // Electron window is not actively painting (e.g. tests, background window).
-    // setTimeout(0) fires regardless and is sufficient for post-layout fit().
-    let resizeTimer = 0;
-    const scheduleFit = (): void => {
-      clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(safeFit, 0);
-    };
-
-    const resizeObserver = new ResizeObserver(() => { scheduleFit(); });
+    // Resize handling. Routed through scheduleRefit (setTimeout(0) + rAF +
+    // setTimeout(100) verifyAndCorrectFit) so a single transient-dimension fit
+    // can't lock the terminal at stale rows; same backstop the layout-store
+    // subscription uses for maximize transitions.
+    const resizeObserver = new ResizeObserver(() => { scheduleRefit(); });
     resizeObserver.observe(container);
 
     // MutationObserver on the terminal panel element catches panel height
@@ -673,7 +700,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // actively painting, unlike ResizeObserver which requires the rendering loop.
     const panelEl = container.closest('[data-terminal-panel]');
     const mutationObserver = panelEl
-      ? new MutationObserver(() => { scheduleFit(); })
+      ? new MutationObserver(() => { scheduleRefit(); })
       : null;
     mutationObserver?.observe(panelEl!, { attributes: true, attributeFilter: ['style'] });
 
@@ -686,7 +713,6 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       setTerminalLive(sessionId, false);
       cancelledInitial = true;
       clearTimeout(initialFitTimer);
-      clearTimeout(resizeTimer);
       if (warningTimeoutRef.current !== null) clearTimeout(warningTimeoutRef.current);
       clearSlashWarning(sessionId);
       unsubPreserveScrollback();
