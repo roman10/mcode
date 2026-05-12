@@ -108,11 +108,14 @@ export function buildGeminiResumePlan(
 
   const command = ctx.row.command || 'gemini';
   const geminiSessionId = ctx.row.geminiSessionId;
-  let entries: GeminiListedSession[] = [];
+  let entries: GeminiListedSession[];
   try {
     entries = deps.listSessions(command, ctx.row.cwd);
   } catch (err) {
-    throw new Error(`Cannot resume Gemini session: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(
+      `Cannot resume Gemini session: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
+    );
   }
 
   const resumeIndex = resolveGeminiResumeIndex(entries, geminiSessionId);

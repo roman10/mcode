@@ -80,8 +80,8 @@ function NewSessionDialog({
     prevOpenRef.current = open;
   }, [open, initialSessionType]);
 
-  // Re-fetch last-used defaults when switching agent types
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Re-fetch last-used defaults when switching agent types.
+  // `open` is intentionally omitted: the dialog-open effect above handles the open→true transition.
   useEffect(() => {
     if (!open) return;
     if (justOpenedRef.current) {
@@ -98,6 +98,7 @@ function NewSessionDialog({
       }
       if (defaults?.cwd) setCwd(defaults.cwd);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionType]);
 
   const handleBrowse = async (): Promise<void> => {

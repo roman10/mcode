@@ -14,6 +14,7 @@ export function readJsonConfig<TConfig>(path: string): TConfig {
     if (existsSync(path)) {
       throw new Error(
         `Invalid JSON in ${path}: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
       );
     }
     return {} as TConfig;
