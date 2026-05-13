@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { useShallow } from 'zustand/react/shallow';
-import { useSessionStore } from '../../stores/session-store';
+import { useNonTerminalSessionEntries } from '../../stores/session-store';
 import type { HookEvent } from '@shared/types';
 import { KNOWN_HOOK_EVENTS } from '@shared/constants';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -56,11 +55,7 @@ function ActivityFeed(): React.JSX.Element {
   const [sessionFilter, setSessionFilter] = useState<string>('');
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('');
 
-  const sessionEntries = useSessionStore(useShallow((s) =>
-    Object.values(s.sessions)
-      .filter((session) => session.sessionType !== 'terminal')
-      .map((session) => `${session.sessionId}\u0000${session.label}`),
-  ));
+  const sessionEntries = useNonTerminalSessionEntries();
 
   // Load historical events on mount
   useEffect(() => {

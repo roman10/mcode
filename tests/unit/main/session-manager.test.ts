@@ -1,5 +1,8 @@
-import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { SessionManager } from '../../../src/main/session/session-manager';
 import { getDb, resetDbForTest } from '../../../src/main/db';
 import { truncateTestData } from '../db-helpers';
@@ -175,5 +178,104 @@ describe('SessionManager broadcast coalescing', () => {
     await tick();
 
     expect(sent.filter((m) => m.channel === 'session:updated')).toHaveLength(0);
+  });
+});
+
+describe('SessionManager Claude transcript refresh coalescing', () => {
+  let manager: SessionManager;
+  let tempDir: string;
+  const fakeWc = {
+    send: vi.fn(),
+    isDestroyed: () => false,
+  };
+
+  beforeAll(() => {
+    resetDbForTest();
+  });
+
+  afterAll(() => {
+    resetDbForTest();
+  });
+
+  beforeEach(async () => {
+    truncateTestData(getDb());
+    vi.useFakeTimers();
+    fakeWc.send.mockReset();
+    tempDir = await mkdtemp(join(tmpdir(), 'mcode-session-manager-'));
+    const ptyStub = new EventEmitter() as unknown as IObservablePtyManager;
+    const accountStub = {} as unknown as AccountService;
+    const hookRuntime: HookRuntimeInfo = { state: 'ready', port: 1234, warning: null };
+    manager = new SessionManager(
+      ptyStub,
+      () => fakeWc as unknown as Electron.WebContents,
+      () => hookRuntime,
+      accountStub,
+    );
+  });
+
+  afterEach(async () => {
+    manager.shutdownDetection();
+    vi.useRealTimers();
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('coalesces repeated hook-triggered Claude transcript refreshes', async () => {
+    const transcriptPath = join(tempDir, 'claude.jsonl');
+    const scheduler = manager as unknown as {
+      scheduleClaudeTranscriptRefresh(sessionId: string, path: string, delay: number): void;
+      refreshClaudeModelFromTranscript(
+        sessionId: string,
+        path: string,
+        state: {
+          timer: NodeJS.Timeout | null;
+          queuedTranscriptPath: string | null;
+          inFlight: Promise<void> | null;
+          lastFreshnessKey: string | null;
+        },
+      ): Promise<void>;
+    };
+    const refreshSpy = vi
+      .spyOn(scheduler, 'refreshClaudeModelFromTranscript')
+      .mockResolvedValue(undefined);
+
+    scheduler.scheduleClaudeTranscriptRefresh('s1', transcriptPath, 0);
+    scheduler.scheduleClaudeTranscriptRefresh('s1', transcriptPath, 0);
+    scheduler.scheduleClaudeTranscriptRefresh('s1', transcriptPath, 0);
+
+    await vi.runAllTimersAsync();
+
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
+    expect(refreshSpy).toHaveBeenCalledWith('s1', transcriptPath, expect.any(Object));
+  });
+
+  it('skips rereading an unchanged Claude transcript', async () => {
+    const transcriptPath = join(tempDir, 'claude.jsonl');
+    await writeFile(transcriptPath, '{"message":{"model":"claude-sonnet-4-5"}}\n');
+    const updateSpy = vi
+      .spyOn(manager, 'updateModelFromTranscript')
+      .mockResolvedValue(undefined);
+    const refresh = manager as unknown as {
+      refreshClaudeModelFromTranscript(
+        sessionId: string,
+        path: string,
+        state: {
+          timer: NodeJS.Timeout | null;
+          queuedTranscriptPath: string | null;
+          inFlight: Promise<void> | null;
+          lastFreshnessKey: string | null;
+        },
+      ): Promise<void>;
+    };
+    const state = {
+      timer: null,
+      queuedTranscriptPath: null,
+      inFlight: null,
+      lastFreshnessKey: null,
+    };
+
+    await refresh.refreshClaudeModelFromTranscript('s1', transcriptPath, state);
+    await refresh.refreshClaudeModelFromTranscript('s1', transcriptPath, state);
+
+    expect(updateSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { SquareX, Trash2, BellOff, TerminalSquare, Plus, Search, X } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useDialogStore } from '../../stores/dialog-store';
-import { useSessionStore } from '../../stores/session-store';
+import {
+  useHasAttentionSessions,
+  useHasEndedSessions,
+  useSessionStore,
+} from '../../stores/session-store';
 import { useAccountsStore } from '../../stores/accounts-store';
 import { useStatsStore } from '../../stores/stats-store';
 import { getAgentDefinition } from '@shared/session-agents';
@@ -50,13 +54,8 @@ function SidebarPanel(): React.JSX.Element {
   const isMac = window.mcode.app.getPlatform() === 'darwin';
   const modLabel = isMac ? '⌘' : 'Ctrl+';
 
-  const hasAttention = useSessionStore((s) =>
-    Object.values(s.sessions).some((sess) => sess.attentionLevel !== 'none'),
-  );
-
-  const hasEnded = useSessionStore((s) =>
-    Object.values(s.sessions).some((sess) => sess.status === 'ended'),
-  );
+  const hasAttention = useHasAttentionSessions();
+  const hasEnded = useHasEndedSessions();
 
   useEffect(() => {
     refreshStats();

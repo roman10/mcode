@@ -1,18 +1,19 @@
-import type { SessionInfo } from '@shared/types';
 import { useAccountsStore } from '../../stores/accounts-store';
-import { useRelativeTime } from '../../hooks/useRelativeTime';
+import { useSession } from '../../stores/session-store';
 import { splitLabelIcon } from '../../utils/label-utils';
 import AgentIcon from '../shared/AgentIcon';
 import StatusBadge from '../Sidebar/StatusBadge';
 import Tooltip from '../shared/Tooltip';
+import { memo } from 'react';
 
 interface KanbanCardProps {
-  session: SessionInfo;
+  sessionId: string;
+  shortTime: string;
   isSelected: boolean;
-  onSelect(): void;
-  onExpand(): void;
-  onKill(): void;
-  onDelete(): void;
+  onSelect(sessionId: string): void;
+  onExpand(sessionId: string): void;
+  onKill(sessionId: string): void;
+  onDelete(sessionId: string): void;
 }
 
 const attentionBorderColors: Record<string, string> = {
@@ -23,21 +24,23 @@ const attentionBorderColors: Record<string, string> = {
 };
 
 function KanbanCard({
-  session,
+  sessionId,
+  shortTime,
   isSelected,
   onSelect,
   onExpand,
   onKill,
   onDelete,
-}: KanbanCardProps): React.JSX.Element {
-  const shortTime = useRelativeTime(session.startedAt);
-  const [labelIcon, labelText] = splitLabelIcon(session.label);
-  const attentionBorder = attentionBorderColors[session.attentionLevel] ?? '';
+}: KanbanCardProps): React.JSX.Element | null {
+  const session = useSession(sessionId);
   const accountName = useAccountsStore((s) => {
-    if (!session.accountId) return null;
+    if (!session?.accountId) return null;
     const account = s.accounts.find((a) => a.accountId === session.accountId);
     return account && !account.isDefault ? account.name : null;
   });
+  if (!session) return null;
+  const [labelIcon, labelText] = splitLabelIcon(session.label);
+  const attentionBorder = attentionBorderColors[session.attentionLevel] ?? '';
 
   return (
     <div
@@ -46,8 +49,8 @@ function KanbanCard({
           ? 'bg-bg-elevated ring-1 ring-border-focus'
           : 'bg-bg-secondary hover:bg-bg-elevated'
       }`}
-      onClick={onSelect}
-      onDoubleClick={onExpand}
+      onClick={() => onSelect(session.sessionId)}
+      onDoubleClick={() => onExpand(session.sessionId)}
     >
       <div className="px-3 py-2.5">
         {/* Row 1: status dot + label + time */}
@@ -92,47 +95,47 @@ function KanbanCard({
 
       {/* Hover actions — collapsed until hover to save vertical space */}
       <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] focus-within:grid-rows-[1fr] transition-[grid-template-rows] duration-150">
-      <div className="overflow-hidden flex items-center gap-1 px-3 pb-2">
-        {session.status !== 'ended' ? (
-          <Tooltip content="Kill session" side="top">
+        <div className="overflow-hidden flex items-center gap-1 px-3 pb-2">
+          {session.status !== 'ended' ? (
+            <Tooltip content="Kill session" side="top">
+              <button
+                className="text-xs text-text-secondary hover:text-red-400 px-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onKill(session.sessionId);
+                }}
+              >
+                Kill
+              </button>
+            </Tooltip>
+          ) : (
+            <Tooltip content="Delete session" side="top">
+              <button
+                className="text-xs text-text-secondary hover:text-red-400 px-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(session.sessionId);
+                }}
+              >
+                Delete
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip content="Open terminal (Cmd+Enter)" side="top">
             <button
-              className="text-xs text-text-secondary hover:text-red-400 px-1"
+              className="text-xs text-text-secondary hover:text-text-primary px-1"
               onClick={(e) => {
                 e.stopPropagation();
-                onKill();
+                onExpand(session.sessionId);
               }}
             >
-              Kill
+              Open
             </button>
           </Tooltip>
-        ) : (
-          <Tooltip content="Delete session" side="top">
-            <button
-              className="text-xs text-text-secondary hover:text-red-400 px-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-            >
-              Delete
-            </button>
-          </Tooltip>
-        )}
-        <Tooltip content="Open terminal (Cmd+Enter)" side="top">
-          <button
-            className="text-xs text-text-secondary hover:text-text-primary px-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              onExpand();
-            }}
-          >
-            Open
-          </button>
-        </Tooltip>
-      </div>
+        </div>
       </div>
     </div>
   );
 }
 
-export default KanbanCard;
+export default memo(KanbanCard);

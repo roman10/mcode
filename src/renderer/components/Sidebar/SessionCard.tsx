@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef, memo } from 'react';
-import type { SessionInfo } from '@shared/types';
 import { isAgentSessionType } from '@shared/session-agents';
 import { useAccountsStore } from '../../stores/accounts-store';
-import { useRelativeTime } from '../../hooks/useRelativeTime';
+import { useSession } from '../../stores/session-store';
 import { splitLabelIcon } from '../../utils/label-utils';
 import { canResumeSession } from '../../utils/session-resume';
 import Tooltip from '../shared/Tooltip';
@@ -12,7 +11,8 @@ import ContextMenu from '../shared/ContextMenu';
 import type { MenuItem } from '../shared/ContextMenu';
 
 interface SessionCardProps {
-  session: SessionInfo;
+  sessionId: string;
+  shortTime: string;
   isSelected: boolean;
   hasTile: boolean;
   /**
@@ -40,7 +40,8 @@ const attentionBorderColors: Record<string, string> = {
 
 const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
   function SessionCard({
-    session,
+    sessionId,
+    shortTime,
     isSelected,
     hasTile,
     onSelect,
@@ -50,11 +51,12 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
     onRename,
     onHandoff,
   }, ref) {
+    const session = useSession(sessionId);
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
-    const [labelIcon, labelText] = splitLabelIcon(session.label);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+    const [labelIcon, labelText] = splitLabelIcon(session?.label ?? '');
 
     const labelTextRef = useRef(labelText);
     labelTextRef.current = labelText;
@@ -73,6 +75,14 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
       }
     }, [isEditing]);
 
+    const accountName = useAccountsStore((s) => {
+      if (!session?.accountId) return null;
+      const account = s.accounts.find((a) => a.accountId === session.accountId);
+      return account && !account.isDefault ? account.name : null;
+    });
+
+    if (!session) return null;
+
     const handleRenameSubmit = (): void => {
       const trimmed = editValue.trim();
       const full = labelIcon ? `${labelIcon} ${trimmed}` : trimmed;
@@ -84,13 +94,7 @@ const SessionCard = forwardRef<SessionCardHandle, SessionCardProps>(
       setIsEditing(false);
     };
 
-    const shortTime = useRelativeTime(session.startedAt);
     const attentionBorder = attentionBorderColors[session.attentionLevel] ?? '';
-    const accountName = useAccountsStore((s) => {
-      if (!session.accountId) return null;
-      const account = s.accounts.find((a) => a.accountId === session.accountId);
-      return account && !account.isDefault ? account.name : null;
-    });
 
     const resumable = canResumeSession(session);
     const canOpenTile = !hasTile && (session.status !== 'ended' || resumable);

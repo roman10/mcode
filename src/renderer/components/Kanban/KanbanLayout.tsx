@@ -6,6 +6,8 @@ import { ErrorBoundary, ErrorFallback } from '../shared/ErrorBoundary';
 import KanbanColumn from './KanbanColumn';
 import KanbanExpandedContent from './KanbanExpandedContent';
 import { KANBAN_COLUMNS, groupSessionsByColumn } from './kanban-utils';
+import type { KanbanColumnId } from './kanban-utils';
+import { formatShortTimeAt, useRelativeTimeTick } from '../../hooks/useRelativeTime';
 
 const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
@@ -17,8 +19,27 @@ function KanbanLayout(): React.JSX.Element {
   const kanbanOpenFiles = useLayoutStore((s) => s.kanbanOpenFiles);
   const expandKanbanSession = useLayoutStore((s) => s.expandKanbanSession);
   const clearKanbanExpand = useLayoutStore((s) => s.clearKanbanExpand);
+  const relativeTimeTick = useRelativeTimeTick();
 
   const grouped = useMemo(() => groupSessionsByColumn(sessions), [sessions]);
+  const groupedSessionIds = useMemo(
+    () => Object.fromEntries(
+      Object.entries(grouped).map(([columnId, columnSessions]) => [
+        columnId,
+        columnSessions.map((session) => session.sessionId),
+      ]),
+    ) as Record<KanbanColumnId, string[]>,
+    [grouped],
+  );
+  const shortTimesBySessionId = useMemo(() => {
+    void relativeTimeTick;
+    const nowMs = Date.now();
+    const result: Record<string, string> = {};
+    for (const session of sessions) {
+      result[session.sessionId] = formatShortTimeAt(session.startedAt, nowMs);
+    }
+    return result;
+  }, [sessions, relativeTimeTick]);
   const expandedSession = useMemo(
     () => sessions.find((session) => session.sessionId === kanbanExpandedSessionId) ?? null,
     [kanbanExpandedSessionId, sessions],
@@ -117,7 +138,8 @@ function KanbanLayout(): React.JSX.Element {
         <KanbanColumn
           key={column.id}
           column={column}
-          sessions={grouped[column.id]}
+          sessionIds={groupedSessionIds[column.id]}
+          shortTimesBySessionId={shortTimesBySessionId}
           selectedSessionId={selectedSessionId}
           onSelectSession={handleSelectSession}
           onExpandSession={handleExpandSession}

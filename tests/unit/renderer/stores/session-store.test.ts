@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setupMcodeMock } from '../mock-mcode';
-import { useSessionStore } from '../../../../src/renderer/stores/session-store';
+import {
+  countActionAttentionSessions,
+  getFilteredVisibleSessionIds,
+  getLatestSessionCwd,
+  getNonTerminalSessionEntries,
+  hasAttentionSessions,
+  hasEndedSessions,
+  useSessionStore,
+} from '../../../../src/renderer/stores/session-store';
 import { makeSession } from '../../test-factories';
 
 const mcode = setupMcodeMock();
@@ -156,5 +164,77 @@ describe('session-store', () => {
     useSessionStore.getState().setExitCode('s1', 1);
 
     expect(useSessionStore.getState().exitCodes).toBe(before);
+  });
+
+  it('counts only action attention sessions', () => {
+    const sessions = {
+      s1: makeSession({ sessionId: 's1', attentionLevel: 'action' }),
+      s2: makeSession({ sessionId: 's2', attentionLevel: 'info' }),
+      s3: makeSession({ sessionId: 's3', attentionLevel: 'action' }),
+    };
+
+    expect(countActionAttentionSessions(sessions)).toBe(2);
+  });
+
+  it('detects attention and ended sessions from derived helpers', () => {
+    const sessions = {
+      s1: makeSession({ sessionId: 's1', attentionLevel: 'none', status: 'active' }),
+      s2: makeSession({ sessionId: 's2', attentionLevel: 'info', status: 'ended' }),
+    };
+
+    expect(hasAttentionSessions(sessions)).toBe(true);
+    expect(hasEndedSessions(sessions)).toBe(true);
+  });
+
+  it('returns the cwd of the most recently started session', () => {
+    const sessions = {
+      older: makeSession({
+        sessionId: 'older',
+        startedAt: '2026-01-01T00:00:00.000Z',
+        cwd: '/tmp/older',
+      }),
+      newer: makeSession({
+        sessionId: 'newer',
+        startedAt: '2026-01-02T00:00:00.000Z',
+        cwd: '/tmp/newer',
+      }),
+    };
+
+    expect(getLatestSessionCwd(sessions)).toBe('/tmp/newer');
+  });
+
+  it('builds non-terminal activity filter entries', () => {
+    const sessions = {
+      claude: makeSession({ sessionId: 'claude', label: 'Claude Session', sessionType: 'claude' }),
+      terminal: makeSession({ sessionId: 'terminal', label: 'Shell', sessionType: 'terminal' }),
+    };
+
+    expect(getNonTerminalSessionEntries(sessions)).toEqual(['claude\u0000Claude Session']);
+  });
+
+  it('returns ordered filtered visible session ids', () => {
+    const sessions = {
+      waiting: makeSession({
+        sessionId: 'waiting',
+        label: 'Alpha',
+        status: 'waiting',
+        startedAt: '2026-01-03T00:00:00.000Z',
+      }),
+      active: makeSession({
+        sessionId: 'active',
+        label: 'Beta',
+        status: 'active',
+        startedAt: '2026-01-02T00:00:00.000Z',
+      }),
+      ended: makeSession({
+        sessionId: 'ended',
+        label: 'Gamma',
+        status: 'ended',
+        startedAt: '2026-01-01T00:00:00.000Z',
+      }),
+    };
+
+    expect(getFilteredVisibleSessionIds(sessions, '')).toEqual(['waiting', 'active', 'ended']);
+    expect(getFilteredVisibleSessionIds(sessions, 'bet')).toEqual(['active']);
   });
 });

@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react';
 import { useDialogStore } from '../stores/dialog-store';
-import { useSessionStore } from '../stores/session-store';
+import { useLatestSessionCwd, useSessionStore } from '../stores/session-store';
 import { formatKeys } from '../utils/format-shortcut';
 import { basename } from '../utils/path-utils';
 
@@ -9,17 +9,7 @@ function TitleBar(): React.JSX.Element {
   const selectedCwd = useSessionStore((s) =>
     s.selectedSessionId ? s.sessions[s.selectedSessionId]?.cwd ?? null : null,
   );
-  const latestSessionCwd = useSessionStore((s) => {
-    let latestStartedAt = '';
-    let cwd: string | null = null;
-    for (const session of Object.values(s.sessions)) {
-      if (session.startedAt > latestStartedAt) {
-        latestStartedAt = session.startedAt;
-        cwd = session.cwd;
-      }
-    }
-    return cwd;
-  });
+  const latestSessionCwd = useLatestSessionCwd();
   const projectLabel = basename(selectedCwd ?? latestSessionCwd ?? '');
 
   return (

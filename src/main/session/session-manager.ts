@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
-import { readdir, open as fsOpen } from 'node:fs/promises';
+import { readdir, open as fsOpen, stat as fsStat } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
 import type { IObservablePtyManager } from '../../shared/pty-manager-interface';
@@ -161,6 +161,13 @@ export type SessionUpdateListener = (
   previousStatus: SessionStatus | null,
 ) => void;
 
+interface ClaudeTranscriptRefreshState {
+  timer: NodeJS.Timeout | null;
+  queuedTranscriptPath: string | null;
+  inFlight: Promise<void> | null;
+  lastFreshnessKey: string | null;
+}
+
 export class SessionManager {
   private ptyManager: IObservablePtyManager;
   private getWebContents: () => WebContents | null;
@@ -197,6 +204,8 @@ export class SessionManager {
   private startupTimers = new Map<string, NodeJS.Timeout>();
   /** 500ms timers that auto-delete ended Claude sessions with no interaction. */
   private autoDeleteTimers = new Map<string, NodeJS.Timeout>();
+  /** Coalesces transcript-driven Claude model refreshes during hook bursts. */
+  private claudeTranscriptRefreshes = new Map<string, ClaudeTranscriptRefreshState>();
   private eventStore: SessionEventStore;
   readonly layoutRepo: LayoutRepository;
   private agentRuntimeAdapters: AgentRuntimeAdapterMap;
@@ -920,8 +929,8 @@ export class SessionManager {
       if (session) this.notifyListeners(session, currentStatus);
     }
 
-    // Model detection from transcript on every hook event.
-    // setModel() no-ops when the model is unchanged, so extra reads are harmless.
+    // Claude model detection from transcript. Coalesce hook bursts so repeated
+    // events do not reread the same transcript tail over and over.
     {
       const effectiveClaudeSessionId = event.claudeSessionId ?? row.claude_session_id;
       if (effectiveClaudeSessionId) {
@@ -931,9 +940,7 @@ export class SessionManager {
           ?? getTranscriptPath(row.cwd, effectiveClaudeSessionId);
         // Delay on Stop to let Claude finalize the transcript file
         const delay = event.hookEventName === 'Stop' ? 500 : 0;
-        setTimeout(() => {
-          this.updateModelFromTranscript(sessionId, transcriptPath).catch(() => { });
-        }, delay);
+        this.scheduleClaudeTranscriptRefresh(sessionId, transcriptPath, delay);
       }
     }
 
@@ -1270,6 +1277,82 @@ export class SessionManager {
     }
   }
 
+  private getClaudeTranscriptRefreshState(sessionId: string): ClaudeTranscriptRefreshState {
+    const existing = this.claudeTranscriptRefreshes.get(sessionId);
+    if (existing) return existing;
+    const state: ClaudeTranscriptRefreshState = {
+      timer: null,
+      queuedTranscriptPath: null,
+      inFlight: null,
+      lastFreshnessKey: null,
+    };
+    this.claudeTranscriptRefreshes.set(sessionId, state);
+    return state;
+  }
+
+  private scheduleClaudeTranscriptRefresh(
+    sessionId: string,
+    transcriptPath: string,
+    delay: number,
+  ): void {
+    const state = this.getClaudeTranscriptRefreshState(sessionId);
+    state.queuedTranscriptPath = transcriptPath;
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      void this.flushClaudeTranscriptRefresh(sessionId);
+    }, delay);
+  }
+
+  private async flushClaudeTranscriptRefresh(sessionId: string): Promise<void> {
+    const state = this.claudeTranscriptRefreshes.get(sessionId);
+    if (!state || state.inFlight) return;
+    const transcriptPath = state.queuedTranscriptPath;
+    if (!transcriptPath) return;
+    state.queuedTranscriptPath = null;
+    state.inFlight = this.refreshClaudeModelFromTranscript(sessionId, transcriptPath, state)
+      .catch((error) => {
+        logger.warn('session', 'Failed to refresh Claude model from transcript', {
+          sessionId,
+          transcriptPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => {
+        state.inFlight = null;
+        if (state.queuedTranscriptPath) {
+          void this.flushClaudeTranscriptRefresh(sessionId);
+          return;
+        }
+        if (!state.timer) this.claudeTranscriptRefreshes.delete(sessionId);
+      });
+  }
+
+  private async refreshClaudeModelFromTranscript(
+    sessionId: string,
+    transcriptPath: string,
+    state: ClaudeTranscriptRefreshState,
+  ): Promise<void> {
+    let stats;
+    try {
+      stats = await fsStat(transcriptPath);
+    } catch {
+      state.lastFreshnessKey = null;
+      return;
+    }
+    const freshnessKey = `${transcriptPath}:${stats.size}:${stats.mtimeMs}`;
+    if (state.lastFreshnessKey === freshnessKey) return;
+    await this.updateModelFromTranscript(sessionId, transcriptPath);
+    state.lastFreshnessKey = freshnessKey;
+  }
+
+  private clearClaudeTranscriptRefresh(sessionId: string): void {
+    const state = this.claudeTranscriptRefreshes.get(sessionId);
+    if (!state) return;
+    if (state.timer) clearTimeout(state.timer);
+    this.claudeTranscriptRefreshes.delete(sessionId);
+  }
+
   setTerminalConfig(sessionId: string, partial: Partial<TerminalConfig>): void {
     const record = getSessionRecord(sessionId);
     const existing: TerminalConfig = JSON.parse(record?.terminal_config || '{}');
@@ -1475,6 +1558,7 @@ export class SessionManager {
     this.clearStartupTimer(sessionId);
     this.clearAutoDeleteTimer(sessionId);
     this.clearPendingDetection(sessionId);
+    this.clearClaudeTranscriptRefresh(sessionId);
   }
 
   /** Clear all pending per-session timers. Called on app shutdown. */
@@ -1487,6 +1571,10 @@ export class SessionManager {
     this.autoDeleteTimers.clear();
     for (const handle of this.pendingDetections.values()) clearImmediate(handle);
     this.pendingDetections.clear();
+    for (const state of this.claudeTranscriptRefreshes.values()) {
+      if (state.timer) clearTimeout(state.timer);
+    }
+    this.claudeTranscriptRefreshes.clear();
   }
 
   /**

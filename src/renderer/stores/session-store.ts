@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { SessionInfo, ExternalSessionInfo, HookRuntimeInfo } from '@shared/types';
+import { filterSessions, getOrderedVisibleSessions } from '../utils/session-ordering';
 
 interface SessionState {
   sessions: Record<string, SessionInfo>;
@@ -164,6 +165,76 @@ export const useSession = (id: string | null | undefined): SessionInfo | undefin
  */
 export const useSessionIds = (): string[] =>
   useSessionStore(useShallow((s) => Object.keys(s.sessions)));
+
+export function countActionAttentionSessions(sessions: Record<string, SessionInfo>): number {
+  let count = 0;
+  for (const session of Object.values(sessions)) {
+    if (session.attentionLevel === 'action') count++;
+  }
+  return count;
+}
+
+export function hasAttentionSessions(sessions: Record<string, SessionInfo>): boolean {
+  for (const session of Object.values(sessions)) {
+    if (session.attentionLevel !== 'none') return true;
+  }
+  return false;
+}
+
+export function hasEndedSessions(sessions: Record<string, SessionInfo>): boolean {
+  for (const session of Object.values(sessions)) {
+    if (session.status === 'ended') return true;
+  }
+  return false;
+}
+
+export function getLatestSessionCwd(sessions: Record<string, SessionInfo>): string | null {
+  let latestStartedAt = '';
+  let cwd: string | null = null;
+  for (const session of Object.values(sessions)) {
+    if (session.startedAt > latestStartedAt) {
+      latestStartedAt = session.startedAt;
+      cwd = session.cwd;
+    }
+  }
+  return cwd;
+}
+
+export function getNonTerminalSessionEntries(sessions: Record<string, SessionInfo>): string[] {
+  const entries: string[] = [];
+  for (const session of Object.values(sessions)) {
+    if (session.sessionType === 'terminal') continue;
+    entries.push(`${session.sessionId}\u0000${session.label}`);
+  }
+  return entries;
+}
+
+export function getFilteredVisibleSessionIds(
+  sessions: Record<string, SessionInfo>,
+  query: string,
+): string[] {
+  const ordered = getOrderedVisibleSessions(sessions);
+  const filtered = query ? filterSessions(ordered, query) : ordered;
+  return filtered.map((session) => session.sessionId);
+}
+
+export const useActionAttentionCount = (): number =>
+  useSessionStore((s) => countActionAttentionSessions(s.sessions));
+
+export const useHasAttentionSessions = (): boolean =>
+  useSessionStore((s) => hasAttentionSessions(s.sessions));
+
+export const useHasEndedSessions = (): boolean =>
+  useSessionStore((s) => hasEndedSessions(s.sessions));
+
+export const useLatestSessionCwd = (): string | null =>
+  useSessionStore((s) => getLatestSessionCwd(s.sessions));
+
+export const useNonTerminalSessionEntries = (): string[] =>
+  useSessionStore(useShallow((s) => getNonTerminalSessionEntries(s.sessions)));
+
+export const useFilteredVisibleSessionIds = (query: string): string[] =>
+  useSessionStore(useShallow((s) => getFilteredVisibleSessionIds(s.sessions, query)));
 
 /**
  * Subscribe to the entire sessions Record. Escape hatch for consumers that

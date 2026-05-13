@@ -14,7 +14,7 @@ import CommandPalette from './components/CommandPalette/CommandPalette';
 import StatsDashboardOverlay from './components/Dashboard/StatsDashboardOverlay';
 import TerminalPanel from './components/BottomPanel/TerminalPanel';
 import StatusBar from './components/BottomPanel/StatusBar';
-import { useSessionStore } from './stores/session-store';
+import { useActionAttentionCount, useSessionStore } from './stores/session-store';
 import { useLayoutStore } from './stores/layout-store';
 import { useDialogStore } from './stores/dialog-store';
 import { useTaskStore } from './stores/task-store';
@@ -113,9 +113,7 @@ function App(): React.JSX.Element {
   const showActivityTab = useLayoutStore((s) => s.showActivityTab);
   const viewMode = useLayoutStore((s) => s.viewMode);
 
-  const attentionCount = useSessionStore((s) =>
-    Object.values(s.sessions).filter((sess) => sess.attentionLevel === 'action').length,
-  );
+  const attentionCount = useActionAttentionCount();
 
   const changesCount = useChangesStore((s) =>
     s.statuses.reduce((sum, status) => sum + status.staged.length + status.unstaged.length, 0),

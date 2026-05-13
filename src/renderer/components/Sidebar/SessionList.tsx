@@ -4,6 +4,7 @@ import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { sessionIdFromTileId } from '../../utils/tile-id';
 import { getLeaves } from 'react-mosaic-component';
+import { formatShortTimeAt, useRelativeTimeTick } from '../../hooks/useRelativeTime';
 import SessionCard from './SessionCard';
 import type { SessionCardHandle } from './SessionCard';
 import { getOrderedVisibleSessions, filterSessions } from '../../utils/session-ordering';
@@ -55,6 +56,7 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
   const [externalLimit, setExternalLimit] = useState(20);
   const [loadingMore, setLoadingMore] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
+  const relativeTimeTick = useRelativeTimeTick();
 
   // Canonical ordering: attention → status → startedAt (shared with keyboard shortcuts).
   // Memoized so coalesced session:updated bursts that don't change `sessions`
@@ -63,6 +65,15 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
   const isFiltering = filterQuery.length > 0;
   const filtered = useMemo(() => filterSessions(sorted, filterQuery), [sorted, filterQuery]);
   const groups = useMemo(() => groupSessionsByDate(filtered), [filtered]);
+  const shortTimesBySessionId = useMemo(() => {
+    void relativeTimeTick;
+    const nowMs = Date.now();
+    const result: Record<string, string> = {};
+    for (const session of filtered) {
+      result[session.sessionId] = formatShortTimeAt(session.startedAt, nowMs);
+    }
+    return result;
+  }, [filtered, relativeTimeTick]);
 
   // Track user overrides for date group collapse state
   // Keys not in this record use defaults: today=expanded, past=collapsed
@@ -245,7 +256,8 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
               <SessionCard
                 ref={getRefSetter(session.sessionId)}
                 key={session.sessionId}
-                session={session}
+                sessionId={session.sessionId}
+                shortTime={shortTimesBySessionId[session.sessionId] ?? ''}
                 isSelected={selectedSessionId === session.sessionId}
                 hasTile={tileSessionIds.has(session.sessionId)}
                 onSelect={handleSelect}
