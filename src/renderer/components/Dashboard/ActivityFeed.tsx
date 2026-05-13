@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '../../stores/session-store';
 import type { HookEvent } from '@shared/types';
 import { KNOWN_HOOK_EVENTS } from '@shared/constants';
@@ -55,7 +56,11 @@ function ActivityFeed(): React.JSX.Element {
   const [sessionFilter, setSessionFilter] = useState<string>('');
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('');
 
-  const sessions = useSessionStore((s) => s.sessions);
+  const sessionEntries = useSessionStore(useShallow((s) =>
+    Object.values(s.sessions)
+      .filter((session) => session.sessionType !== 'terminal')
+      .map((session) => `${session.sessionId}\u0000${session.label}`),
+  ));
 
   // Load historical events on mount
   useEffect(() => {
@@ -72,10 +77,21 @@ function ActivityFeed(): React.JSX.Element {
     return unsub;
   }, []);
 
-  // Build session options for filter
-  const sessionOptions = Object.values(sessions)
-    .filter((s) => s.sessionType !== 'terminal')
-    .map((s) => ({ value: s.sessionId, label: s.label }));
+  const sessionOptions = useMemo(
+    () =>
+      sessionEntries.map((entry) => {
+        const sep = entry.indexOf('\u0000');
+        return {
+          value: entry.slice(0, sep),
+          label: entry.slice(sep + 1),
+        };
+      }),
+    [sessionEntries],
+  );
+  const sessionLabels = useMemo(
+    () => new Map(sessionOptions.map((option) => [option.value, option.label])),
+    [sessionOptions],
+  );
 
   const handleClearAll = async (): Promise<void> => {
     await window.mcode.hooks.clearAll();
@@ -146,7 +162,6 @@ function ActivityFeed(): React.JSX.Element {
           </div>
         ) : (
           filtered.map((event, i) => {
-            const session = sessions[event.sessionId];
             const colorClass = EVENT_COLORS[event.hookEventName] ?? 'bg-gray-800 text-gray-300';
 
             return (
@@ -161,7 +176,7 @@ function ActivityFeed(): React.JSX.Element {
 
                 {/* Session label */}
                 <span className="text-xs text-text-secondary truncate w-24 shrink-0 pt-0.5">
-                  {session?.label ?? event.sessionId.slice(0, 8)}
+                  {sessionLabels.get(event.sessionId) ?? event.sessionId.slice(0, 8)}
                 </span>
 
                 {/* Event badge */}

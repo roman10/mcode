@@ -5,6 +5,24 @@ import { terminalRegistry } from '../../devtools/terminal-registry';
 import TerminalInstance from '../SessionTile/TerminalInstance';
 import TerminalTabBar from './TerminalTabBar';
 
+function TerminalTabSession({
+  sessionId,
+  isVisible,
+}: {
+  sessionId: string;
+  isVisible: boolean;
+}): React.JSX.Element | null {
+  const sessionType = useSessionStore((s) => s.sessions[sessionId]?.sessionType);
+  if (!sessionType) return null;
+  return (
+    <TerminalInstance
+      sessionId={sessionId}
+      sessionType={sessionType}
+      isVisible={isVisible}
+    />
+  );
+}
+
 export default function TerminalTabGroup({
   tabGroupId,
 }: {
@@ -13,7 +31,6 @@ export default function TerminalTabGroup({
   const tabGroup = useTerminalPanelStore((s) => s.tabGroups[tabGroupId]);
   const terminals = useTerminalPanelStore((s) => s.terminals);
   const activeEntry = tabGroup ? terminals[tabGroup.activeTerminalId] : undefined;
-  const sessions = useSessionStore((s) => s.sessions);
 
   // Auto-focus the xterm terminal when the active terminal changes (new terminal or tab switch).
   const activeSessionId = activeEntry?.sessionId;
@@ -43,13 +60,10 @@ export default function TerminalTabGroup({
         {tabGroup.terminalIds.map((tid) => {
           const entry = terminals[tid];
           if (!entry) return null;
-          const sessionType = sessions[entry.sessionId]?.sessionType;
-          if (!sessionType) return null;
           return (
-            <TerminalInstance
+            <TerminalTabSession
               key={entry.sessionId}
               sessionId={entry.sessionId}
-              sessionType={sessionType}
               isVisible={tid === tabGroup.activeTerminalId}
             />
           );

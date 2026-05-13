@@ -1,5 +1,4 @@
-import { useMemo } from 'react';
-import Tooltip from './Tooltip';
+import { useMemo, useState } from 'react';
 
 const CELL_SIZE = 10;
 const GAP = 2;
@@ -20,6 +19,12 @@ interface HeatmapGridProps<T extends { date: string }> {
   selectedDate: string;
   onSelect: (date: string) => void;
   colorScale?: 'green' | 'emerald' | 'blue';
+}
+
+interface HoverState {
+  content: string;
+  x: number;
+  y: number;
 }
 
 /** Convert JS Date.getDay() (0=Sun) to Monday-based index (0=Mon, 6=Sun). */
@@ -70,6 +75,7 @@ function HeatmapGrid<T extends { date: string }>({
   colorScale = 'green',
 }: HeatmapGridProps<T>): React.JSX.Element {
   const colors = COLOR_SCALES[colorScale] ?? COLOR_SCALES.green;
+  const [hovered, setHovered] = useState<HoverState | null>(null);
 
   const { leadingBlanks, totalCols, monthLabels } = useMemo(() => {
     if (entries.length === 0) return { leadingBlanks: 0, totalCols: 0, monthLabels: [] };
@@ -139,18 +145,59 @@ function HeatmapGrid<T extends { date: string }>({
             const level = Math.max(0, Math.min(4, getLevel(entry)));
             const bg = colors[level];
             const isSelected = entry.date === selectedDate;
+            const tooltipContent = getTooltip(entry);
             return (
-              <Tooltip key={entry.date} content={getTooltip(entry)} side="top">
-                <div
-                  className={`rounded-[2px] cursor-pointer ${bg} ${isSelected ? 'ring-1 ring-white/40' : ''}`}
-                  style={{ width: CELL_SIZE, height: CELL_SIZE }}
-                  onClick={() => onSelect(entry.date)}
-                />
-              </Tooltip>
+              <div
+                key={entry.date}
+                className={`rounded-[2px] cursor-pointer ${bg} ${isSelected ? 'ring-1 ring-white/40' : ''}`}
+                style={{ width: CELL_SIZE, height: CELL_SIZE }}
+                onClick={() => onSelect(entry.date)}
+                onMouseEnter={(e) => {
+                  setHovered({
+                    content: tooltipContent,
+                    x: e.clientX,
+                    y: e.clientY,
+                  });
+                }}
+                onMouseMove={(e) => {
+                  setHovered((current) => {
+                    if (
+                      current &&
+                      current.content === tooltipContent &&
+                      current.x === e.clientX &&
+                      current.y === e.clientY
+                    ) {
+                      return current;
+                    }
+                    return {
+                      content: tooltipContent,
+                      x: e.clientX,
+                      y: e.clientY,
+                    };
+                  });
+                }}
+                onMouseLeave={() => setHovered(null)}
+              />
             );
           })}
         </div>
       </div>
+      {hovered && (
+        <div
+          className="fixed z-50 rounded px-2 py-1 text-xs bg-bg-elevated text-text-primary shadow-md border border-border-subtle pointer-events-none whitespace-nowrap"
+          style={{
+            left: hovered.x,
+            top: hovered.y,
+            transform: 'translate(-50%, -100%) translateY(-6px)',
+          }}
+        >
+          {hovered.content.split('\n').map((line, i) => (
+            <div key={`${line}-${i}`} className={i > 0 ? 'text-text-secondary' : ''}>
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

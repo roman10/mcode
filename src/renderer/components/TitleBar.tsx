@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { useDialogStore } from '../stores/dialog-store';
 import { useSessionStore } from '../stores/session-store';
@@ -7,17 +6,21 @@ import { basename } from '../utils/path-utils';
 
 function TitleBar(): React.JSX.Element {
   const openQuickOpen = useDialogStore((s) => s.openQuickOpen);
-  const sessions = useSessionStore((s) => s.sessions);
-  const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
-
-  const projectLabel = useMemo(() => {
-    const selected = selectedSessionId ? sessions[selectedSessionId] : null;
-    if (selected) return basename(selected.cwd);
-    const sorted = Object.values(sessions).sort((a, b) =>
-      b.startedAt.localeCompare(a.startedAt),
-    );
-    return sorted[0] ? basename(sorted[0].cwd) : null;
-  }, [sessions, selectedSessionId]);
+  const selectedCwd = useSessionStore((s) =>
+    s.selectedSessionId ? s.sessions[s.selectedSessionId]?.cwd ?? null : null,
+  );
+  const latestSessionCwd = useSessionStore((s) => {
+    let latestStartedAt = '';
+    let cwd: string | null = null;
+    for (const session of Object.values(s.sessions)) {
+      if (session.startedAt > latestStartedAt) {
+        latestStartedAt = session.startedAt;
+        cwd = session.cwd;
+      }
+    }
+    return cwd;
+  });
+  const projectLabel = basename(selectedCwd ?? latestSessionCwd ?? '');
 
   return (
     <div className="h-[38px] shrink-0 [-webkit-app-region:drag] flex items-center justify-center">

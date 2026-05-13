@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { sessionIdFromTileId } from '../../utils/tile-id';
@@ -11,7 +12,7 @@ import type { ExternalSessionInfo, SessionInfo } from '@shared/types';
 import HandoffDialog from '../shared/HandoffDialog';
 
 function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.Element {
-  const sessions = useSessionStore((s) => s.sessions);
+  const sessions = useSessionStore(useShallow((s) => Object.values(s.sessions)));
   const externalSessions = useSessionStore((s) => s.externalSessions);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
 
@@ -39,14 +40,16 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
 
   // Prune ref-setters and card refs for sessions that no longer exist; otherwise
   // these maps grow unboundedly with every session ever rendered.
+  const sessionIdSet = useMemo(() => new Set(sessions.map((session) => session.sessionId)), [sessions]);
+
   useEffect(() => {
     for (const id of refSetters.current.keys()) {
-      if (!(id in sessions)) refSetters.current.delete(id);
+      if (!sessionIdSet.has(id)) refSetters.current.delete(id);
     }
     for (const id of Object.keys(cardRefs.current)) {
-      if (!(id in sessions)) delete cardRefs.current[id];
+      if (!sessionIdSet.has(id)) delete cardRefs.current[id];
     }
-  }, [sessions]);
+  }, [sessionIdSet]);
 
   const [externalExpanded, setExternalExpanded] = useState(false);
   const [externalLimit, setExternalLimit] = useState(20);
@@ -142,7 +145,7 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     if (!selectedSessionId) return;
-    const session = sessions[selectedSessionId];
+    const session = useSessionStore.getState().sessions[selectedSessionId];
     if (!session) return;
 
     switch (e.key) {
@@ -164,7 +167,7 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
         }
         break;
     }
-  }, [selectedSessionId, sessions, handleDoubleClick, handleDelete, handleKill]);
+  }, [selectedSessionId, handleDoubleClick, handleDelete, handleKill]);
 
   const handleLoadMore = async (): Promise<void> => {
     const newLimit = externalLimit + 20;
@@ -182,7 +185,7 @@ function SessionList({ filterQuery = '' }: { filterQuery?: string }): React.JSX.
 
   const handleImportExternal = async (ext: ExternalSessionInfo): Promise<void> => {
     // Derive cwd from existing sessions
-    const firstClaude = Object.values(sessions).find((s) => s.sessionType === 'claude');
+    const firstClaude = sessions.find((s) => s.sessionType === 'claude');
     const cwd = firstClaude?.cwd ?? '';
     if (!cwd) return;
 

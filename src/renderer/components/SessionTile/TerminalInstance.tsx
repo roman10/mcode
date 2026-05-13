@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal, type IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { useShallow } from 'zustand/react/shallow';
 import { attachWebgl, onWebglRecreateRequested } from '../../utils/webgl-lifecycle';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { darkTheme } from '../../styles/theme';
@@ -44,6 +45,10 @@ import {
   getSlashCommandsCached,
 } from '../../utils/slash-command-cache';
 import { consumeFresh } from '../../utils/fresh-sessions';
+import {
+  subscribeToPtyData,
+  subscribeToPtyExit,
+} from '../../utils/pty-subscriptions';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -140,6 +145,17 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     });
     return () => { stale = true; };
   }, [cwd]);
+  const panelHeight = useTerminalPanelStore((s) => s.panelHeight);
+  const { mosaicTree, maximizedTileId } = useLayoutStore(useShallow((s) => ({
+    mosaicTree: s.mosaicTree,
+    maximizedTileId: s.maximizedTileId,
+  })));
+  const [sessionStatus, attentionReason] = useSessionStore(
+    useShallow((s) => [
+      s.sessions[sessionId]?.status,
+      s.sessions[sessionId]?.attentionReason,
+    ] as const),
+  );
 
   // fit() while hidden would resize xterm to the 0×0 container, hand bash a
   // SIGWINCH at the tiny grid, and the resulting prompt-redraw bytes would
@@ -188,18 +204,10 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     if (pendingFitT100Ref.current) clearTimeout(pendingFitT100Ref.current);
   }, []);
 
-  // Subscribe to terminal panel height changes so that fit() is called even when
-  // ResizeObserver doesn't fire (e.g. in background/non-painting Electron windows).
   useEffect(() => {
-    let lastH = useTerminalPanelStore.getState().panelHeight;
-    const unsub = useTerminalPanelStore.subscribe((s) => {
-      if (s.panelHeight !== lastH) {
-        lastH = s.panelHeight;
-        scheduleRefit();
-      }
-    });
-    return unsub;
-  }, [scheduleRefit]);
+    if (!shouldMount) return;
+    scheduleRefit();
+  }, [panelHeight, scheduleRefit, shouldMount]);
 
   // Backstop for tile resize/maximize: ResizeObserver normally fires on mosaic
   // layout transitions, but Electron's render loop can drop those callbacks
@@ -209,17 +217,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   // the maximized tile's container changes size (mosaic pane → overlay layer
   // bounds and back), so we must re-fit on that transition too.
   useEffect(() => {
-    let lastTree = useLayoutStore.getState().mosaicTree;
-    let lastMaximizedTileId = useLayoutStore.getState().maximizedTileId;
-    const unsub = useLayoutStore.subscribe((s) => {
-      if (s.mosaicTree !== lastTree || s.maximizedTileId !== lastMaximizedTileId) {
-        lastTree = s.mosaicTree;
-        lastMaximizedTileId = s.maximizedTileId;
-        scheduleRefit();
-      }
-    });
-    return unsub;
-  }, [scheduleRefit]);
+    if (!shouldMount) return;
+    scheduleRefit();
+  }, [mosaicTree, maximizedTileId, scheduleRefit, shouldMount]);
 
   // TileTaskPanel inserts the plan-mode "Needs response" banner (and the panel
   // wrapper itself, if no tasks were queued) when the session transitions to
@@ -233,19 +233,10 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   // actually reads so the multi-pass refit runs deterministically on banner
   // toggle, independent of ResizeObserver timing.
   useEffect(() => {
-    let lastStatus = useSessionStore.getState().sessions[sessionId]?.status;
-    let lastReason = useSessionStore.getState().sessions[sessionId]?.attentionReason;
-    const unsub = useSessionStore.subscribe((s) => {
-      const cur = s.sessions[sessionId];
-      if (!cur) return;
-      if (cur.status !== lastStatus || cur.attentionReason !== lastReason) {
-        lastStatus = cur.status;
-        lastReason = cur.attentionReason;
-        scheduleRefit();
-      }
-    });
-    return unsub;
-  }, [sessionId, scheduleRefit]);
+    if (!shouldMount) return;
+    if (sessionStatus == null) return;
+    scheduleRefit();
+  }, [sessionStatus, attentionReason, scheduleRefit, shouldMount]);
 
   // Re-fit the terminal when it becomes visible (display:none → visible).
   // Hidden elements have zero dimensions so fit() must wait until visible.
@@ -607,28 +598,25 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // mirrors broker's offset even while we're dropping writes (initial
     // replay / hidden / catching up); dropLiveWritesRef gates whether the
     // chunk reaches xterm.
-    const unsubData = window.mcode.pty.onData((id, data) => {
-      if (id !== sessionId) return;
+    const unsubData = subscribeToPtyData(sessionId, (data) => {
       byteOffsetRef.current += utf8ByteLength(data);
       if (dropLiveWritesRef.current) return;
       term.write(data);
     });
 
     // PTY exit → terminal
-    const unsubExit = window.mcode.pty.onExit((id, { code, signal }) => {
-      if (id === sessionId) {
-        // Reset terminal modes the exiting process may not have cleaned up.
-        // Without this, a crashed/killed CLI leaves stale mouse tracking,
-        // alternate screen, or bracketed paste mode active.
-        term.write(
-          '\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1006l' + // mouse tracking off
-          '\x1b[?1049l' +  // exit alternate screen
-          '\x1b[?25h' +    // show cursor
-          '\x1b[?2004l',   // bracketed paste off
-        );
-        const detail = signal ? `signal ${signal}` : `code ${code}`;
-        term.write(`\r\n\x1b[90m[Process exited with ${detail}]\x1b[0m\r\n`);
-      }
+    const unsubExit = subscribeToPtyExit(sessionId, ({ code, signal }) => {
+      // Reset terminal modes the exiting process may not have cleaned up.
+      // Without this, a crashed/killed CLI leaves stale mouse tracking,
+      // alternate screen, or bracketed paste mode active.
+      term.write(
+        '\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1006l' + // mouse tracking off
+        '\x1b[?1049l' +  // exit alternate screen
+        '\x1b[?25h' +    // show cursor
+        '\x1b[?2004l',   // bracketed paste off
+      );
+      const detail = signal ? `signal ${signal}` : `code ${code}`;
+      term.write(`\r\n\x1b[90m[Process exited with ${detail}]\x1b[0m\r\n`);
     });
 
     // Terminal input → PTY

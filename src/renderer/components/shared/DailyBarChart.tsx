@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { todayStr, shiftDate } from '../../utils/date-nav';
 
 const CHART_W = 600;
@@ -54,10 +54,16 @@ function DailyBarChart<T extends { date: string }>({
   const rectRef = useRef<DOMRect | null>(null);
 
   useEffect(() => {
-    const onResize = (): void => { rectRef.current = null; };
-    window.addEventListener('resize', onResize);
+    const resetPointerGeometry = (): void => {
+      rectRef.current = null;
+      pendingRef.current = null;
+      setHovered(null);
+    };
+    window.addEventListener('resize', resetPointerGeometry);
+    window.addEventListener('scroll', resetPointerGeometry, true);
     return () => {
-      window.removeEventListener('resize', onResize);
+      window.removeEventListener('resize', resetPointerGeometry);
+      window.removeEventListener('scroll', resetPointerGeometry, true);
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -73,17 +79,23 @@ function DailyBarChart<T extends { date: string }>({
     });
   }, []);
 
-  const handleMouseEnter = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
-    rectRef.current = e.currentTarget.getBoundingClientRect();
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
-    if (!rectRef.current) rectRef.current = e.currentTarget.getBoundingClientRect();
-    const index = indexFromX(e.clientX, rectRef.current, days);
+  const queueHover = useCallback((clientX: number, clientY: number): void => {
+    const rect = rectRef.current;
+    if (!rect) return;
+    const index = indexFromX(clientX, rect, days);
     if (index == null) return;
-    pendingRef.current = { index, x: e.clientX, y: e.clientY };
+    pendingRef.current = { index, x: clientX, y: clientY };
     scheduleFlush();
   }, [days, scheduleFlush]);
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
+    rectRef.current = e.currentTarget.getBoundingClientRect();
+    queueHover(e.clientX, e.clientY);
+  }, [queueHover]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
+    queueHover(e.clientX, e.clientY);
+  }, [queueHover]);
 
   const handleMouseLeave = useCallback((): void => {
     if (rafRef.current != null) {
@@ -95,51 +107,85 @@ function DailyBarChart<T extends { date: string }>({
   }, []);
 
   const today = todayStr();
-  const dateRange: string[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    dateRange.push(shiftDate(today, -i));
-  }
+  const {
+    dateRange,
+    values,
+    rollingAvg,
+    avg30,
+    avg30Y,
+    barW,
+    bars,
+    avgPoints,
+  } = useMemo(() => {
+    const nextDateRange: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      nextDateRange.push(shiftDate(today, -i));
+    }
 
-  const valueMap = new Map(entries.map(e => [e.date, getValue(e)]));
-  const values = dateRange.map(d => valueMap.get(d) ?? 0);
-  let maxVal = 1;
-  for (const v of values) if (v > maxVal) maxVal = v;
+    const valueMap = new Map(entries.map((entry) => [entry.date, getValue(entry)]));
+    const nextValues = nextDateRange.map((date) => valueMap.get(date) ?? 0);
 
-  // 7-day trailing rolling average
-  const rollingAvg = values.map((_, i) => {
-    const slice = values.slice(Math.max(0, i - 6), i + 1);
-    return slice.reduce((s, v) => s + v, 0) / slice.length;
-  });
+    let maxVal = 1;
+    for (const value of nextValues) {
+      if (value > maxVal) maxVal = value;
+    }
 
-  // 30-day average reference line y-position
-  const last30 = values.slice(Math.max(0, values.length - 30));
-  const a30 = last30.length > 0 ? last30.reduce((s, v) => s + v, 0) / last30.length : 0;
-  const avg30Y = a30 > 0 ? BAR_AREA_H - (a30 / maxVal) * BAR_AREA_H : null;
+    const nextRollingAvg = nextValues.map((_, index) => {
+      const slice = nextValues.slice(Math.max(0, index - 6), index + 1);
+      return slice.reduce((sum, value) => sum + value, 0) / slice.length;
+    });
 
-  const step = CHART_W / days;
-  const barW = Math.max(2, step - 1.0);
+    const last30 = nextValues.slice(Math.max(0, nextValues.length - 30));
+    const nextAvg30 = last30.length > 0
+      ? last30.reduce((sum, value) => sum + value, 0) / last30.length
+      : 0;
+    const nextAvg30Y = nextAvg30 > 0 ? BAR_AREA_H - (nextAvg30 / maxVal) * BAR_AREA_H : null;
 
-  const barLeft = (i: number): number => i * step;
-  const barH = (v: number): number => (v / maxVal) * BAR_AREA_H;
-  const barTop = (v: number): number => BAR_AREA_H - barH(v);
-  const midX = (i: number): number => barLeft(i) + barW / 2;
+    const step = CHART_W / days;
+    const nextBarW = Math.max(2, step - 1.0);
+    const bars = nextDateRange.map((date, index) => {
+      const value = nextValues[index];
+      const height = (value / maxVal) * BAR_AREA_H;
+      const x = index * step;
+      return {
+        date,
+        value,
+        height,
+        x,
+        y: BAR_AREA_H - height,
+        avgX: x + nextBarW / 2,
+      };
+    });
 
-  const avgPoints = rollingAvg
-    .map((avg, i) => `${midX(i).toFixed(1)},${barTop(avg).toFixed(1)}`)
-    .join(' ');
+    const nextAvgPoints = nextRollingAvg
+      .map((avg, index) => `${bars[index].avgX.toFixed(1)},${(BAR_AREA_H - (avg / maxVal) * BAR_AREA_H).toFixed(1)}`)
+      .join(' ');
+
+    return {
+      dateRange: nextDateRange,
+      values: nextValues,
+      rollingAvg: nextRollingAvg,
+      avg30: nextAvg30,
+      avg30Y: nextAvg30Y,
+      barW: nextBarW,
+      bars,
+      avgPoints: nextAvgPoints,
+    };
+  }, [days, entries, getValue, today]);
 
   const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>): void => {
     if (!rectRef.current) rectRef.current = e.currentTarget.getBoundingClientRect();
     const index = indexFromX(e.clientX, rectRef.current, days);
     if (index == null) return;
-    // Compute the date inline — `dateRange` would otherwise be a fresh-array
-    // dep on every render, defeating the useCallback memoization.
-    onSelect(shiftDate(today, -(days - 1 - index)));
-  }, [days, today, onSelect]);
+    onSelect(dateRange[index]);
+  }, [dateRange, days, onSelect]);
 
-  const tooltipLines = hovered
-    ? getTooltip(dateRange[hovered.index], values[hovered.index], rollingAvg[hovered.index], a30).split('\n')
-    : [];
+  const tooltipLines = useMemo(
+    () => hovered
+      ? getTooltip(dateRange[hovered.index], values[hovered.index], rollingAvg[hovered.index], avg30).split('\n')
+      : [],
+    [avg30, dateRange, getTooltip, hovered, rollingAvg, values],
+  );
 
   return (
     <div style={{ position: 'relative' }}>
@@ -164,19 +210,16 @@ function DailyBarChart<T extends { date: string }>({
         )}
 
         {/* Bars */}
-        {dateRange.map((date, i) => {
-          const v = values[i];
-          const h = barH(v);
-          const isSelected = date === selectedDate;
-          const x = barLeft(i);
+        {bars.map((bar) => {
+          const isSelected = bar.date === selectedDate;
           return (
-            <g key={date}>
-              {h > 0.5 && (
+            <g key={bar.date}>
+              {bar.height > 0.5 && (
                 <rect
-                  x={x}
-                  y={barTop(v)}
+                  x={bar.x}
+                  y={bar.y}
                   width={barW}
-                  height={h}
+                  height={bar.height}
                   fill={colors.bar}
                   fillOpacity={isSelected ? 1 : 0.35}
                   rx={0.5}
@@ -184,7 +227,7 @@ function DailyBarChart<T extends { date: string }>({
               )}
               {/* Selected date indicator at bottom (visible even for zero-value days) */}
               {isSelected && (
-                <rect x={x} y={BAR_AREA_H - 2} width={barW} height={2} fill={colors.bar} fillOpacity={0.9} rx={0.5} />
+                <rect x={bar.x} y={BAR_AREA_H - 2} width={barW} height={2} fill={colors.bar} fillOpacity={0.9} rx={0.5} />
               )}
             </g>
           );

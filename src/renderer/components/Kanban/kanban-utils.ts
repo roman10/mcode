@@ -82,7 +82,7 @@ export function sortColumnSessions(sessions: SessionInfo[]): SessionInfo[] {
  * Group sessions by kanban column.
  */
 export function groupSessionsByColumn(
-  sessions: Record<string, SessionInfo>,
+  sessions: Record<string, SessionInfo> | Iterable<SessionInfo>,
 ): Record<KanbanColumnId, SessionInfo[]> {
   const groups: Record<KanbanColumnId, SessionInfo[]> = {
     'needs-attention': [],
@@ -91,7 +91,11 @@ export function groupSessionsByColumn(
     'completed': [],
   };
 
-  for (const session of Object.values(sessions)) {
+  const values = Symbol.iterator in Object(sessions)
+    ? sessions as Iterable<SessionInfo>
+    : Object.values(sessions);
+
+  for (const session of values) {
     const column = getKanbanColumn(session);
     groups[column].push(session);
   }

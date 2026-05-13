@@ -1,34 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setupMcodeMock } from '../mock-mcode';
 import { useSessionStore } from '../../../../src/renderer/stores/session-store';
-import type { SessionInfo } from '../../../../src/shared/types';
+import { makeSession } from '../../test-factories';
 
 const mcode = setupMcodeMock();
 const mockClearAttention = mcode.sessions.clearAttention;
-
-function makeSession(id: string): SessionInfo {
-  return {
-    sessionId: id,
-    label: `Session ${id}`,
-    cwd: '/tmp',
-    status: 'active',
-    startedAt: new Date().toISOString(),
-    endedAt: null,
-    claudeSessionId: null,
-    codexThreadId: null,
-    geminiSessionId: null,
-    lastTool: null,
-    lastEventAt: null,
-    attentionLevel: 'none',
-    attentionReason: null,
-    hookMode: 'live',
-    sessionType: 'claude',
-    terminalConfig: {},
-    accountId: null,
-    autoClose: false,
-    model: null,
-  };
-}
 
 describe('session-store', () => {
   beforeEach(() => {
@@ -44,13 +20,13 @@ describe('session-store', () => {
   });
 
   it('addSession adds a new session to the store', () => {
-    const s1 = makeSession('s1');
+    const s1 = makeSession({ sessionId: 's1', label: 'Session s1' });
     useSessionStore.getState().addSession(s1);
     expect(useSessionStore.getState().sessions['s1']).toEqual(s1);
   });
 
   it('upsertSession updates an existing session', () => {
-    const s1 = makeSession('s1');
+    const s1 = makeSession({ sessionId: 's1', label: 'Session s1' });
     useSessionStore.getState().addSession(s1);
     
     const updatedS1 = { ...s1, label: 'Updated Label' };
@@ -59,8 +35,18 @@ describe('session-store', () => {
     expect(useSessionStore.getState().sessions['s1'].label).toBe('Updated Label');
   });
 
+  it('upsertSession preserves sessions object identity when payload is unchanged', () => {
+    const s1 = makeSession({ sessionId: 's1', label: 'Session s1' });
+    useSessionStore.getState().addSession(s1);
+
+    const before = useSessionStore.getState().sessions;
+    useSessionStore.getState().upsertSession({ ...s1, terminalConfig: { ...s1.terminalConfig } });
+
+    expect(useSessionStore.getState().sessions).toBe(before);
+  });
+
   it('removeSession removes session and its exit code', () => {
-    const s1 = makeSession('s1');
+    const s1 = makeSession({ sessionId: 's1', label: 'Session s1' });
     useSessionStore.getState().addSession(s1);
     useSessionStore.getState().setExitCode('s1', 0);
     useSessionStore.setState({ selectedSessionId: 's1' });
@@ -73,7 +59,7 @@ describe('session-store', () => {
   });
 
   it('removeSession clears lastFocusedPtySessionId when it matches', () => {
-    useSessionStore.getState().addSession(makeSession('s1'));
+    useSessionStore.getState().addSession(makeSession({ sessionId: 's1', label: 'Session s1' }));
     useSessionStore.setState({ lastFocusedPtySessionId: 's1' });
 
     useSessionStore.getState().removeSession('s1');
@@ -82,7 +68,7 @@ describe('session-store', () => {
   });
 
   it('removeSession preserves lastFocusedPtySessionId when it points elsewhere', () => {
-    useSessionStore.getState().addSession(makeSession('s1'));
+    useSessionStore.getState().addSession(makeSession({ sessionId: 's1', label: 'Session s1' }));
     useSessionStore.setState({ lastFocusedPtySessionId: 's2' });
 
     useSessionStore.getState().removeSession('s1');
@@ -131,16 +117,26 @@ describe('session-store', () => {
   });
 
   it('setLabel updates session label if it exists', () => {
-    const s1 = makeSession('s1');
+    const s1 = makeSession({ sessionId: 's1', label: 'Session s1' });
     useSessionStore.getState().addSession(s1);
     
     useSessionStore.getState().setLabel('s1', 'New Name');
     expect(useSessionStore.getState().sessions['s1'].label).toBe('New Name');
   });
 
+  it('setLabel preserves sessions object identity when label is unchanged', () => {
+    const s1 = makeSession({ sessionId: 's1', label: 'Session s1' });
+    useSessionStore.getState().addSession(s1);
+
+    const before = useSessionStore.getState().sessions;
+    useSessionStore.getState().setLabel('s1', 'Session s1');
+
+    expect(useSessionStore.getState().sessions).toBe(before);
+  });
+
   it('setSessions replaces all sessions', () => {
-    const s1 = makeSession('s1');
-    const s2 = makeSession('s2');
+    const s1 = makeSession({ sessionId: 's1', label: 'Session s1' });
+    const s2 = makeSession({ sessionId: 's2', label: 'Session s2' });
     useSessionStore.getState().setSessions([s1, s2]);
     
     expect(Object.keys(useSessionStore.getState().sessions)).toHaveLength(2);
@@ -151,5 +147,14 @@ describe('session-store', () => {
   it('setExitCode updates exit code for a session', () => {
     useSessionStore.getState().setExitCode('s1', 1);
     expect(useSessionStore.getState().exitCodes['s1']).toBe(1);
+  });
+
+  it('setExitCode preserves exitCodes object identity when value is unchanged', () => {
+    useSessionStore.getState().setExitCode('s1', 1);
+    const before = useSessionStore.getState().exitCodes;
+
+    useSessionStore.getState().setExitCode('s1', 1);
+
+    expect(useSessionStore.getState().exitCodes).toBe(before);
   });
 });

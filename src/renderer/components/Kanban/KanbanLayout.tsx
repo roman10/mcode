@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { ErrorBoundary, ErrorFallback } from '../shared/ErrorBoundary';
@@ -10,23 +11,26 @@ const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('
 
 function KanbanLayout(): React.JSX.Element {
   const boardRef = useRef<HTMLDivElement>(null);
-  const sessions = useSessionStore((s) => s.sessions);
+  const sessions = useSessionStore(useShallow((s) => Object.values(s.sessions)));
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const kanbanExpandedSessionId = useLayoutStore((s) => s.kanbanExpandedSessionId);
   const kanbanOpenFiles = useLayoutStore((s) => s.kanbanOpenFiles);
   const expandKanbanSession = useLayoutStore((s) => s.expandKanbanSession);
   const clearKanbanExpand = useLayoutStore((s) => s.clearKanbanExpand);
 
-  const grouped = groupSessionsByColumn(sessions);
+  const grouped = useMemo(() => groupSessionsByColumn(sessions), [sessions]);
+  const expandedSession = useMemo(
+    () => sessions.find((session) => session.sessionId === kanbanExpandedSessionId) ?? null,
+    [kanbanExpandedSessionId, sessions],
+  );
 
   // Auto-collapse if expanded session is deleted or ended
   useEffect(() => {
     if (!kanbanExpandedSessionId) return;
-    const session = sessions[kanbanExpandedSessionId];
-    if (!session || session.status === 'ended') {
+    if (!expandedSession || expandedSession.status === 'ended') {
       clearKanbanExpand();
     }
-  }, [kanbanExpandedSessionId, sessions, clearKanbanExpand]);
+  }, [clearKanbanExpand, expandedSession, kanbanExpandedSessionId]);
 
   const handleSelectSession = useCallback((sessionId: string) => {
     useLayoutStore.getState().focusTile(`session:${sessionId}`);
@@ -79,7 +83,7 @@ function KanbanLayout(): React.JSX.Element {
   }, [selectedSessionId, kanbanExpandedSessionId, handleExpandSession]);
 
   // If a session is expanded or files are open, show the expanded content area
-  const hasExpandedSession = kanbanExpandedSessionId && sessions[kanbanExpandedSessionId];
+  const hasExpandedSession = kanbanExpandedSessionId && expandedSession;
   const hasOpenFiles = kanbanOpenFiles.length > 0;
   if (hasExpandedSession || hasOpenFiles) {
     return (
@@ -92,7 +96,7 @@ function KanbanLayout(): React.JSX.Element {
   }
 
   // Kanban board view
-  const isEmpty = Object.keys(sessions).length === 0;
+  const isEmpty = sessions.length === 0;
 
   if (isEmpty) {
     return (

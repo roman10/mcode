@@ -28,6 +28,50 @@ interface SessionState {
   setExitCode(sessionId: string, code: number): void;
 }
 
+function sameTerminalConfig(a: SessionInfo['terminalConfig'], b: SessionInfo['terminalConfig']): boolean {
+  return a?.scrollbackLines === b?.scrollbackLines;
+}
+
+function sameSessionInfo(a: SessionInfo, b: SessionInfo): boolean {
+  return (
+    a.sessionId === b.sessionId &&
+    a.label === b.label &&
+    a.cwd === b.cwd &&
+    a.status === b.status &&
+    a.permissionMode === b.permissionMode &&
+    a.effort === b.effort &&
+    a.enableAutoMode === b.enableAutoMode &&
+    a.allowBypassPermissions === b.allowBypassPermissions &&
+    a.worktree === b.worktree &&
+    a.startedAt === b.startedAt &&
+    a.endedAt === b.endedAt &&
+    a.claudeSessionId === b.claudeSessionId &&
+    a.codexThreadId === b.codexThreadId &&
+    a.geminiSessionId === b.geminiSessionId &&
+    a.copilotSessionId === b.copilotSessionId &&
+    a.lastTool === b.lastTool &&
+    a.lastEventAt === b.lastEventAt &&
+    a.attentionLevel === b.attentionLevel &&
+    a.attentionReason === b.attentionReason &&
+    a.hookMode === b.hookMode &&
+    a.sessionType === b.sessionType &&
+    sameTerminalConfig(a.terminalConfig, b.terminalConfig) &&
+    a.accountId === b.accountId &&
+    a.autoClose === b.autoClose &&
+    a.model === b.model &&
+    a.isTest === b.isTest
+  );
+}
+
+function upsertSessionRecord(
+  sessions: Record<string, SessionInfo>,
+  session: SessionInfo,
+): Record<string, SessionInfo> {
+  const existing = sessions[session.sessionId];
+  if (existing && sameSessionInfo(existing, session)) return sessions;
+  return { ...sessions, [session.sessionId]: session };
+}
+
 export const useSessionStore = create<SessionState>((set) => ({
   sessions: {},
   externalSessions: [],
@@ -38,12 +82,12 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   addSession: (session) =>
     set((state) => ({
-      sessions: { ...state.sessions, [session.sessionId]: session },
+      sessions: upsertSessionRecord(state.sessions, session),
     })),
 
   upsertSession: (session) =>
     set((state) => ({
-      sessions: { ...state.sessions, [session.sessionId]: session },
+      sessions: upsertSessionRecord(state.sessions, session),
     })),
 
   removeSession: (id) =>
@@ -79,6 +123,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((state) => {
       const existing = state.sessions[id];
       if (!existing) return state;
+      if (existing.label === label) return state;
       return {
         sessions: { ...state.sessions, [id]: { ...existing, label } },
       };
@@ -96,9 +141,12 @@ export const useSessionStore = create<SessionState>((set) => ({
   setHookRuntime: (info) => set({ hookRuntime: info }),
 
   setExitCode: (sessionId, code) =>
-    set((state) => ({
-      exitCodes: { ...state.exitCodes, [sessionId]: code },
-    })),
+    set((state) => {
+      if (state.exitCodes[sessionId] === code) return state;
+      return {
+        exitCodes: { ...state.exitCodes, [sessionId]: code },
+      };
+    }),
 }));
 
 /**

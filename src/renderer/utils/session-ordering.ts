@@ -20,11 +20,14 @@ const statusOrder: Record<SessionStatus, number> = {
  * Filters terminal sessions (they live in the bottom panel).
  * Sorts by attention → status → lastEventAt ?? startedAt (newest first).
  */
-export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo>): SessionInfo[] {
+export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo> | Iterable<SessionInfo>): SessionInfo[] {
   // Decorate-sort-undecorate: parse the timestamp once per session instead of
   // 2× per pairwise comparison. Hot path under coalesced session:updated bursts.
   const decorated: Array<{ s: SessionInfo; ts: number }> = [];
-  for (const s of Object.values(sessions)) {
+  const values = Symbol.iterator in Object(sessions)
+    ? sessions as Iterable<SessionInfo>
+    : Object.values(sessions);
+  for (const s of values) {
     if (s.sessionType === 'terminal') continue;
     decorated.push({ s, ts: Date.parse(s.lastEventAt ?? s.startedAt) });
   }
@@ -42,7 +45,7 @@ export function getOrderedVisibleSessions(sessions: Record<string, SessionInfo>)
  * Used by keyboard navigation (Cmd+]/[, Cmd+1..9) so focus cycling
  * skips sessions that have already terminated.
  */
-export function getOrderedOpenSessions(sessions: Record<string, SessionInfo>): SessionInfo[] {
+export function getOrderedOpenSessions(sessions: Record<string, SessionInfo> | Iterable<SessionInfo>): SessionInfo[] {
   return getOrderedVisibleSessions(sessions).filter((s) => s.status !== 'ended');
 }
 
