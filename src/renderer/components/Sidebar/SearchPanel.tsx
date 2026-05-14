@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Search, CaseSensitive, Regex, ChevronRight, ChevronDown, X } from 'lucide-react';
 import { useSearchStore, type RepoResults } from '../../stores/search-store';
 import { useLayoutStore } from '../../stores/layout-store';
@@ -143,25 +144,47 @@ function RepoGroup({ repoPath, repo, expanded, expandedFiles, onToggleRepo, onTo
 
 function SearchPanel(): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
-  const query = useSearchStore((s) => s.query);
-  const isRegex = useSearchStore((s) => s.isRegex);
-  const caseSensitive = useSearchStore((s) => s.caseSensitive);
-  const searching = useSearchStore((s) => s.searching);
-  const results = useSearchStore((s) => s.results);
-  const totalMatches = useSearchStore((s) => s.totalMatches);
-  const totalFiles = useSearchStore((s) => s.totalFiles);
-  const truncated = useSearchStore((s) => s.truncated);
-  const durationMs = useSearchStore((s) => s.durationMs);
-  const error = useSearchStore((s) => s.error);
-  const expandedRepos = useSearchStore((s) => s.expandedRepos);
-  const expandedFiles = useSearchStore((s) => s.expandedFiles);
-
-  const setQuery = useSearchStore((s) => s.setQuery);
-  const toggleRegex = useSearchStore((s) => s.toggleRegex);
-  const toggleCaseSensitive = useSearchStore((s) => s.toggleCaseSensitive);
-  const toggleRepo = useSearchStore((s) => s.toggleRepo);
-  const toggleFile = useSearchStore((s) => s.toggleFile);
-  const clear = useSearchStore((s) => s.clear);
+  const {
+    query,
+    isRegex,
+    caseSensitive,
+    searching,
+    results,
+    totalMatches,
+    totalFiles,
+    truncated,
+    durationMs,
+    error,
+    expandedRepos,
+    expandedFiles,
+    setQuery,
+    toggleRegex,
+    toggleCaseSensitive,
+    toggleRepo,
+    toggleFile,
+    clear,
+  } = useSearchStore(
+    useShallow((s) => ({
+      query: s.query,
+      isRegex: s.isRegex,
+      caseSensitive: s.caseSensitive,
+      searching: s.searching,
+      results: s.results,
+      totalMatches: s.totalMatches,
+      totalFiles: s.totalFiles,
+      truncated: s.truncated,
+      durationMs: s.durationMs,
+      error: s.error,
+      expandedRepos: s.expandedRepos,
+      expandedFiles: s.expandedFiles,
+      setQuery: s.setQuery,
+      toggleRegex: s.toggleRegex,
+      toggleCaseSensitive: s.toggleCaseSensitive,
+      toggleRepo: s.toggleRepo,
+      toggleFile: s.toggleFile,
+      clear: s.clear,
+    })),
+  );
 
   // Focus input when panel becomes active
   const activeSidebarTab = useLayoutStore((s) => s.activeSidebarTab);

@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useShallow } from 'zustand/react/shallow';
 import TerminalToolbar from './TerminalToolbar';
 import TileTaskPanel from './TileTaskPanel';
 import TerminalInstance from './TerminalInstance';
@@ -27,10 +28,17 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const [localTarget, setLocalTarget] = useState<HTMLDivElement | null>(null);
   const removeTile = useLayoutStore((s) => s.removeTile);
   const persist = useLayoutStore((s) => s.persist);
-  const status = useSessionStore((s) => s.sessions[sessionId]?.status);
-  const sessionType = useSessionStore((s) => s.sessions[sessionId]?.sessionType);
-  const hookMode = useSessionStore((s) => s.sessions[sessionId]?.hookMode);
-  const scrollbackLines = useSessionStore((s) => s.sessions[sessionId]?.terminalConfig?.scrollbackLines);
+  const { status, sessionType, hookMode, scrollbackLines } = useSessionStore(
+    useShallow((s) => {
+      const sess = s.sessions[sessionId];
+      return {
+        status: sess?.status,
+        sessionType: sess?.sessionType,
+        hookMode: sess?.hookMode,
+        scrollbackLines: sess?.terminalConfig?.scrollbackLines,
+      };
+    }),
+  );
 
   const canQueueTasks = canSessionQueueTasks(
     sessionType && hookMode && status

@@ -69,6 +69,10 @@ export function getDb(): Database.Database {
 
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
+  db.pragma('synchronous = NORMAL');
+  db.pragma('cache_size = -65536');
+  db.pragma('mmap_size = 268435456');
+  db.pragma('temp_store = MEMORY');
   db.pragma('foreign_keys = ON');
 
   applyMigrations(db);
