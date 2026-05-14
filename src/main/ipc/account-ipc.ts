@@ -1,6 +1,7 @@
 import { typedHandle } from '../ipc-helpers';
-import type { AccountService } from './account-service';
-import type { AccountProviderRegistry } from './account-provider';
+import type { AccountService } from '../accounts/account-service';
+import type { AccountProviderRegistry } from '../accounts/account-provider';
+import type { SessionManager } from '../session/session-manager';
 
 /**
  * Register IPC handlers for account operations.
@@ -8,7 +9,7 @@ import type { AccountProviderRegistry } from './account-provider';
  */
 export function registerAccountIpc(
   accountService: AccountService,
-  sessionManager: Pick<import('../session/session-manager').SessionManager, 'create'>,
+  sessionManager: Pick<SessionManager, 'create'>,
   registry: AccountProviderRegistry,
 ): void {
   typedHandle('account:list', () => {

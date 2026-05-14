@@ -7,7 +7,6 @@ import type { PtyReplayDelta, PtySpawnOptions } from '../../shared/types';
 import { RING_BUFFER_MAX_BYTES, DEFAULT_COLS, DEFAULT_ROWS } from '../../shared/constants';
 import type { BrokerDiagnostics } from '../../shared/types';
 import { logger } from '../logger';
-import { typedHandle, typedOn } from '../ipc-helpers';
 import { RingBuffer } from './ring-buffer';
 
 interface PendingRequest {
@@ -372,26 +371,4 @@ export class BrokerClient extends EventEmitter implements IObservablePtyManager 
       pendingEmitBytes,
     };
   }
-}
-
-export function registerPtyIpc(brokerClient: BrokerClient): void {
-  typedOn('pty:write', (id, data) => {
-    brokerClient.write(id, data);
-  });
-
-  typedOn('pty:resize', (id, cols, rows) => {
-    brokerClient.resize(id, cols, rows);
-  });
-
-  typedHandle('pty:kill', (id) => {
-    return brokerClient.kill(id);
-  });
-
-  typedHandle('pty:replay', (sessionId) => {
-    return brokerClient.fetchReplayFromBroker(sessionId);
-  });
-
-  typedHandle('pty:replay-since', (sessionId, offset) => {
-    return brokerClient.getReplaySince(sessionId, offset);
-  });
 }

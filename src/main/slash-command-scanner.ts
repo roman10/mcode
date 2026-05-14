@@ -5,7 +5,6 @@ import { homedir } from 'node:os';
 import type { SlashCommandEntry } from '../shared/types';
 import type { AgentSessionType, SlashCommandFileSource } from '../shared/session-agents';
 import { getAgentDefinition } from '../shared/session-agents';
-import { typedHandle } from './ipc-helpers';
 
 async function scanDirectory(
   dir: string,
@@ -107,10 +106,4 @@ export async function scanSlashCommands(sessionType: AgentSessionType, cwd: stri
   return Array.from(map.values()).sort(
     (a, b) => sourceOrder[a.source] - sourceOrder[b.source] || a.name.localeCompare(b.name),
   );
-}
-
-export function registerSlashCommandIpc(): void {
-  typedHandle('slash-commands:scan', (sessionType, cwd) => {
-    return scanSlashCommands(sessionType, cwd);
-  });
 }

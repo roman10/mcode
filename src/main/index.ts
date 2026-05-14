@@ -1,30 +1,25 @@
 import { app, BrowserWindow, powerMonitor, session, dialog, shell } from 'electron';
 import { join } from 'node:path';
 import { is } from '@electron-toolkit/utils';
-import { BrokerClient, registerPtyIpc } from './pty/broker-client';
+import { BrokerClient } from './pty/broker-client';
 import { ensureBroker, BROKER_SOCKET_PATH } from './pty/broker-launcher';
-import { SessionManager, registerSessionIpc } from './session/session-manager';
-import { registerLayoutIpc } from './session/layout-repository';
-import { AccountService, AccountProviderRegistry, AccountProfileRepository, AccountIdentityRepository, AccountHomeManager, registerAccountIpc } from './accounts';
+import { SessionManager } from './session/session-manager';
+import { AccountService, AccountProviderRegistry, AccountProfileRepository, AccountIdentityRepository, AccountHomeManager } from './accounts';
 import { createClaudeAccountProvider } from './accounts/providers/claude-account-provider';
 import { createCopilotAccountProvider } from './accounts/providers/copilot-account-provider';
 import { createCodexAccountProvider } from './accounts/providers/codex-account-provider';
 import { createGeminiAccountProvider } from './accounts/providers/gemini-account-provider';
-import { TaskQueue, registerTaskIpc } from './task-queue';
-import { CommitTracker, registerCommitIpc } from './trackers/commit-tracker';
-import { GitChangesService, registerGitChangesIpc } from './git-changes';
-import { TokenTracker, registerTokenIpc } from './trackers/token-tracker';
-import { InputTracker, registerInputIpc } from './trackers/input-tracker';
-import { registerShellHistoryIpc } from './ipc/shell-history-ipc';
-import { QuotaProviderRegistry, QuotaService, ClaudeQuotaProvider, CodexQuotaProvider, CopilotQuotaProvider, GeminiQuotaProvider, registerQuotaIpc } from './quota';
+import { TaskQueue } from './task-queue';
+import { CommitTracker } from './trackers/commit-tracker';
+import { GitChangesService } from './git-changes';
+import { TokenTracker } from './trackers/token-tracker';
+import { InputTracker } from './trackers/input-tracker';
+import { QuotaProviderRegistry, QuotaService, ClaudeQuotaProvider, CodexQuotaProvider, CopilotQuotaProvider, GeminiQuotaProvider } from './quota';
 import { SleepBlocker } from './sleep-blocker';
-import { FileLister, registerFileIpc } from './file-lister';
-import { FileSearch, registerSearchIpc } from './file-search';
+import { FileLister } from './file-lister';
+import { FileSearch } from './file-search';
 import { AutoUpdater } from './auto-updater';
-import { registerSlashCommandIpc } from './slash-command-scanner';
-import { registerSnippetIpc } from './snippet-scanner';
-import { registerTodoIpc } from './todo-scanner';
-import { getPreference, setPreference, getPreferenceBool } from './preferences';
+import { getPreferenceBool } from './preferences';
 import { startHookServer, stopHookServer } from './hooks/hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hooks/hook-config';
 import { codexHookBridge } from './hooks/codex-hook-config';
@@ -35,8 +30,27 @@ import { getDb, closeDb } from './db';
 import { logger } from './logger';
 import { fixPath } from './fix-path';
 import { buildApplicationMenu } from './menu';
-import { typedHandle } from './ipc-helpers';
-import { captureMemorySnapshot } from './diagnostics';
+import {
+  registerPtyIpc,
+  registerSessionIpc,
+  registerLayoutIpc,
+  registerAccountIpc,
+  registerTaskIpc,
+  registerCommitIpc,
+  registerGitChangesIpc,
+  registerTokenIpc,
+  registerInputIpc,
+  registerShellHistoryIpc,
+  registerQuotaIpc,
+  registerFileIpc,
+  registerSearchIpc,
+  registerSlashCommandIpc,
+  registerSnippetIpc,
+  registerTodoIpc,
+  registerAppIpc,
+  registerPreferencesIpc,
+  registerHookIpc,
+} from './ipc';
 import { HOOK_PRUNE_INTERVAL_MS } from '../shared/constants';
 import type { HookRuntimeInfo, AppCommand } from '../shared/types';
 
@@ -147,70 +161,6 @@ function getWebContents(): import('electron').WebContents | null {
   return null;
 }
 
-function registerAppIpc(): void {
-  typedHandle('app:get-version', () => {
-    return app.getVersion();
-  });
-
-  typedHandle('app:select-directory', async () => {
-    if (!mainWindow) return null;
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory'],
-    });
-    if (result.canceled || result.filePaths.length === 0) return null;
-    return result.filePaths[0];
-  });
-
-  typedHandle('app:check-for-update', () => appUpdater.checkManual());
-  typedHandle('app:open-update-page', () => appUpdater.openReleasePage());
-  typedHandle('app:download-update', () => appUpdater.downloadUpdate());
-  typedHandle('app:install-update', () => {
-    isQuitting = true; // bypass close-confirmation dialog before quitAndInstall
-    appUpdater.installUpdate();
-  });
-
-  typedHandle('app:get-memory-snapshot', () => captureMemorySnapshot(brokerClient));
-}
-
-function registerPreferencesIpc(): void {
-  typedHandle('preferences:get', (key) => {
-    return getPreference(key);
-  });
-
-  typedHandle('preferences:set', (key, value) => {
-    setPreference(key, value);
-  });
-
-  typedHandle('preferences:get-sleep-status', () => {
-    return {
-      enabled: sleepBlocker.isEnabled(),
-      blocking: sleepBlocker.isBlocking(),
-    };
-  });
-
-  typedHandle('preferences:set-prevent-sleep', (enabled) => {
-    sleepBlocker.setEnabled(enabled);
-  });
-}
-
-function registerHookIpc(): void {
-  typedHandle('hooks:get-runtime', () => {
-    return hookRuntimeInfo;
-  });
-
-  typedHandle('hooks:get-recent', (sessionId, limit) => {
-    return sessionManager.getRecentEvents(sessionId, limit ?? 50);
-  });
-
-  typedHandle('hooks:get-recent-all', (limit) => {
-    return sessionManager.getRecentAllEvents(limit ?? 200);
-  });
-
-  typedHandle('hooks:clear-all', () => {
-    sessionManager.clearAllEvents();
-  });
-}
-
 async function initializeHookSystem(): Promise<void> {
   try {
     const result = await startHookServer(
@@ -286,6 +236,11 @@ async function initializeHookSystem(): Promise<void> {
     port: hookRuntimeInfo.port,
   });
 }
+
+// Set true once the app has decided to shut down. Read by the close-confirmation
+// dialog and the before-quit handler; written by the install-update IPC to bypass
+// confirmation before quitAndInstall.
+let isQuitting = false;
 
 app.whenReady().then(async () => {
   app.on('browser-window-created', (_, window) => {
@@ -438,8 +393,13 @@ app.whenReady().then(async () => {
   registerSlashCommandIpc();
   registerSnippetIpc();
   registerTodoIpc();
-  registerAppIpc();
-  registerHookIpc();
+  registerAppIpc({
+    appUpdater,
+    brokerClient,
+    getMainWindow: () => mainWindow,
+    setIsQuitting: (v) => { isQuitting = v; },
+  });
+  registerHookIpc(sessionManager, () => hookRuntimeInfo);
   registerAccountIpc(accountManager, sessionManager, providerRegistry);
   registerTaskIpc(taskQueue);
   registerCommitIpc(commitTracker);
@@ -448,7 +408,7 @@ app.whenReady().then(async () => {
   registerInputIpc(inputTracker);
   registerShellHistoryIpc();
   registerQuotaIpc(quotaService);
-  registerPreferencesIpc();
+  registerPreferencesIpc(sleepBlocker);
 
   // Create window AFTER IPC handlers are registered to avoid a race condition:
   // in production, loadFile() is near-instant, so the renderer can invoke IPC
@@ -585,7 +545,6 @@ app.whenReady().then(async () => {
 });
 
 // Graceful shutdown: persist layout, end sessions, kill PTYs, close DB
-let isQuitting = false;
 app.on('before-quit', (e) => {
   if (!isQuitting) {
     isQuitting = true;

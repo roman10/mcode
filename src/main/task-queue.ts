@@ -7,7 +7,6 @@ import { updateSession } from './session/session-repository';
 import { logger } from './logger';
 import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from './session/prompt-detect';
 import { getTranscriptPath } from './session/transcript-path';
-import { typedHandle } from './ipc-helpers';
 import type {
   Task,
   TaskStatus,
@@ -1129,26 +1128,4 @@ export class TaskQueue {
       wc.send('task:changed', event);
     }
   }
-}
-
-export function registerTaskIpc(taskQueue: TaskQueue): void {
-  typedHandle('task:create', (input) => {
-    return taskQueue.create(input);
-  });
-
-  typedHandle('task:list', (filter) => {
-    return taskQueue.list(filter);
-  });
-
-  typedHandle('task:update', (taskId, input) => {
-    return taskQueue.update(taskId, input);
-  });
-
-  typedHandle('task:cancel', (taskId) => {
-    taskQueue.cancel(taskId);
-  });
-
-  typedHandle('task:reorder', (taskId, direction) => {
-    return taskQueue.reorder(taskId, direction);
-  });
 }

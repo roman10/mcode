@@ -22,7 +22,6 @@ import { ClaudeScanner } from './claude-scanner';
 import { CopilotScanner } from './copilot-scanner';
 import { GeminiScanner } from './gemini-scanner';
 import { CodexScanner } from './codex-scanner';
-import { typedHandle } from '../ipc-helpers';
 import type { AccountService } from '../accounts';
 
 const BACKGROUND_POLL_MS = 5 * 60 * 1000; // 5 minutes
@@ -712,26 +711,4 @@ function estimateWeekCost(db: ReturnType<typeof getDb>, whereClause: string, ext
 /** Build optional provider WHERE clause fragment. */
 function providerFilter(provider?: string): { clause: string; params: unknown[] } {
   return provider ? { clause: ' AND provider = ?', params: [provider] } : { clause: '', params: [] };
-}
-
-export function registerTokenIpc(tokenTracker: TokenTracker): void {
-  typedHandle('tokens:get-session-usage', (sessionId) => {
-    return tokenTracker.getSessionUsage(sessionId);
-  });
-
-  typedHandle('tokens:get-daily-usage', (date, provider) => {
-    return tokenTracker.getDailyUsage(date, provider);
-  });
-
-  typedHandle('tokens:get-model-breakdown', (days, provider) => {
-    return tokenTracker.getModelBreakdown(days, provider);
-  });
-
-  typedHandle('tokens:get-heatmap', (startDate, endDate, provider, fillEmptyDays) => {
-    return tokenTracker.getHeatmap(startDate, endDate, provider, fillEmptyDays);
-  });
-
-  typedHandle('tokens:refresh', async () => {
-    await tokenTracker.scanAll();
-  });
 }
