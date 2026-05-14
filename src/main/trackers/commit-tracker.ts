@@ -101,36 +101,59 @@ export function detectAIAssisted(coAuthor: string): boolean {
 }
 
 
+interface SessionCandidate {
+  session_type: string;
+  cwd: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
 /**
- * Attempt session-based attribution for a commit that has no Co-Authored-By trailer.
- * Checks if the commit was made during an active AI session in the same repo.
+ * Load every agent session record once. Cheap enough to do in bulk before
+ * looping over many commits (see `backfillSessionAttribution`), instead of
+ * issuing one filtered SELECT per commit.
  */
-function findSessionAttribution(
-  db: ReturnType<typeof getDb>,
+function loadSessionCandidates(db: ReturnType<typeof getDb>): SessionCandidate[] {
+  return db.prepare(`
+    SELECT session_type, cwd, started_at, ended_at
+    FROM sessions
+    WHERE session_type IN (${AGENT_SESSION_TYPES.map(() => '?').join(',')})
+    ORDER BY started_at DESC
+  `).all(...AGENT_SESSION_TYPES) as SessionCandidate[];
+}
+
+/**
+ * Pure matcher: given a pre-loaded session set, decide which provider (if any)
+ * should be attributed to a commit. Same logic as the previous per-commit SQL:
+ * - session must overlap the commit time (started_at <= committedAt and
+ *   ended_at >= committedAt or open-ended)
+ * - session cwd must be at or under the repo root (prefix match)
+ * - tiebreak by shortest cwd, then most recent started_at
+ */
+export function matchSessionForCommit(
+  candidates: SessionCandidate[],
   repoPath: string,
   committedAt: string,
 ): string | null {
-  const rows = db.prepare(`
-    SELECT session_type, cwd
-    FROM sessions
-    WHERE session_type IN (${AGENT_SESSION_TYPES.map(() => '?').join(',')})
-      AND started_at <= ?
-      AND (ended_at IS NULL OR ended_at >= ?)
-    ORDER BY started_at DESC
-  `).all(...AGENT_SESSION_TYPES, committedAt, committedAt) as { session_type: string; cwd: string }[];
-
-  if (rows.length === 0) return null;
+  if (candidates.length === 0) return null;
 
   const normalizedRepo = repoPath.endsWith('/') ? repoPath : repoPath + '/';
-  const matching = rows.filter((row) => {
+  const matching: SessionCandidate[] = [];
+  for (const row of candidates) {
+    if (row.started_at > committedAt) continue;
+    if (row.ended_at !== null && row.ended_at < committedAt) continue;
     const cwd = row.cwd.endsWith('/') ? row.cwd : row.cwd + '/';
-    return cwd.startsWith(normalizedRepo);
-  });
+    if (!cwd.startsWith(normalizedRepo)) continue;
+    matching.push(row);
+  }
 
   if (matching.length === 0) return null;
-
-  // Prefer session closest to repo root (shortest cwd), then most recent
-  matching.sort((a, b) => a.cwd.length - b.cwd.length);
+  matching.sort((a, b) => {
+    const lenDiff = a.cwd.length - b.cwd.length;
+    if (lenDiff !== 0) return lenDiff;
+    // Most recent started_at wins (DESC).
+    return b.started_at.localeCompare(a.started_at);
+  });
   return matching[0].session_type;
 }
 
@@ -208,6 +231,9 @@ export class CommitTracker {
   private repoRootCache = new LruMap<string, string | null>(200);
   private defaultBranchCache = new LruMap<string, string>(200);
   private scanning = false;
+  // Trailing-debounce per repo root so N concurrent same-repo hook events
+  // collapse into one scanRepo invocation 500 ms after the last event.
+  private pendingRepoScans = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     sessionManager: SessionManager,
@@ -238,6 +264,8 @@ export class CommitTracker {
       clearInterval(this.backgroundTimer);
       this.backgroundTimer = null;
     }
+    for (const t of this.pendingRepoScans.values()) clearTimeout(t);
+    this.pendingRepoScans.clear();
   }
 
   /** Backfill session-based attribution for commits that have no provider and no attribution source. */
@@ -258,10 +286,12 @@ export class CommitTracker {
       WHERE id = ?
     `);
 
+    const candidates = loadSessionCandidates(db);
+
     let count = 0;
     db.transaction(() => {
       for (const commit of unattributed) {
-        const provider = findSessionAttribution(db, commit.repo_path, commit.committed_at);
+        const provider = matchSessionForCommit(candidates, commit.repo_path, commit.committed_at);
         if (provider) {
           updateStmt.run(provider, commit.id);
           count++;
@@ -290,12 +320,18 @@ export class CommitTracker {
     const repoRoot = await this.resolveRepoRoot(session.cwd);
     if (!repoRoot) return;
 
-    // Small delay to let git finish writing
-    setTimeout(() => {
+    // Trailing-debounce by repoRoot: N sessions in the same repo committing in
+    // the same 500 ms window collapse into one scanRepo call. The delay also
+    // lets git finish writing the commit object.
+    const existing = this.pendingRepoScans.get(repoRoot);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.pendingRepoScans.delete(repoRoot);
       this.scanRepo(repoRoot).catch((err) => {
         logger.warn('commits', 'Hook-triggered scan failed', { repoRoot, error: String(err) });
       });
     }, 500);
+    this.pendingRepoScans.set(repoRoot, timer);
   }
 
   /** Scan a specific repo when a new session is created. */
@@ -382,6 +418,10 @@ export class CommitTracker {
       WHERE repo_path = ? AND commit_hash = ? AND detected_provider IS NULL
     `);
 
+    // Load once before the per-commit loop so we don't re-query `sessions`
+    // for every parsed commit.
+    const candidates = loadSessionCandidates(db);
+
     let newCount = 0;
     const insertAll = db.transaction(() => {
       for (const commit of commits) {
@@ -393,7 +433,7 @@ export class CommitTracker {
         if (detectedProvider) {
           attributionSource = 'trailer';
         } else {
-          const sessionProvider = findSessionAttribution(db, repoPath, commit.committedAt);
+          const sessionProvider = matchSessionForCommit(candidates, repoPath, commit.committedAt);
           if (sessionProvider) {
             detectedProvider = sessionProvider;
             attributionSource = 'session';
