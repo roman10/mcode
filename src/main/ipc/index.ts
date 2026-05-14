@@ -12,22 +12,22 @@
  *   3. Exporting the `register*Ipc` here and calling it from `main/index.ts`
  */
 
-export { registerSessionIpc } from './session-ipc';
-export { registerLayoutIpc } from './layout-ipc';
-export { registerTaskIpc } from './task-queue-ipc';
-export { registerGitChangesIpc } from './git-ipc';
-export { registerTokenIpc } from './token-ipc';
+export { registerAccountIpc } from './account-ipc';
+export { registerAppIpc } from './app-ipc';
 export { registerCommitIpc } from './commit-ipc';
-export { registerInputIpc } from './input-ipc';
-export { registerPtyIpc } from './pty-ipc';
-export { registerSearchIpc } from './file-search-ipc';
 export { registerFileIpc } from './file-ipc';
-export { registerTodoIpc } from './todo-ipc';
+export { registerGitChangesIpc } from './git-ipc';
+export { registerHookIpc } from './hooks-ipc';
+export { registerInputIpc } from './input-ipc';
+export { registerLayoutIpc } from './layout-ipc';
+export { registerPreferencesIpc } from './preferences-ipc';
+export { registerPtyIpc } from './pty-ipc';
+export { registerQuotaIpc } from './quota-ipc';
+export { registerSearchIpc } from './file-search-ipc';
+export { registerSessionIpc } from './session-ipc';
+export { registerShellHistoryIpc } from './shell-history-ipc';
 export { registerSlashCommandIpc } from './slash-command-ipc';
 export { registerSnippetIpc } from './snippet-ipc';
-export { registerShellHistoryIpc } from './shell-history-ipc';
-export { registerAccountIpc } from './account-ipc';
-export { registerQuotaIpc } from './quota-ipc';
-export { registerAppIpc } from './app-ipc';
-export { registerPreferencesIpc } from './preferences-ipc';
-export { registerHookIpc } from './hooks-ipc';
+export { registerTaskIpc } from './task-queue-ipc';
+export { registerTodoIpc } from './todo-ipc';
+export { registerTokenIpc } from './token-ipc';

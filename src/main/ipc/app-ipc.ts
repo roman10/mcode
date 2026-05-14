@@ -4,15 +4,13 @@ import { captureMemorySnapshot } from '../diagnostics';
 import type { AutoUpdater } from '../auto-updater';
 import type { BrokerClient } from '../pty/broker-client';
 
-export interface AppIpcDeps {
+export function registerAppIpc(deps: {
   appUpdater: AutoUpdater;
   brokerClient: BrokerClient;
   getMainWindow: () => BrowserWindow | null;
-  setIsQuitting: (value: boolean) => void;
-}
-
-export function registerAppIpc(deps: AppIpcDeps): void {
-  const { appUpdater, brokerClient, getMainWindow, setIsQuitting } = deps;
+  markQuitting: () => void;
+}): void {
+  const { appUpdater, brokerClient, getMainWindow, markQuitting } = deps;
 
   typedHandle('app:get-version', () => {
     return app.getVersion();
@@ -32,7 +30,7 @@ export function registerAppIpc(deps: AppIpcDeps): void {
   typedHandle('app:open-update-page', () => appUpdater.openReleasePage());
   typedHandle('app:download-update', () => appUpdater.downloadUpdate());
   typedHandle('app:install-update', () => {
-    setIsQuitting(true); // bypass close-confirmation dialog before quitAndInstall
+    markQuitting(); // bypass close-confirmation dialog before quitAndInstall
     appUpdater.installUpdate();
   });
 

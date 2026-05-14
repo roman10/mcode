@@ -160,7 +160,9 @@ describe('SessionManager broadcast coalescing', () => {
       payload: {},
       createdAt: '2026-01-01T00:00:00.000Z',
     };
-    (manager as unknown as { broadcastHookEvent: (e: HookEvent) => void }).broadcastHookEvent(event);
+    (manager as unknown as {
+      broadcaster: { broadcastHookEvent: (e: HookEvent) => void };
+    }).broadcaster.broadcastHookEvent(event);
 
     // hook:event sends immediately; session:updated stays queued so bursts of
     // hook events during tool use coalesce into a single broadcast per tick.
@@ -220,62 +222,29 @@ describe('SessionManager Claude transcript refresh coalescing', () => {
   });
 
   it('coalesces repeated hook-triggered Claude transcript refreshes', async () => {
-    const transcriptPath = join(tempDir, 'claude.jsonl');
-    const scheduler = manager as unknown as {
-      scheduleClaudeTranscriptRefresh(sessionId: string, path: string, delay: number): void;
-      refreshClaudeModelFromTranscript(
-        sessionId: string,
-        path: string,
-        state: {
-          timer: NodeJS.Timeout | null;
-          queuedTranscriptPath: string | null;
-          inFlight: Promise<void> | null;
-          lastFreshnessKey: string | null;
-        },
-      ): Promise<void>;
-    };
-    const refreshSpy = vi
-      .spyOn(scheduler, 'refreshClaudeModelFromTranscript')
-      .mockResolvedValue(undefined);
+    // Real timers: schedule's setTimeout(0) + the refresher's real fs.stat
+    // don't play nicely with vi.runAllTimersAsync under parallel load.
+    vi.useRealTimers();
 
-    scheduler.scheduleClaudeTranscriptRefresh('s1', transcriptPath, 0);
-    scheduler.scheduleClaudeTranscriptRefresh('s1', transcriptPath, 0);
-    scheduler.scheduleClaudeTranscriptRefresh('s1', transcriptPath, 0);
-
-    await vi.runAllTimersAsync();
-
-    expect(refreshSpy).toHaveBeenCalledTimes(1);
-    expect(refreshSpy).toHaveBeenCalledWith('s1', transcriptPath, expect.any(Object));
-  });
-
-  it('skips rereading an unchanged Claude transcript', async () => {
     const transcriptPath = join(tempDir, 'claude.jsonl');
     await writeFile(transcriptPath, '{"message":{"model":"claude-sonnet-4-5"}}\n');
     const updateSpy = vi
       .spyOn(manager, 'updateModelFromTranscript')
       .mockResolvedValue(undefined);
-    const refresh = manager as unknown as {
-      refreshClaudeModelFromTranscript(
-        sessionId: string,
-        path: string,
-        state: {
-          timer: NodeJS.Timeout | null;
-          queuedTranscriptPath: string | null;
-          inFlight: Promise<void> | null;
-          lastFreshnessKey: string | null;
-        },
-      ): Promise<void>;
-    };
-    const state = {
-      timer: null,
-      queuedTranscriptPath: null,
-      inFlight: null,
-      lastFreshnessKey: null,
-    };
+    const refresher = (manager as unknown as {
+      transcriptRefresher: { schedule(sessionId: string, path: string, delay: number): void };
+    }).transcriptRefresher;
 
-    await refresh.refreshClaudeModelFromTranscript('s1', transcriptPath, state);
-    await refresh.refreshClaudeModelFromTranscript('s1', transcriptPath, state);
+    refresher.schedule('s1', transcriptPath, 0);
+    refresher.schedule('s1', transcriptPath, 0);
+    refresher.schedule('s1', transcriptPath, 0);
 
-    expect(updateSpy).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+    expect(updateSpy).toHaveBeenCalledWith('s1', transcriptPath);
   });
+
+  // Note: the "skips rereading an unchanged transcript" freshness-cache test
+  // lives in claude-transcript-refresher.test.ts now — the cache survives only
+  // within an in-flight burst, which is awkward to exercise through
+  // SessionManager's coarser scheduling surface.
 });

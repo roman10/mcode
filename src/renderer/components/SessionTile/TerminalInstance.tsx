@@ -9,7 +9,6 @@ import {
   TERMINAL_FONT_SIZE,
   TERMINAL_FONT_FAMILY,
   DEFAULT_SCROLLBACK_LINES,
-  HIDDEN_TILE_DISPOSE_MS,
   MAX_SCROLLBACK_LINES,
   SCROLLBACK_PRESETS,
   ATLAS_RECLEAR_THROTTLE_MS,
@@ -17,14 +16,14 @@ import {
 import { getAgentDefinition, shouldHideTerminalCursor } from '@shared/session-agents';
 import {
   terminalRegistry,
-  registerDisposeHiddenTile,
   setTerminalLive,
   clearAllAtlasesThrottled,
   forgetAtlasClear,
   setTerminalFitAddon,
   forgetTerminalFitAddon,
-  verifyAndCorrectFit,
 } from '../../devtools/terminal-registry';
+import { useTerminalDispose } from '../../hooks/useTerminalDispose';
+import { useTerminalRefit } from '../../hooks/useTerminalRefit';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
@@ -99,30 +98,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   const dropLiveWritesRef = useRef<boolean>(true);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [currentScrollback, setCurrentScrollback] = useState(scrollbackLines);
-  /** False when the tile has been hidden long enough that its xterm instance was disposed
-   *  to free scrollback memory. Flips back to true on reveal, which remounts the Terminal. */
-  const [shouldMount, setShouldMount] = useState(isVisible);
-
-  // Schedule disposal of the Terminal after the tile has been hidden for HIDDEN_TILE_DISPOSE_MS.
-  // On reveal, immediately remount.
-  useEffect(() => {
-    if (isVisible) {
-      setShouldMount(true);
-      return;
-    }
-    const timer = window.setTimeout(() => setShouldMount(false), HIDDEN_TILE_DISPOSE_MS);
-    // Devtools hook: lets integration tests trigger the same dispose path
-    // without waiting for the 5-minute timer. No-op when the tile is visible.
-    const unregister = registerDisposeHiddenTile(sessionId, () => {
-      window.clearTimeout(timer);
-      setShouldMount(false);
-      return true;
-    });
-    return () => {
-      window.clearTimeout(timer);
-      unregister();
-    };
-  }, [isVisible, sessionId]);
+  const shouldMount = useTerminalDispose(isVisible, sessionId);
   const search = useTerminalSearch();
   const cwd = useSessionStore((s) => s.sessions[sessionId]?.cwd ?? '');
   const setSlashWarning = useSlashCommandWarningStore((s) => s.setWarning);
@@ -157,52 +133,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     ] as const),
   );
 
-  // fit() while hidden would resize xterm to the 0×0 container, hand bash a
-  // SIGWINCH at the tiny grid, and the resulting prompt-redraw bytes would
-  // sit in the broker ring for the catch-up replay. Replaying those at the
-  // restored full size garbles the screen because the embedded cursor
-  // positions assume the tiny grid. Skip when the tile isn't visible (or the
-  // container hasn't laid out yet); the visibility effect re-runs fit() on
-  // reveal.
-  const safeFit = useCallback((): void => {
-    if (!isVisibleRef.current) return;
-    const c = termRef.current;
-    if (!c || c.clientWidth === 0 || c.clientHeight === 0) return;
-    fitAddonRef.current?.fit();
-  }, []);
-
-  // Multi-pass refit scheduler. setTimeout(0) catches the common post-layout
-  // case; rAF + setTimeout(100) backstop when the immediate fit lands on
-  // transient dimensions (the failure mode b1773fd was introduced for). All
-  // three passes are debounced against the shared refs, so call sites can
-  // fire it freely; overlapping triggers collapse into a single cycle.
-  const pendingFitT0Ref = useRef(0);
-  const pendingFitRafRef = useRef(0);
-  const pendingFitT100Ref = useRef(0);
-  const scheduleRefit = useCallback((): void => {
-    if (pendingFitT0Ref.current) clearTimeout(pendingFitT0Ref.current);
-    if (pendingFitRafRef.current) cancelAnimationFrame(pendingFitRafRef.current);
-    if (pendingFitT100Ref.current) clearTimeout(pendingFitT100Ref.current);
-    pendingFitT0Ref.current = window.setTimeout(() => {
-      pendingFitT0Ref.current = 0;
-      safeFit();
-    }, 0);
-    pendingFitRafRef.current = requestAnimationFrame(() => {
-      pendingFitRafRef.current = 0;
-      safeFit();
-      verifyAndCorrectFit(sessionId);
-    });
-    pendingFitT100Ref.current = window.setTimeout(() => {
-      pendingFitT100Ref.current = 0;
-      verifyAndCorrectFit(sessionId);
-    }, 100);
-  }, [safeFit, sessionId]);
-
-  useEffect(() => () => {
-    if (pendingFitT0Ref.current) clearTimeout(pendingFitT0Ref.current);
-    if (pendingFitRafRef.current) cancelAnimationFrame(pendingFitRafRef.current);
-    if (pendingFitT100Ref.current) clearTimeout(pendingFitT100Ref.current);
-  }, []);
+  const { safeFit, scheduleRefit } = useTerminalRefit({
+    termRef, fitAddonRef, isVisibleRef, sessionId,
+  });
 
   useEffect(() => {
     if (!shouldMount) return;

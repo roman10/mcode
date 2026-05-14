@@ -397,7 +397,7 @@ app.whenReady().then(async () => {
     appUpdater,
     brokerClient,
     getMainWindow: () => mainWindow,
-    setIsQuitting: (v) => { isQuitting = v; },
+    markQuitting: () => { isQuitting = true; },
   });
   registerHookIpc(sessionManager, () => hookRuntimeInfo);
   registerAccountIpc(accountManager, sessionManager, providerRegistry);

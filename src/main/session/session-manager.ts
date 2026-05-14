@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
-import { readdir, open as fsOpen, stat as fsStat } from 'node:fs/promises';
+import { readdir, open as fsOpen } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import type { WebContents } from 'electron';
 import type { IObservablePtyManager } from '../../shared/pty-manager-interface';
@@ -89,6 +89,11 @@ import {
 } from '../../shared/constants';
 import { SessionEventStore } from './session-event-store';
 import { LayoutRepository } from './layout-repository';
+import { SessionTimerRegistry } from './session-timer-registry';
+import { ClaudeTranscriptRefresher } from './claude-transcript-refresher';
+import { SessionBroadcaster, type SessionUpdateListener } from './session-broadcaster';
+
+export type { SessionUpdateListener };
 import type {
   SessionInfo,
   SessionStatus,
@@ -154,56 +159,18 @@ async function extractCustomTitle(fh: FileHandle, fileSize: number, headChunk: s
   return undefined;
 }
 
-export type SessionUpdateListener = (
-  session: SessionInfo,
-  previousStatus: SessionStatus | null,
-) => void;
-
-interface ClaudeTranscriptRefreshState {
-  timer: NodeJS.Timeout | null;
-  queuedTranscriptPath: string | null;
-  inFlight: Promise<void> | null;
-  lastFreshnessKey: string | null;
-}
-
 export class SessionManager {
   private ptyManager: IObservablePtyManager;
-  private getWebContents: () => WebContents | null;
   private hookRuntimeGetter: () => HookRuntimeInfo;
   private accountManager: AccountService;
-  private sessionListeners = new Set<SessionUpdateListener>();
-  private changeListeners = new Set<() => void>();
   /** Sessions that have already received a prompt-based auto-label (first UserPromptSubmit only). */
   private promptLabelledSessions = new Set<string>();
-  /**
-   * Outbound 'session:updated' coalescer — merges repeat broadcasts for the
-   * same sessionId within one event-loop tick into a single IPC send carrying
-   * the latest snapshot. Mirrors the pty.data coalescer in BrokerClient.
-   * Bursts of hook events + state transitions otherwise fan out to dozens of
-   * renders per session per second.
-   */
-  private pendingBroadcasts = new Set<string>();
-  private broadcastFlushTimer: NodeJS.Immediate | null = null;
-  /**
-   * Per-session quiescence timers. Each pty.data event re-arms a one-shot
-   * setTimeout(detectSessionState, PTY_QUIESCENCE_MS + 50) so that quiescence-
-   * gated state detections (idle ❯, permission prompts) fire shortly after
-   * the buffer settles, instead of waiting for the next periodic poll.
-   */
-  private quiescenceTimers = new Map<string, NodeJS.Timeout>();
-  /**
-   * Per-session pending detection — coalesces multiple pty.data chunks within
-   * one tick into a single detectSessionState call on the next tick. Without
-   * this, sustained pty output saturates the main thread with sync DB+regex
-   * work, delaying inbound `pty:write` IPC and making typing feel laggy.
-   */
-  private pendingDetections = new Map<string, NodeJS.Immediate>();
-  /** 15s safety timers that force-transition sessions stuck in 'starting'. */
-  private startupTimers = new Map<string, NodeJS.Timeout>();
-  /** 500ms timers that auto-delete ended Claude sessions with no interaction. */
-  private autoDeleteTimers = new Map<string, NodeJS.Timeout>();
+  /** Coalesces outbound IPC + manages in-process status/change listeners. */
+  private broadcaster: SessionBroadcaster;
+  /** Per-session timers (quiescence, pending detection, startup, auto-delete). */
+  private timers: SessionTimerRegistry;
   /** Coalesces transcript-driven Claude model refreshes during hook bursts. */
-  private claudeTranscriptRefreshes = new Map<string, ClaudeTranscriptRefreshState>();
+  private transcriptRefresher: ClaudeTranscriptRefresher;
   private eventStore: SessionEventStore;
   readonly layoutRepo: LayoutRepository;
   private agentRuntimeAdapters: AgentRuntimeAdapterMap;
@@ -218,11 +185,27 @@ export class SessionManager {
     accountManager: AccountService,
   ) {
     this.ptyManager = ptyManager;
-    this.getWebContents = getWebContents;
     this.hookRuntimeGetter = hookRuntimeGetter;
     this.accountManager = accountManager;
     this.eventStore = new SessionEventStore(HOOK_TOOL_INPUT_MAX_BYTES);
     this.layoutRepo = new LayoutRepository();
+    this.broadcaster = new SessionBroadcaster(getWebContents, (id) => this.get(id));
+    this.timers = new SessionTimerRegistry({
+      quiescenceDelayMs: SessionManager.PTY_QUIESCENCE_MS + SessionManager.QUIESCENCE_TIMER_SLACK_MS,
+      startupTimeoutMs: 15_000,
+      autoDeleteDelayMs: 500,
+      onDetect: (id) => this.detectSessionState(id),
+      onAutoDelete: (id) => {
+        try {
+          this.delete(id);
+        } catch {
+          // Session may already be deleted
+        }
+      },
+    });
+    this.transcriptRefresher = new ClaudeTranscriptRefresher(
+      (id, path) => this.updateModelFromTranscript(id, path),
+    );
     this.agentRuntimeAdapters = {
       claude: createClaudeRuntimeAdapter(),
       codex: createCodexRuntimeAdapter({
@@ -248,44 +231,27 @@ export class SessionManager {
     // is already set by PreToolUse); the quiescence timer (re-armed each chunk)
     // catches idle ❯ and permission-prompt detections that need a settled
     // buffer. The 60s safety interval in main/index.ts is a backstop only.
-    this.ptyManager.on('pty.data', (id) => this.onPtyData(id));
-    this.ptyManager.on('pty.exit', (id) => this.onPtyExit(id));
+    this.ptyManager.on('pty.data', (id) => this.timers.armDetection(id));
+    this.ptyManager.on('pty.exit', (id) => this.timers.clearDetection(id));
   }
 
-  /** Subscribe to session updates in the main process (used by TaskQueue). */
+  /** Subscribe to session status transitions (used by TaskQueue, SleepBlocker). */
   onSessionUpdated(listener: SessionUpdateListener): () => void {
-    this.sessionListeners.add(listener);
-    return () => this.sessionListeners.delete(listener);
-  }
-
-  private notifyListeners(session: SessionInfo, previousStatus: SessionStatus | null): void {
-    for (const listener of this.sessionListeners) {
-      try {
-        listener(session, previousStatus);
-      } catch {
-        // Listener errors must not break session state transitions
-      }
-    }
+    return this.broadcaster.onSessionUpdated(listener);
   }
 
   /**
    * Subscribe to any broadcasted session change (status, attentionLevel,
-   * label, model, etc.). Fires once per call to broadcastSessionUpdate.
-   * Unlike onSessionUpdated, this does not require a status transition.
+   * label, model, etc.). Fires once per coalesced flush of
+   * `broadcastSessionUpdate`. Unlike onSessionUpdated, no status transition
+   * is required.
    */
   onSessionsChanged(listener: () => void): () => void {
-    this.changeListeners.add(listener);
-    return () => this.changeListeners.delete(listener);
+    return this.broadcaster.onSessionsChanged(listener);
   }
 
-  private notifyChanged(): void {
-    for (const listener of this.changeListeners) {
-      try {
-        listener();
-      } catch {
-        // Listener errors must not break session state transitions
-      }
-    }
+  broadcastSessionUpdate(sessionId: string): void {
+    this.broadcaster.broadcastSessionUpdate(sessionId);
   }
 
   private nextDisambiguatedLabel(cwd: string): string {
@@ -413,7 +379,7 @@ export class SessionManager {
     }
 
     // Safety net: if still starting after 15s, force-transition
-    this.armStartupTimer(sessionId, () => {
+    this.timers.armStartup(sessionId, () => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
         const targetStatus = isAgentSession(sessionType) && !input.initialCommand ? 'idle' : 'active';
@@ -434,10 +400,7 @@ export class SessionManager {
     });
 
     const session = this.get(sessionId)!;
-    const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('session:created', session);
-    }
+    this.broadcaster.sendDirect('session:created', session);
     return session;
   }
 
@@ -529,7 +492,7 @@ export class SessionManager {
       throw err;
     }
 
-    this.armStartupTimer(sessionId, () => {
+    this.timers.armStartup(sessionId, () => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
         logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
@@ -703,7 +666,7 @@ export class SessionManager {
     }
 
     // Safety net: if still starting after 15s, force-transition to idle
-    this.armStartupTimer(sessionId, () => {
+    this.timers.armStartup(sessionId, () => {
       const s = this.get(sessionId);
       if (s && s.status === 'starting') {
         logger.warn('session', 'Starting timeout, forcing idle', { sessionId });
@@ -715,10 +678,7 @@ export class SessionManager {
 
     const session = this.get(sessionId)!;
     // Broadcast as a new session creation
-    const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('session:created', session);
-    }
+    this.broadcaster.sendDirect('session:created', session);
     return session;
   }
 
@@ -798,12 +758,12 @@ export class SessionManager {
     this.broadcastSessionUpdate(sessionId);
 
     const session = this.get(sessionId);
-    if (session) this.notifyListeners(session, previousStatus);
+    if (session) this.broadcaster.notifyStatusTransition(session, previousStatus);
 
     // Auto-delete ended Claude sessions with no Claude session ID (no interaction occurred).
     if (status === 'ended' && session
       && session.sessionType === 'claude' && !session.claudeSessionId) {
-      this.armAutoDeleteTimer(sessionId);
+      this.timers.armAutoDelete(sessionId);
     }
   }
 
@@ -920,11 +880,11 @@ export class SessionManager {
     updateSession(sessionId, fields);
 
     this.broadcastSessionUpdate(sessionId);
-    this.broadcastHookEvent({ ...event, sessionStatus: newStatus });
+    this.broadcaster.broadcastHookEvent({ ...event, sessionStatus: newStatus });
 
     if (newStatus !== currentStatus) {
       const session = this.get(sessionId);
-      if (session) this.notifyListeners(session, currentStatus);
+      if (session) this.broadcaster.notifyStatusTransition(session, currentStatus);
     }
 
     // Claude model detection from transcript. Coalesce hook bursts so repeated
@@ -938,7 +898,7 @@ export class SessionManager {
           ?? getTranscriptPath(row.cwd, effectiveClaudeSessionId);
         // Delay on Stop to let Claude finalize the transcript file
         const delay = event.hookEventName === 'Stop' ? 500 : 0;
-        this.scheduleClaudeTranscriptRefresh(sessionId, transcriptPath, delay);
+        this.transcriptRefresher.schedule(sessionId, transcriptPath, delay);
       }
     }
 
@@ -993,46 +953,6 @@ export class SessionManager {
     return sessionType;
   }
 
-  broadcastSessionUpdate(sessionId: string): void {
-    this.pendingBroadcasts.add(sessionId);
-    if (this.broadcastFlushTimer === null) {
-      this.broadcastFlushTimer = setImmediate(() => this.flushPendingBroadcasts());
-    }
-  }
-
-  private flushPendingBroadcasts(): void {
-    if (this.broadcastFlushTimer !== null) {
-      clearImmediate(this.broadcastFlushTimer);
-      this.broadcastFlushTimer = null;
-    }
-    if (this.pendingBroadcasts.size === 0) return;
-
-    const ids = Array.from(this.pendingBroadcasts);
-    this.pendingBroadcasts.clear();
-
-    const wc = this.getWebContents();
-    const canSend = wc !== null && !wc.isDestroyed();
-    for (const id of ids) {
-      const session = this.get(id);
-      if (session && canSend) {
-        wc!.send('session:updated', session);
-      }
-    }
-    this.notifyChanged();
-  }
-
-  private broadcastHookEvent(event: HookEvent): void {
-    // Don't force-flush pending session:updated broadcasts here — hook events
-    // fire in bursts during tool use and the only renderer consumer
-    // (ActivityFeed) doesn't read session state when handling them. Letting
-    // session:updated keep coalescing across the burst removes a re-render
-    // storm in the sidebar / kanban / titlebar.
-    const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('hook:event', event);
-    }
-  }
-
   delete(sessionId: string): void {
     const status = getSessionStatus(sessionId);
     if (status === null) throw new Error(`Session not found: ${sessionId}`);
@@ -1044,10 +964,7 @@ export class SessionManager {
 
     logger.info('session', 'Deleted session', { sessionId });
 
-    const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('session:deleted', sessionId);
-    }
+    this.broadcaster.sendDirect('session:deleted', sessionId);
   }
 
   deleteAllEnded(): string[] {
@@ -1062,10 +979,7 @@ export class SessionManager {
 
     logger.info('session', 'Deleted all ended sessions', { count: ids.length });
 
-    const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('session:deleted-batch', ids);
-    }
+    this.broadcaster.sendDirect('session:deleted-batch', ids);
     return ids;
   }
 
@@ -1082,10 +996,7 @@ export class SessionManager {
 
     logger.info('session', 'Deleted all ended test sessions', { count: ids.length });
 
-    const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('session:deleted-batch', ids);
-    }
+    this.broadcaster.sendDirect('session:deleted-batch', ids);
     return ids;
   }
 
@@ -1107,10 +1018,7 @@ export class SessionManager {
 
     logger.info('session', 'Deleted empty Claude sessions', { count: ids.length });
 
-    const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('session:deleted-batch', ids);
-    }
+    this.broadcaster.sendDirect('session:deleted-batch', ids);
     return ids.length;
   }
 
@@ -1131,10 +1039,7 @@ export class SessionManager {
 
     logger.info('session', 'Deleted batch of sessions', { count: validIds.length });
 
-    const wc = this.getWebContents();
-    if (wc && !wc.isDestroyed()) {
-      wc.send('session:deleted-batch', validIds);
-    }
+    this.broadcaster.sendDirect('session:deleted-batch', validIds);
     return validIds;
   }
 
@@ -1275,82 +1180,6 @@ export class SessionManager {
     }
   }
 
-  private getClaudeTranscriptRefreshState(sessionId: string): ClaudeTranscriptRefreshState {
-    const existing = this.claudeTranscriptRefreshes.get(sessionId);
-    if (existing) return existing;
-    const state: ClaudeTranscriptRefreshState = {
-      timer: null,
-      queuedTranscriptPath: null,
-      inFlight: null,
-      lastFreshnessKey: null,
-    };
-    this.claudeTranscriptRefreshes.set(sessionId, state);
-    return state;
-  }
-
-  private scheduleClaudeTranscriptRefresh(
-    sessionId: string,
-    transcriptPath: string,
-    delay: number,
-  ): void {
-    const state = this.getClaudeTranscriptRefreshState(sessionId);
-    state.queuedTranscriptPath = transcriptPath;
-    if (state.timer) clearTimeout(state.timer);
-    state.timer = setTimeout(() => {
-      state.timer = null;
-      void this.flushClaudeTranscriptRefresh(sessionId);
-    }, delay);
-  }
-
-  private async flushClaudeTranscriptRefresh(sessionId: string): Promise<void> {
-    const state = this.claudeTranscriptRefreshes.get(sessionId);
-    if (!state || state.inFlight) return;
-    const transcriptPath = state.queuedTranscriptPath;
-    if (!transcriptPath) return;
-    state.queuedTranscriptPath = null;
-    state.inFlight = this.refreshClaudeModelFromTranscript(sessionId, transcriptPath, state)
-      .catch((error) => {
-        logger.warn('session', 'Failed to refresh Claude model from transcript', {
-          sessionId,
-          transcriptPath,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      })
-      .finally(() => {
-        state.inFlight = null;
-        if (state.queuedTranscriptPath) {
-          void this.flushClaudeTranscriptRefresh(sessionId);
-          return;
-        }
-        if (!state.timer) this.claudeTranscriptRefreshes.delete(sessionId);
-      });
-  }
-
-  private async refreshClaudeModelFromTranscript(
-    sessionId: string,
-    transcriptPath: string,
-    state: ClaudeTranscriptRefreshState,
-  ): Promise<void> {
-    let stats;
-    try {
-      stats = await fsStat(transcriptPath);
-    } catch {
-      state.lastFreshnessKey = null;
-      return;
-    }
-    const freshnessKey = `${transcriptPath}:${stats.size}:${stats.mtimeMs}`;
-    if (state.lastFreshnessKey === freshnessKey) return;
-    await this.updateModelFromTranscript(sessionId, transcriptPath);
-    state.lastFreshnessKey = freshnessKey;
-  }
-
-  private clearClaudeTranscriptRefresh(sessionId: string): void {
-    const state = this.claudeTranscriptRefreshes.get(sessionId);
-    if (!state) return;
-    if (state.timer) clearTimeout(state.timer);
-    this.claudeTranscriptRefreshes.delete(sessionId);
-  }
-
   setTerminalConfig(sessionId: string, partial: Partial<TerminalConfig>): void {
     const record = getSessionRecord(sessionId);
     const existing: TerminalConfig = JSON.parse(record?.terminal_config || '{}');
@@ -1400,7 +1229,7 @@ export class SessionManager {
     this.broadcastSessionUpdate(sessionId);
 
     const session = this.get(sessionId);
-    if (session) this.notifyListeners(session, previousStatus);
+    if (session) this.broadcaster.notifyStatusTransition(session, previousStatus);
   }
 
   // --- PTY-based state detection ---
@@ -1465,114 +1294,15 @@ export class SessionManager {
     }
   }
 
-  /**
-   * Handle a pty.data event for a session. Defers immediate detection by one
-   * tick via setImmediate so this synchronous broker listener returns control
-   * to the event loop before sync DB+regex work runs — otherwise sustained
-   * pty output (~100 chunks/s) blocks inbound `pty:write` IPC. Bursts within
-   * one tick collapse to a single detection per session. Also re-arms the
-   * per-session quiescence timer for transitions that need a settled buffer.
-   */
-  private onPtyData(sessionId: string): void {
-    if (!this.pendingDetections.has(sessionId)) {
-      const handle = setImmediate(() => {
-        this.pendingDetections.delete(sessionId);
-        this.detectSessionState(sessionId);
-      });
-      this.pendingDetections.set(sessionId, handle);
-    }
-
-    const existing = this.quiescenceTimers.get(sessionId);
-    if (existing) clearTimeout(existing);
-    const timer = setTimeout(() => {
-      this.quiescenceTimers.delete(sessionId);
-      this.detectSessionState(sessionId);
-    }, SessionManager.PTY_QUIESCENCE_MS + SessionManager.QUIESCENCE_TIMER_SLACK_MS);
-    this.quiescenceTimers.set(sessionId, timer);
-  }
-
-  private onPtyExit(sessionId: string): void {
-    this.clearQuiescenceTimer(sessionId);
-    this.clearPendingDetection(sessionId);
-  }
-
-  private clearQuiescenceTimer(sessionId: string): void {
-    const timer = this.quiescenceTimers.get(sessionId);
-    if (timer) {
-      clearTimeout(timer);
-      this.quiescenceTimers.delete(sessionId);
-    }
-  }
-
-  private clearPendingDetection(sessionId: string): void {
-    const handle = this.pendingDetections.get(sessionId);
-    if (handle) {
-      clearImmediate(handle);
-      this.pendingDetections.delete(sessionId);
-    }
-  }
-
-  private armStartupTimer(sessionId: string, fn: () => void, delay = 15_000): void {
-    const existing = this.startupTimers.get(sessionId);
-    if (existing) clearTimeout(existing);
-    const timer = setTimeout(() => {
-      this.startupTimers.delete(sessionId);
-      fn();
-    }, delay);
-    this.startupTimers.set(sessionId, timer);
-  }
-
-  private clearStartupTimer(sessionId: string): void {
-    const timer = this.startupTimers.get(sessionId);
-    if (timer) {
-      clearTimeout(timer);
-      this.startupTimers.delete(sessionId);
-    }
-  }
-
-  private armAutoDeleteTimer(sessionId: string, delay = 500): void {
-    if (this.autoDeleteTimers.has(sessionId)) return;
-    const timer = setTimeout(() => {
-      this.autoDeleteTimers.delete(sessionId);
-      try {
-        this.delete(sessionId);
-      } catch {
-        // Session may already be deleted
-      }
-    }, delay);
-    this.autoDeleteTimers.set(sessionId, timer);
-  }
-
-  private clearAutoDeleteTimer(sessionId: string): void {
-    const timer = this.autoDeleteTimers.get(sessionId);
-    if (timer) {
-      clearTimeout(timer);
-      this.autoDeleteTimers.delete(sessionId);
-    }
-  }
-
   private clearSessionTimers(sessionId: string): void {
-    this.clearQuiescenceTimer(sessionId);
-    this.clearStartupTimer(sessionId);
-    this.clearAutoDeleteTimer(sessionId);
-    this.clearPendingDetection(sessionId);
-    this.clearClaudeTranscriptRefresh(sessionId);
+    this.timers.clearForSession(sessionId);
+    this.transcriptRefresher.clear(sessionId);
   }
 
   /** Clear all pending per-session timers. Called on app shutdown. */
   shutdownDetection(): void {
-    for (const timer of this.quiescenceTimers.values()) clearTimeout(timer);
-    this.quiescenceTimers.clear();
-    for (const timer of this.startupTimers.values()) clearTimeout(timer);
-    this.startupTimers.clear();
-    for (const timer of this.autoDeleteTimers.values()) clearTimeout(timer);
-    this.autoDeleteTimers.clear();
-    for (const handle of this.pendingDetections.values()) clearImmediate(handle);
-    this.pendingDetections.clear();
-    for (const state of this.claudeTranscriptRefreshes.values()) {
-      if (state.timer) clearTimeout(state.timer);
-    }
-    this.claudeTranscriptRefreshes.clear();
+    this.timers.shutdown();
+    this.transcriptRefresher.shutdown();
   }
 
   /**

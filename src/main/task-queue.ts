@@ -1,4 +1,3 @@
-import { openSync, readSync, statSync, closeSync } from 'fs';
 import type { WebContents } from 'electron';
 import type { IPtyManager } from '../shared/pty-manager-interface';
 import type { SessionManager } from './session/session-manager';
@@ -6,7 +5,7 @@ import { getDb } from './db';
 import { updateSession } from './session/session-repository';
 import { logger } from './logger';
 import { isAtClaudePrompt, isAtUserChoice, parseUserChoices } from './session/prompt-detect';
-import { getTranscriptPath } from './session/transcript-path';
+import { calcShiftTabPresses, getCurrentPermissionMode } from './task-permission-mode';
 import type {
   Task,
   TaskStatus,
@@ -83,72 +82,11 @@ const SUBMIT_DELAY_MS = 100;
 // during that window corrupts our paste markers (stray bytes, dropped \r).
 const DISPATCH_SETTLE_MS = 500;
 
-// --- Permission mode cycling helpers (exported for testing) ---
+// --- Permission mode cycling helpers (re-export for backward-compatible tests) ---
 
 import { buildModeCycle } from '../shared/task-utils';
 import { AGENT_PERMISSION_MODES, POLL_TAIL_BYTES, type PermissionMode } from '../shared/constants';
-export { buildModeCycle };
-
-/**
- * Calculate the number of forward Shift+Tab presses to go from `current` to `target`
- * in the given cycle. Returns -1 if either mode is not in the cycle.
- */
-export function calcShiftTabPresses(cycle: string[], current: string, target: string): number {
-  const curIdx = cycle.indexOf(current);
-  const tgtIdx = cycle.indexOf(target);
-  if (curIdx === -1 || tgtIdx === -1) return -1;
-  return (tgtIdx - curIdx + cycle.length) % cycle.length;
-}
-
-/**
- * Read the current permission mode for a session.
- * 1. Try the JSONL session log (last human message's permissionMode field)
- * 2. Fallback to the DB-stored permission_mode from session creation
- */
-export function getCurrentPermissionMode(session: SessionInfo): string {
-  if (session.claudeSessionId) {
-    const mode = readLastPermissionModeFromJsonl(session.cwd, session.claudeSessionId);
-    if (mode) return mode;
-  }
-  return session.permissionMode ?? 'default';
-}
-
-/**
- * Read the last permissionMode from a Claude Code JSONL session log.
- * Reads the tail of the file for efficiency.
- */
-function readLastPermissionModeFromJsonl(cwd: string, claudeSessionId: string): string | null {
-  try {
-    const jsonlPath = getTranscriptPath(cwd, claudeSessionId);
-    const stat = statSync(jsonlPath);
-    const readSize = Math.min(stat.size, 16384); // Read last 16KB
-    const buf = Buffer.alloc(readSize);
-    const fd = openSync(jsonlPath, 'r');
-    try {
-      readSync(fd, buf, 0, readSize, stat.size - readSize);
-    } finally {
-      closeSync(fd);
-    }
-    const content = buf.toString('utf-8');
-    const lines = content.split('\n');
-    // Iterate from end to find last human message with permissionMode
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      try {
-        const obj = JSON.parse(line);
-        if (obj.type === 'user' && obj.permissionMode) {
-          return obj.permissionMode as string;
-        }
-      } catch {
-        continue;
-      }
-    }
-  } catch {
-    // File doesn't exist or can't be read — fall through to fallback
-  }
-  return null;
-}
+export { buildModeCycle, calcShiftTabPresses, getCurrentPermissionMode };
 
 export class TaskQueue {
   private sessionManager: SessionManager;

@@ -119,7 +119,7 @@ describe('SessionManager event-driven detection', () => {
 
     pty.emit('pty.data', 's1', '');
 
-    const timers = (manager as unknown as { quiescenceTimers: Map<string, unknown> }).quiescenceTimers;
+    const timers = (manager as unknown as { timers: { quiescenceTimers: Map<string, unknown> } }).timers.quiescenceTimers;
     expect(timers.has('s1')).toBe(true);
   });
 
@@ -129,7 +129,7 @@ describe('SessionManager event-driven detection', () => {
     pty.setLastDataAt('s1', Date.now());
 
     pty.emit('pty.data', 's1', '');
-    const timers = (manager as unknown as { quiescenceTimers: Map<string, NodeJS.Timeout> }).quiescenceTimers;
+    const timers = (manager as unknown as { timers: { quiescenceTimers: Map<string, NodeJS.Timeout> } }).timers.quiescenceTimers;
     const first = timers.get('s1');
 
     pty.emit('pty.data', 's1', '');
@@ -173,7 +173,7 @@ describe('SessionManager event-driven detection', () => {
     // No transition: starting is not pollable.
     expect(getStatus('s1')?.status).toBe('starting');
     // But the timer did arm — guarantees a recheck once status flips to active.
-    const timers = (manager as unknown as { quiescenceTimers: Map<string, unknown> }).quiescenceTimers;
+    const timers = (manager as unknown as { timers: { quiescenceTimers: Map<string, unknown> } }).timers.quiescenceTimers;
     expect(timers.has('s1')).toBe(true);
   });
 
@@ -183,7 +183,7 @@ describe('SessionManager event-driven detection', () => {
     pty.setLastDataAt('s1', Date.now());
 
     pty.emit('pty.data', 's1', '');
-    const timers = (manager as unknown as { quiescenceTimers: Map<string, unknown> }).quiescenceTimers;
+    const timers = (manager as unknown as { timers: { quiescenceTimers: Map<string, unknown> } }).timers.quiescenceTimers;
     expect(timers.has('s1')).toBe(true);
 
     pty.emit('pty.exit', 's1', 0);
@@ -201,7 +201,7 @@ describe('SessionManager event-driven detection', () => {
     getDb().prepare('UPDATE sessions SET status = ? WHERE session_id = ?').run('ended', 's1');
     manager.delete('s1');
 
-    const timers = (manager as unknown as { quiescenceTimers: Map<string, unknown> }).quiescenceTimers;
+    const timers = (manager as unknown as { timers: { quiescenceTimers: Map<string, unknown> } }).timers.quiescenceTimers;
     expect(timers.has('s1')).toBe(false);
   });
 
@@ -216,7 +216,7 @@ describe('SessionManager event-driven detection', () => {
     pty.emit('pty.data', 's1', '');
     pty.emit('pty.data', 's2', '');
 
-    const timers = (manager as unknown as { quiescenceTimers: Map<string, unknown> }).quiescenceTimers;
+    const timers = (manager as unknown as { timers: { quiescenceTimers: Map<string, unknown> } }).timers.quiescenceTimers;
     expect(timers.size).toBe(2);
 
     manager.shutdownDetection();
