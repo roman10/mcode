@@ -56,6 +56,7 @@ interface TerminalPanelState {
   // Terminal lifecycle
   addTerminal(entry: TerminalEntry, tabGroupId?: string): void;
   removeTerminal(sessionId: string): void;
+  pruneTerminals(idsToRemove: Set<string>): void;
   activateTerminal(sessionId: string): void;
   updateTerminalLabel(sessionId: string, label: string): void;
 
@@ -267,6 +268,34 @@ export const useTerminalPanelStore = create<TerminalPanelState>((set, get) => ({
         activeTabGroupId,
         panelVisible,
       };
+    }),
+
+  pruneTerminals: (idsToRemove) =>
+    set((state) => {
+      if (idsToRemove.size === 0) return state;
+      const present = Object.keys(state.terminals).filter((id) => idsToRemove.has(id));
+      if (present.length === 0) return state;
+
+      const terminals: Record<string, TerminalEntry> = {};
+      for (const [id, entry] of Object.entries(state.terminals)) {
+        if (!idsToRemove.has(id)) terminals[id] = entry;
+      }
+
+      let tabGroups = state.tabGroups;
+      let splitTree = state.splitTree;
+      for (const id of present) {
+        ({ tabGroups, splitTree } = pruneTerminalFromGroups(tabGroups, splitTree, id));
+      }
+
+      let activeTabGroupId = state.activeTabGroupId;
+      if (activeTabGroupId && !tabGroups[activeTabGroupId]) {
+        const leafIds = collectLeafIds(splitTree);
+        activeTabGroupId = leafIds[0] ?? null;
+      }
+
+      const hasTerminals = Object.keys(terminals).length > 0;
+      const panelVisible = hasTerminals ? state.panelVisible : false;
+      return { terminals, tabGroups, splitTree, activeTabGroupId, panelVisible };
     }),
 
   activateTerminal: (sessionId) =>

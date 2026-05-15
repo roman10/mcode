@@ -37,6 +37,20 @@ export async function loadInitialData(signal: { cancelled: boolean }): Promise<v
   const allIds = new Set(allSessions.map((s) => s.sessionId));
   useLayoutStore.getState().pruneTiles(allIds);
 
+  // Drop bottom-panel terminals whose session is ended or gone. Terminals are
+  // killed on app quit (see main/index.ts before-quit) so restoring them as
+  // blank tabs would contradict the close-confirmation dialog. The mosaic
+  // ended-session prompt doesn't apply here — a shell has no resume semantics.
+  const sessionById = new Map(allSessions.map((s) => [s.sessionId, s]));
+  const panelTerminalIds = Object.keys(useTerminalPanelStore.getState().terminals);
+  const staleTerminals = new Set(
+    panelTerminalIds.filter((id) => {
+      const s = sessionById.get(id);
+      return !s || s.status === 'ended';
+    }),
+  );
+  useTerminalPanelStore.getState().pruneTerminals(staleTerminals);
+
   // Strip temporary file viewer tiles from previous session
   useLayoutStore.getState().stripFileTiles();
 
@@ -47,14 +61,16 @@ export async function loadInitialData(signal: { cancelled: boolean }): Promise<v
     for (const leaf of leaves) {
       const sid = sessionIdFromTileId(leaf);
       if (!sid) continue;
-      const sess = allSessions.find((s) => s.sessionId === sid);
+      const sess = sessionById.get(sid);
       if (sess?.sessionType === 'terminal') {
-        useTerminalPanelStore.getState().addTerminal({
-          sessionId: sid,
-          label: sess.label || 'Terminal',
-          cwd: sess.cwd,
-          repo: basename(sess.cwd),
-        });
+        if (sess.status !== 'ended') {
+          useTerminalPanelStore.getState().addTerminal({
+            sessionId: sid,
+            label: sess.label || 'Terminal',
+            cwd: sess.cwd,
+            repo: basename(sess.cwd),
+          });
+        }
         useLayoutStore.getState().removeTile(sid);
       }
     }

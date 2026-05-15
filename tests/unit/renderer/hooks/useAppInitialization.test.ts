@@ -16,6 +16,8 @@ const mockEditorLoad = vi.fn().mockResolvedValue(undefined);
 const mockAccountsRefresh = vi.fn().mockResolvedValue(undefined);
 const mockAccountsRefreshCli = vi.fn().mockResolvedValue(undefined);
 const mockAddTerminal = vi.fn();
+const mockPruneTerminals = vi.fn();
+let mockPanelTerminals: Record<string, unknown> = {};
 
 vi.mock('../../../../src/renderer/stores/session-store', () => ({
   useSessionStore: {
@@ -66,7 +68,11 @@ vi.mock('../../../../src/renderer/stores/accounts-store', () => ({
 
 vi.mock('../../../../src/renderer/stores/terminal-panel-store', () => ({
   useTerminalPanelStore: {
-    getState: vi.fn(() => ({ addTerminal: mockAddTerminal })),
+    getState: vi.fn(() => ({
+      addTerminal: mockAddTerminal,
+      pruneTerminals: mockPruneTerminals,
+      terminals: mockPanelTerminals,
+    })),
   },
 }));
 
@@ -95,6 +101,7 @@ describe('loadInitialData', () => {
     mockEditorLoad.mockResolvedValue(undefined);
     mockAccountsRefresh.mockResolvedValue(undefined);
     mockAccountsRefreshCli.mockResolvedValue(undefined);
+    mockPanelTerminals = {};
     (window.mcode.sessions.list as ReturnType<typeof vi.fn>).mockResolvedValue(mockSessions);
     (window.mcode.sessions.listExternal as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (window.mcode.hooks.getRuntime as ReturnType<typeof vi.fn>).mockResolvedValue(mockRuntime);
@@ -189,6 +196,61 @@ describe('loadInitialData', () => {
     await loadInitialData({ cancelled: false });
 
     expect(mockEditorLoad).toHaveBeenCalledOnce();
+  });
+
+  it('prunes ended bottom-panel terminals after layout restore', async () => {
+    mockPanelTerminals = {
+      't-ended': { sessionId: 't-ended', label: 'Old', cwd: '/x', repo: 'x' },
+      't-live': { sessionId: 't-live', label: 'New', cwd: '/y', repo: 'y' },
+      't-orphan': { sessionId: 't-orphan', label: 'Gone', cwd: '/z', repo: 'z' },
+    };
+    const sessions: SessionInfo[] = [
+      { sessionId: 't-ended', sessionType: 'terminal', status: 'ended' } as SessionInfo,
+      { sessionId: 't-live', sessionType: 'terminal', status: 'active' } as SessionInfo,
+    ];
+    (window.mcode.sessions.list as ReturnType<typeof vi.fn>).mockResolvedValue(sessions);
+
+    await loadInitialData({ cancelled: false });
+
+    expect(mockPruneTerminals).toHaveBeenCalledOnce();
+    const pruned = mockPruneTerminals.mock.calls[0][0] as Set<string>;
+    expect(pruned.has('t-ended')).toBe(true);
+    expect(pruned.has('t-orphan')).toBe(true);
+    expect(pruned.has('t-live')).toBe(false);
+  });
+
+  it('prunes ended agent sessions from the bottom panel too (orphan terminals)', async () => {
+    // A non-terminal session marked 'ended' that somehow appears in the
+    // panel snapshot should also be pruned — the panel is for terminals only.
+    mockPanelTerminals = {
+      'c-ended': { sessionId: 'c-ended', label: 'X', cwd: '/x', repo: 'x' },
+    };
+    const sessions: SessionInfo[] = [
+      { sessionId: 'c-ended', sessionType: 'claude', status: 'ended' } as SessionInfo,
+    ];
+    (window.mcode.sessions.list as ReturnType<typeof vi.fn>).mockResolvedValue(sessions);
+
+    await loadInitialData({ cancelled: false });
+
+    const pruned = mockPruneTerminals.mock.calls[0][0] as Set<string>;
+    expect(pruned.has('c-ended')).toBe(true);
+  });
+
+  it('passes an empty set to pruneTerminals when nothing is stale', async () => {
+    mockPanelTerminals = {
+      't-live': { sessionId: 't-live', label: 'New', cwd: '/y', repo: 'y' },
+    };
+    const sessions: SessionInfo[] = [
+      { sessionId: 't-live', sessionType: 'terminal', status: 'active' } as SessionInfo,
+    ];
+    (window.mcode.sessions.list as ReturnType<typeof vi.fn>).mockResolvedValue(sessions);
+
+    await loadInitialData({ cancelled: false });
+
+    // We still call it (no-op when empty), but the set should be empty.
+    expect(mockPruneTerminals).toHaveBeenCalledOnce();
+    const pruned = mockPruneTerminals.mock.calls[0][0] as Set<string>;
+    expect(pruned.size).toBe(0);
   });
 
   it('kicks off non-blocking accounts refresh', async () => {

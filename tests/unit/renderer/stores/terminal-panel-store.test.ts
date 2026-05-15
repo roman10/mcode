@@ -91,6 +91,80 @@ describe('terminal-panel-store', () => {
     });
   });
 
+  describe('pruneTerminals', () => {
+    it('is a no-op when set is empty', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      const before = useTerminalPanelStore.getState();
+
+      useTerminalPanelStore.getState().pruneTerminals(new Set());
+
+      expect(useTerminalPanelStore.getState()).toBe(before);
+    });
+
+    it('is a no-op when no IDs match', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      const before = useTerminalPanelStore.getState();
+
+      useTerminalPanelStore.getState().pruneTerminals(new Set(['nonexistent']));
+
+      expect(useTerminalPanelStore.getState()).toBe(before);
+    });
+
+    it('prunes one terminal from a multi-tab group, keeping the group', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'b' }));
+
+      useTerminalPanelStore.getState().pruneTerminals(new Set(['b']));
+
+      const state = useTerminalPanelStore.getState();
+      expect(Object.keys(state.terminals)).toEqual(['a']);
+      const group = Object.values(state.tabGroups)[0];
+      expect(group.terminalIds).toEqual(['a']);
+      expect(group.activeTerminalId).toBe('a');
+    });
+
+    it('removes the tab group and collapses the panel when pruning the only terminal', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+
+      useTerminalPanelStore.getState().pruneTerminals(new Set(['a']));
+
+      const state = useTerminalPanelStore.getState();
+      expect(state.terminals).toEqual({});
+      expect(state.tabGroups).toEqual({});
+      expect(state.splitTree).toBeNull();
+      expect(state.activeTabGroupId).toBeNull();
+      expect(state.panelVisible).toBe(false);
+    });
+
+    it('promotes the sibling tab group when pruning empties one side of a split', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      const leftGroupId = useTerminalPanelStore.getState().activeTabGroupId!;
+      const rightGroupId = useTerminalPanelStore.getState().splitTabGroup(leftGroupId, 'horizontal')!;
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'b' }), rightGroupId);
+
+      useTerminalPanelStore.getState().pruneTerminals(new Set(['b']));
+
+      const state = useTerminalPanelStore.getState();
+      expect(Object.keys(state.terminals)).toEqual(['a']);
+      expect(Object.keys(state.tabGroups)).toEqual([leftGroupId]);
+      expect(state.splitTree).toEqual({ type: 'leaf', tabGroupId: leftGroupId });
+      expect(state.activeTabGroupId).toBe(leftGroupId);
+    });
+
+    it('prunes multiple terminals across groups in one pass', () => {
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'b' }));
+      useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'c' }));
+
+      useTerminalPanelStore.getState().pruneTerminals(new Set(['a', 'c']));
+
+      const state = useTerminalPanelStore.getState();
+      expect(Object.keys(state.terminals)).toEqual(['b']);
+      const group = Object.values(state.tabGroups)[0];
+      expect(group.terminalIds).toEqual(['b']);
+    });
+  });
+
   describe('activateTerminal', () => {
     it('sets the active terminal in the group and expands panel', () => {
       useTerminalPanelStore.getState().addTerminal(makeEntry({ sessionId: 'a' }));
