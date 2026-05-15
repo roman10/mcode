@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLeaves } from 'react-mosaic-component';
 import { MosaicOverlayContext } from './MosaicLayout';
@@ -21,10 +21,18 @@ interface TileFactoryProps {
 function ClosableTileWrapper({ tileId, children }: { tileId: string; children: React.ReactNode }): React.JSX.Element {
   // File/diff tiles are stateful (CodeMirror edit/dirty state), so they must be
   // mounted exactly once and only have their DOM reparented. Mirrors
-  // TerminalTile: one Portal whose target switches between an in-tile anchor
-  // and the maximize overlay slot, so the editor subtree never remounts.
+  // TerminalTile: tileBody is portaled into one stable `host` (constant
+  // container → no React remount) and that host node is physically moved
+  // between the in-tile anchor and the maximize overlay slot.
   const contentRef = useRef<HTMLDivElement>(null);
   const [localTarget, setLocalTarget] = useState<HTMLDivElement | null>(null);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  if (hostRef.current === null) {
+    const el = document.createElement('div');
+    el.className = 'h-full w-full';
+    hostRef.current = el;
+  }
+  const host = hostRef.current;
   const removeAnyTile = useLayoutStore((s) => s.removeAnyTile);
   const persist = useLayoutStore((s) => s.persist);
   const isSelected = useLayoutStore((s) => s.selectedTileId === tileId);
@@ -87,6 +95,15 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
     useLayoutStore.getState().focusTile(tileId);
   };
 
+  // Move the stable host into whichever anchor is active. appendChild on an
+  // attached node relocates it without touching the React tree (no remount),
+  // before paint.
+  useLayoutEffect(() => {
+    if (portalTarget && host.parentElement !== portalTarget) {
+      portalTarget.appendChild(host);
+    }
+  }, [portalTarget, host]);
+
   // data-tile-id + tabIndex live on the portaled content so Cmd+[/]
   // focus-by-querySelector still works when the tile is in the overlay
   // (the outer wrapper is display:none there). Synthetic key/pointer events
@@ -98,7 +115,7 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
       onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
     >
-      <div ref={setLocalTarget} style={{ display: 'contents' }} />
+      <div ref={setLocalTarget} className="h-full w-full" />
       {portalTarget &&
         createPortal(
           <div
@@ -111,7 +128,7 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
               {children}
             </TileChromeContext.Provider>
           </div>,
-          portalTarget,
+          host,
         )}
     </div>
   );

@@ -49,7 +49,12 @@ export function installAtlasRecoveryListeners(): () => void {
     pendingWake = window.setTimeout(() => {
       pendingWake = 0;
       requestRecreateAllWebgl();
-      clearAllAtlasesThrottled(0);
+      const count = clearAllAtlasesThrottled(0);
+      // One-liner naming the trigger: makes the otherwise-invisible recovery
+      // observable (and assertable in tests — see wake-recovery.test.ts).
+      console.log(
+        `[atlas-recovery] wake — recreated WebGL + cleared atlas on ${count} terminal${count === 1 ? '' : 's'}`,
+      );
     }, WAKE_DEBOUNCE_MS);
   };
   const unsubWake = window.mcode?.app?.onWake?.(onWake);

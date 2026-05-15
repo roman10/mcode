@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLeaves } from 'react-mosaic-component';
 import { useShallow } from 'zustand/react/shallow';
@@ -23,10 +23,23 @@ interface TerminalTileProps {
 
 function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Stable portal target inside this tile. The Portal's children render here
-  // when not maximized; switching the target between this and the overlay
-  // (maximize) reparents the DOM without remounting React subtree.
+  // The in-tile DOM anchor. The stable host (below) is appended here when the
+  // tile is not maximized, and moved to the overlay slot when it is.
   const [localTarget, setLocalTarget] = useState<HTMLDivElement | null>(null);
+  // One stable host element, created once and never replaced. tileBody is
+  // ALWAYS portaled into this same node (constant containerInfo), then the
+  // node itself is physically moved between the in-tile anchor and the
+  // maximize overlay slot via appendChild. React remounts a portal's subtree
+  // when its container changes, so swapping createPortal targets directly
+  // would dispose the xterm Terminal / FitAddon / WebGL atlas every cycle;
+  // keeping the container fixed and moving the DOM node preserves them.
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  if (hostRef.current === null) {
+    const el = document.createElement('div');
+    el.className = 'h-full w-full';
+    hostRef.current = el;
+  }
+  const host = hostRef.current;
   const removeTile = useLayoutStore((s) => s.removeTile);
   const persist = useLayoutStore((s) => s.persist);
   const { status, sessionType, hookMode, scrollbackLines } = useSessionStore(
@@ -237,10 +250,10 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     </>
   );
 
-  // tileBody lives inside a single Portal whose target switches between an
-  // in-tile anchor and the maximize overlay. React reparents a Portal's DOM
-  // when only its containerInfo changes — children stay mounted — so the
-  // xterm Terminal, FitAddon, WebGL atlas, and broker offset survive every
+  // tileBody is portaled into the stable `host` (constant container → React
+  // never remounts the subtree), and `host` is physically reparented between
+  // the in-tile anchor and the maximize overlay slot. The xterm Terminal,
+  // FitAddon, WebGL atlas, and broker offset therefore survive every
   // maximize/restore cycle. Synthetic events bubble through the React tree,
   // so the outer wrapper's pointer/keyboard/drag handlers still fire on
   // portaled content; no need to duplicate them on the inner div.
@@ -249,10 +262,20 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const hideWrapper = isHiddenByMaximize || inOverlay;
   const portalTarget = inOverlay ? overlaySlot : localTarget;
 
+  // Move the stable host into whichever anchor is active. appendChild on an
+  // attached node relocates it without affecting the React tree, so no
+  // remount. useLayoutEffect runs before paint, avoiding a flash of the
+  // terminal at the old location.
+  useLayoutEffect(() => {
+    if (portalTarget && host.parentElement !== portalTarget) {
+      portalTarget.appendChild(host);
+    }
+  }, [portalTarget, host]);
+
   return (
     <div
       ref={containerRef}
-      className={wrapperClassName}
+      className="relative h-full w-full"
       style={hideWrapper ? { display: 'none' } : undefined}
       tabIndex={-1}
       onPointerDown={handleFocus}
@@ -262,20 +285,10 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Stable in-tile portal anchor. display:contents so its children are
-          layout children of the outer wrapper, preserving the flex-column
-          arrangement of toolbar / task panel / terminal. */}
-      <div ref={setLocalTarget} style={{ display: 'contents' }} />
+      {/* In-tile anchor that hosts the stable element while not maximized. */}
+      <div ref={setLocalTarget} className="h-full w-full" />
       {portalTarget &&
-        createPortal(
-          <div
-            className={inOverlay ? wrapperClassName : undefined}
-            style={inOverlay ? undefined : { display: 'contents' }}
-          >
-            {tileBody}
-          </div>,
-          portalTarget,
-        )}
+        createPortal(<div className={wrapperClassName}>{tileBody}</div>, host)}
     </div>
   );
 }
