@@ -1,4 +1,7 @@
-import { useRef, useEffect } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { getLeaves } from 'react-mosaic-component';
+import { MosaicOverlayContext } from './MosaicLayout';
 import { useLayoutStore } from '../../stores/layout-store';
 import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId } from '../../utils/tile-id';
 import { useSessionStore } from '../../stores/session-store';
@@ -15,20 +18,41 @@ interface TileFactoryProps {
 }
 
 function ClosableTileWrapper({ tileId, children }: { tileId: string; children: React.ReactNode }): React.JSX.Element {
-  const ref = useRef<HTMLDivElement>(null);
+  // File/diff tiles are stateful (CodeMirror edit/dirty state), so they must be
+  // mounted exactly once and only have their DOM reparented. Mirrors
+  // TerminalTile: one Portal whose target switches between an in-tile anchor
+  // and the maximize overlay slot, so the editor subtree never remounts.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [localTarget, setLocalTarget] = useState<HTMLDivElement | null>(null);
   const removeAnyTile = useLayoutStore((s) => s.removeAnyTile);
   const persist = useLayoutStore((s) => s.persist);
   const isSelected = useLayoutStore((s) => s.selectedTileId === tileId);
+  const isInMaximized = useLayoutStore(
+    (s) => s.maximizedTree != null && getLeaves(s.maximizedTree).includes(tileId),
+  );
+  const overlayActive = useLayoutStore((s) => s.maximizedTree != null);
+  const overlayRegistry = useContext(MosaicOverlayContext);
+  const overlaySlot =
+    isInMaximized && overlayRegistry ? overlayRegistry.getSlot(tileId) : null;
 
+  const inOverlay = isInMaximized && overlaySlot !== null;
+  const hideWrapper = (overlayActive && !isInMaximized) || inOverlay;
+  const portalTarget = inOverlay ? overlaySlot : localTarget;
+
+  // contentRef lives inside the Portal, so it's null until `portalTarget`
+  // resolves (one render after mount) and changes again on overlay enter/exit.
+  // Keying the mount-focus on portalTarget focuses once the content actually
+  // attaches — re-focusing it as it follows the tile in/out of the overlay —
+  // instead of on a still-null ref on the first render.
   useEffect(() => {
-    ref.current?.focus();
-  }, []);
+    contentRef.current?.focus();
+  }, [portalTarget]);
 
   useEffect(() => {
     if (isSelected) {
-      ref.current?.focus();
+      contentRef.current?.focus();
     }
-  }, [isSelected]);
+  }, [isSelected, portalTarget]);
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     const mod = isMac ? e.metaKey : e.ctrlKey;
@@ -44,16 +68,30 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
     useLayoutStore.getState().focusTile(tileId);
   };
 
+  // data-tile-id + tabIndex live on the portaled content so Cmd+[/]
+  // focus-by-querySelector still works when the tile is in the overlay
+  // (the outer wrapper is display:none there). Synthetic key/pointer events
+  // bubble through the React tree, so the outer handlers still fire.
   return (
     <div
-      ref={ref}
-      className={`h-full w-full outline-none border-t-2 transition-colors ${isSelected ? 'border-t-accent' : 'border-t-transparent'}`}
-      tabIndex={-1}
+      className="h-full w-full"
+      style={hideWrapper ? { display: 'none' } : undefined}
       onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
-      data-tile-id={tileId}
     >
-      {children}
+      <div ref={setLocalTarget} style={{ display: 'contents' }} />
+      {portalTarget &&
+        createPortal(
+          <div
+            ref={contentRef}
+            className={`h-full w-full outline-none border-t-2 transition-colors ${isSelected ? 'border-t-accent' : 'border-t-transparent'}`}
+            tabIndex={-1}
+            data-tile-id={tileId}
+          >
+            {children}
+          </div>,
+          portalTarget,
+        )}
     </div>
   );
 }

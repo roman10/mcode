@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { getLeaves } from 'react-mosaic-component';
 import { useShallow } from 'zustand/react/shallow';
 import TerminalToolbar from './TerminalToolbar';
 import TileTaskPanel from './TileTaskPanel';
@@ -49,18 +50,23 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   const isFocused = useSessionStore((s) => s.selectedSessionId === sessionId);
   const viewMode = useLayoutStore((s) => s.viewMode);
   const myTileId = `session:${sessionId}`;
-  const maximizedTileId = useLayoutStore((s) => s.maximizedTileId);
+  const isInMaximized = useLayoutStore(
+    (s) => s.maximizedTree != null && getLeaves(s.maximizedTree).includes(myTileId),
+  );
+  const overlayActive = useLayoutStore((s) => s.maximizedTree != null);
   const kanbanExpandedSessionId = useLayoutStore((s) => s.kanbanExpandedSessionId);
   const isMaximized =
-    viewMode === 'kanban'
-      ? kanbanExpandedSessionId !== null
-      : maximizedTileId === myTileId;
-  // In tiles mode, when another tile is maximized this tile is hidden under
-  // the overlay; we keep it mounted but apply display:none so xterm's renderer
-  // skips paint without triggering the isVisible-driven dispose / detach paths.
-  const isHiddenByMaximize =
-    viewMode !== 'kanban' && maximizedTileId !== null && maximizedTileId !== myTileId;
-  const overlayEl = useContext(MosaicOverlayContext);
+    viewMode === 'kanban' ? kanbanExpandedSessionId !== null : isInMaximized;
+  // In tiles mode, when the overlay is up but this tile isn't part of it, the
+  // tile is hidden behind the overlay; keep it mounted but display:none so
+  // xterm's renderer skips paint without the isVisible dispose / detach paths.
+  const isHiddenByMaximize = viewMode !== 'kanban' && overlayActive && !isInMaximized;
+  const overlayRegistry = useContext(MosaicOverlayContext);
+  // Reads the latest slot once the overlay <Mosaic> has mounted it. The
+  // registry's identity changes on each (de)registration, re-rendering this
+  // tile so it picks up its slot one render after the overlay appears.
+  const overlaySlot =
+    isInMaximized && overlayRegistry ? overlayRegistry.getSlot(myTileId) : null;
 
   const handleClose = (): void => {
     if (viewMode === 'kanban') {
@@ -81,7 +87,7 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
         store.expandKanbanSession(sessionId);
       }
     } else {
-      if (store.maximizedTileId) {
+      if (store.maximizedTree) {
         store.restoreFromMaximize();
       } else {
         store.maximize(sessionId);
@@ -239,9 +245,9 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   // so the outer wrapper's pointer/keyboard/drag handlers still fire on
   // portaled content; no need to duplicate them on the inner div.
   const wrapperClassName = `relative flex flex-col h-full w-full bg-bg-primary outline-none border-t-2 transition-colors ${isFocused ? 'border-t-accent' : 'border-t-transparent'}`;
-  const inOverlay = isMaximized && overlayEl !== null;
+  const inOverlay = isMaximized && overlaySlot !== null;
   const hideWrapper = isHiddenByMaximize || inOverlay;
-  const portalTarget = inOverlay ? overlayEl : localTarget;
+  const portalTarget = inOverlay ? overlaySlot : localTarget;
 
   return (
     <div

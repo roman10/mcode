@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getLeaves } from 'react-mosaic-component';
 import { Terminal, type IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { useShallow } from 'zustand/react/shallow';
@@ -122,9 +123,13 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     return () => { stale = true; };
   }, [cwd]);
   const panelHeight = useTerminalPanelStore((s) => s.panelHeight);
-  const { mosaicTree, maximizedTileId } = useLayoutStore(useShallow((s) => ({
+  // Stable string key of the overlay's leaves: changes on enter / leave /
+  // split but NOT on every overlay drag-resize (those object-identity changes
+  // would thrash scheduleRefit; the ResizeObserver already covers pure resize).
+  const { mosaicTree, maximizedKey } = useLayoutStore(useShallow((s) => ({
     mosaicTree: s.mosaicTree,
-    maximizedTileId: s.maximizedTileId,
+    maximizedKey:
+      s.maximizedTree == null ? '' : getLeaves(s.maximizedTree).slice().sort().join(','),
   })));
   const [sessionStatus, attentionReason] = useSessionStore(
     useShallow((s) => [
@@ -146,13 +151,13 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
   // layout transitions, but Electron's render loop can drop those callbacks
   // when the window isn't actively painting. Subscribing directly to the
   // layout state guarantees fit() runs on every maximize / restore / split.
-  // maximizedTileId drives the overlay portal in MosaicLayout — when it flips
-  // the maximized tile's container changes size (mosaic pane → overlay layer
-  // bounds and back), so we must re-fit on that transition too.
+  // maximizedKey drives the overlay portal in MosaicLayout — when a tile enters
+  // or leaves the overlay (or the overlay splits) its container changes size
+  // (mosaic pane → overlay slot bounds and back), so we re-fit on that too.
   useEffect(() => {
     if (!shouldMount) return;
     scheduleRefit();
-  }, [mosaicTree, maximizedTileId, scheduleRefit, shouldMount]);
+  }, [mosaicTree, maximizedKey, scheduleRefit, shouldMount]);
 
   // TileTaskPanel inserts the plan-mode "Needs response" banner (and the panel
   // wrapper itself, if no tasks were queued) when the session transitions to

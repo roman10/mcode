@@ -67,11 +67,13 @@ interface LayoutState {
   kanbanSplitRatio: number; // transient, 0-1, default 0.5
   sessionFilterQuery: string; // transient, not persisted
   splitIntent: SplitIntent | null;
-  /** Transient overlay state. Non-null = a tile is maximized as a fullscreen
-   *  overlay above the (still-rendered) mosaic. `mosaicTree` is unaffected by
-   *  maximize/restore so every TerminalInstance stays mounted across the
-   *  cycle, preserving xterm Terminals, WebGL atlases, and broker offsets. */
-  maximizedTileId: string | null;
+  /** Transient overlay tree. Non-null = an overlay Mosaic above the (still
+   *  rendered) background `mosaicTree`. Starts as a single leaf (the maximized
+   *  tile); splitting while expanded splices new leaves in. `mosaicTree` always
+   *  receives the same leaves so restore is consistent and no TerminalInstance
+   *  ever unmounts (xterm Terminals, WebGL atlases, broker offsets preserved).
+   *  Never persisted. */
+  maximizedTree: MosaicNode<string> | null;
   pendingFileLine: { path: string; line: number } | null;
   /** Tracks the focused tile ID (session, file, or diff viewer). Transient, not persisted. */
   selectedTileId: string | null;
@@ -107,6 +109,7 @@ interface LayoutState {
   removeDiffTile(absolutePath: string): void;
   maximize(sessionId: string): void;
   restoreFromMaximize(): void;
+  setMaximizedTree(tree: MosaicNode<string> | null): void;
   removeAnyTile(tileId: string): void;
   persist(): void;
   flushPersist(): void;
@@ -242,6 +245,36 @@ function pruneTree(
   return node;
 }
 
+/** Splice a new leaf into the transient overlay tree the same way it lands in
+ *  mosaicTree: adjacent to an anchor when one is given and present, else
+ *  balanced. Returns the tree unchanged when the overlay is inactive (null) or
+ *  the leaf is already present. */
+function spliceIntoOverlay(
+  tree: MosaicNode<string> | null,
+  newLeaf: string,
+  opts?: { anchor?: string; direction?: 'row' | 'column' },
+): MosaicNode<string> | null {
+  if (!tree) return tree;
+  const leaves = getLeaves(tree);
+  if (leaves.includes(newLeaf)) return tree;
+  if (opts?.anchor && opts.direction && leaves.includes(opts.anchor)) {
+    return insertAdjacentLeaf(tree, opts.anchor, newLeaf, opts.direction);
+  }
+  return createBalancedTreeFromLeaves([...leaves, newLeaf]) ?? newLeaf;
+}
+
+/** Remove a leaf from the overlay tree, handling the single-leaf (string) case.
+ *  removeLeaf already collapses single-child splits, so removing one of two
+ *  overlay tiles yields a single-leaf tree (still maximized on the survivor). */
+function removeFromOverlay(
+  tree: MosaicNode<string> | null,
+  target: string,
+): MosaicNode<string> | null {
+  if (!tree) return tree;
+  if (typeof tree === 'string') return tree === target ? null : tree;
+  return removeLeaf(tree, target);
+}
+
 export const useLayoutStore = create<LayoutState>((set, get) => ({
   mosaicTree: null,
   sidebarWidth: 280,
@@ -255,7 +288,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   kanbanSplitRatio: 0.5,
   sessionFilterQuery: '',
   splitIntent: null,
-  maximizedTileId: null,
+  maximizedTree: null,
   pendingFileLine: null,
   selectedTileId: null,
 
@@ -273,7 +306,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const current = state.mosaicTree;
 
       if (!current) {
-        return { mosaicTree: newTile };
+        return {
+          mosaicTree: newTile,
+          maximizedTree: spliceIntoOverlay(state.maximizedTree, newTile),
+        };
       }
 
       // Check if tile already exists
@@ -286,7 +322,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const allLeaves = [...leaves, newTile];
       const newMosaicTree = createBalancedTreeFromLeaves(allLeaves) ?? newTile;
 
-      return { mosaicTree: newMosaicTree };
+      // While expanded, mirror the new tile into the overlay so it splits the
+      // expanded surface instead of burying in the hidden background tree.
+      return {
+        mosaicTree: newMosaicTree,
+        maximizedTree: spliceIntoOverlay(state.maximizedTree, newTile),
+      };
     }),
 
   addTileAdjacent: (anchorSessionId, newSessionId, direction) =>
@@ -296,7 +337,13 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const current = state.mosaicTree;
 
       if (!current) {
-        return { mosaicTree: newTile };
+        return {
+          mosaicTree: newTile,
+          maximizedTree: spliceIntoOverlay(state.maximizedTree, newTile, {
+            anchor: anchorTile,
+            direction,
+          }),
+        };
       }
 
       // Check if new tile already exists
@@ -314,7 +361,14 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         newMosaicTree = insertAdjacentLeaf(current, anchorTile, newTile, direction);
       }
 
-      return { mosaicTree: newMosaicTree };
+      // While expanded, split the overlay adjacent to the anchor too.
+      return {
+        mosaicTree: newMosaicTree,
+        maximizedTree: spliceIntoOverlay(state.maximizedTree, newTile, {
+          anchor: anchorTile,
+          direction,
+        }),
+      };
     }),
 
   removeTile: (sessionId) =>
@@ -323,31 +377,32 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const current = state.mosaicTree;
       if (!current) return state;
 
-      // If the removed tile was the maximized overlay, lift the overlay too —
-      // otherwise we'd leave a stale maximizedTileId pointing at a tile that
-      // no longer exists in the tree.
-      const liftMaximize = state.maximizedTileId === target;
+      // Drop the tile from the overlay too. removeFromOverlay collapses a
+      // two-tile overlay to the survivor (stays maximized) and clears it when
+      // the maximized tile itself goes away, so the overlay never desyncs.
+      const nextMax = removeFromOverlay(state.maximizedTree, target);
 
       if (typeof current === 'string') {
         if (current !== target) return state;
-        return liftMaximize
-          ? { mosaicTree: null, maximizedTileId: null }
-          : { mosaicTree: null };
+        return { mosaicTree: null, maximizedTree: nextMax };
       }
 
-      const newMosaicTree = removeLeaf(current, target);
-      return liftMaximize
-        ? { mosaicTree: newMosaicTree, maximizedTileId: null }
-        : { mosaicTree: newMosaicTree };
+      return { mosaicTree: removeLeaf(current, target), maximizedTree: nextMax };
     }),
 
-  removeAllTiles: () => set({ mosaicTree: null, maximizedTileId: null }),
+  removeAllTiles: () => set({ mosaicTree: null, maximizedTree: null }),
 
   replaceTile: (oldSessionId, newSessionId) =>
     set((state) => {
       if (!state.mosaicTree) return state;
+      const oldTile = tileId(oldSessionId);
+      const newTile = tileId(newSessionId);
       return {
-        mosaicTree: replaceLeaf(state.mosaicTree, tileId(oldSessionId), tileId(newSessionId)),
+        mosaicTree: replaceLeaf(state.mosaicTree, oldTile, newTile),
+        // Keep the overlay leaf valid across a CLI handoff while expanded.
+        maximizedTree: state.maximizedTree
+          ? replaceLeaf(state.maximizedTree, oldTile, newTile)
+          : state.maximizedTree,
       };
     }),
 
@@ -383,7 +438,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       // kanbanExpandedSessionId — otherwise switching to kanban and back
       // would flash the tile briefly in its mosaic pane before re-portaling
       // into the overlay on the second render.
-      maximizedTileId: null,
+      maximizedTree: null,
     });
     window.mcode.preferences.set('viewMode', mode).catch(console.error);
   },
@@ -441,7 +496,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const current = state.mosaicTree;
 
       if (!current) {
-        return { mosaicTree: newTile };
+        return {
+          mosaicTree: newTile,
+          maximizedTree: spliceIntoOverlay(state.maximizedTree, newTile),
+        };
       }
 
       // If tile already exists, don't duplicate
@@ -453,6 +511,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const allLeaves = [...leaves, newTile];
       return {
         mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
+        // Opening a file while expanded splits the expanded surface too.
+        maximizedTree: spliceIntoOverlay(state.maximizedTree, newTile),
       };
     });
     get().focusTile(newTile);
@@ -475,8 +535,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((state) => {
       const target = fileTileId(absolutePath);
       if (!state.mosaicTree) return state;
-      const result = removeLeaf(state.mosaicTree, target);
-      return { mosaicTree: result };
+      return {
+        mosaicTree: removeLeaf(state.mosaicTree, target),
+        maximizedTree: removeFromOverlay(state.maximizedTree, target),
+      };
     });
   },
 
@@ -493,7 +555,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const current = state.mosaicTree;
 
       if (!current) {
-        return { mosaicTree: newTile };
+        return {
+          mosaicTree: newTile,
+          maximizedTree: spliceIntoOverlay(state.maximizedTree, newTile),
+        };
       }
 
       const leaves = getLeaves(current);
@@ -504,6 +569,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const allLeaves = [...leaves, newTile];
       return {
         mosaicTree: createBalancedTreeFromLeaves(allLeaves) ?? newTile,
+        // Opening a diff while expanded splits the expanded surface too.
+        maximizedTree: spliceIntoOverlay(state.maximizedTree, newTile),
       };
     });
     get().focusTile(newTile);
@@ -513,8 +580,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((state) => {
       const target = diffTileId(absolutePath);
       if (!state.mosaicTree) return state;
-      const result = removeLeaf(state.mosaicTree, target);
-      return { mosaicTree: result };
+      return {
+        mosaicTree: removeLeaf(state.mosaicTree, target),
+        maximizedTree: removeFromOverlay(state.maximizedTree, target),
+      };
     });
   },
 
@@ -559,22 +628,24 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       return { mosaicTree: result };
     }),
 
-  // Maximize is a CSS overlay, not a tree restructure. The mosaic stays mounted
-  // underneath; only the overlay layer above it shows the maximized tile via a
-  // React Portal in MosaicLayout. Keeping every TerminalInstance mounted across
-  // the cycle preserves xterm Terminals, WebGL atlases, and broker offsets.
-  maximize: (sessionId) => set({ maximizedTileId: tileId(sessionId) }),
+  // Maximize is a CSS overlay, not a tree restructure. The background mosaic
+  // stays mounted underneath; the overlay layer above it renders maximizedTree
+  // (a single leaf, or a split once you add a tile while expanded) via React
+  // Portals in MosaicLayout. Keeping every tile mounted across the cycle
+  // preserves xterm Terminals, WebGL atlases, broker offsets, and editor state.
+  maximize: (sessionId) => set({ maximizedTree: tileId(sessionId) }),
 
-  restoreFromMaximize: () => set({ maximizedTileId: null }),
+  restoreFromMaximize: () => set({ maximizedTree: null }),
+
+  setMaximizedTree: (tree) => set({ maximizedTree: tree }),
 
   removeAnyTile: (tileId) =>
     set((state) => {
       if (!state.mosaicTree) return state;
-      const liftMaximize = state.maximizedTileId === tileId;
-      const result = removeLeaf(state.mosaicTree, tileId);
-      return liftMaximize
-        ? { mosaicTree: result, maximizedTileId: null }
-        : { mosaicTree: result };
+      return {
+        mosaicTree: removeLeaf(state.mosaicTree, tileId),
+        maximizedTree: removeFromOverlay(state.maximizedTree, tileId),
+      };
     }),
 
   persist: () => {
@@ -646,14 +717,18 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((state) => {
       if (!state.mosaicTree) return state;
       const pruned = pruneTree(state.mosaicTree, liveSessionIds);
-      // If the maximized tile's session was pruned, drop the overlay too —
-      // otherwise maximizedTileId points at a tile that no longer exists.
-      const maxSessionId = state.maximizedTileId
-        ? sessionIdFromTileId(state.maximizedTileId)
-        : null;
-      const liftMaximize = maxSessionId !== null && !liveSessionIds.has(maxSessionId);
-      return liftMaximize
-        ? { mosaicTree: pruned, maximizedTileId: null }
-        : { mosaicTree: pruned };
+      // Prune dead sessions out of the overlay too. A single-leaf overlay
+      // pointing at a dead session collapses to null (overlay lifts); a split
+      // collapses to the surviving tile (stays maximized).
+      let nextMax = state.maximizedTree;
+      if (nextMax) {
+        if (typeof nextMax === 'string') {
+          const sid = sessionIdFromTileId(nextMax);
+          nextMax = sid !== null && !liveSessionIds.has(sid) ? null : nextMax;
+        } else {
+          nextMax = pruneTree(nextMax, liveSessionIds);
+        }
+      }
+      return { mosaicTree: pruned, maximizedTree: nextMax };
     }),
 }));

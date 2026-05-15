@@ -13,7 +13,7 @@ vi.mock('../../../../src/renderer/stores/session-store', () => ({
 }));
 
 // Setup window.mcode mock
-setupMcodeMock();
+const mockMcode = setupMcodeMock();
 
 const { useLayoutStore, migrateTab } = await import(
   '../../../../src/renderer/stores/layout-store'
@@ -35,6 +35,13 @@ function countTiles(): number {
   return getLeafIds().length;
 }
 
+function getMaxLeaves(): string[] {
+  const t = useLayoutStore.getState().maximizedTree;
+  if (!t) return [];
+  if (typeof t === 'string') return [t];
+  return getLeaves(t);
+}
+
 describe('layout-store', () => {
   beforeEach(() => {
     mockSelectSession.mockClear();
@@ -49,7 +56,7 @@ describe('layout-store', () => {
       kanbanActiveFile: null,
       kanbanSplitRatio: 0.5,
       splitIntent: null,
-      maximizedTileId: null,
+      maximizedTree: null,
       pendingFileLine: null,
       selectedTileId: null,
     });
@@ -192,7 +199,7 @@ describe('layout-store', () => {
       useLayoutStore.getState().addTile('s3');
 
       useLayoutStore.getState().maximize('s2');
-      // maximizedTileId is now 'session:s2'; mosaicTree still has {s1, s2, s3}
+      // maximizedTree is now 'session:s2'; mosaicTree still has {s1, s2, s3}
 
       useLayoutStore.getState().removeTile('s2');
 
@@ -203,7 +210,7 @@ describe('layout-store', () => {
       expect(getLeafIds()).toContain('session:s1');
       expect(getLeafIds()).toContain('session:s3');
       expect(getLeafIds()).not.toContain('session:s2');
-      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+      expect(useLayoutStore.getState().maximizedTree).toBeNull();
     });
 
     it('sets tree to null and lifts maximize when removing the last (maximized) session', () => {
@@ -212,7 +219,7 @@ describe('layout-store', () => {
       useLayoutStore.getState().removeTile('s1');
 
       expect(getTree()).toBeNull();
-      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+      expect(useLayoutStore.getState().maximizedTree).toBeNull();
     });
 
     it('leaves maximize untouched when removing a non-maximized tile', () => {
@@ -223,7 +230,7 @@ describe('layout-store', () => {
 
       useLayoutStore.getState().removeTile('s1');
 
-      expect(useLayoutStore.getState().maximizedTileId).toBe('session:s2');
+      expect(useLayoutStore.getState().maximizedTree).toBe('session:s2');
       const leaves = getLeafIds();
       expect(leaves).toContain('session:s2');
       expect(leaves).toContain('session:s3');
@@ -298,20 +305,20 @@ describe('layout-store', () => {
   });
 
   describe('maximize and restore', () => {
-    it('sets maximizedTileId without touching the tree (overlay model)', () => {
+    it('sets maximizedTree to a single leaf without touching the tree', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       const beforeTree = getTree();
 
       useLayoutStore.getState().maximize('s1');
 
-      // Tree is preserved so every TerminalInstance stays mounted across the
-      // cycle. The overlay is driven entirely by maximizedTileId.
+      // Background tree is preserved so every TerminalInstance stays mounted
+      // across the cycle. The overlay is driven entirely by maximizedTree.
       expect(getTree()).toEqual(beforeTree);
-      expect(useLayoutStore.getState().maximizedTileId).toBe('session:s1');
+      expect(useLayoutStore.getState().maximizedTree).toBe('session:s1');
     });
 
-    it('clears maximizedTileId on restore (tree was never changed)', () => {
+    it('clears maximizedTree on restore (tree was never changed)', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       const beforeTree = getTree();
@@ -320,10 +327,10 @@ describe('layout-store', () => {
       useLayoutStore.getState().restoreFromMaximize();
 
       expect(getTree()).toEqual(beforeTree);
-      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+      expect(useLayoutStore.getState().maximizedTree).toBeNull();
     });
 
-    it('adds new tile to mosaicTree while maximized; maximizedTileId untouched', () => {
+    it('addTile while maximized splices into maximizedTree (split-while-expanded)', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       useLayoutStore.getState().addTile('s3');
@@ -331,17 +338,50 @@ describe('layout-store', () => {
 
       useLayoutStore.getState().addTile('s4');
 
-      // All tiles live in the single tree; the new one sits hidden under
-      // the overlay until the user restores.
+      // The new tile splits the expanded surface (overlay = s1 + s4), and the
+      // background tree still has everything so restore stays consistent.
+      const maxLeaves = getMaxLeaves();
+      expect(maxLeaves).toContain('session:s1');
+      expect(maxLeaves).toContain('session:s4');
+      expect(maxLeaves).not.toContain('session:s2');
+      expect(maxLeaves).not.toContain('session:s3');
       const leaves = getLeafIds();
-      expect(leaves).toContain('session:s1');
-      expect(leaves).toContain('session:s2');
-      expect(leaves).toContain('session:s3');
-      expect(leaves).toContain('session:s4');
-      expect(useLayoutStore.getState().maximizedTileId).toBe('session:s1');
+      expect(leaves).toEqual(
+        expect.arrayContaining([
+          'session:s1',
+          'session:s2',
+          'session:s3',
+          'session:s4',
+        ]),
+      );
     });
 
-    it('restoring after adding tiles while maximized exposes them all', () => {
+    it('addTileAdjacent while maximized splits the overlay adjacent to anchor', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addTile('s2');
+      useLayoutStore.getState().maximize('s1');
+
+      useLayoutStore.getState().addTileAdjacent('s1', 's3', 'row');
+
+      const max = useLayoutStore.getState().maximizedTree;
+      expect(typeof max).toBe('object');
+      expect(getMaxLeaves().sort()).toEqual(['session:s1', 'session:s3']);
+    });
+
+    it('addFileViewer / addDiffViewer while maximized splice into the overlay', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().maximize('s1');
+
+      useLayoutStore.getState().addFileViewer('/a.ts');
+      useLayoutStore.getState().addDiffViewer('/b.ts');
+
+      const maxLeaves = getMaxLeaves();
+      expect(maxLeaves).toContain('session:s1');
+      expect(maxLeaves).toContain('file:/a.ts');
+      expect(maxLeaves).toContain('diff:/b.ts');
+    });
+
+    it('restoring after split-while-expanded exposes them all in mosaicTree', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       useLayoutStore.getState().maximize('s1');
@@ -353,19 +393,46 @@ describe('layout-store', () => {
       expect(leaves).toContain('session:s1');
       expect(leaves).toContain('session:s2');
       expect(leaves).toContain('session:s3');
-      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+      expect(useLayoutStore.getState().maximizedTree).toBeNull();
     });
 
-    it('removeAnyTile lifts maximize when removing the maximized tile', () => {
+    it('closing one of two expanded tiles collapses to single maximized', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().maximize('s1');
+      useLayoutStore.getState().addTile('s2');
+      // Overlay now has s1 + s2.
+      expect(getMaxLeaves().sort()).toEqual(['session:s1', 'session:s2']);
+
+      useLayoutStore.getState().removeTile('s1');
+
+      // Collapses to the survivor — still maximized, not lifted.
+      expect(useLayoutStore.getState().maximizedTree).toBe('session:s2');
+    });
+
+    it('removeAnyTile lifts maximize when removing the only maximized tile', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().addTile('s2');
       useLayoutStore.getState().maximize('s1');
 
       useLayoutStore.getState().removeAnyTile('session:s1');
 
-      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+      expect(useLayoutStore.getState().maximizedTree).toBeNull();
       expect(getLeafIds()).not.toContain('session:s1');
       expect(getLeafIds()).toContain('session:s2');
+    });
+
+    it('persist() does not serialize maximizedTree', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().maximize('s1');
+      mockMcode.layout.save.mockClear();
+
+      useLayoutStore.getState().flushPersist();
+
+      expect(mockMcode.layout.save).toHaveBeenCalledTimes(1);
+      const args = mockMcode.layout.save.mock.calls[0];
+      // Saved positional args: (mosaicTree, sidebarWidth, sidebarCollapsed,
+      // activeSidebarTab, terminalPanelState) — none carry maximizedTree.
+      expect(JSON.stringify(args)).not.toContain('maximizedTree');
     });
   });
 
@@ -393,6 +460,28 @@ describe('layout-store', () => {
     it('no-ops when tree is null', () => {
       useLayoutStore.getState().pruneTiles(new Set(['s1']));
       expect(getTree()).toBeNull();
+    });
+
+    it('prunes a dead session out of a split overlay (collapses to survivor)', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().maximize('s1');
+      useLayoutStore.getState().addTile('s2');
+      expect(getMaxLeaves().sort()).toEqual(['session:s1', 'session:s2']);
+
+      useLayoutStore.getState().pruneTiles(new Set(['s2']));
+
+      expect(useLayoutStore.getState().maximizedTree).toBe('session:s2');
+      expect(getLeafIds()).not.toContain('session:s1');
+    });
+
+    it('clears a single-leaf overlay when its session is pruned', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addTile('s2');
+      useLayoutStore.getState().maximize('s1');
+
+      useLayoutStore.getState().pruneTiles(new Set(['s2']));
+
+      expect(useLayoutStore.getState().maximizedTree).toBeNull();
     });
   });
 
@@ -465,7 +554,7 @@ describe('layout-store', () => {
 
       useLayoutStore.getState().setViewMode('kanban');
 
-      expect(useLayoutStore.getState().maximizedTileId).toBeNull();
+      expect(useLayoutStore.getState().maximizedTree).toBeNull();
     });
   });
 
