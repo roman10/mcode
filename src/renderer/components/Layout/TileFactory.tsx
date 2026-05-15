@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLeaves } from 'react-mosaic-component';
 import { MosaicOverlayContext } from './MosaicLayout';
@@ -6,6 +6,7 @@ import { useLayoutStore } from '../../stores/layout-store';
 import { sessionIdFromTileId, filePathFromTileId, diffPathFromTileId, commitDiffFromTileId } from '../../utils/tile-id';
 import { useSessionStore } from '../../stores/session-store';
 import { useTerminalPanelStore } from '../../stores/terminal-panel-store';
+import { TileChromeContext } from './TileChromeContext';
 import TerminalTile from '../SessionTile/TerminalTile';
 import FileViewerTile from '../FileViewer/FileViewerTile';
 import DiffViewerTile from '../DiffViewer/DiffViewerTile';
@@ -54,6 +55,20 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
     }
   }, [isSelected, portalTarget]);
 
+  const handleToggleMaximize = useCallback((): void => {
+    const store = useLayoutStore.getState();
+    if (store.maximizedTree) {
+      store.restoreFromMaximize();
+    } else {
+      store.maximizeTile(tileId);
+    }
+  }, [tileId]);
+
+  const chrome = useMemo(
+    () => ({ isMaximized: isInMaximized, toggleMaximize: handleToggleMaximize }),
+    [isInMaximized, handleToggleMaximize],
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     const mod = isMac ? e.metaKey : e.ctrlKey;
     if (mod && e.key === 'w') {
@@ -61,6 +76,10 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
       e.stopPropagation();
       removeAnyTile(tileId);
       persist();
+    } else if (mod && e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      handleToggleMaximize();
     }
   };
 
@@ -88,7 +107,9 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
             tabIndex={-1}
             data-tile-id={tileId}
           >
-            {children}
+            <TileChromeContext.Provider value={chrome}>
+              {children}
+            </TileChromeContext.Provider>
           </div>,
           portalTarget,
         )}

@@ -108,6 +108,7 @@ interface LayoutState {
   addDiffViewer(absolutePath: string, commitHash?: string): void;
   removeDiffTile(absolutePath: string): void;
   maximize(sessionId: string): void;
+  maximizeTile(tileId: string): void;
   restoreFromMaximize(): void;
   setMaximizedTree(tree: MosaicNode<string> | null): void;
   removeAnyTile(tileId: string): void;
@@ -624,8 +625,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       }
 
       const result = stripNode(state.mosaicTree);
-      if (result === state.mosaicTree) return state;
-      return { mosaicTree: result };
+      // Keep the overlay in sync: a maximized file/diff tile must also leave
+      // the overlay when stripped, otherwise maximizedTree shows a stale leaf.
+      const nextMax = state.maximizedTree ? stripNode(state.maximizedTree) : null;
+      if (result === state.mosaicTree && nextMax === state.maximizedTree) return state;
+      return { mosaicTree: result, maximizedTree: nextMax };
     }),
 
   // Maximize is a CSS overlay, not a tree restructure. The background mosaic
@@ -633,7 +637,9 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   // (a single leaf, or a split once you add a tile while expanded) via React
   // Portals in MosaicLayout. Keeping every tile mounted across the cycle
   // preserves xterm Terminals, WebGL atlases, broker offsets, and editor state.
-  maximize: (sessionId) => set({ maximizedTree: tileId(sessionId) }),
+  maximize: (sessionId) => get().maximizeTile(tileId(sessionId)),
+
+  maximizeTile: (tile) => set({ maximizedTree: tile }),
 
   restoreFromMaximize: () => set({ maximizedTree: null }),
 

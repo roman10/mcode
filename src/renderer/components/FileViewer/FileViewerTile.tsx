@@ -9,6 +9,7 @@ import { vim, Vim } from '@replit/codemirror-vim';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useEditorStore } from '../../stores/editor-store';
 import Tooltip from '../shared/Tooltip';
+import TileMaximizeButton from '../Layout/TileMaximizeButton';
 import { mcodeEditorExtension, hideCursorExtension, vimPanelTheme } from '../../styles/editor-theme';
 import type { FileReadResult } from '@shared/types';
 
@@ -239,6 +240,7 @@ function FileViewerTile({ absolutePath }: FileViewerTileProps): React.JSX.Elemen
           {directory}
         </span>
         <div className="flex items-center gap-1 ml-2">
+          <TileMaximizeButton className="text-text-muted hover:text-text-primary text-xs px-1 transition-colors" />
           <Tooltip content="Close file (⌘W)" side="bottom">
             <button
               aria-label="Close file"

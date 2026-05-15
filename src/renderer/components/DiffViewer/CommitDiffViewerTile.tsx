@@ -8,6 +8,7 @@ import { unifiedMergeView } from '@codemirror/merge';
 import type { Extension } from '@codemirror/state';
 import { useLayoutStore } from '../../stores/layout-store';
 import Tooltip from '../shared/Tooltip';
+import TileMaximizeButton from '../Layout/TileMaximizeButton';
 import { mcodeEditorExtension, hideCursorExtension, diffTheme } from '../../styles/editor-theme';
 import type { GitDiffContent } from '@shared/types';
 
@@ -131,7 +132,8 @@ function CommitDiffViewerTile({ absolutePath, commitHash }: CommitDiffViewerTile
       {directory && (
         <span className="text-xs text-text-muted truncate">{directory}</span>
       )}
-      <div className="ml-auto shrink-0">
+      <div className="ml-auto shrink-0 flex items-center gap-1">
+        <TileMaximizeButton className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors" />
         <Tooltip content="Close (⌘W)" side="bottom">
           <button
             className="w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-text-secondary hover:bg-bg-elevated transition-colors"

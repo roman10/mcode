@@ -421,6 +421,36 @@ describe('layout-store', () => {
       expect(getLeafIds()).toContain('session:s2');
     });
 
+    it('maximizeTile maximizes any leaf id (e.g. a file tile) without touching the tree', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addFileViewer('/a.ts');
+      const beforeTree = getTree();
+
+      useLayoutStore.getState().maximizeTile('file:/a.ts');
+
+      expect(getTree()).toEqual(beforeTree);
+      expect(useLayoutStore.getState().maximizedTree).toBe('file:/a.ts');
+    });
+
+    it('maximize(sessionId) delegates to maximizeTile (session:<id>)', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().maximize('s1');
+      expect(useLayoutStore.getState().maximizedTree).toBe('session:s1');
+    });
+
+    it('stripFileTiles clears a maximized file tile from the overlay', () => {
+      useLayoutStore.getState().addTile('s1');
+      useLayoutStore.getState().addFileViewer('/a.ts');
+      useLayoutStore.getState().maximizeTile('file:/a.ts');
+      expect(useLayoutStore.getState().maximizedTree).toBe('file:/a.ts');
+
+      useLayoutStore.getState().stripFileTiles();
+
+      expect(useLayoutStore.getState().maximizedTree).toBeNull();
+      expect(getLeafIds()).not.toContain('file:/a.ts');
+      expect(getLeafIds()).toContain('session:s1');
+    });
+
     it('persist() does not serialize maximizedTree', () => {
       useLayoutStore.getState().addTile('s1');
       useLayoutStore.getState().maximize('s1');

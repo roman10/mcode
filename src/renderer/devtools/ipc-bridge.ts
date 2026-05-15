@@ -86,6 +86,14 @@ export function initDevtoolsBridge(): void {
         result = true;
         break;
       }
+      case 'layout-remove-any-tile': {
+        const { tileId } = params as { tileId: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().removeAnyTile(tileId);
+        useLayoutStore.getState().persist();
+        result = true;
+        break;
+      }
       case 'layout-remove-all-tiles': {
         const { useLayoutStore } = await import('../stores/layout-store');
         useLayoutStore.getState().removeAllTiles();
@@ -99,6 +107,21 @@ export function initDevtoolsBridge(): void {
         useLayoutStore.getState().maximize(sessionId);
         useLayoutStore.getState().persist();
         result = true;
+        break;
+      }
+      case 'layout-maximize-tile': {
+        const { tileId } = params as { tileId: string };
+        const { useLayoutStore } = await import('../stores/layout-store');
+        useLayoutStore.getState().maximizeTile(tileId);
+        useLayoutStore.getState().persist();
+        result = true;
+        break;
+      }
+      case 'layout-get-maximized': {
+        const { useLayoutStore } = await import('../stores/layout-store');
+        const { getLeaves } = await import('react-mosaic-component');
+        const tree = useLayoutStore.getState().maximizedTree;
+        result = tree ? getLeaves(tree) : [];
         break;
       }
       case 'layout-restore-from-maximize': {

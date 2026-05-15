@@ -117,6 +117,31 @@ export function registerLayoutTools(
     }
   });
 
+  server.registerTool('layout_remove_any_tile', {
+    description: 'Remove any tile from the mosaic layout by its leaf tile id (session, file, diff, or commit-diff). Also clears it from the maximize overlay if expanded.',
+    inputSchema: {
+      tileId: z.string().describe('The leaf tile id to remove'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ tileId }) => {
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'layout-remove-any-tile', { tileId });
+      return {
+        content: [{ type: 'text', text: `Removed tile ${tileId}` }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to remove tile: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
   server.registerTool('layout_remove_all_tiles', {
     description: 'Remove all tiles from the mosaic layout (sessions keep running)',
     annotations: { readOnlyHint: false },
@@ -186,6 +211,53 @@ export function registerLayoutTools(
           {
             type: 'text',
             text: `Failed to restore from maximize: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('layout_maximize_tile', {
+    description: 'Maximize any tile (session, file, diff, or commit-diff) to occupy the full mosaic area, by its leaf tile id (e.g. "file:/abs/path", "diff:/abs/path", "session:<id>"). Use layout_get_tree to discover tile ids.',
+    inputSchema: {
+      tileId: z.string().describe('The leaf tile id to maximize'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async ({ tileId }) => {
+    try {
+      await queryRenderer<void>(ctx.mainWindow, 'layout-maximize-tile', { tileId });
+      return {
+        content: [{ type: 'text', text: `Maximized tile ${tileId}` }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to maximize tile: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  server.registerTool('layout_get_maximized', {
+    description: 'Get the leaf tile ids currently in the maximize overlay (empty when nothing is maximized)',
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    try {
+      const leaves = await queryRenderer<string[]>(ctx.mainWindow, 'layout-get-maximized', {});
+      return {
+        content: [{ type: 'text', text: JSON.stringify(leaves) }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Failed to get maximized tiles: ${err instanceof Error ? err.message : String(err)}`,
           },
         ],
         isError: true,
