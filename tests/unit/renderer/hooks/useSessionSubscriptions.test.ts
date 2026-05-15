@@ -13,6 +13,7 @@ const mockRemoveTask = vi.fn();
 const mockRefreshTasks = vi.fn();
 const mockRemoveTerminal = vi.fn();
 const mockAddTerminal = vi.fn();
+const mockPruneTerminals = vi.fn();
 const mockSetExitCode = vi.fn();
 const mockHandleSearchEvent = vi.fn();
 
@@ -62,6 +63,7 @@ vi.mock('../../../../src/renderer/stores/terminal-panel-store', () => ({
     getState: vi.fn(() => ({
       removeTerminal: mockRemoveTerminal,
       addTerminal: mockAddTerminal,
+      pruneTerminals: mockPruneTerminals,
     })),
   },
 }));
@@ -183,5 +185,20 @@ describe('useSessionSubscriptions', () => {
 
     expect(mockRemoveTile).not.toHaveBeenCalled();
     expect(mockRemoveTerminal).not.toHaveBeenCalled();
+  });
+
+  it('batches terminal-panel cleanup on bulk session deletion', () => {
+    expect(onDeletedBatchCb).not.toBeNull();
+
+    onDeletedBatchCb!(['s1', 's2', 's3']);
+
+    expect(mockRemoveSession).toHaveBeenCalledTimes(3);
+    expect(mockRemoveTile).toHaveBeenCalledTimes(3);
+    // Single bulk prune, not N individual removeTerminal calls
+    expect(mockPruneTerminals).toHaveBeenCalledOnce();
+    expect(mockRemoveTerminal).not.toHaveBeenCalled();
+    const pruned = mockPruneTerminals.mock.calls[0][0] as Set<string>;
+    expect(pruned).toEqual(new Set(['s1', 's2', 's3']));
+    expect(mockPersist).toHaveBeenCalledOnce();
   });
 });

@@ -101,8 +101,8 @@ export function useSessionSubscriptions(): void {
       for (const id of sessionIds) {
         removeSession(id);
         removeTile(id);
-        useTerminalPanelStore.getState().removeTerminal(id);
       }
+      useTerminalPanelStore.getState().pruneTerminals(new Set(sessionIds));
       persist();
     });
     return unsub;

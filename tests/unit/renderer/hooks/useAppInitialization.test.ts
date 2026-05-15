@@ -219,7 +219,7 @@ describe('loadInitialData', () => {
     expect(pruned.has('t-live')).toBe(false);
   });
 
-  it('prunes ended agent sessions from the bottom panel too (orphan terminals)', async () => {
+  it('prunes any ended session from the bottom panel regardless of sessionType', async () => {
     // A non-terminal session marked 'ended' that somehow appears in the
     // panel snapshot should also be pruned — the panel is for terminals only.
     mockPanelTerminals = {
