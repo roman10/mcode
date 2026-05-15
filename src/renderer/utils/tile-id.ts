@@ -1,3 +1,6 @@
+import { getLeaves } from 'react-mosaic-component';
+import type { MosaicNode } from 'react-mosaic-component';
+
 export const FILE_TILE_PREFIX = 'file:';
 export const DIFF_TILE_PREFIX = 'diff:';
 export const COMMIT_DIFF_TILE_PREFIX = 'commit-diff:';
@@ -33,4 +36,27 @@ export function sessionIdFromTileId(tile: string): string | null {
     return tile.slice('session:'.length);
   }
   return null;
+}
+
+/** Stable-ordered union of every tile that exists in either tree: background
+ *  (`mosaicTree`) leaves in `getLeaves` order first, then any leaf that lives
+ *  only in the maximize overlay (`maximizedTree`) appended in its `getLeaves`
+ *  order. Drives the single flat tile mount in MosaicLayout — a leaf present
+ *  only in `maximizedTree` mid-transition still gets a mounted TileFactory so
+ *  it can portal into its overlay slot. `(null, null)` → `[]`. */
+export function unionTileIds(
+  mosaicTree: MosaicNode<string> | null,
+  maximizedTree: MosaicNode<string> | null,
+): string[] {
+  const result = mosaicTree ? getLeaves(mosaicTree) : [];
+  if (!maximizedTree) return result;
+  const seen = new Set(result);
+  const out = [...result];
+  for (const id of getLeaves(maximizedTree)) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
 }

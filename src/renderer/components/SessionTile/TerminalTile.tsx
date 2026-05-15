@@ -75,11 +75,12 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   // xterm's renderer skips paint without the isVisible dispose / detach paths.
   const isHiddenByMaximize = viewMode !== 'kanban' && overlayActive && !isInMaximized;
   const overlayRegistry = useContext(MosaicOverlayContext);
-  // Reads the latest slot once the overlay <Mosaic> has mounted it. The
+  // Reads the latest slots once the relevant <Mosaic> has mounted them. The
   // registry's identity changes on each (de)registration, re-rendering this
-  // tile so it picks up its slot one render after the overlay appears.
+  // tile so it picks up its slot one render after the slot appears.
+  const backgroundSlot = overlayRegistry?.getSlot('background', myTileId) ?? null;
   const overlaySlot =
-    isInMaximized && overlayRegistry ? overlayRegistry.getSlot(myTileId) : null;
+    isInMaximized && overlayRegistry ? overlayRegistry.getSlot('overlay', myTileId) : null;
 
   const handleClose = (): void => {
     if (viewMode === 'kanban') {
@@ -259,8 +260,19 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
   // portaled content; no need to duplicate them on the inner div.
   const wrapperClassName = `relative flex flex-col h-full w-full bg-bg-primary outline-none border-t-2 transition-colors ${isFocused ? 'border-t-accent' : 'border-t-transparent'}`;
   const inOverlay = isMaximized && overlaySlot !== null;
-  const hideWrapper = isHiddenByMaximize || inOverlay;
-  const portalTarget = inOverlay ? overlaySlot : localTarget;
+  // Hide the portaled content only while it's parked in the background slot
+  // behind an overlay for another tile (xterm skips paint, no dispose). Never
+  // when inOverlay — isHiddenByMaximize already excludes that case.
+  const hidePortaled = isHiddenByMaximize;
+  // Background slot normally; overlay slot when maximized. localTarget is the
+  // no-registry fallback — this is the Kanban path (KanbanExpandedContent
+  // renders TerminalTile outside MosaicLayout's provider), byte-for-byte the
+  // pre-refactor behavior.
+  const portalTarget = inOverlay
+    ? overlaySlot
+    : overlayRegistry
+      ? backgroundSlot
+      : localTarget;
 
   // Move the stable host into whichever anchor is active. appendChild on an
   // attached node relocates it without affecting the React tree, so no
@@ -276,7 +288,6 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     <div
       ref={containerRef}
       className="relative h-full w-full"
-      style={hideWrapper ? { display: 'none' } : undefined}
       tabIndex={-1}
       onPointerDown={handleFocus}
       onKeyDown={handleKeyDown}
@@ -285,10 +296,19 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* In-tile anchor that hosts the stable element while not maximized. */}
-      <div ref={setLocalTarget} className="h-full w-full" />
+      {/* Kanban fallback only: in tiles mode the host is reparented into a
+          registry slot, so no in-tile anchor is rendered. */}
+      {!overlayRegistry && <div ref={setLocalTarget} className="h-full w-full" />}
       {portalTarget &&
-        createPortal(<div className={wrapperClassName}>{tileBody}</div>, host)}
+        createPortal(
+          <div
+            className={wrapperClassName}
+            style={hidePortaled ? { display: 'none' } : undefined}
+          >
+            {tileBody}
+          </div>,
+          host,
+        )}
     </div>
   );
 }

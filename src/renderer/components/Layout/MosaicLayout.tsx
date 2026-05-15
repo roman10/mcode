@@ -2,40 +2,46 @@ import { createContext, useCallback, useLayoutEffect, useMemo, useReducer, useRe
 import { Mosaic, MosaicWindow } from 'react-mosaic-component';
 import type { MosaicNode } from 'react-mosaic-component';
 import { useLayoutStore } from '../../stores/layout-store';
+import { unionTileIds } from '../../utils/tile-id';
 import { ErrorBoundary, ErrorFallback } from '../shared/ErrorBoundary';
 import TileFactory from './TileFactory';
 import 'react-mosaic-component/react-mosaic-component.css';
 
-/** Per-tile portal targets for the maximize overlay. When `maximizedTree` is
- *  non-null an overlay <Mosaic> renders one empty slot div per leaf; each tile
- *  (mounted once in the background mosaic) `createPortal`s its existing DOM
- *  into its slot, so xterm Terminals / WebGL atlases / editor state survive
- *  maximize/restore. This is the N≥1 generalization of the old single-overlay
- *  portal — today's single-tile maximize is just the one-slot case. */
-export interface OverlaySlotRegistry {
-  getSlot(tileId: string): HTMLElement | null;
-  registerSlot(tileId: string, el: HTMLElement | null): void;
+/** Per-tile portal targets. Every tile is mounted exactly once in a flat list
+ *  (see {@link MosaicLayout}); both the background and the maximize-overlay
+ *  <Mosaic> render only empty slot divs. Each tile `createPortal`s its stable
+ *  DOM into whichever slot currently owns it — its `background` slot normally,
+ *  its `overlay` slot when maximized — so xterm Terminals / WebGL atlases /
+ *  CodeMirror state survive every tree restructure (add, remove, rebalance,
+ *  drag-rearrange, maximize) instead of being remounted by react-mosaic's
+ *  per-parent leaf reconciliation. */
+export type SlotKind = 'background' | 'overlay';
+export interface MosaicSlotRegistry {
+  getSlot(kind: SlotKind, tileId: string): HTMLElement | null;
+  registerSlot(kind: SlotKind, tileId: string, el: HTMLElement | null): void;
   /** Bumped on every (de)registration; the context value's identity changes
    *  with it so portaling tiles re-read getSlot once their slot mounts. */
   version: number;
 }
-export const MosaicOverlayContext = createContext<OverlaySlotRegistry | null>(null);
+export const MosaicOverlayContext = createContext<MosaicSlotRegistry | null>(null);
 
-/** Stable slot div for one overlay leaf. Registers on mount, clears on unmount.
- *  `register` is stable (useCallback []), so this effect runs exactly once per
- *  leaf — no register/bump feedback loop. */
-function OverlaySlot({
+/** Stable slot div for one leaf of one mosaic. Registers on mount, clears on
+ *  unmount. `register` is stable (useCallback []), so this effect runs exactly
+ *  once per (kind, tileId) — no register/bump feedback loop. */
+function Slot({
+  kind,
   tileId,
   register,
 }: {
+  kind: SlotKind;
   tileId: string;
-  register: (tileId: string, el: HTMLElement | null) => void;
+  register: (kind: SlotKind, tileId: string, el: HTMLElement | null) => void;
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    register(tileId, ref.current);
-    return () => register(tileId, null);
-  }, [tileId, register]);
+    register(kind, tileId, ref.current);
+    return () => register(kind, tileId, null);
+  }, [kind, tileId, register]);
   return <div ref={ref} className="h-full w-full flex flex-col" />;
 }
 
@@ -47,24 +53,33 @@ function MosaicLayout(): React.JSX.Element {
   const setMaximizedTree = useLayoutStore((s) => s.setMaximizedTree);
   const [overlayEl, setOverlayEl] = useState<HTMLDivElement | null>(null);
 
-  const slotsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const slotsRef = useRef<Record<SlotKind, Map<string, HTMLElement>>>({
+    background: new Map(),
+    overlay: new Map(),
+  });
   const [version, bump] = useReducer((v: number) => v + 1, 0);
 
-  const registerSlot = useCallback((tileId: string, el: HTMLElement | null) => {
-    const slots = slotsRef.current;
-    if (el) {
-      if (slots.get(tileId) === el) return;
-      slots.set(tileId, el);
-    } else {
-      if (!slots.has(tileId)) return;
-      slots.delete(tileId);
-    }
-    bump();
-  }, []);
+  const registerSlot = useCallback(
+    (kind: SlotKind, tileId: string, el: HTMLElement | null) => {
+      const slots = slotsRef.current[kind];
+      if (el) {
+        if (slots.get(tileId) === el) return;
+        slots.set(tileId, el);
+      } else {
+        if (!slots.has(tileId)) return;
+        slots.delete(tileId);
+      }
+      bump();
+    },
+    [],
+  );
 
-  const getSlot = useCallback((tileId: string) => slotsRef.current.get(tileId) ?? null, []);
+  const getSlot = useCallback(
+    (kind: SlotKind, tileId: string) => slotsRef.current[kind].get(tileId) ?? null,
+    [],
+  );
 
-  const registry = useMemo<OverlaySlotRegistry>(
+  const registry = useMemo<MosaicSlotRegistry>(
     () => ({ getSlot, registerSlot, version }),
     [getSlot, registerSlot, version],
   );
@@ -73,6 +88,13 @@ function MosaicLayout(): React.JSX.Element {
     setMosaicTree(newTree);
     persist();
   };
+
+  // Every tile that exists in either tree. Memoized so the flat list below is
+  // referentially stable across unrelated re-renders.
+  const flatTileIds = useMemo(
+    () => unionTileIds(mosaicTree, maximizedTree),
+    [mosaicTree, maximizedTree],
+  );
 
   if (!mosaicTree) {
     return (
@@ -93,12 +115,7 @@ function MosaicLayout(): React.JSX.Element {
               toolbarControls={<></>}
               createNode={() => ''}
             >
-              <ErrorBoundary
-                fallback={(props) => <ErrorFallback {...props} />}
-                onError={(error) => console.error(`Tile ${id} error:`, error)}
-              >
-                <TileFactory tileId={id} />
-              </ErrorBoundary>
+              <Slot kind="background" tileId={id} register={registerSlot} />
             </MosaicWindow>
           )}
           value={mosaicTree}
@@ -127,7 +144,7 @@ function MosaicLayout(): React.JSX.Element {
                   toolbarControls={<></>}
                   createNode={() => ''}
                 >
-                  <OverlaySlot tileId={id} register={registerSlot} />
+                  <Slot kind="overlay" tileId={id} register={registerSlot} />
                 </MosaicWindow>
               )}
               value={maximizedTree}
@@ -135,6 +152,25 @@ function MosaicLayout(): React.JSX.Element {
               className="mosaic-theme-dark"
             />
           )}
+        </div>
+        {/* Flat tile mount point. Tiles are mounted ONCE here, keyed by tileId
+         *  and structure-independent, then portal their content into the
+         *  background/overlay slot that currently owns them. display:none keeps
+         *  the (empty) outer wrappers out of layout while the portaled content
+         *  lives in the visible slots; React synthetic events still bubble
+         *  through the fiber tree, so each tile's handlers fire. Lives inside
+         *  MosaicLayout so it unmounts on view-mode switch (no Kanban
+         *  double-mount). */}
+        <div style={{ display: 'none' }}>
+          {flatTileIds.map((id) => (
+            <ErrorBoundary
+              key={id}
+              fallback={(props) => <ErrorFallback {...props} />}
+              onError={(error) => console.error(`Tile ${id} error:`, error)}
+            >
+              <TileFactory tileId={id} />
+            </ErrorBoundary>
+          ))}
         </div>
       </div>
     </MosaicOverlayContext.Provider>

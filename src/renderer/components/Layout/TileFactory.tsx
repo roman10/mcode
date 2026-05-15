@@ -41,12 +41,24 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
   );
   const overlayActive = useLayoutStore((s) => s.maximizedTree != null);
   const overlayRegistry = useContext(MosaicOverlayContext);
+  const backgroundSlot = overlayRegistry?.getSlot('background', tileId) ?? null;
   const overlaySlot =
-    isInMaximized && overlayRegistry ? overlayRegistry.getSlot(tileId) : null;
+    isInMaximized && overlayRegistry ? overlayRegistry.getSlot('overlay', tileId) : null;
 
   const inOverlay = isInMaximized && overlaySlot !== null;
-  const hideWrapper = (overlayActive && !isInMaximized) || inOverlay;
-  const portalTarget = inOverlay ? overlaySlot : localTarget;
+  // The portaled content lives in a slot. Hide it only while it's parked in
+  // the background slot behind an active overlay for ANOTHER tile — never when
+  // inOverlay (mutually exclusive: that needs isInMaximized), which would make
+  // maximize render blank.
+  const hidePortaled = overlayActive && !isInMaximized;
+  // Background slot normally; overlay slot when maximized. localTarget is the
+  // no-registry fallback (defensive — file/diff tiles only ever mount via
+  // MosaicLayout, which always provides the registry).
+  const portalTarget = inOverlay
+    ? overlaySlot
+    : overlayRegistry
+      ? backgroundSlot
+      : localTarget;
 
   // contentRef lives inside the Portal, so it's null until `portalTarget`
   // resolves (one render after mount) and changes again on overlay enter/exit.
@@ -104,23 +116,25 @@ function ClosableTileWrapper({ tileId, children }: { tileId: string; children: R
     }
   }, [portalTarget, host]);
 
-  // data-tile-id + tabIndex live on the portaled content so Cmd+[/]
-  // focus-by-querySelector still works when the tile is in the overlay
-  // (the outer wrapper is display:none there). Synthetic key/pointer events
-  // bubble through the React tree, so the outer handlers still fire.
+  // The outer div is the React-tree parent for event bubbling only; in tiles
+  // mode it sits in MosaicLayout's display:none flat mount and the real
+  // content is portaled into a slot. data-tile-id + tabIndex + the hide live
+  // on the portaled content (Cmd+[/] focus-by-querySelector resolves it inside
+  // the slot; synthetic key/pointer events bubble through the React tree, so
+  // the outer handlers still fire across the portal).
   return (
     <div
       className="h-full w-full"
-      style={hideWrapper ? { display: 'none' } : undefined}
       onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
     >
-      <div ref={setLocalTarget} className="h-full w-full" />
+      {!overlayRegistry && <div ref={setLocalTarget} className="h-full w-full" />}
       {portalTarget &&
         createPortal(
           <div
             ref={contentRef}
             className={`h-full w-full outline-none border-t-2 transition-colors ${isSelected ? 'border-t-accent' : 'border-t-transparent'}`}
+            style={hidePortaled ? { display: 'none' } : undefined}
             tabIndex={-1}
             data-tile-id={tileId}
           >
