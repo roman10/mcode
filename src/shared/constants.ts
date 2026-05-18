@@ -2,6 +2,27 @@ export const DEFAULT_COLS = 80;
 export const DEFAULT_ROWS = 24;
 export const TERMINAL_FONT_SIZE = 13;
 export const TERMINAL_FONT_FAMILY = "'JetBrains Mono', 'Fira Code', monospace";
+
+/**
+ * Per-terminal font family that isolates each terminal's WebGL texture atlas.
+ *
+ * `@xterm/addon-webgl` keeps a process-global `TextureAtlas` cache and shares
+ * one atlas across every terminal whose font/theme config is byte-equal
+ * (`acquireTextureAtlas` / `configEquals`, which compares `fontFamily` by
+ * exact string). A shared CPU-side atlas corrupts the GPU textures of
+ * terminals that aren't actively redrawing (stale UVs → garbled glyphs).
+ *
+ * Prefixing the family list with a unique, quoted, non-existent family makes
+ * each terminal's config unique → a private atlas per terminal. Per the CSS
+ * font spec the unknown family is skipped by fallback, so rasterization is
+ * byte-identical to using TERMINAL_FONT_FAMILY directly. The sessionId is
+ * sanitized to a safe identifier; quoting keeps the `ctx.font` shorthand
+ * parseable regardless of its contents.
+ */
+export function atlasIsolatedFontFamily(sessionId: string): string {
+  const token = sessionId.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+  return `"mcode-atlas-${token}", ${TERMINAL_FONT_FAMILY}`;
+}
 export const PTY_KILL_TIMEOUT_MS = 3000;
 export const RING_BUFFER_MAX_BYTES = 512 * 1024; // ~512KB per session
 /** Tail size requested by `getReplayDataTail` on the polling hot path.
@@ -17,17 +38,6 @@ export const SCROLLBACK_PRESETS = [1000, 2500, 5000, 10000, 20000] as const;
 /** After this many ms hidden, dispose the xterm.js Terminal entirely to free its scrollback.
  *  On reveal, the terminal is recreated and replays the broker ring buffer (~512 KB tail). */
 export const HIDDEN_TILE_DISPOSE_MS = 5 * 60 * 1000;
-/** Minimum gap between WebGL atlas clears for a single terminal. clearTextureAtlas()
- *  is ~1ms; the throttle exists so rapid focus/tab cycling doesn't thrash. app:wake
- *  bypasses it by passing 0 to the throttled helpers. */
-export const ATLAS_RECLEAR_THROTTLE_MS = 2000;
-/** Belt-and-suspenders periodic sweep that clears every terminal's WebGL atlas while
- *  the window has focus. Catches the silent-corruption class no event surfaces:
- *  GPU process recycle, refresh-rate / HDR / color-profile change, etc. ~1ms per
- *  terminal once a minute is negligible; the sweep uses this same value as both
- *  cadence and per-terminal throttle so terminals just cleared by a focus event
- *  skip the next tick. */
-export const ATLAS_SWEEP_INTERVAL_MS = 60_000;
 export const DEFAULT_SIDEBAR_WIDTH = 280;
 export const MIN_SIDEBAR_WIDTH = 200;
 export const MAX_SIDEBAR_WIDTH = 500;

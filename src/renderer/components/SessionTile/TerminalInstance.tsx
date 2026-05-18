@@ -8,18 +8,15 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { darkTheme } from '../../styles/theme';
 import {
   TERMINAL_FONT_SIZE,
-  TERMINAL_FONT_FAMILY,
+  atlasIsolatedFontFamily,
   DEFAULT_SCROLLBACK_LINES,
   MAX_SCROLLBACK_LINES,
   SCROLLBACK_PRESETS,
-  ATLAS_RECLEAR_THROTTLE_MS,
 } from '@shared/constants';
 import { getAgentDefinition, shouldHideTerminalCursor } from '@shared/session-agents';
 import {
   terminalRegistry,
   setTerminalLive,
-  clearAllAtlasesThrottled,
-  forgetAtlasClear,
   setTerminalFitAddon,
   forgetTerminalFitAddon,
 } from '../../devtools/terminal-registry';
@@ -286,7 +283,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       cursorStyle: isAgent ? 'bar' : undefined,
       cursorInactiveStyle: isAgent ? 'none' : undefined,
       fontSize: TERMINAL_FONT_SIZE,
-      fontFamily: TERMINAL_FONT_FAMILY,
+      // Per-terminal family => private WebGL texture atlas (see
+      // atlasIsolatedFontFamily). Renders identically to TERMINAL_FONT_FAMILY.
+      fontFamily: atlasIsolatedFontFamily(sessionId),
       theme: darkTheme,
       allowProposedApi: true,
       scrollback: resolveScrollback(scrollbackLines),
@@ -412,21 +411,15 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     const webgl = attachWebgl(term, sessionId);
     webglRef.current = webgl;
 
-    // User-attention recovery on focus. Two jobs:
-    //   1. Clear the atlas of every registered terminal — focus is the user's
-    //      "I'm interacting with mcode" signal, but in a multi-tile layout the
-    //      user's visual attention spans tiles they didn't click. Per-terminal
-    //      2s throttle in the registry suppresses redundant clears across
-    //      rapid clicks and the simultaneous window-focus event.
-    //   2. Reattach WebGL when it was previously detached (visibility hide,
-    //      MAX_WEBGL_CONTEXTS cap). 500ms delay lets visibility-driven
-    //      reattaches settle first.
-    // Capture-phase on the container because xterm focuses its inner textarea
-    // (xterm.js exposes no onFocus event of its own).
+    // Reattach WebGL on focus when it was previously detached (visibility
+    // hide, MAX_WEBGL_CONTEXTS cap). 500ms delay lets visibility-driven
+    // reattaches settle first. Capture-phase on the container because xterm
+    // focuses its inner textarea (xterm.js exposes no onFocus event of its
+    // own). Atlas isolation (private atlas per terminal) removes the need for
+    // any focus-driven fleet-wide atlas clear.
     const focusHandler = (): void => {
-      clearAllAtlasesThrottled(ATLAS_RECLEAR_THROTTLE_MS);
-      // Reattach branch covers MAX_WEBGL_CONTEXTS-eviction recovery — kept after
-      // the wake recreate path landed because cap eviction has no wake signal.
+      // Reattach branch covers MAX_WEBGL_CONTEXTS-eviction recovery — cap
+      // eviction has no wake signal, so focus is the recovery trigger.
       if (!webgl.active) {
         window.setTimeout(() => {
           if (!webgl.active && termInstanceRef.current === term) {
@@ -457,10 +450,9 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     // upstream in Claude Code's own SIGWINCH / reflow handling.
     const unsubResize = term.onResize(({ cols, rows }) => {
       window.mcode.pty.resize(sessionId, cols, rows);
-      // xterm's WebGL atlas can drift after term.resize() (cells rendering
-      // fragments of other glyphs). Clear synchronously here — the focus-driven
-      // clearAllAtlasesThrottled path is gated by a 2s throttle that silently
-      // no-ops for the just-touched tile, leaving its drift on screen.
+      // Cheap single-terminal safety net: clear this terminal's (now private)
+      // atlas synchronously after resize in case a grid change leaves drifted
+      // glyph cells.
       term.clearTextureAtlas();
     });
 
@@ -635,7 +627,6 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
       fitAddonRef.current = null;
       terminalRegistry.delete(sessionId);
       forgetTerminalFitAddon(sessionId);
-      forgetAtlasClear(sessionId);
       setTerminalLive(sessionId, false);
       cancelledInitial = true;
       clearTimeout(initialFitTimer);
