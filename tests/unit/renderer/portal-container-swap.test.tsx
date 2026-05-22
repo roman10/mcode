@@ -49,6 +49,44 @@ describe('portal subtree preservation across anchor swap', () => {
     expect(sink.id).not.toBe(before);
   });
 
+  // Lifetime cleanup for the stable host. React's portal cleanup only tears
+  // down the subtree React owns — the manually-reparented host element itself
+  // stays attached to whichever slot last received it. Without an explicit
+  // host.remove() on unmount, the empty host accumulates one per
+  // session-removal cycle, pinning a chunk of DOM around the slot.
+  it('REMOVES the reparented host from the DOM when the tile unmounts', () => {
+    function StableHostTile(): React.JSX.Element {
+      const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+      const hostRef = useRef<HTMLDivElement | null>(null);
+      if (hostRef.current === null) {
+        const el = document.createElement('div');
+        el.setAttribute('data-test-host', 'true');
+        hostRef.current = el;
+      }
+      const host = hostRef.current;
+      useLayoutEffect(() => {
+        if (slot && host.parentElement !== slot) slot.appendChild(host);
+      }, [slot, host]);
+      useLayoutEffect(() => () => { host.remove(); }, [host]);
+      return (
+        <div>
+          <div ref={setSlot} data-test-slot="true" />
+          {slot && createPortal(<span>inner</span>, host)}
+        </div>
+      );
+    }
+
+    const { unmount } = render(<StableHostTile />);
+    const hostBefore = document.querySelector('[data-test-host]');
+    expect(hostBefore).not.toBeNull();
+    expect(hostBefore?.parentElement?.getAttribute('data-test-slot')).toBe('true');
+
+    act(() => {
+      unmount();
+    });
+    expect(document.querySelector('[data-test-host]')).toBeNull();
+  });
+
   // The fix: portal into ONE stable host (constant container) and physically
   // appendChild that host between anchors. The portal fiber never changes, so
   // the subtree is preserved — same mount id before and after.

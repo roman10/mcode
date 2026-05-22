@@ -284,6 +284,12 @@ function TerminalTile({ sessionId }: TerminalTileProps): React.JSX.Element {
     }
   }, [portalTarget, host]);
 
+  // Detach the manually-reparented host on unmount. The portal subtree
+  // (TerminalInstance → xterm.dispose) tears down first via React's
+  // child-first cleanup order, so by the time this runs the host is an empty
+  // shell that no longer needs to stay parented to the slot.
+  useLayoutEffect(() => () => { host.remove(); }, [host]);
+
   return (
     <div
       ref={containerRef}
