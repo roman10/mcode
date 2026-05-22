@@ -11,6 +11,7 @@ describe('session-launch helpers', () => {
     expect(prefixSessionLabel('My Session', 'claude')).toBe('\u2733 My Session');
     expect(prefixSessionLabel('My Session', 'codex')).toBe('\u2742 My Session');
     expect(prefixSessionLabel('My Session', 'gemini')).toBe('\u2726 My Session');
+    expect(prefixSessionLabel('My Session', 'agy')).toBe('\u2756 My Session');
     expect(prefixSessionLabel('shell', 'terminal')).toBe('shell');
   });
 
@@ -69,6 +70,7 @@ describe('session-launch helpers', () => {
     expect(getDefaultSessionCommand('claude', '/bin/zsh')).toBe('claude');
     expect(getDefaultSessionCommand('codex', '/bin/zsh')).toBe('codex');
     expect(getDefaultSessionCommand('gemini', '/bin/zsh')).toBe('gemini');
+    expect(getDefaultSessionCommand('agy', '/bin/zsh')).toBe('agy');
     expect(getDefaultSessionCommand('terminal', '/bin/zsh')).toBe('/bin/zsh');
   });
 

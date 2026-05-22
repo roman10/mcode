@@ -3,6 +3,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServerContext } from '../types';
 import { queryRenderer } from '../ipc';
 import { EFFORT_LEVELS, PERMISSION_MODES } from '../../shared/constants';
+import { AGENT_SESSION_TYPES, type AgentSessionType } from '../../shared/session-agents';
+import type { SessionType } from '../../shared/types-sessions';
 
 export function registerSessionTools(
   server: McpServer,
@@ -20,19 +22,20 @@ export function registerSessionTools(
   });
 
   server.registerTool('session_create', {
-    description: 'Create a new Claude Code session, Codex CLI session, Gemini CLI session, Copilot CLI session, or plain terminal',
+    description: 'Create a new agent CLI session (see sessionType for the supported agents) or a plain terminal session',
     inputSchema: {
       cwd: z.string().describe('Working directory for the session'),
       label: z.string().optional().describe('Optional label for the session'),
-      initialPrompt: z.string().optional().describe('Optional initial prompt for Claude, Codex, Gemini, or Copilot (ignored for terminal sessions)'),
-      model: z.string().optional().describe('Explicit model for agents that support model selection (Claude, Gemini, Copilot). Ignored for Codex and terminal sessions.'),
-      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for Claude sessions only (ignored for other session types)'),
+      initialPrompt: z.string().optional().describe('Optional initial prompt for any agent CLI (ignored for terminal sessions)'),
+      model: z.string().optional().describe('Explicit model for agents that support model selection (Claude, Gemini, Copilot). Ignored for Codex, agy, and terminal sessions.'),
+      permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the agent session; valid values depend on the agent type (ignored for terminal sessions)'),
       effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for Claude sessions only (ignored for other session types)'),
       enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode for Claude sessions only. Ignored for other session types.'),
       allowBypassPermissions: z.boolean().optional().describe('Pass --allow-dangerously-skip-permissions for Claude sessions only. Ignored for other session types.'),
       command: z.string().optional().describe('Command to spawn (defaults to the CLI for the selected session type)'),
       args: z.array(z.string()).optional().describe('Arguments for the command (e.g. ["-c", "git push"] for terminal sessions)'),
-      sessionType: z.enum(['claude', 'codex', 'gemini', 'copilot', 'terminal']).optional().describe('Session type: "claude" for Claude Code, "codex" for Codex CLI, "gemini" for Gemini CLI, "copilot" for Copilot CLI, "terminal" for plain shell (default: "claude")'),
+      // z.enum needs a non-empty literal tuple; widen the registry array (+ 'terminal') and assert it back to one.
+      sessionType: z.enum([...AGENT_SESSION_TYPES, 'terminal'] as unknown as [SessionType, ...SessionType[]]).optional().describe(`Session type: one of the agent CLIs (${AGENT_SESSION_TYPES.join(', ')}) or "terminal" for a plain shell (default: "claude")`),
       worktree: z.string().optional().describe('Run session in an isolated git worktree for Claude sessions. Ignored for other session types.'),
       accountId: z.string().optional().describe('Account profile ID to run this session under'),
       autoClose: z.boolean().optional().describe('If true, automatically kill the session when its task queue empties'),
@@ -206,7 +209,7 @@ export function registerSessionTools(
     description: 'Hand off a session to a different CLI. Reads the source transcript, optionally compacts it via a headless CLI invocation, and creates a new session in the target CLI seeded with that text. Source session is left untouched.',
     inputSchema: {
       sessionId: z.string().describe('Source session ID to hand off from'),
-      targetCli: z.enum(['claude', 'codex', 'gemini', 'copilot']).describe('Destination CLI for the new session'),
+      targetCli: z.enum([...AGENT_SESSION_TYPES] as [AgentSessionType, ...AgentSessionType[]]).describe('Destination CLI for the new session'),
       mode: z.enum(['compacted', 'full']).describe('"compacted" runs a summarization model first; "full" passes the transcript verbatim'),
     },
     annotations: { readOnlyHint: false },

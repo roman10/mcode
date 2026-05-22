@@ -61,8 +61,13 @@ export const CODEX_PERMISSION_MODES = ['fullAuto', 'bypassAll'] as const;
 // Gemini-unique approval modes ('plan' is shared with Claude via AGENT_PERMISSION_MODES)
 export const GEMINI_PERMISSION_MODES = ['autoEdit', 'yolo'] as const;
 
+// Antigravity (agy) permission modes. 'sandbox' → --sandbox; 'skipPermissions' →
+// --dangerously-skip-permissions. The implicit "ask each tool" state is the unset
+// default (no flag), mirroring how Claude treats absence of a --permission-mode.
+export const AGY_PERMISSION_MODES = ['sandbox', 'skipPermissions'] as const;
+
 // Union of all agent permission modes
-export const PERMISSION_MODES = [...CLAUDE_PERMISSION_MODES, ...COPILOT_PERMISSION_MODES, ...CODEX_PERMISSION_MODES, ...GEMINI_PERMISSION_MODES] as const;
+export const PERMISSION_MODES = [...CLAUDE_PERMISSION_MODES, ...COPILOT_PERMISSION_MODES, ...CODEX_PERMISSION_MODES, ...GEMINI_PERMISSION_MODES, ...AGY_PERMISSION_MODES] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 /** Which permission modes each agent supports. Absence = no support. */
@@ -71,6 +76,7 @@ export const AGENT_PERMISSION_MODES: Partial<Record<string, readonly PermissionM
   copilot: [...COPILOT_PERMISSION_MODES],
   codex: [...CODEX_PERMISSION_MODES],
   gemini: ['plan', ...GEMINI_PERMISSION_MODES],
+  agy: [...AGY_PERMISSION_MODES],
 };
 
 /** Default (most permissive) permission mode for each agent when no last-used value exists. */
@@ -79,6 +85,7 @@ export const DEFAULT_AGENT_PERMISSION_MODE: Partial<Record<string, PermissionMod
   codex: 'fullAuto',
   copilot: 'autopilot',
   gemini: 'autoEdit',
+  agy: 'skipPermissions',
 };
 
 /** Human-readable labels for all permission modes. */
@@ -94,6 +101,8 @@ export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
   bypassAll: 'Bypass All',
   autoEdit: 'Auto Edit',
   yolo: 'YOLO',
+  sandbox: 'Sandbox',
+  skipPermissions: 'Skip Permissions',
 };
 
 // Valid Claude Code --effort values (excluding 'default' which means "no flag")
@@ -117,6 +126,9 @@ export const GEMINI_ICON = '\u2726';
 
 // Copilot icon — ★ (U+2605), used as session label prefix for Copilot CLI sessions
 export const COPILOT_ICON = '\u2605';
+
+// Antigravity (agy) icon, U+2756, used as session label prefix for Antigravity CLI sessions
+export const AGY_ICON = '\u2756';
 
 // Hook system
 export const HOOK_PORT_DEFAULT = 7777;

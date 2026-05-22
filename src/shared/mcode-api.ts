@@ -81,7 +81,7 @@ export interface MCodeAPI {
     resume(sessionId: string, accountId?: string): Promise<SessionInfo>;
     fork(
       sessionId: string,
-      targetCli: 'claude' | 'codex' | 'gemini' | 'copilot',
+      targetCli: AgentSessionType,
       mode: 'compacted' | 'full',
     ): Promise<SessionInfo>;
     forkPreview(sessionId: string): Promise<{ summary: string; usedCli: string }>;

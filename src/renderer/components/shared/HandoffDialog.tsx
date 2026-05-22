@@ -4,17 +4,13 @@ import Dialog from './Dialog';
 import { useSessionStore } from '../../stores/session-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { sessionIdFromTileId } from '../../utils/tile-id';
-import type { AgentSessionType } from '@shared/session-agents';
+import { AGENT_SESSION_TYPES, getAgentDefinition, type AgentSessionType } from '@shared/session-agents';
 import type { SessionInfo } from '@shared/types';
 
 const isMac = navigator.userAgent.includes('Mac');
 
-const ALL_AGENT_CLIS: { value: AgentSessionType; label: string }[] = [
-  { value: 'claude', label: 'Claude Code' },
-  { value: 'codex', label: 'Codex CLI' },
-  { value: 'gemini', label: 'Gemini CLI' },
-  { value: 'copilot', label: 'Copilot CLI' },
-];
+const ALL_AGENT_CLIS: { value: AgentSessionType; label: string }[] =
+  AGENT_SESSION_TYPES.map((value) => ({ value, label: getAgentDefinition(value)!.displayName }));
 
 interface HandoffDialogProps {
   open: boolean;

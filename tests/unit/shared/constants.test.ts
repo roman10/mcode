@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   AGENT_PERMISSION_MODES,
+  DEFAULT_AGENT_PERMISSION_MODE,
   PERMISSION_MODE_LABELS,
   type PermissionMode,
 } from '../../../src/shared/constants';
@@ -8,6 +9,11 @@ import {
 describe('AGENT_PERMISSION_MODES', () => {
   it('gemini supports plan, autoEdit, and yolo', () => {
     expect(AGENT_PERMISSION_MODES.gemini).toEqual(['plan', 'autoEdit', 'yolo']);
+  });
+
+  it('agy supports sandbox and skipPermissions, defaulting to skipPermissions', () => {
+    expect(AGENT_PERMISSION_MODES.agy).toEqual(['sandbox', 'skipPermissions']);
+    expect(DEFAULT_AGENT_PERMISSION_MODE.agy).toBe('skipPermissions');
   });
 
   it('every agent mode has a label', () => {

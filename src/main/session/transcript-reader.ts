@@ -1,6 +1,7 @@
 import { open as fsOpen, stat } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { getTranscriptPath } from './transcript-path';
+import type { AgentSessionType } from '../../shared/session-agents';
 
 /** Hard cap on bytes read from a transcript file. 1MB covers most real Claude
  *  sessions that hit the context limit (the JSONL is denser than the live tokens)
@@ -87,7 +88,7 @@ export async function readClaudeTranscript(cwd: string, claudeSessionId: string)
 }
 
 export interface ReadTranscriptInput {
-  sessionType: 'claude' | 'codex' | 'gemini' | 'copilot';
+  sessionType: AgentSessionType;
   cwd: string;
   claudeSessionId: string | null;
   /** Live PTY scrollback for non-Claude sources where on-disk parsing isn't supported. */

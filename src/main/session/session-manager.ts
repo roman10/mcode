@@ -75,6 +75,7 @@ import {
   createCopilotRuntimeAdapter,
   scheduleCopilotSessionCapture,
 } from './agent-runtimes/copilot-runtime';
+import { createAgyRuntimeAdapter } from './agent-runtimes/agy-runtime';
 import {
   computeTransition,
   resolveAttention,
@@ -224,6 +225,7 @@ export class SessionManager {
           broadcastSessionUpdate: (sessionId) => this.broadcastSessionUpdate(sessionId),
         }),
       }),
+      agy: createAgyRuntimeAdapter(),
     };
 
     // Event-driven session state detection. Per-chunk detection catches

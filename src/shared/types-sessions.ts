@@ -8,7 +8,7 @@ export interface TerminalConfig {
 
 // --- Session ---
 
-export type SessionType = 'claude' | 'codex' | 'gemini' | 'copilot' | 'terminal';
+export type SessionType = 'claude' | 'codex' | 'gemini' | 'copilot' | 'agy' | 'terminal';
 export type SessionStatus = 'starting' | 'active' | 'idle' | 'waiting' | 'detached' | 'ended';
 export type SessionAttentionLevel = 'none' | 'info' | 'action';
 

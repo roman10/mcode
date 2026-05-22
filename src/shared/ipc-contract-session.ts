@@ -5,6 +5,7 @@ import type {
   SessionDefaults,
   SessionInfo,
 } from './types';
+import type { AgentSessionType } from './session-agents';
 
 // ---------------------------------------------------------------------------
 // Session + Layout domain IPC channels
@@ -26,7 +27,7 @@ export interface SessionInvokeContract {
   'session:clear-attention':            { params: [sessionId: string]; result: void };
   'session:clear-all-attention':        { params: []; result: void };
   'session:resume':                     { params: [opts: { sessionId: string; accountId?: string }]; result: SessionInfo };
-  'session:fork':                       { params: [opts: { sessionId: string; targetCli: 'claude' | 'codex' | 'gemini' | 'copilot'; mode: 'compacted' | 'full' }]; result: SessionInfo };
+  'session:fork':                       { params: [opts: { sessionId: string; targetCli: AgentSessionType; mode: 'compacted' | 'full' }]; result: SessionInfo };
   'session:fork-preview':               { params: [opts: { sessionId: string }]; result: { summary: string; usedCli: string } };
   'session:list-external':              { params: [limit?: number]; result: ExternalSessionInfo[] };
   'session:import-external':            { params: [claudeSessionId: string, cwd: string, label?: string]; result: SessionInfo };

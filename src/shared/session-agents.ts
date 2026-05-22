@@ -1,7 +1,7 @@
-import { CLAUDE_ICON, CODEX_ICON, COPILOT_ICON, GEMINI_ICON } from './constants';
+import { AGY_ICON, CLAUDE_ICON, CODEX_ICON, COPILOT_ICON, GEMINI_ICON } from './constants';
 import type { SessionType } from './types';
 
-export type AgentSessionType = 'claude' | 'codex' | 'gemini' | 'copilot';
+export type AgentSessionType = 'claude' | 'codex' | 'gemini' | 'copilot' | 'agy';
 export type AgentDialogMode = 'full' | 'minimal';
 export type AgentResumeIdentityKind = 'claudeSessionId' | 'codexThreadId' | 'geminiSessionId' | 'copilotSessionId' | null;
 export type SlashCommandPathStyle = 'basename' | 'colon';
@@ -199,6 +199,17 @@ const COPILOT_SLASH_COMMANDS: SlashCommandSupport = {
   ]),
 };
 
+// Antigravity CLI (agy) v1.0.1 has no in-TUI slash-command listing we can rely on
+// yet; this minimal map covers the known `/model` switch. Expand once the live
+// `/help` output is captured. TODO(agy live): populate from the TUI `/help`.
+const AGY_SLASH_COMMANDS: SlashCommandSupport = {
+  helpCommand: '/help',
+  builtins: new Map([
+    ['model', 'Switch the AI model'],
+    ['help', 'Show available commands'],
+  ]),
+};
+
 const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
   claude: {
     sessionType: 'claude',
@@ -269,6 +280,24 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     installHelpUrl: 'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started',
     resumeIdentityKind: 'copilotSessionId',
     slashCommands: COPILOT_SLASH_COMMANDS,
+  },
+  agy: {
+    sessionType: 'agy',
+    displayName: 'Antigravity CLI',
+    icon: AGY_ICON,
+    defaultCommand: 'agy',
+    supportsTaskQueue: true,
+    supportsPlanMode: false, // no plan flag in v1.0.1
+    hidesTerminalCursor: true, // verified live: agy enters the alt screen and emits DECTCEM hide (\e[?25l)
+    dialogMode: 'minimal',
+    supportsAccountProfiles: false, // no agy account provider; agy auth is keyring/GUI-shared, so HOME-swap can't isolate it
+    supportsModelDisplay: false, // no --model flag; model is chosen only via in-TUI /model
+    supportsTokenTracking: false, // no hooks / no parseable token store
+    supportsCostEstimation: false,
+    supportsInputTracking: false,
+    installHelpUrl: 'https://antigravity.google/docs/cli-using',
+    resumeIdentityKind: null, // launch-only v1; resume deferred (see plan)
+    slashCommands: AGY_SLASH_COMMANDS,
   },
 };
 

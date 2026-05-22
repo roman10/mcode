@@ -170,7 +170,7 @@ contextBridge.exposeInMainWorld('mcode', {
 
     fork: (
       sessionId: string,
-      targetCli: 'claude' | 'codex' | 'gemini' | 'copilot',
+      targetCli: AgentSessionType,
       mode: 'compacted' | 'full',
     ): Promise<SessionInfo> =>
       typedInvoke('session:fork', { sessionId, targetCli, mode }),

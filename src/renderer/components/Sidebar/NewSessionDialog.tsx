@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Dialog from '../shared/Dialog';
-import { getAgentDefinition, type AgentSessionType } from '@shared/session-agents';
+import { AGENT_SESSION_TYPES, getAgentDefinition, type AgentSessionType } from '@shared/session-agents';
 import type { AccountProfileWithProviders, SessionCreateInput } from '@shared/types';
 import { AGENT_PERMISSION_MODES, DEFAULT_AGENT_PERMISSION_MODE, EFFORT_LEVELS, PERMISSION_MODE_LABELS, type EffortLevel, type PermissionMode } from '@shared/constants';
 
@@ -176,10 +176,11 @@ function NewSessionDialog({
               value={sessionType}
               onChange={(e) => setSessionType(e.target.value as AgentSessionType)}
             >
-              <option value="claude">Claude Code</option>
-              <option value="codex">Codex CLI</option>
-              <option value="gemini">Gemini CLI</option>
-              <option value="copilot">Copilot CLI</option>
+              {AGENT_SESSION_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {getAgentDefinition(type)!.displayName}
+                </option>
+              ))}
             </select>
           </div>
 

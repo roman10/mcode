@@ -11,7 +11,7 @@ import {
   hasLiveTaskQueue,
   supportsSessionSlashCommands,
 } from '../../../src/shared/session-capabilities';
-import { getAgentDefinition, shouldHideTerminalCursor } from '../../../src/shared/session-agents';
+import { AGENT_SESSION_TYPES, getAgentDefinition, isAgentSessionType, shouldHideTerminalCursor } from '../../../src/shared/session-agents';
 import { makeSession } from '../test-factories';
 
 describe('session-capabilities', () => {
@@ -73,6 +73,8 @@ describe('session-capabilities', () => {
     expect(canDisplaySessionModel(makeSession({ sessionType: 'copilot', model: 'gpt-4o' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ sessionType: 'codex', model: 'gpt-5' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ model: null }))).toBe(false);
+    // agy has no model flag → never displays a model pill even if one is somehow set
+    expect(canDisplaySessionModel(makeSession({ sessionType: 'agy', model: 'gemini-3.1-pro' }))).toBe(false);
   });
 
   it('exposes correct supportsPlanMode flags per agent', () => {
@@ -80,6 +82,7 @@ describe('session-capabilities', () => {
     expect(getAgentDefinition('codex')?.supportsPlanMode).toBe(false);
     expect(getAgentDefinition('gemini')?.supportsPlanMode).toBe(false);
     expect(getAgentDefinition('copilot')?.supportsPlanMode).toBe(false);
+    expect(getAgentDefinition('agy')?.supportsPlanMode).toBe(false);
   });
 
   it('exposes correct supportsTaskQueue flags per agent', () => {
@@ -87,6 +90,30 @@ describe('session-capabilities', () => {
     expect(getAgentDefinition('codex')?.supportsTaskQueue).toBe(true);
     expect(getAgentDefinition('gemini')?.supportsTaskQueue).toBe(true);
     expect(getAgentDefinition('copilot')?.supportsTaskQueue).toBe(true);
+    expect(getAgentDefinition('agy')?.supportsTaskQueue).toBe(true);
+  });
+
+  it('registers agy as an agent session type with an Antigravity install URL', () => {
+    expect(isAgentSessionType('agy')).toBe(true);
+    expect(getAgentDefinition('agy')?.displayName).toBe('Antigravity CLI');
+    expect(getSessionInstallHelp('agy')).toEqual({
+      command: 'agy',
+      displayName: 'Antigravity CLI',
+      url: 'https://antigravity.google/docs/cli-using',
+    });
+    expect(supportsSessionSlashCommands('agy')).toBe(true);
+  });
+
+  // Phase 0 guard: the New Session and Handoff dialogs render their option lists by
+  // mapping AGENT_SESSION_TYPES through getAgentDefinition(t)!.displayName. This asserts
+  // every registered agent type resolves to a definition with a usable display name, so
+  // those dropdowns can never drift from (or crash against) the registry.
+  it('every AGENT_SESSION_TYPES entry resolves to a definition with a display name', () => {
+    for (const type of AGENT_SESSION_TYPES) {
+      const def = getAgentDefinition(type);
+      expect(def, `missing AgentDefinition for "${type}"`).not.toBeNull();
+      expect(def!.displayName.length).toBeGreaterThan(0);
+    }
   });
 
   it('returns install help only for agents with an install URL', () => {
@@ -161,6 +188,7 @@ describe('session-capabilities', () => {
     expect(shouldHideTerminalCursor('codex')).toBe(true);
     expect(shouldHideTerminalCursor('gemini')).toBe(true);
     expect(shouldHideTerminalCursor('copilot')).toBe(false);
+    expect(shouldHideTerminalCursor('agy')).toBe(true);
     expect(shouldHideTerminalCursor('terminal')).toBe(false);
     expect(shouldHideTerminalCursor(undefined)).toBe(false);
   });
