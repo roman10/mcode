@@ -2,6 +2,38 @@
 
 All notable changes to mcode are documented here.
 
+## [0.2.8] — 2026-05-24
+
+### New Features
+
+- **Antigravity CLI (agy) support** — Google's Antigravity CLI is now a launchable agent alongside Claude, Codex, Gemini, and Copilot
+- **Session handoff to a different CLI** — hand off an existing session to another CLI agent
+- **Multi-year stats dashboard** — opens as an overlay with multi-year history, a monthly bar chart in the 90-day view, lines-of-code detail, always-visible value labels, and readable heatmap tooltips
+- **Context-window usage badge** — each Claude tile now shows live context-window usage
+- **Multi-line shell commands in the `!` palette** — the command palette accepts multi-line shell input
+- **Higher scrollback cap** — terminal scrollback raised to 20,000 lines
+- **Scrollback-erase suppression toggle** — a Settings option gates suppression of the `\x1b[3J` scrollback-erase sequence
+
+### Bug Fixes
+
+- Keep terminals and editor tiles mounted and correctly sized across maximize/restore and mosaic resize
+- Fix WebGL glyph corruption: give each terminal a private atlas and recover atlases after resize, wake, and macOS screen lock
+- Detect the 1M-token context window for Opus 4.7 and other 1M-tier models
+- Ingest Gemini CLI's new JSONL transcript format
+- Attach every image when dragging multiple files onto a Claude tile
+- Dedupe Quick Open file results across overlapping working directories
+- Replace the dropped Codex `--full-auto` flag with explicit sandbox + approval args
+- Defer task dispatch until the PTY settles after a turn ends
+- Split the expanded tile when a new session or file is added
+- Plug timer, listener, and ref leaks surfaced by a codebase audit
+
+### Other Changes
+
+- Replace the string PTY ring buffer with a byte-based RingBuffer and delta-replay for hidden tabs
+- Drive session-state detection from PTY data instead of 2s polling
+- Cut renderer allocations and SQLite write cost; reduce store subscription count
+- Decompose large modules, split shared types, and consolidate IPC registration under `src/main/ipc/`
+
 ## [0.2.7] — 2026-04-26
 
 ### New Features
