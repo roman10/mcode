@@ -4,6 +4,7 @@ import { setupMcodeMock } from '../../renderer/mock-mcode';
 setupMcodeMock();
 
 const { getCommands } = await import('../../../../src/renderer/components/CommandPalette/command-registry');
+const { AGENT_SESSION_TYPES } = await import('../../../../src/shared/session-agents');
 
 const emptyCtx = {
   sessions: {},
@@ -56,6 +57,24 @@ describe('command-registry', () => {
     expect(cmd!.category).toBe('General');
     expect(cmd!.enabled).toBe(true);
     expect(cmd!.keywords).toContain('copilot');
+  });
+
+  it('includes New Antigravity Session in the General category', () => {
+    const commands = getCommands(emptyCtx);
+    const cmd = commands.find((c) => c.id === 'new-agy-session');
+    expect(cmd).toBeDefined();
+    expect(cmd!.label).toBe('New Antigravity Session');
+    expect(cmd!.category).toBe('General');
+    expect(cmd!.enabled).toBe(true);
+    expect(cmd!.keywords).toContain('agy');
+    expect(cmd!.keywords).toContain('antigravity');
+  });
+
+  it('exposes a launch command for every agent type (drift guard)', () => {
+    const ids = new Set(getCommands(emptyCtx).map((c) => c.id));
+    for (const type of AGENT_SESSION_TYPES) {
+      expect(ids).toContain(type === 'claude' ? 'new-session' : `new-${type}-session`);
+    }
   });
 
   it('toggle-terminal-panel has correct shortcut display on macOS', () => {

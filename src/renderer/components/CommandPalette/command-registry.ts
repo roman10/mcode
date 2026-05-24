@@ -1,6 +1,8 @@
 import type { MosaicNode } from 'react-mosaic-component';
 import { getLeaves } from 'react-mosaic-component';
 import type { SessionInfo } from '@shared/types';
+import type { AgentSessionType } from '@shared/session-agents';
+import { AGENT_SESSION_TYPES, getAgentDefinition } from '@shared/session-agents';
 import { KEYBOARD_SHORTCUTS } from '@shared/keyboard-shortcuts';
 import { formatKeys } from '../../utils/format-shortcut';
 import { executeAppCommand } from '../../utils/app-commands';
@@ -39,46 +41,39 @@ function hasTile(mosaicTree: MosaicNode<string> | null, sessionId: string): bool
   return getLeaves(mosaicTree).includes(`session:${sessionId}`);
 }
 
+/** Extra search synonyms per agent (provider aliases) — palette-local, not a registry concern. */
+const AGENT_SEARCH_SYNONYMS: Partial<Record<AgentSessionType, string[]>> = {
+  codex: ['openai'],
+  gemini: ['google'],
+  copilot: ['github'],
+  agy: ['antigravity'],
+};
+
 export function getCommands(ctx: CommandContext): CommandEntry[] {
   const shortcuts = buildShortcutMap();
   const { sessions, selectedSessionId, mosaicTree } = ctx;
   const selected = selectedSessionId ? sessions[selectedSessionId] : null;
   const selectedHasTile = selectedSessionId ? hasTile(mosaicTree, selectedSessionId) : false;
 
+  // Per-agent launch commands, generated from the agent registry so a newly-added
+  // agent (see AGENT_DEFINITIONS in session-agents.ts) appears here automatically.
+  const agentLaunchCommands: CommandEntry[] = AGENT_SESSION_TYPES.map((type) => {
+    const def = getAgentDefinition(type)!;
+    const label = `New ${def.displayName.replace(/ CLI$/, '')} Session`;
+    return {
+      id: type === 'claude' ? 'new-session' : `new-${type}-session`,
+      label,
+      category: 'General',
+      shortcut: shortcuts.get(label),
+      keywords: [type, ...(AGENT_SEARCH_SYNONYMS[type] ?? []), 'agent'],
+      enabled: true,
+      execute: () => executeAppCommand({ command: 'new-session', sessionType: type }),
+    };
+  });
+
   const commands: CommandEntry[] = [
     // --- General ---
-    {
-      id: 'new-session',
-      label: 'New Claude Code Session',
-      category: 'General',
-      shortcut: shortcuts.get('New Claude Code Session'),
-      enabled: true,
-      execute: () => executeAppCommand({ command: 'new-session' }),
-    },
-    {
-      id: 'new-codex-session',
-      label: 'New Codex Session',
-      category: 'General',
-      keywords: ['codex', 'openai', 'agent'],
-      enabled: true,
-      execute: () => executeAppCommand({ command: 'new-session', sessionType: 'codex' }),
-    },
-    {
-      id: 'new-gemini-session',
-      label: 'New Gemini Session',
-      category: 'General',
-      keywords: ['gemini', 'google', 'agent'],
-      enabled: true,
-      execute: () => executeAppCommand({ command: 'new-session', sessionType: 'gemini' }),
-    },
-    {
-      id: 'new-copilot-session',
-      label: 'New Copilot Session',
-      category: 'General',
-      keywords: ['copilot', 'github', 'agent'],
-      enabled: true,
-      execute: () => executeAppCommand({ command: 'new-session', sessionType: 'copilot' }),
-    },
+    ...agentLaunchCommands,
     {
       id: 'new-terminal',
       label: 'New Terminal',
