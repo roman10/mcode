@@ -29,10 +29,11 @@ const ONE_M = 1_000_000;
 const TWO_HUNDRED_K = 200_000;
 
 // Claude 4.x family. Defaults reflect each model's native window for the
-// lowest plan that can use it. Opus 4.7 is 1M because it ships only on
+// lowest plan that can use it. Opus 4.7/4.8 are 1M because they ship only on
 // plans where 1M is the default; the rest are 200K and bump to 1M only
 // when the user has actually exercised the [1m] variant (see scanner below).
 const CLAUDE_WINDOWS: Record<string, number> = {
+  'opus-4.8':   ONE_M,
   'opus-4.7':   ONE_M,
   'opus-4.6':   TWO_HUNDRED_K,
   'opus-4.5':   TWO_HUNDRED_K,

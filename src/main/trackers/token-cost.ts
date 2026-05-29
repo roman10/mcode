@@ -20,6 +20,7 @@ interface CacheMultipliers {
 interface ModelPricing extends CacheMultipliers {
   input: number;  // $ per MTok
   output: number; // $ per MTok
+  fastMult?: number; // fast-mode price multiplier; defaults to FAST_MODE_MULTIPLIER
 }
 
 // Claude: 5m write 1.25x, 1h write 2x, cache read 0.1x (per Anthropic docs).
@@ -31,6 +32,8 @@ const GEMINI_CACHE: CacheMultipliers = { cacheWrite5mMult: 0, cacheWrite1hMult: 
 
 // Keyed by normalized model version (e.g. "opus-4.6")
 const MODEL_PRICING: Record<string, ModelPricing> = {
+  // Opus 4.8 fast mode is 2x base ($10/$50), cheaper than the legacy 6x fast tier.
+  'opus-4.8':   { input: 5,    output: 25,   fastMult: 2, ...CLAUDE_CACHE },
   'opus-4.7':   { input: 5,    output: 25,   ...CLAUDE_CACHE },
   'opus-4.6':   { input: 5,    output: 25,   ...CLAUDE_CACHE },
   'opus-4.5':   { input: 5,    output: 25,   ...CLAUDE_CACHE },
@@ -168,7 +171,7 @@ export function estimateCostUsd(
     return 0;
   }
 
-  const multiplier = isFastMode ? FAST_MODE_MULTIPLIER : 1;
+  const multiplier = isFastMode ? (pricing.fastMult ?? FAST_MODE_MULTIPLIER) : 1;
   const cost =
     (inputTokens * pricing.input +
       outputTokens * pricing.output +

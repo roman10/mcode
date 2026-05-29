@@ -20,8 +20,9 @@ describe('getContextWindow', () => {
       expect(getContextWindow('claude-haiku-4-5', 'claude')).toBe(200_000);
     });
 
-    it('returns 1M for opus-4.7 by default (native 1M for plans that ship it)', () => {
+    it('returns 1M for opus-4.7/4.8 by default (native 1M for plans that ship it)', () => {
       expect(getContextWindow('claude-opus-4-7', 'claude')).toBe(1_000_000);
+      expect(getContextWindow('claude-opus-4-8', 'claude')).toBe(1_000_000);
     });
 
     it('returns 200K when raw id has a date suffix', () => {

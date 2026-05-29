@@ -3,6 +3,8 @@ import { normalizeModelVersion, normalizeModelFamily, normalizeGeminiModel, norm
 
 describe('normalizeModelVersion', () => {
   it('strips claude- prefix and date suffix', () => {
+    expect(normalizeModelVersion('claude-opus-4-8')).toBe('opus-4.8');
+    expect(normalizeModelVersion('claude-opus-4-8-20260529')).toBe('opus-4.8');
     expect(normalizeModelVersion('claude-opus-4-7')).toBe('opus-4.7');
     expect(normalizeModelVersion('claude-opus-4-6')).toBe('opus-4.6');
     expect(normalizeModelVersion('claude-sonnet-4-5-20251022')).toBe('sonnet-4.5');
@@ -127,6 +129,19 @@ describe('estimateCostUsd', () => {
     // opus-4.6: input $5/MTok, output $25/MTok
     const cost = estimateCostUsd('claude-opus-4-6', 1_000_000, 1_000_000, 0, 0, 0, false);
     expect(cost).toBe(30); // $5 + $25
+  });
+
+  it('calculates cost for opus-4.8', () => {
+    // opus-4.8: input $5/MTok, output $25/MTok
+    const cost = estimateCostUsd('claude-opus-4-8', 1_000_000, 1_000_000, 0, 0, 0, false);
+    expect(cost).toBe(30); // $5 + $25
+  });
+
+  it('applies 2x fast mode multiplier for opus-4.8 (not the legacy 6x)', () => {
+    const normal = estimateCostUsd('claude-opus-4-8', 1_000_000, 0, 0, 0, 0, false);
+    const fast = estimateCostUsd('claude-opus-4-8', 1_000_000, 0, 0, 0, 0, true);
+    expect(normal).toBe(5);
+    expect(fast).toBe(10); // 2x, not 30
   });
 
   it('calculates cost for sonnet-3.7', () => {
