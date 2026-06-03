@@ -1,7 +1,7 @@
 /**
  * Hardcoded model pricing for estimated cost calculation.
  *
- * Sources (last verified 2026-04-22):
+ * Sources (last verified 2026-06-03):
  *   Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
  *   Google:    https://ai.google.dev/gemini-api/docs/pricing
  *   OpenAI:    https://developers.openai.com/api/docs/pricing
@@ -68,13 +68,16 @@ const GEMINI_PRICING: Record<string, ModelPricing> = {
  * OpenAI model pricing. Codex models use the same underlying API pricing.
  */
 const OPENAI_PRICING: Record<string, ModelPricing> = {
+  'gpt-5.5':            { input: 5.00,  output: 30.00, ...OPENAI_CACHE },
   'gpt-5.4':            { input: 2.50,  output: 15.00, ...OPENAI_CACHE },
   'gpt-5.4-mini':       { input: 0.75,  output: 4.50,  ...OPENAI_CACHE },
   'gpt-5.4-nano':       { input: 0.20,  output: 1.25,  ...OPENAI_CACHE },
   'gpt-5.3-codex':      { input: 1.75,  output: 14.00, ...OPENAI_CACHE },
   'gpt-5.2':            { input: 1.75,  output: 14.00, ...OPENAI_CACHE },
+  'gpt-5.2-codex':      { input: 1.75,  output: 14.00, ...OPENAI_CACHE },
   'gpt-5.1':            { input: 1.25,  output: 10.00, ...OPENAI_CACHE },
   'gpt-5.1-codex':      { input: 1.25,  output: 10.00, ...OPENAI_CACHE },
+  'gpt-5.1-codex-max':  { input: 1.25,  output: 10.00, ...OPENAI_CACHE },
   'gpt-5.1-codex-mini': { input: 0.25,  output: 2.00,  ...OPENAI_CACHE },
   'gpt-5':              { input: 1.25,  output: 10.00, ...OPENAI_CACHE },
 };
