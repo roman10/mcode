@@ -324,3 +324,68 @@ describe('SessionManager Codex thread id capture from hook', () => {
     expect(row.claude_session_id).toBeNull();
   });
 });
+
+/**
+ * Gemini also emits its session id as `session_id` in every hook event (landed
+ * on event.claudeSessionId), and it matches the id `gemini --list-sessions`
+ * resumes by. handleHookEvent must persist it to gemini_session_id so the
+ * CLI-list poll can be gated to fallback-only sessions.
+ */
+describe('SessionManager Gemini session id capture from hook', () => {
+  let manager: SessionManager;
+  const fakeWc = { send: vi.fn(), isDestroyed: () => false };
+
+  beforeAll(() => resetDbForTest());
+  afterAll(() => resetDbForTest());
+
+  beforeEach(() => {
+    truncateTestData(getDb());
+    fakeWc.send.mockReset();
+    const ptyStub = new EventEmitter() as unknown as IObservablePtyManager;
+    const accountStub = {} as unknown as AccountService;
+    const hookRuntime: HookRuntimeInfo = { state: 'ready', port: 1234, warning: null };
+    manager = new SessionManager(
+      ptyStub,
+      () => fakeWc as unknown as Electron.WebContents,
+      () => hookRuntime,
+      accountStub,
+    );
+  });
+
+  function geminiStartEvent(geminiSessionId: string): HookEvent {
+    return {
+      sessionId: 'gem',
+      claudeSessionId: geminiSessionId,
+      hookEventName: 'SessionStart',
+      sessionStatus: null,
+      toolName: null,
+      toolInput: null,
+      payload: { session_id: geminiSessionId, hook_event_name: 'SessionStart' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+  }
+
+  function readGeminiId(sessionId: string): string | null {
+    const row = getDb()
+      .prepare('SELECT gemini_session_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { gemini_session_id: string | null } | undefined;
+    return row?.gemini_session_id ?? null;
+  }
+
+  it('records gemini_session_id from the SessionStart hook session_id', () => {
+    insertSession('gem', { session_type: 'gemini', gemini_session_id: null });
+
+    const type = manager.handleHookEvent('gem', geminiStartEvent('c30432bd-gemini'));
+
+    expect(type).toBe('gemini');
+    expect(readGeminiId('gem')).toBe('c30432bd-gemini');
+  });
+
+  it('does not overwrite an already-recorded gemini_session_id', () => {
+    insertSession('gem', { session_type: 'gemini', gemini_session_id: 'first-session' });
+
+    manager.handleHookEvent('gem', geminiStartEvent('second-session'));
+
+    expect(readGeminiId('gem')).toBe('first-session');
+  });
+});

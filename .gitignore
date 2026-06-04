@@ -12,3 +12,4 @@ dist/
 docs/marketing/
 .env.signing
 .env.local
+db/test.db

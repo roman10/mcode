@@ -227,6 +227,11 @@ export function createGeminiRuntimeAdapter(deps: {
       return buildGeminiCreatePlan(ctx);
     },
     afterCreate(ctx: AgentPostCreateContext): void {
+      // Under live hooks, the SessionStart hook delivers the session id
+      // deterministically (see session-manager handleHookEvent) and it matches
+      // the id `gemini --list-sessions` resumes by. The CLI-list poll is only
+      // the fallback for sessions running without gemini hooks.
+      if (ctx.hookMode === 'live') return;
       deps.scheduleSessionCapture({
         sessionId: ctx.sessionId,
         cwd: ctx.cwd,

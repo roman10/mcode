@@ -770,6 +770,28 @@ export class SessionManager {
     }
   }
 
+  /** Persist an agent-native session/thread id captured from a hook event,
+   *  only if the column is still null. Tolerates a UNIQUE collision (another
+   *  session already owns the id) and broadcasts so the resume affordance
+   *  updates live. */
+  private captureAgentIdFromHook(
+    sessionId: string,
+    column: 'codex_thread_id' | 'gemini_session_id',
+    value: string,
+  ): void {
+    try {
+      if (setAgentIdIfNull(sessionId, column, value)) {
+        logger.info('session', 'Captured agent id from hook', { sessionId, column, value });
+        this.broadcastSessionUpdate(sessionId);
+      }
+    } catch (err) {
+      logger.warn('session', 'Agent id already claimed', {
+        sessionId, column, value,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   /** Handle a hook event from the hook server or injected via MCP.
    *  Returns the session type on success, or false if the session is unknown. */
   handleHookEvent(sessionId: string, event: HookEvent): AgentSessionType | false {
@@ -785,30 +807,18 @@ export class SessionManager {
     // Don't process events for ended sessions
     if (row.status === 'ended') return sessionType;
 
-    // Persist agent-native session ID if present (route to correct column by session type)
+    // Persist agent-native session ID if present (route to correct column by session type).
+    // Codex and Gemini both emit their id as `session_id` in every hook event (landed
+    // on event.claudeSessionId by the hook server); the bridge correlates via the
+    // X-Mcode-Session-Id header, so the hook is the deterministic capture path and the
+    // per-agent sqlite/CLI polls are gated to fallback-only sessions.
     if (event.claudeSessionId) {
       if (row.session_type === 'claude') {
         updateSession(sessionId, { claudeSessionId: event.claudeSessionId });
       } else if (row.session_type === 'gemini' && !row.gemini_session_id) {
-        setAgentIdIfNull(sessionId, 'gemini_session_id', event.claudeSessionId);
+        this.captureAgentIdFromHook(sessionId, 'gemini_session_id', event.claudeSessionId);
       } else if (row.session_type === 'codex' && !row.codex_thread_id) {
-        // Codex emits its thread id as `session_id` in every hook event; the
-        // bridge correlates via the X-Mcode-Session-Id header, so this is the
-        // deterministic capture path (the sqlite poll is a fallback-only net).
-        try {
-          if (setAgentIdIfNull(sessionId, 'codex_thread_id', event.claudeSessionId)) {
-            logger.info('session', 'Captured Codex thread ID from hook', {
-              sessionId, codexThreadId: event.claudeSessionId,
-            });
-            this.broadcastSessionUpdate(sessionId);
-          }
-        } catch (err) {
-          // UNIQUE(codex_thread_id) collision — another session already owns it.
-          logger.warn('session', 'Codex thread ID already claimed', {
-            sessionId, codexThreadId: event.claudeSessionId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        this.captureAgentIdFromHook(sessionId, 'codex_thread_id', event.claudeSessionId);
       }
     }
 
