@@ -174,6 +174,7 @@ export interface SessionHookStateRow {
   claude_session_id: string | null;
   session_type: string;
   gemini_session_id: string | null;
+  codex_thread_id: string | null;
   copilot_session_id: string | null;
 }
 
@@ -226,7 +227,7 @@ export function getSessionStatus(id: string): string | null {
 export function getSessionHookState(id: string): SessionHookStateRow | null {
   return (getDb()
     .prepare(
-      'SELECT status, attention_level, cwd, worktree, last_tool, model, claude_session_id, session_type, gemini_session_id, copilot_session_id FROM sessions WHERE session_id = ?',
+      'SELECT status, attention_level, cwd, worktree, last_tool, model, claude_session_id, session_type, gemini_session_id, codex_thread_id, copilot_session_id FROM sessions WHERE session_id = ?',
     )
     .get(id) as SessionHookStateRow | undefined) ?? null;
 }

@@ -142,6 +142,22 @@ describe('session-repository', () => {
       expect(row!.worktree).toBe('wt1');
       expect(row!.session_type).toBe('claude');
     });
+
+    it('projects the per-agent native id columns', () => {
+      // Guards the SELECT projection: omitting a column here leaves the
+      // matching `!row.<col>` guard in handleHookEvent always-true, silently
+      // re-firing capture on every hook event (caught only at runtime).
+      insertTestSession('s1', {
+        session_type: 'codex',
+        gemini_session_id: 'gem-1',
+        codex_thread_id: 'codex-1',
+        copilot_session_id: 'cop-1',
+      });
+      const row = getSessionHookState('s1');
+      expect(row!.gemini_session_id).toBe('gem-1');
+      expect(row!.codex_thread_id).toBe('codex-1');
+      expect(row!.copilot_session_id).toBe('cop-1');
+    });
   });
 
   describe('getActiveAgentStates', () => {
