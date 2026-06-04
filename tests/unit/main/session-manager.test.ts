@@ -248,3 +248,79 @@ describe('SessionManager Claude transcript refresh coalescing', () => {
   // within an in-flight burst, which is awkward to exercise through
   // SessionManager's coarser scheduling surface.
 });
+
+/**
+ * Codex emits its thread id as `session_id` in every hook event (the hook
+ * server lands it on event.claudeSessionId). handleHookEvent must persist it to
+ * the codex_thread_id column so the session is resumable — the deterministic
+ * replacement for the flaky sqlite-poll heuristic.
+ */
+describe('SessionManager Codex thread id capture from hook', () => {
+  let manager: SessionManager;
+  const fakeWc = { send: vi.fn(), isDestroyed: () => false };
+
+  beforeAll(() => resetDbForTest());
+  afterAll(() => resetDbForTest());
+
+  beforeEach(() => {
+    truncateTestData(getDb());
+    fakeWc.send.mockReset();
+    const ptyStub = new EventEmitter() as unknown as IObservablePtyManager;
+    const accountStub = {} as unknown as AccountService;
+    const hookRuntime: HookRuntimeInfo = { state: 'ready', port: 1234, warning: null };
+    manager = new SessionManager(
+      ptyStub,
+      () => fakeWc as unknown as Electron.WebContents,
+      () => hookRuntime,
+      accountStub,
+    );
+  });
+
+  function codexStartEvent(threadId: string): HookEvent {
+    return {
+      sessionId: 'cdx',
+      claudeSessionId: threadId,
+      hookEventName: 'SessionStart',
+      sessionStatus: null,
+      toolName: null,
+      toolInput: null,
+      payload: { session_id: threadId, hook_event_name: 'SessionStart' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+  }
+
+  function readThreadId(sessionId: string): string | null {
+    const row = getDb()
+      .prepare('SELECT codex_thread_id FROM sessions WHERE session_id = ?')
+      .get(sessionId) as { codex_thread_id: string | null } | undefined;
+    return row?.codex_thread_id ?? null;
+  }
+
+  it('records codex_thread_id from the SessionStart hook session_id', () => {
+    insertSession('cdx', { session_type: 'codex', codex_thread_id: null });
+
+    const type = manager.handleHookEvent('cdx', codexStartEvent('019e8fee-thread'));
+
+    expect(type).toBe('codex');
+    expect(readThreadId('cdx')).toBe('019e8fee-thread');
+  });
+
+  it('does not overwrite an already-recorded codex_thread_id', () => {
+    insertSession('cdx', { session_type: 'codex', codex_thread_id: 'first-thread' });
+
+    manager.handleHookEvent('cdx', codexStartEvent('second-thread'));
+
+    expect(readThreadId('cdx')).toBe('first-thread');
+  });
+
+  it('does not route the codex thread id into the claude column', () => {
+    insertSession('cdx', { session_type: 'codex', codex_thread_id: null });
+
+    manager.handleHookEvent('cdx', codexStartEvent('019e8fee-thread'));
+
+    const row = getDb()
+      .prepare('SELECT claude_session_id FROM sessions WHERE session_id = ?')
+      .get('cdx') as { claude_session_id: string | null };
+    expect(row.claude_session_id).toBeNull();
+  });
+});

@@ -12,6 +12,10 @@ export interface AgentPostCreateContext {
   startedAt: string;
   command: string;
   initialPrompt?: string;
+  /** Whether agent-native hooks are live for this session. When 'live', the
+   *  hook delivers the agent session/thread id deterministically, so poll-based
+   *  capture fallbacks should stand down. */
+  hookMode: 'live' | 'fallback';
 }
 
 export interface AgentResumeRow {

@@ -399,6 +399,7 @@ export class SessionManager {
       startedAt,
       command,
       initialPrompt: input.initialPrompt,
+      hookMode,
     });
 
     const session = this.get(sessionId)!;
@@ -790,6 +791,24 @@ export class SessionManager {
         updateSession(sessionId, { claudeSessionId: event.claudeSessionId });
       } else if (row.session_type === 'gemini' && !row.gemini_session_id) {
         setAgentIdIfNull(sessionId, 'gemini_session_id', event.claudeSessionId);
+      } else if (row.session_type === 'codex' && !row.codex_thread_id) {
+        // Codex emits its thread id as `session_id` in every hook event; the
+        // bridge correlates via the X-Mcode-Session-Id header, so this is the
+        // deterministic capture path (the sqlite poll is a fallback-only net).
+        try {
+          if (setAgentIdIfNull(sessionId, 'codex_thread_id', event.claudeSessionId)) {
+            logger.info('session', 'Captured Codex thread ID from hook', {
+              sessionId, codexThreadId: event.claudeSessionId,
+            });
+            this.broadcastSessionUpdate(sessionId);
+          }
+        } catch (err) {
+          // UNIQUE(codex_thread_id) collision — another session already owns it.
+          logger.warn('session', 'Codex thread ID already claimed', {
+            sessionId, codexThreadId: event.claudeSessionId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
 

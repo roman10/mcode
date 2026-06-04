@@ -168,6 +168,10 @@ export function createCodexRuntimeAdapter(deps: {
       return buildCodexCreatePlan(ctx);
     },
     afterCreate(ctx: AgentPostCreateContext): void {
+      // Under live hooks, the SessionStart hook delivers the thread id
+      // deterministically (see session-manager handleHookEvent). The sqlite
+      // poll is only the fallback for sessions running without codex hooks.
+      if (ctx.hookMode === 'live') return;
       deps.scheduleThreadCapture({
         sessionId: ctx.sessionId,
         cwd: ctx.cwd,
