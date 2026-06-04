@@ -235,6 +235,13 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     icon: CODEX_ICON,
     defaultCommand: 'codex',
     supportsTaskQueue: true,
+    // Codex "plan mode" is a conversational collaboration mode entered via the
+    // in-TUI `/plan` slash command — it does NOT emit Claude's ExitPlanMode
+    // numbered-approval menu. mcode's plan-mode feature (the planResponse task
+    // queue: auto-accept/manual-approve/revise via `❯ N.` menu navigation) only
+    // drives that menu, and codex cannot be launched into plan mode (no flag;
+    // `default_mode` is not a recognized config field as of codex 0.136.0).
+    // Keep false: flipping it would wire UI that has no menu to drive.
     supportsPlanMode: false,
     hidesTerminalCursor: true,
     dialogMode: 'minimal',
