@@ -2,7 +2,7 @@ import { basename } from 'node:path';
 import { getSessionRecord, getClaimedAgentIds, setAgentIdIfNull } from '../session-repository';
 import { logger } from '../../logger';
 import { findCodexThreadMatch } from '../codex-session-store';
-import { hasPermissionPrompt } from '../prompt-detect';
+import { hasCodexPermissionPrompt } from '../prompt-detect';
 import type {
   AgentCreateContext,
   AgentPostCreateContext,
@@ -148,7 +148,7 @@ export function codexPollState(ctx: PtyPollContext): StateUpdate | null {
     (ctx.status === 'active' || ctx.status === 'idle') &&
     ctx.attentionLevel !== 'action' &&
     ctx.isQuiescent &&
-    hasPermissionPrompt(ctx.buffer)
+    hasCodexPermissionPrompt(ctx.buffer)
   ) {
     return {
       status: 'waiting',

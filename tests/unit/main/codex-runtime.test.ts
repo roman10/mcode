@@ -364,10 +364,10 @@ describe('codexPollState', () => {
       .toEqual({ status: 'idle' });
   });
 
-  it('detects permission prompts before idle fallback', () => {
+  it('detects Codex approval prompts before idle fallback', () => {
     expect(codexPollState(ctx({
       status: 'active',
-      buffer: 'Allow once\nDeny once\nAllow always\n',
+      buffer: 'Allow Codex to run `rm -rf build`?\n❯ 1. Yes, proceed\n  3. No, and tell Codex what to do differently\n',
       isQuiescent: true,
     }))).toEqual({
       status: 'waiting',
@@ -375,11 +375,22 @@ describe('codexPollState', () => {
     });
   });
 
+  it('ignores Claude-style permission wording (not a Codex prompt)', () => {
+    expect(codexPollState(ctx({
+      status: 'active',
+      buffer: 'Allow once\nDeny once\nAllow always\n',
+      isQuiescent: true,
+    }))).toEqual({
+      status: 'idle',
+      attention: { level: 'action', reason: 'Codex finished — awaiting input' },
+    });
+  });
+
   it('does not re-trigger permission detection when action attention is already set', () => {
     expect(codexPollState(ctx({
       status: 'active',
       attentionLevel: 'action',
-      buffer: 'Allow once\nDeny once\nAllow always\n',
+      buffer: 'Allow Codex to run `rm -rf build`?\n❯ 1. Yes, proceed\n',
       isQuiescent: true,
     }))).toEqual({
       status: 'idle',
