@@ -12,6 +12,7 @@ import {
   supportsSessionSlashCommands,
 } from '../../../src/shared/session-capabilities';
 import { AGENT_SESSION_TYPES, getAgentDefinition, isAgentSessionType, shouldHideTerminalCursor } from '../../../src/shared/session-agents';
+import type { SessionType } from '../../../src/shared/types';
 import { makeSession } from '../test-factories';
 
 describe('session-capabilities', () => {
@@ -100,6 +101,20 @@ describe('session-capabilities', () => {
       expect(def, `missing AgentDefinition for "${type}"`).not.toBeNull();
       expect(def!.displayName.length).toBeGreaterThan(0);
     }
+  });
+
+  // Gemini was retired as a launchable agent but remains a recognized SessionType so
+  // historical rows (and the kept token/quota/account analytics) still render. This locks
+  // that split: 'gemini' must NOT be launchable/registered, yet must stay a known type.
+  it('treats gemini as a retired, non-launchable session type', () => {
+    expect(isAgentSessionType('gemini')).toBe(false);
+    expect(getAgentDefinition('gemini')).toBeNull();
+    expect(AGENT_SESSION_TYPES).not.toContain('gemini');
+    expect(supportsSessionSlashCommands('gemini')).toBe(false);
+    expect(getSessionInstallHelp('gemini')).toBeNull();
+    // ...but 'gemini' is still a valid SessionType for historical rows.
+    const historical: SessionType = 'gemini';
+    expect(historical).toBe('gemini');
   });
 
   it('returns install help only for agents with an install URL', () => {
