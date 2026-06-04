@@ -58,7 +58,17 @@ async function readCommandDescription(
 }
 
 function extractMarkdownDescription(content: string): string | null {
-  const firstLine = content.split('\n').find((line) => line.trim().length > 0);
+  let body = content;
+  // Honor a leading YAML frontmatter block (used by both Claude and Codex
+  // custom prompts): prefer its `description:` field, otherwise skip the block
+  // so the first body line isn't mistaken for the description (e.g. `---`).
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (frontmatter) {
+    const desc = frontmatter[1].match(/^\s*description\s*:\s*["']?(.+?)["']?\s*$/m);
+    if (desc) return desc[1].trim();
+    body = content.slice(frontmatter[0].length);
+  }
+  const firstLine = body.split('\n').find((line) => line.trim().length > 0);
   if (!firstLine) return null;
   return firstLine.replace(/^#+\s*/, '').trim();
 }
