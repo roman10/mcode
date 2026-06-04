@@ -29,7 +29,7 @@ describe('buildCodexCreatePlan', () => {
       agentHookBridgeReady: true,
     })).toEqual({
       hookMode: 'live',
-      args: ['--enable', 'codex_hooks', 'inspect'],
+      args: ['--enable', 'hooks', 'inspect'],
       env: { MCODE_HOOK_PORT: '4312' },
       dbFields: { permissionMode: null },
     });
@@ -156,7 +156,7 @@ describe('codex-runtime', () => {
     })).toEqual({
       command: 'codex',
       cwd: '/tmp/project',
-      args: ['--enable', 'codex_hooks', 'resume', 'thread-123'],
+      args: ['--enable', 'hooks', 'resume', 'thread-123'],
       env: { MCODE_HOOK_PORT: '4312' },
       hookMode: 'live',
       logLabel: 'Codex',

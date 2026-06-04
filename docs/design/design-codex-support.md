@@ -29,7 +29,7 @@ Detailed resume design lives in [design-codex-resume.md](./design-codex-resume.m
 | Interactive mode | Yes | Positional prompt arg: `codex "prompt"` |
 | Resume | Yes | `codex resume <threadId>` |
 | State store | `~/.codex/state_*.sqlite` | `threads` table with thread ID, CWD, timestamps |
-| Hook system | Experimental | Requires `--enable codex_hooks` flag |
+| Hook system | Stable (0.136.0+) | Default-on; we pass `--enable hooks` explicitly. Legacy `codex_hooks` alias is deprecated |
 | Hook delivery | Shell-exec | JSON via stdin, JSON output on stdout |
 | Hook events | 7 | `SessionStart`, `SessionEnd`, `PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`, `Notification` |
 | Plan mode | No | No plan-mode concept |
@@ -74,7 +74,7 @@ The Codex integration follows the shared agent runtime adapter pattern.
 
 - `'codex'` in `SessionType` union, `CODEX_ICON` (U+2742 `❂`), `AgentDefinition` with capability flags
 - DB migration 028 (session type marker), migration 030 (`codex_thread_id` column with unique index)
-- `codex-runtime.ts` adapter: `prepareCreate` (hook-aware args with `--enable codex_hooks`), `afterCreate` (thread capture scheduling), `prepareResume` (thread-ID resume), `pollState` (quiescence + permission prompt detection)
+- `codex-runtime.ts` adapter: `prepareCreate` (hook-aware args with `--enable hooks`), `afterCreate` (thread capture scheduling), `prepareResume` (thread-ID resume), `pollState` (quiescence + permission prompt detection)
 - `codex-session-store.ts` for thread-ID capture from `~/.codex/state_*.sqlite` with ranked candidate matching (prompt, title, newest creation), CWD filtering, and ownership deduplication
 - UI: new-session dialog with Codex agent type option, `new-codex-session` command palette entry, sidebar/kanban/tile display, terminal cursor hidden
 - Commit tracking: `detectAIAssisted()` and `detectAIProvider()` with `'codex'`/`'openai'` co-author patterns; `detected_provider` column added in migration 036
@@ -144,7 +144,7 @@ Fixture data in `tests/fixtures/codex`.
 
 ### 1. Hook API stability
 
-Codex hooks are still experimental — the `--enable codex_hooks` flag is required. Hook event names or delivery format could change in future Codex releases. Mitigation: bridge script is thin; fallback polling is always available and provides basic state tracking without hooks.
+Codex hooks are stable as of 0.136.0 (`hooks` feature, default-on). We still pass `--enable hooks` explicitly to guard against user config disabling it. The old `codex_hooks` feature name is a deprecated alias — using it emits a warning and risks a hard error when the alias is removed. Hook event names or delivery format could still change in future Codex releases. Mitigation: bridge script is thin; fallback polling is always available and provides basic state tracking without hooks.
 
 ### 2. Thread capture relies on SQLite snooping
 

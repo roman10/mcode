@@ -288,7 +288,7 @@ export function buildCopilotCreatePlan(ctx: AgentCreateContext): PreparedCreate 
 }
 ```
 
-**Note:** Unlike Codex (which requires `--enable codex_hooks` CLI flag), Copilot automatically fires hooks if `~/.copilot/hooks/hooks.json` exists. No additional CLI arg needed — only `MCODE_HOOK_PORT` env var for the bridge script.
+**Note:** Unlike Codex (where we pass an explicit `--enable hooks` CLI flag), Copilot automatically fires hooks if `~/.copilot/hooks/hooks.json` exists. No additional CLI arg needed — only `MCODE_HOOK_PORT` env var for the bridge script.
 
 ### Verification
 
