@@ -29,7 +29,7 @@ describe('buildCodexCreatePlan', () => {
       agentHookBridgeReady: true,
     })).toEqual({
       hookMode: 'live',
-      args: ['--enable', 'codex_hooks', 'inspect'],
+      args: ['--dangerously-bypass-hook-trust', 'inspect'],
       env: { MCODE_HOOK_PORT: '4312' },
       dbFields: { permissionMode: null },
     });
@@ -71,15 +71,34 @@ describe('buildCodexCreatePlan', () => {
     expect(result.env).toEqual({});
   });
 
-  it('passes workspace-write sandbox + on-failure approval when permissionMode is fullAuto', () => {
+  it('passes workspace-write sandbox + on-request approval when permissionMode is fullAuto', () => {
     const result = buildCodexCreatePlan({
       input: { cwd: '/repo', sessionType: 'codex', permissionMode: 'fullAuto' },
       command: 'codex',
       hookRuntime: { state: 'ready', port: 4312, warning: null },
       agentHookBridgeReady: false,
     });
-    expect(result.args).toEqual(['--sandbox', 'workspace-write', '--ask-for-approval', 'on-failure']);
+    expect(result.args).toEqual(['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request']);
     expect(result.dbFields.permissionMode).toBe('fullAuto');
+  });
+
+  it('bypasses hook trust only when the bridge is live', () => {
+    const live = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'go' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: true,
+    });
+    expect(live.args).toContain('--dangerously-bypass-hook-trust');
+    expect(live.args).not.toContain('codex_hooks');
+
+    const fallback = buildCodexCreatePlan({
+      input: { cwd: '/repo', sessionType: 'codex', initialPrompt: 'go' },
+      command: 'codex',
+      hookRuntime: { state: 'ready', port: 4312, warning: null },
+      agentHookBridgeReady: false,
+    });
+    expect(fallback.args).not.toContain('--dangerously-bypass-hook-trust');
   });
 
   it('passes --dangerously-bypass-approvals-and-sandbox when permissionMode is bypassAll', () => {
@@ -156,7 +175,7 @@ describe('codex-runtime', () => {
     })).toEqual({
       command: 'codex',
       cwd: '/tmp/project',
-      args: ['--enable', 'codex_hooks', 'resume', 'thread-123'],
+      args: ['--dangerously-bypass-hook-trust', 'resume', 'thread-123'],
       env: { MCODE_HOOK_PORT: '4312' },
       hookMode: 'live',
       logLabel: 'Codex',
@@ -242,7 +261,7 @@ describe('codex-runtime', () => {
       hookRuntime: { state: 'ready', port: 4312, warning: null },
       agentHookBridgeReady: false,
     });
-    expect(result.args).toEqual(['--sandbox', 'workspace-write', '--ask-for-approval', 'on-failure', 'resume', 'thread-123']);
+    expect(result.args).toEqual(['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request', 'resume', 'thread-123']);
   });
 
   it('passes --dangerously-bypass-approvals-and-sandbox on resume when stored permissionMode is bypassAll', () => {
