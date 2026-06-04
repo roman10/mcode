@@ -1,9 +1,12 @@
-import { AGY_ICON, CLAUDE_ICON, CODEX_ICON, COPILOT_ICON, GEMINI_ICON } from './constants';
+import { AGY_ICON, CLAUDE_ICON, CODEX_ICON, COPILOT_ICON } from './constants';
 import type { SessionType } from './types';
 
+// 'gemini' is retained as a known session type for historical rows and analytics
+// (token/quota/account providers), but Gemini is no longer a launchable agent —
+// it has no AGENT_DEFINITIONS entry (see below).
 export type AgentSessionType = 'claude' | 'codex' | 'gemini' | 'copilot' | 'agy';
 export type AgentDialogMode = 'full' | 'minimal';
-export type AgentResumeIdentityKind = 'claudeSessionId' | 'codexThreadId' | 'geminiSessionId' | 'copilotSessionId' | null;
+export type AgentResumeIdentityKind = 'claudeSessionId' | 'codexThreadId' | 'copilotSessionId' | null;
 export type SlashCommandPathStyle = 'basename' | 'colon';
 export type SlashCommandDescriptionFormat = 'markdown-first-line' | 'toml-description';
 
@@ -71,51 +74,6 @@ const CLAUDE_SLASH_COMMANDS: SlashCommandSupport = {
     dirSegments: ['.claude', 'commands'],
     extension: '.md',
     descriptionFormat: 'markdown-first-line',
-  },
-};
-
-const GEMINI_SLASH_COMMANDS: SlashCommandSupport = {
-  helpCommand: '/help',
-  builtins: new Map([
-    ['help', 'Show available Gemini CLI commands'],
-    ['?', 'Alias for help'],
-    ['about', 'Show version and environment info'],
-    ['agents', 'Manage Gemini subagents'],
-    ['auth', 'Change authentication method'],
-    ['bug', 'File an issue about Gemini CLI'],
-    ['chat', 'Manage saved and resumable chats'],
-    ['resume', 'Resume a previous chat or checkpoint'],
-    ['clear', 'Clear the terminal display'],
-    ['commands', 'Manage custom slash commands'],
-    ['compress', 'Replace chat context with a summary'],
-    ['copy', 'Copy the last Gemini CLI output'],
-    ['directory', 'Manage workspace directories'],
-    ['dir', 'Alias for /directory'],
-    ['docs', 'Open Gemini CLI documentation'],
-    ['editor', 'Select or configure the editor'],
-    ['extensions', 'Manage extensions'],
-    ['memory', 'Manage Gemini memory instructions'],
-    ['mcp', 'Inspect MCP servers and tools'],
-    ['model', 'Manage model selection'],
-    ['settings', 'Open Gemini settings'],
-    ['stats', 'Display session statistics'],
-    ['theme', 'Change the CLI theme'],
-    ['tools', 'List available tools'],
-    ['vim', 'Toggle vim mode'],
-  ]),
-  userCommandFiles: {
-    dirSegments: ['.gemini', 'commands'],
-    extension: '.toml',
-    recursive: true,
-    pathStyle: 'colon',
-    descriptionFormat: 'toml-description',
-  },
-  projectCommandFiles: {
-    dirSegments: ['.gemini', 'commands'],
-    extension: '.toml',
-    recursive: true,
-    pathStyle: 'colon',
-    descriptionFormat: 'toml-description',
   },
 };
 
@@ -210,7 +168,10 @@ const AGY_SLASH_COMMANDS: SlashCommandSupport = {
   ]),
 };
 
-const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
+// Partial: 'gemini' is intentionally absent — it is a retired (non-launchable)
+// agent kept only for historical/analytics purposes. getAgentDefinition('gemini')
+// returns null, which disables launch/resume/slash-commands for those rows.
+const AGENT_DEFINITIONS: Partial<Record<AgentSessionType, AgentDefinition>> = {
   claude: {
     sessionType: 'claude',
     displayName: 'Claude Code',
@@ -252,23 +213,6 @@ const AGENT_DEFINITIONS: Record<AgentSessionType, AgentDefinition> = {
     supportsInputTracking: true,
     resumeIdentityKind: 'codexThreadId',
     slashCommands: CODEX_SLASH_COMMANDS,
-  },
-  gemini: {
-    sessionType: 'gemini',
-    displayName: 'Gemini CLI',
-    icon: GEMINI_ICON,
-    defaultCommand: 'gemini',
-    supportsTaskQueue: true,
-    supportsPlanMode: false,
-    hidesTerminalCursor: true,
-    dialogMode: 'minimal',
-    supportsAccountProfiles: true,
-    supportsModelDisplay: true,
-    supportsTokenTracking: true,
-    supportsCostEstimation: true,
-    supportsInputTracking: true,
-    resumeIdentityKind: 'geminiSessionId',
-    slashCommands: GEMINI_SLASH_COMMANDS,
   },
   copilot: {
     sessionType: 'copilot',
@@ -319,7 +263,7 @@ export function isAgentSession(sessionType: string | SessionType | undefined): b
 }
 
 export function getAgentDefinition(sessionType: string | SessionType | undefined): AgentDefinition | null {
-  return isAgentSessionType(sessionType) ? AGENT_DEFINITIONS[sessionType] : null;
+  return (isAgentSessionType(sessionType) ? AGENT_DEFINITIONS[sessionType] : null) ?? null;
 }
 
 export function shouldHideTerminalCursor(sessionType: string | SessionType | undefined): boolean {

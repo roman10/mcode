@@ -176,7 +176,7 @@ function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.
           <div className="flex-1 mr-3">
             <div className="text-sm text-text-primary">Preserve scrollback during TUI redraws</div>
             <div className="text-xs text-text-muted mt-0.5">
-              Keep terminal history when CLI tools (Claude Code, Gemini, Copilot) redraw their
+              Keep terminal history when CLI tools (Claude Code, Codex, Copilot) redraw their
               interfaces. Off by default because the suppression can leave rendering fragments —
               turn on if you rely on long scrollback inside agent sessions.
             </div>

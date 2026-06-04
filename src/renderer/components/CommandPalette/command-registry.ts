@@ -44,7 +44,6 @@ function hasTile(mosaicTree: MosaicNode<string> | null, sessionId: string): bool
 /** Extra search synonyms per agent (provider aliases) — palette-local, not a registry concern. */
 const AGENT_SEARCH_SYNONYMS: Partial<Record<AgentSessionType, string[]>> = {
   codex: ['openai'],
-  gemini: ['google'],
   copilot: ['github'],
   agy: ['antigravity'],
 };

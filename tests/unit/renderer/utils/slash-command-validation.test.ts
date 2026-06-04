@@ -30,9 +30,9 @@ describe('slash-command-validation', () => {
 
   it('warns for unknown commands while allowing passthrough', () => {
     expect(
-      buildUnsupportedSlashCommandWarning('/mystery arg', ['help', 'model'], 'Gemini CLI'),
+      buildUnsupportedSlashCommandWarning('/mystery arg', ['help', 'model'], 'Copilot CLI'),
     ).toBe(
-      "/mystery is not in mcode's known Gemini CLI slash commands. It may still work if your CLI, extensions, or plugins add it.",
+      "/mystery is not in mcode's known Copilot CLI slash commands. It may still work if your CLI, extensions, or plugins add it.",
     );
   });
 

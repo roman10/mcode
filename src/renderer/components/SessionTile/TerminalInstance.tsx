@@ -307,7 +307,7 @@ function TerminalInstance({ sessionId, sessionType, scrollbackLines, isVisible =
     }
 
     // Suppressing \x1b[3J (Erase Scrollback) preserves history when CLI tools
-    // (Claude Code, Gemini, Copilot) send it during TUI redraws, but can leak
+    // (Claude Code, Codex, Copilot) send it during TUI redraws, but can leak
     // rendering remnants when a TUI repaints a shorter frame than before.
     // Off by default; users opt in via Settings → Terminal. ED 0/1/2 always pass.
     let edHandler: IDisposable | null = null;

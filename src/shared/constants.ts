@@ -75,7 +75,6 @@ export const AGENT_PERMISSION_MODES: Partial<Record<string, readonly PermissionM
   claude: [...CLAUDE_PERMISSION_MODES],
   copilot: [...COPILOT_PERMISSION_MODES],
   codex: [...CODEX_PERMISSION_MODES],
-  gemini: ['plan', ...GEMINI_PERMISSION_MODES],
   agy: [...AGY_PERMISSION_MODES],
 };
 
@@ -84,7 +83,6 @@ export const DEFAULT_AGENT_PERMISSION_MODE: Partial<Record<string, PermissionMod
   claude: 'auto',
   codex: 'fullAuto',
   copilot: 'autopilot',
-  gemini: 'autoEdit',
   agy: 'skipPermissions',
 };
 
@@ -121,9 +119,6 @@ export const CLAUDE_ICON = '\u2733';
 // Codex icon — ❂ (U+2742), used as session label prefix for Codex CLI sessions
 export const CODEX_ICON = '\u2742';
 
-// Gemini icon — ✦ (U+2726), used as session label prefix for Gemini CLI sessions
-export const GEMINI_ICON = '\u2726';
-
 // Copilot icon — ★ (U+2605), used as session label prefix for Copilot CLI sessions
 export const COPILOT_ICON = '\u2605';
 
@@ -150,10 +145,9 @@ export const CLAUDE_HOOK_EVENTS = [
   'UserPromptSubmit',
 ] as const;
 
-// All hook events mcode understands, including Gemini-only events like BeforeModel.
+// All hook events mcode understands.
 export const KNOWN_HOOK_EVENTS = [
   ...CLAUDE_HOOK_EVENTS,
-  'BeforeModel',
 ] as const;
 export type KnownHookEvent = (typeof KNOWN_HOOK_EVENTS)[number];
 

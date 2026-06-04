@@ -23,7 +23,6 @@ import { getPreferenceBool } from './preferences';
 import { startHookServer, stopHookServer } from './hooks/hook-server';
 import { reconcileOnStartup, cleanupOnQuit } from './hooks/hook-config';
 import { codexHookBridge } from './hooks/codex-hook-config';
-import { geminiHookBridge } from './hooks/gemini-hook-config';
 import { copilotHookBridge } from './hooks/copilot-hook-config';
 import type { HookBridge } from './hooks/hook-bridge';
 import { getDb, closeDb } from './db';
@@ -86,7 +85,7 @@ let hookRuntimeInfo: HookRuntimeInfo = {
 };
 let pruneInterval: ReturnType<typeof setInterval> | null = null;
 let pollSessionStatesInterval: ReturnType<typeof setInterval> | null = null;
-const agentBridges: HookBridge[] = [codexHookBridge, geminiHookBridge, copilotHookBridge];
+const agentBridges: HookBridge[] = [codexHookBridge, copilotHookBridge];
 const providerRegistry = new AccountProviderRegistry();
 providerRegistry.register(createClaudeAccountProvider());
 providerRegistry.register(createCopilotAccountProvider());

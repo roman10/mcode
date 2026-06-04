@@ -24,7 +24,7 @@ describe('session-capabilities', () => {
   it('blocks non-live or ended sessions from task targeting', () => {
     expect(canSessionQueueTasks(makeSession({ hookMode: 'fallback' }))).toBe(false);
     expect(canSessionQueueTasks(makeSession({ status: 'ended' }))).toBe(false);
-    expect(canSessionQueueTasks(makeSession({ sessionType: 'gemini', hookMode: 'fallback' }))).toBe(false);
+    expect(canSessionQueueTasks(makeSession({ sessionType: 'copilot', hookMode: 'fallback' }))).toBe(false);
     expect(canSessionBeTaskTarget(makeSession({ status: 'ended' }))).toBe(false);
     expect(canSessionBeTaskTarget(makeSession({ status: 'detached' }))).toBe(false);
     expect(canSessionBeDefaultTaskTarget(makeSession({ status: 'ended' }))).toBe(false);
@@ -36,17 +36,6 @@ describe('session-capabilities', () => {
     expect(canSessionBeTaskTarget(makeSession({ status: 'starting' }))).toBe(true);
     expect(canSessionBeDefaultTaskTarget(makeSession({ status: 'starting' }))).toBe(true);
     expect(canSessionBeDefaultTaskTarget(makeSession({ status: 'waiting' }))).toBe(true);
-  });
-
-  it('allows live Gemini sessions to queue tasks (WP1)', () => {
-    expect(hasLiveTaskQueue(makeSession({ sessionType: 'gemini', hookMode: 'live' }))).toBe(true);
-    expect(canSessionQueueTasks(makeSession({ sessionType: 'gemini', hookMode: 'live' }))).toBe(true);
-    expect(canSessionBeTaskTarget(makeSession({ sessionType: 'gemini', hookMode: 'live', status: 'idle' }))).toBe(true);
-  });
-
-  it('blocks fallback Gemini sessions from task queue', () => {
-    expect(hasLiveTaskQueue(makeSession({ sessionType: 'gemini', hookMode: 'fallback' }))).toBe(false);
-    expect(canSessionQueueTasks(makeSession({ sessionType: 'gemini', hookMode: 'fallback' }))).toBe(false);
   });
 
   it('allows live Copilot sessions to queue tasks', () => {
@@ -63,24 +52,22 @@ describe('session-capabilities', () => {
   it('hasLiveTaskQueue does not gate on session status', () => {
     // hasLiveTaskQueue checks agent support + hookMode only, not status —
     // this is critical so ended sessions can reach the resume path in TaskQueue.create()
-    expect(hasLiveTaskQueue(makeSession({ sessionType: 'gemini', hookMode: 'live', status: 'ended' }))).toBe(true);
+    expect(hasLiveTaskQueue(makeSession({ sessionType: 'copilot', hookMode: 'live', status: 'ended' }))).toBe(true);
     expect(hasLiveTaskQueue(makeSession({ sessionType: 'claude', hookMode: 'live', status: 'ended' }))).toBe(true);
   });
 
   it('shows model pills only for agents that support model display', () => {
     expect(canDisplaySessionModel(makeSession({ model: 'claude-sonnet-4-5' }))).toBe(true);
-    expect(canDisplaySessionModel(makeSession({ sessionType: 'gemini', model: 'gemini-2.5-pro' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ sessionType: 'copilot', model: 'gpt-4o' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ sessionType: 'codex', model: 'gpt-5' }))).toBe(true);
     expect(canDisplaySessionModel(makeSession({ model: null }))).toBe(false);
     // agy has no model flag → never displays a model pill even if one is somehow set
-    expect(canDisplaySessionModel(makeSession({ sessionType: 'agy', model: 'gemini-3.1-pro' }))).toBe(false);
+    expect(canDisplaySessionModel(makeSession({ sessionType: 'agy', model: 'gpt-5' }))).toBe(false);
   });
 
   it('exposes correct supportsPlanMode flags per agent', () => {
     expect(getAgentDefinition('claude')?.supportsPlanMode).toBe(true);
     expect(getAgentDefinition('codex')?.supportsPlanMode).toBe(false);
-    expect(getAgentDefinition('gemini')?.supportsPlanMode).toBe(false);
     expect(getAgentDefinition('copilot')?.supportsPlanMode).toBe(false);
     expect(getAgentDefinition('agy')?.supportsPlanMode).toBe(false);
   });
@@ -88,7 +75,6 @@ describe('session-capabilities', () => {
   it('exposes correct supportsTaskQueue flags per agent', () => {
     expect(getAgentDefinition('claude')?.supportsTaskQueue).toBe(true);
     expect(getAgentDefinition('codex')?.supportsTaskQueue).toBe(true);
-    expect(getAgentDefinition('gemini')?.supportsTaskQueue).toBe(true);
     expect(getAgentDefinition('copilot')?.supportsTaskQueue).toBe(true);
     expect(getAgentDefinition('agy')?.supportsTaskQueue).toBe(true);
   });
@@ -128,13 +114,11 @@ describe('session-capabilities', () => {
       url: 'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started',
     });
     expect(getSessionInstallHelp('codex')).toBeNull();
-    expect(getSessionInstallHelp('gemini')).toBeNull();
   });
 
   it('exposes slash command support for all agent CLIs', () => {
     expect(supportsSessionSlashCommands('claude')).toBe(true);
     expect(supportsSessionSlashCommands('codex')).toBe(true);
-    expect(supportsSessionSlashCommands('gemini')).toBe(true);
     expect(supportsSessionSlashCommands('copilot')).toBe(true);
     expect(supportsSessionSlashCommands('terminal')).toBe(false);
   });
@@ -155,7 +139,6 @@ describe('session-capabilities', () => {
 
   it('exposes agent-specific slash command definitions', () => {
     expect(getSessionSlashCommandSupport('claude')?.builtins.get('compact')).toBeTruthy();
-    expect(getSessionSlashCommandSupport('gemini')?.builtins.get('commands')).toBeTruthy();
     expect(getSessionSlashCommandSupport('codex')?.builtins.get('plan')).toBeTruthy();
     expect(getSessionSlashCommandSupport('copilot')?.builtins.get('usage')).toBeTruthy();
     expect(getSessionSlashCommandSupport('terminal')).toBeNull();
@@ -174,7 +157,6 @@ describe('session-capabilities', () => {
   });
 
   it('blocks plan response targets for non-plan-mode agents', () => {
-    expect(canSessionBePlanResponseTarget(makeSession({ sessionType: 'gemini', hookMode: 'live', status: 'idle' }))).toBe(false);
     expect(canSessionBePlanResponseTarget(makeSession({ sessionType: 'copilot', hookMode: 'live', status: 'idle' }))).toBe(false);
     expect(canSessionBePlanResponseTarget(makeSession({ sessionType: 'codex', hookMode: 'live', status: 'idle' }))).toBe(false);
   });
@@ -186,7 +168,6 @@ describe('session-capabilities', () => {
   it('hides terminal cursor only for agents that manage DECTCEM visibility', () => {
     expect(shouldHideTerminalCursor('claude')).toBe(true);
     expect(shouldHideTerminalCursor('codex')).toBe(true);
-    expect(shouldHideTerminalCursor('gemini')).toBe(true);
     expect(shouldHideTerminalCursor('copilot')).toBe(false);
     expect(shouldHideTerminalCursor('agy')).toBe(true);
     expect(shouldHideTerminalCursor('terminal')).toBe(false);

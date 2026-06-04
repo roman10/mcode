@@ -27,7 +27,7 @@ export function registerSessionTools(
       cwd: z.string().describe('Working directory for the session'),
       label: z.string().optional().describe('Optional label for the session'),
       initialPrompt: z.string().optional().describe('Optional initial prompt for any agent CLI (ignored for terminal sessions)'),
-      model: z.string().optional().describe('Explicit model for agents that support model selection (Claude, Gemini, Copilot). Ignored for Codex, agy, and terminal sessions.'),
+      model: z.string().optional().describe('Explicit model for agents that support model selection (Claude, Copilot). Ignored for Codex, agy, and terminal sessions.'),
       permissionMode: z.enum(PERMISSION_MODES).optional().describe('Permission mode for the agent session; valid values depend on the agent type (ignored for terminal sessions)'),
       effort: z.enum(EFFORT_LEVELS).optional().describe('Effort level for Claude sessions only (ignored for other session types)'),
       enableAutoMode: z.boolean().optional().describe('Pass --enable-auto-mode for Claude sessions only. Ignored for other session types.'),
@@ -388,28 +388,6 @@ export function registerSessionTools(
   }, async ({ sessionId, codexThreadId }) => {
     try {
       ctx.sessionManager.setCodexThreadId(sessionId, codexThreadId);
-      const updated = ctx.sessionManager.get(sessionId);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-        isError: true,
-      };
-    }
-  });
-
-  server.registerTool('session_set_gemini_session_id', {
-    description: 'Set the Gemini session ID for a session (useful for testing or manual recovery)',
-    inputSchema: {
-      sessionId: z.string().describe('The session ID'),
-      geminiSessionId: z.string().describe('Gemini session ID'),
-    },
-    annotations: { readOnlyHint: false },
-  }, async ({ sessionId, geminiSessionId }) => {
-    try {
-      ctx.sessionManager.setGeminiSessionId(sessionId, geminiSessionId);
       const updated = ctx.sessionManager.get(sessionId);
       return {
         content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }],

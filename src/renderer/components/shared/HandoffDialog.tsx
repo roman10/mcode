@@ -25,7 +25,7 @@ function HandoffDialog({ open, sourceSession, onOpenChange }: HandoffDialogProps
 
   const [targetCli, setTargetCli] = useState<AgentSessionType>(candidates[0]?.value ?? 'codex');
   // Derive the radio's selected value from candidates so a stale state (e.g. user
-  // previously picked Gemini, then reopens the dialog with a Gemini source) can't
+  // previously picked Copilot, then reopens the dialog with a Copilot source) can't
   // leave no radio selected for one render or submit a same-CLI target.
   const effectiveTarget: AgentSessionType =
     candidates.find((c) => c.value === targetCli)?.value ?? candidates[0]?.value ?? 'codex';

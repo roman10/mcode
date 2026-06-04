@@ -7,10 +7,6 @@ import {
 } from '../../../src/shared/constants';
 
 describe('AGENT_PERMISSION_MODES', () => {
-  it('gemini supports plan, autoEdit, and yolo', () => {
-    expect(AGENT_PERMISSION_MODES.gemini).toEqual(['plan', 'autoEdit', 'yolo']);
-  });
-
   it('agy supports sandbox and skipPermissions, defaulting to skipPermissions', () => {
     expect(AGENT_PERMISSION_MODES.agy).toEqual(['sandbox', 'skipPermissions']);
     expect(DEFAULT_AGENT_PERMISSION_MODE.agy).toBe('skipPermissions');
@@ -31,7 +27,7 @@ describe('AGENT_PERMISSION_MODES', () => {
     const seen = new Map<string, string>();
     for (const [agent, modes] of Object.entries(AGENT_PERMISSION_MODES)) {
       for (const mode of modes!) {
-        if (mode === 'plan') continue; // shared between Claude and Gemini
+        if (mode === 'plan') continue; // Claude-only, but skip defensively
         expect(
           seen.has(mode),
           `mode "${mode}" appears in both ${seen.get(mode)} and ${agent}`,

@@ -21,7 +21,7 @@ export function normalizeAgentLabel(title: string, sessionType: SessionType | st
 
 /**
  * Split a session label into an optional leading emoji icon and the text body.
- * The icon (e.g. ✳ from Claude Code, ❂ from Codex, ✦ from Gemini) is displayed separately
+ * The icon (e.g. ✳ from Claude Code, ❂ from Codex, ★ from Copilot) is displayed separately
  * so it survives renames.
  */
 export function splitLabelIcon(label: string): [icon: string, text: string] {

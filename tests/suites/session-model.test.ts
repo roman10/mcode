@@ -2,12 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpTestClient } from '../mcp-client';
 import {
   createTestSession,
-  createGeminiTestSession,
   createCopilotTestSession,
   cleanupSessions,
   resetTestState,
-  injectHookEvent,
-  waitForIdle,
   type SessionInfo,
 } from '../helpers';
 
@@ -74,37 +71,6 @@ describe('session model display', () => {
     const session = await createTestSession(client, { sessionType: 'terminal' });
     sessionIds.push(session.sessionId);
     expect(session.model).toBeNull();
-  });
-
-  it('Gemini session persists an explicit create-time model', async () => {
-    const session = await createGeminiTestSession(client, {
-      model: 'gemini-2.5-pro',
-      initialPrompt: 'inspect repository state',
-    });
-    sessionIds.push(session.sessionId);
-    expect(session.model).toBe('gemini-2.5-pro');
-
-    const status = await client.callToolJson<SessionInfo>('session_get_status', {
-      sessionId: session.sessionId,
-    });
-    expect(status.model).toBe('gemini-2.5-pro');
-  });
-
-  it('Gemini session model detected from BeforeModel hook event', async () => {
-    const session = await createGeminiTestSession(client, {
-      initialPrompt: 'inspect repository state',
-    });
-    sessionIds.push(session.sessionId);
-    expect(session.model).toBeNull();
-
-    await waitForIdle(client, session.sessionId);
-
-    const updated = await injectHookEvent(client, session.sessionId, 'BeforeModel', {
-      payload: {
-        llm_request: { model: 'models/gemini-2.5-pro-preview-05-06' },
-      },
-    });
-    expect(updated.model).toBe('gemini-2.5-pro');
   });
 
   it('Copilot session with explicit model persists it', async () => {

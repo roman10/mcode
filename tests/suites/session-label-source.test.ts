@@ -4,7 +4,6 @@ import { McpTestClient } from '../mcp-client';
 import {
   createTestSession,
   createCopilotTestSession,
-  createGeminiTestSession,
   cleanupSessions,
   injectHookEvent,
   waitForIdle,
@@ -93,20 +92,6 @@ describe('session label source', () => {
     });
 
     expect(updated.label).toBe(prefixedLabel);
-  });
-
-  it('Gemini session auto-labels from first UserPromptSubmit hook', async () => {
-    const session = await createGeminiTestSession(client, { label: undefined });
-    sessionIds.push(session.sessionId);
-
-    await waitForIdle(client, session.sessionId);
-
-    const updated = await injectHookEvent(client, session.sessionId, 'UserPromptSubmit', {
-      payload: { prompt: 'add unit tests for the parser module' },
-    });
-
-    // Gemini icon is ✦ (U+2726)
-    expect(updated.label).toBe('\u2726 add unit tests for the parser module');
   });
 
   it('Copilot auto-label only applies on first prompt', async () => {

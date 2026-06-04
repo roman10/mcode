@@ -44,7 +44,7 @@ import {
   getSessionIdByCopilotSessionId,
 } from './session-repository';
 import { extractLatestModel } from '../trackers/jsonl-usage-parser';
-import { normalizeModelVersion, normalizeGeminiModel, normalizeCopilotModel } from '../trackers/token-cost';
+import { normalizeModelVersion, normalizeCopilotModel } from '../trackers/token-cost';
 import { isAgentSession, AGENT_SESSION_TYPES, getAgentDefinition, type AgentSessionType } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
 import { readSessionTranscript } from './transcript-reader';
@@ -66,11 +66,6 @@ import {
   createCodexRuntimeAdapter,
   scheduleCodexThreadCapture,
 } from './agent-runtimes/codex-runtime';
-import {
-  createGeminiRuntimeAdapter,
-  listGeminiSessions,
-  scheduleGeminiSessionCapture,
-} from './agent-runtimes/gemini-runtime';
 import {
   createCopilotRuntimeAdapter,
   scheduleCopilotSessionCapture,
@@ -176,7 +171,7 @@ export class SessionManager {
   readonly layoutRepo: LayoutRepository;
   private agentRuntimeAdapters: AgentRuntimeAdapterMap;
 
-  /** Per-agent hook bridge readiness, keyed by session type (e.g. 'codex', 'gemini'). */
+  /** Per-agent hook bridge readiness, keyed by session type (e.g. 'codex', 'copilot'). */
   hookBridgeReady: Record<string, boolean> = {};
 
   constructor(
@@ -213,12 +208,6 @@ export class SessionManager {
         scheduleThreadCapture: (input) => scheduleCodexThreadCapture(input, {
           broadcastSessionUpdate: (sessionId) => this.broadcastSessionUpdate(sessionId),
         }),
-      }),
-      gemini: createGeminiRuntimeAdapter({
-        scheduleSessionCapture: (input) => scheduleGeminiSessionCapture(input, {
-          broadcastSessionUpdate: (sessionId) => this.broadcastSessionUpdate(sessionId),
-        }),
-        listSessions: (command, cwd) => listGeminiSessions(command, cwd),
       }),
       copilot: createCopilotRuntimeAdapter({
         scheduleSessionCapture: (input) => scheduleCopilotSessionCapture(input, {
@@ -451,8 +440,8 @@ export class SessionManager {
       updateSession(sessionId, { labelSource: 'user' });
     }
 
-    // Restore prompt-labelled tracking for label-static agents (Copilot/Gemini)
-    if (row.session_type === 'copilot' || row.session_type === 'gemini') {
+    // Restore prompt-labelled tracking for label-static agents (Copilot)
+    if (row.session_type === 'copilot') {
       this.promptLabelledSessions.add(sessionId);
     }
 
@@ -776,7 +765,7 @@ export class SessionManager {
    *  updates live. */
   private captureAgentIdFromHook(
     sessionId: string,
-    column: 'codex_thread_id' | 'gemini_session_id',
+    column: 'codex_thread_id',
     value: string,
   ): void {
     try {
@@ -808,15 +797,13 @@ export class SessionManager {
     if (row.status === 'ended') return sessionType;
 
     // Persist agent-native session ID if present (route to correct column by session type).
-    // Codex and Gemini both emit their id as `session_id` in every hook event (landed
-    // on event.claudeSessionId by the hook server); the bridge correlates via the
+    // Codex emits its id as `session_id` in every hook event (landed on
+    // event.claudeSessionId by the hook server); the bridge correlates via the
     // X-Mcode-Session-Id header, so the hook is the deterministic capture path and the
     // per-agent sqlite/CLI polls are gated to fallback-only sessions.
     if (event.claudeSessionId) {
       if (row.session_type === 'claude') {
         updateSession(sessionId, { claudeSessionId: event.claudeSessionId });
-      } else if (row.session_type === 'gemini' && !row.gemini_session_id) {
-        this.captureAgentIdFromHook(sessionId, 'gemini_session_id', event.claudeSessionId);
       } else if (row.session_type === 'codex' && !row.codex_thread_id) {
         this.captureAgentIdFromHook(sessionId, 'codex_thread_id', event.claudeSessionId);
       }
@@ -933,15 +920,6 @@ export class SessionManager {
       }
     }
 
-    // Gemini model detection from BeforeModel hook payload
-    if (event.hookEventName === 'BeforeModel' && row.session_type === 'gemini') {
-      const llmRequest = (event.payload as { llm_request?: { model?: string } }).llm_request;
-      const rawModel = typeof llmRequest?.model === 'string' ? llmRequest.model : null;
-      if (rawModel) {
-        this.setModel(sessionId, normalizeGeminiModel(rawModel));
-      }
-    }
-
     // Codex model detection from hook payload (model field present in all Codex events)
     if (row.session_type === 'codex') {
       const rawModel = typeof (event.payload as { model?: unknown }).model === 'string'
@@ -962,11 +940,11 @@ export class SessionManager {
       }
     }
 
-    // Auto-label from first user prompt for Copilot/Gemini sessions (label-static agents).
+    // Auto-label from first user prompt for Copilot sessions (label-static agents).
     // Claude sessions use OSC terminal title updates instead.
     if (
       event.hookEventName === 'UserPromptSubmit' &&
-      (row.session_type === 'copilot' || row.session_type === 'gemini') &&
+      row.session_type === 'copilot' &&
       !this.promptLabelledSessions.has(sessionId)
     ) {
       const prompt = typeof (event.payload as { prompt?: unknown }).prompt === 'string'
@@ -1166,15 +1144,6 @@ export class SessionManager {
     this.broadcastSessionUpdate(sessionId);
   }
 
-  setGeminiSessionId(sessionId: string, geminiSessionId: string): void {
-    const record = getSessionRecord(sessionId);
-    if (!record) throw new Error(`Session not found: ${sessionId}`);
-    if (record.session_type !== 'gemini') throw new Error('Only Gemini sessions can store a Gemini session ID');
-    if (record.gemini_session_id === geminiSessionId) return;
-    updateSession(sessionId, { geminiSessionId });
-    this.broadcastSessionUpdate(sessionId);
-  }
-
   setCopilotSessionId(sessionId: string, copilotSessionId: string): void {
     const record = getSessionRecord(sessionId);
     if (!record) throw new Error(`Session not found: ${sessionId}`);
@@ -1295,7 +1264,7 @@ export class SessionManager {
       const lastDataAt = this.ptyManager.getLastDataAt(sessionId);
       const isQuiescent = lastDataAt > 0 && Date.now() - lastDataAt > SessionManager.PTY_QUIESCENCE_MS;
       // hasPendingTasks is only consulted inside quiescence-gated branches in
-      // every runtime adapter (claude/codex/gemini/copilot). Skip the DB query
+      // every runtime adapter (claude/codex/copilot). Skip the DB query
       // on the high-frequency per-chunk path where isQuiescent is always false.
       const hasPendingTasks = isQuiescent ? hasPendingTasksForSession(sessionId) : false;
 
@@ -1389,7 +1358,7 @@ export class SessionManager {
         this.updateStatus(session_id, restoreStatus);
         updateSession(session_id, { preDetachStatus: null });
         // Restore prompt-labelled tracking for label-static agents (matches resume() behaviour)
-        if (session_type === 'copilot' || session_type === 'gemini') {
+        if (session_type === 'copilot') {
           this.promptLabelledSessions.add(session_id);
         }
         logger.info('session', 'Reconnected to running session', { sessionId: session_id, restoredStatus: restoreStatus });

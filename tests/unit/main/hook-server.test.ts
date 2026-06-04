@@ -2,23 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { normalizeHookEventName, parseCopilotToolArgs } from '../../../src/main/hooks/hook-server';
 
 describe('normalizeHookEventName', () => {
-  // Gemini mappings
-  it('maps Gemini BeforeTool → PreToolUse', () => {
-    expect(normalizeHookEventName('BeforeTool')).toBe('PreToolUse');
-  });
-
-  it('maps Gemini AfterTool → PostToolUse', () => {
-    expect(normalizeHookEventName('AfterTool')).toBe('PostToolUse');
-  });
-
-  it('maps Gemini AfterAgent → Stop', () => {
-    expect(normalizeHookEventName('AfterAgent')).toBe('Stop');
-  });
-
-  it('maps Gemini BeforeAgent → UserPromptSubmit', () => {
-    expect(normalizeHookEventName('BeforeAgent')).toBe('UserPromptSubmit');
-  });
-
   // Copilot mappings
   it('maps Copilot sessionStart → SessionStart', () => {
     expect(normalizeHookEventName('sessionStart')).toBe('SessionStart');

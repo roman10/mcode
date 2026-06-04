@@ -104,11 +104,13 @@ export interface AgentRuntimeAdapter {
   pollState?(ctx: PtyPollContext): StateUpdate | null;
 }
 
-export type AgentRuntimeAdapterMap = Record<AgentSessionType, AgentRuntimeAdapter>;
+// Partial: retired agents (e.g. 'gemini') have no runtime adapter; lookups for
+// them return null and their historical sessions are non-launchable.
+export type AgentRuntimeAdapterMap = Partial<Record<AgentSessionType, AgentRuntimeAdapter>>;
 
 export function getAgentRuntimeAdapter(
   sessionType: string | undefined,
   adapters: AgentRuntimeAdapterMap,
 ): AgentRuntimeAdapter | null {
-  return isAgentSessionType(sessionType) ? adapters[sessionType] : null;
+  return (isAgentSessionType(sessionType) ? adapters[sessionType] : null) ?? null;
 }

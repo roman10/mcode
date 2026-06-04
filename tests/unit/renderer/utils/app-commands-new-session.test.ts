@@ -28,10 +28,4 @@ describe('new-session app commands', () => {
     expect(state.newSessionDialogType).toBe('codex');
   });
 
-  it('opens the dialog in Gemini mode when requested', () => {
-    executeAppCommand({ command: 'new-session', sessionType: 'gemini' });
-    const state = useDialogStore.getState();
-    expect(state.showNewSessionDialog).toBe(true);
-    expect(state.newSessionDialogType).toBe('gemini');
-  });
 });

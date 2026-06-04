@@ -120,14 +120,6 @@ export function computeTransition(
       };
     }
 
-    case 'BeforeModel':
-      return {
-        status: effectiveStatus,
-        attention: { type: 'preserve' },
-        lastTool: { type: 'preserve' },
-        selfHealed,
-      };
-
     case 'SessionEnd':
       return {
         status: 'ended',
