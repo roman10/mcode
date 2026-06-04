@@ -254,6 +254,7 @@ export class TokenTracker {
              cache_write_5m_tokens,
              cache_write_1h_tokens,
              cache_read_tokens,
+             context_window,
              message_timestamp
         FROM token_usage
        WHERE agent_session_id = ?
@@ -266,6 +267,7 @@ export class TokenTracker {
       cache_write_5m_tokens: number;
       cache_write_1h_tokens: number;
       cache_read_tokens: number;
+      context_window: number | null;
       message_timestamp: string;
     } | undefined;
 
@@ -286,7 +288,10 @@ export class TokenTracker {
       latest.cache_write_1h_tokens +
       latest.cache_read_tokens;
 
-    const contextWindow = getContextWindow(latest.model, latest.provider);
+    // Prefer the provider-reported window stored on the row (Codex emits it
+    // per call); fall back to the static lookup for Claude.
+    const contextWindow =
+      latest.context_window ?? getContextWindow(latest.model, latest.provider);
     const percent = contextWindow ? Math.round((usedTokens / contextWindow) * 100) : null;
 
     return {

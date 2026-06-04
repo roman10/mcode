@@ -13,6 +13,8 @@ export interface ParsedUsageEntry {
   cacheReadTokens: number;
   isFastMode: boolean;
   timestamp: string;
+  /** Provider-reported context window for this call, when available (Codex). Null otherwise. */
+  contextWindow?: number | null;
 }
 
 interface UsageFields {

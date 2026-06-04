@@ -90,6 +90,7 @@ describe('parseCodexTranscript', () => {
       cacheReadTokens: 9600,
       isFastMode: false,
       timestamp: '2026-03-27T00:25:12.011Z',
+      contextWindow: null,
     });
     // Round-trip: stored uncached + cacheRead equals the API-reported input_tokens.
     expect(result.tokenEntries[0].inputTokens + result.tokenEntries[0].cacheReadTokens).toBe(11288);
@@ -104,7 +105,36 @@ describe('parseCodexTranscript', () => {
       cacheReadTokens: 12000,
       isFastMode: false,
       timestamp: '2026-03-27T00:25:19.280Z',
+      contextWindow: null,
     });
+  });
+
+  it('extracts model_context_window when present', () => {
+    const withWindow = {
+      type: 'event_msg',
+      timestamp: '2026-03-27T00:25:30Z',
+      payload: {
+        type: 'token_count',
+        info: {
+          last_token_usage: {
+            input_tokens: 134284,
+            cached_input_tokens: 130944,
+            output_tokens: 518,
+            reasoning_output_tokens: 303,
+            total_tokens: 134802,
+          },
+          model_context_window: 258400,
+        },
+      },
+    };
+    const result = parseCodexTranscript(jsonl(SESSION_META, TURN_CONTEXT, withWindow));
+    expect(result.tokenEntries).toHaveLength(1);
+    expect(result.tokenEntries[0].contextWindow).toBe(258400);
+  });
+
+  it('sets contextWindow to null when model_context_window is absent', () => {
+    const result = parseCodexTranscript(jsonl(SESSION_META, TURN_CONTEXT, TOKEN_COUNT_1));
+    expect(result.tokenEntries[0].contextWindow).toBeNull();
   });
 
   it('tracks model from turn_context across turns', () => {

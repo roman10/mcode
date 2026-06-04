@@ -13,6 +13,7 @@ function makeTranscriptJsonl(opts: {
   timestamp: string;
   inputTokens: number;
   outputTokens: number;
+  contextWindow?: number;
 }): string {
   const sessionMeta = JSON.stringify({
     type: 'session_meta',
@@ -35,6 +36,9 @@ function makeTranscriptJsonl(opts: {
           reasoning_output_tokens: 0,
           total_tokens: opts.inputTokens + opts.outputTokens,
         },
+        ...(opts.contextWindow !== undefined
+          ? { model_context_window: opts.contextWindow }
+          : {}),
       },
     },
   });
@@ -111,6 +115,31 @@ describe('CodexScanner — account enumeration', () => {
     expect(watermarks).toHaveLength(2);
     expect(watermarks.some((w) => w.file_path.includes('/default/'))).toBe(true);
     expect(watermarks.some((w) => w.file_path.includes('/work/'))).toBe(true);
+  });
+
+  it('persists the reported context window onto the row', async () => {
+    const sessionsDir = join(root, 'default', '.codex', 'sessions');
+    const fileDir = join(sessionsDir, '2026', '04', '22');
+    mkdirSync(fileDir, { recursive: true });
+    writeFileSync(
+      join(fileDir, 'rollout-codex-session-window.jsonl'),
+      makeTranscriptJsonl({
+        sessionId: 'codex-session-window',
+        cwd: '/fake/default',
+        model: 'gpt-5.4-codex',
+        timestamp: '2026-04-22T00:00:00.000Z',
+        inputTokens: 1000,
+        outputTokens: 200,
+        contextWindow: 258400,
+      }),
+    );
+    const scanner = new CodexScanner(() => [sessionsDir]);
+    await scanner.scanAll(inputTracker);
+
+    const row = getDb().prepare(
+      `SELECT context_window FROM token_usage WHERE agent_session_id = 'codex-session-window'`,
+    ).get() as { context_window: number | null };
+    expect(row.context_window).toBe(258400);
   });
 
   it('silently skips missing account dirs', async () => {

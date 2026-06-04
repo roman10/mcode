@@ -42,6 +42,10 @@ interface CodexTokenCount {
         reasoning_output_tokens: number;
         total_tokens: number;
       };
+      // Codex reports the model's effective context window alongside usage.
+      // Plan- and model-dependent (e.g. 258400), so we store it verbatim
+      // rather than maintaining a hardcoded per-model table.
+      model_context_window?: number;
     } | null;
   };
 }
@@ -136,6 +140,7 @@ export function parseCodexTranscript(content: string): CodexParseResult {
         cacheReadTokens: cachedInput,
         isFastMode: false,
         timestamp,
+        contextWindow: info.model_context_window ?? null,
       });
     } else if (payload.type === 'user_message') {
       const message = (payload as CodexUserMessage['payload']).message;

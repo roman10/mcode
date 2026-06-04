@@ -134,8 +134,8 @@ export class CodexScanner {
       INSERT OR IGNORE INTO token_usage
         (message_id, agent_session_id, project_dir, model,
          input_tokens, output_tokens, cache_write_5m_tokens, cache_write_1h_tokens,
-         cache_read_tokens, is_fast_mode, message_timestamp, date, provider)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'codex')
+         cache_read_tokens, is_fast_mode, message_timestamp, date, context_window, provider)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'codex')
     `);
 
     let newCount = 0;
@@ -155,6 +155,7 @@ export class CodexScanner {
           entry.isFastMode ? 1 : 0,
           entry.timestamp,
           date,
+          entry.contextWindow ?? null,
         );
         if (result.changes > 0) newCount++;
       }

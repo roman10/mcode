@@ -23,14 +23,16 @@ function insertTokenRow(opts: {
   cacheRead?: number;
   outputTokens?: number;
   timestamp: string;
+  provider?: string;
+  contextWindow?: number | null;
 }): void {
   const db = getDb();
   db.prepare(`
     INSERT INTO token_usage
       (message_id, agent_session_id, project_dir, model,
        input_tokens, output_tokens, cache_write_5m_tokens, cache_write_1h_tokens,
-       cache_read_tokens, is_fast_mode, message_timestamp, date, provider)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'claude')
+       cache_read_tokens, is_fast_mode, message_timestamp, date, context_window, provider)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
   `).run(
     opts.messageId,
     sessionId,
@@ -43,6 +45,8 @@ function insertTokenRow(opts: {
     opts.cacheRead ?? 0,
     opts.timestamp,
     opts.timestamp.slice(0, 10),
+    opts.contextWindow ?? null,
+    opts.provider ?? 'claude',
   );
 }
 
@@ -138,6 +142,41 @@ describe('TokenTracker.getSessionUsage — currentContext', () => {
       model: 'claude-future-99',
       timestamp: '2026-04-29T10:00:00Z',
       inputTokens: 1_000,
+    });
+
+    const usage = makeTracker().getSessionUsage(sessionId);
+    expect(usage.currentContext?.contextWindow).toBeNull();
+    expect(usage.currentContext?.percent).toBeNull();
+    expect(usage.currentContext?.usedTokens).toBe(1_000);
+  });
+
+  it('uses the row-stored context_window for codex sessions', () => {
+    insertTokenRow({
+      messageId: 'c1',
+      provider: 'codex',
+      model: 'gpt-5.4-codex',
+      timestamp: '2026-04-29T10:00:00Z',
+      inputTokens: 3_340,
+      cacheRead: 130_944,
+      contextWindow: 258_400,
+    });
+
+    const usage = makeTracker().getSessionUsage(sessionId);
+    expect(usage.currentContext?.contextWindow).toBe(258_400);
+    expect(usage.currentContext?.usedTokens).toBe(134_284);
+    expect(usage.currentContext?.percent).toBe(
+      Math.round((134_284 / 258_400) * 100),
+    );
+  });
+
+  it('hides the window for codex rows missing context_window (go-forward gap)', () => {
+    insertTokenRow({
+      messageId: 'c2',
+      provider: 'codex',
+      model: 'gpt-5.4-codex',
+      timestamp: '2026-04-29T10:00:00Z',
+      inputTokens: 1_000,
+      contextWindow: null,
     });
 
     const usage = makeTracker().getSessionUsage(sessionId);
