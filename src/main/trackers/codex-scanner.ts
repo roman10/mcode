@@ -9,11 +9,11 @@
  * because per-API-call entries are immutable once written.
  */
 
-import { readdir, stat, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { stat, readFile } from 'node:fs/promises';
 import { getDb } from '../db';
 import { logger } from '../logger';
 import { parseCodexTranscript } from './codex-transcript-parser';
+import { iterateCodexRolloutFiles } from './codex-rollout-files';
 import { localDateStr } from './date-utils';
 import type { InputTracker } from './input-tracker';
 
@@ -45,55 +45,14 @@ export class CodexScanner {
   }
 
   private async scanSessionsDir(sessionsDir: string, inputTracker: InputTracker): Promise<number> {
-    let yearDirs: string[];
-    try {
-      yearDirs = await readdir(sessionsDir);
-    } catch {
-      return 0; // sessions dir doesn't exist
-    }
-
     let newCount = 0;
-
-    // Walk year/month/day directory structure
-    for (const year of yearDirs) {
-      const yearPath = join(sessionsDir, year);
-      let monthDirs: string[];
+    for await (const filePath of iterateCodexRolloutFiles(sessionsDir)) {
       try {
-        monthDirs = await readdir(yearPath);
+        newCount += await this.scanFile(filePath, inputTracker);
       } catch {
-        continue;
-      }
-
-      for (const month of monthDirs) {
-        const monthPath = join(yearPath, month);
-        let dayDirs: string[];
-        try {
-          dayDirs = await readdir(monthPath);
-        } catch {
-          continue;
-        }
-
-        for (const day of dayDirs) {
-          const dayPath = join(monthPath, day);
-          let files: string[];
-          try {
-            files = await readdir(dayPath);
-          } catch {
-            continue;
-          }
-
-          for (const file of files) {
-            if (!file.startsWith('rollout-') || !file.endsWith('.jsonl')) continue;
-            try {
-              newCount += await this.scanFile(join(dayPath, file), inputTracker);
-            } catch {
-              // Skip individual file errors
-            }
-          }
-        }
+        // Skip individual file errors
       }
     }
-
     return newCount;
   }
 

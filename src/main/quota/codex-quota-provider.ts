@@ -1,9 +1,10 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import type { QuotaProviderAdapter } from './quota-provider';
 import type { QuotaSnapshot, QuotaWindow } from '../../shared/types';
 import { getAgentDefinition } from '../../shared/session-agents';
+import { iterateCodexRolloutFiles } from '../trackers/codex-rollout-files';
 
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -89,43 +90,20 @@ export class CodexQuotaProvider implements QuotaProviderAdapter {
 
   private async listRecentTranscriptFiles(): Promise<string[]> {
     const sessionsDir = resolveCodexSessionsDir();
-    const yearDirs = await safeReadDir(sessionsDir);
     const fileStats: Array<{ path: string; mtimeMs: number }> = [];
 
-    for (const year of yearDirs) {
-      const yearPath = join(sessionsDir, year);
-      const monthDirs = await safeReadDir(yearPath);
-      for (const month of monthDirs) {
-        const monthPath = join(yearPath, month);
-        const dayDirs = await safeReadDir(monthPath);
-        for (const day of dayDirs) {
-          const dayPath = join(monthPath, day);
-          const files = await safeReadDir(dayPath);
-          for (const file of files) {
-            if (!file.startsWith('rollout-') || !file.endsWith('.jsonl')) continue;
-            const filePath = join(dayPath, file);
-            try {
-              const info = await stat(filePath);
-              fileStats.push({ path: filePath, mtimeMs: info.mtimeMs });
-            } catch {
-              // Ignore transient file issues.
-            }
-          }
-        }
+    for await (const filePath of iterateCodexRolloutFiles(sessionsDir)) {
+      try {
+        const info = await stat(filePath);
+        fileStats.push({ path: filePath, mtimeMs: info.mtimeMs });
+      } catch {
+        // Ignore transient file issues.
       }
     }
 
     return fileStats
       .sort((a, b) => b.mtimeMs - a.mtimeMs)
       .map((entry) => entry.path);
-  }
-}
-
-async function safeReadDir(dir: string): Promise<string[]> {
-  try {
-    return await readdir(dir);
-  } catch {
-    return [];
   }
 }
 

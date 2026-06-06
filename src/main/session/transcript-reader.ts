@@ -1,8 +1,9 @@
-import { open as fsOpen, stat, readdir } from 'node:fs/promises';
+import { open as fsOpen, stat } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { getTranscriptPath } from './transcript-path';
+import { iterateCodexRolloutFiles } from '../trackers/codex-rollout-files';
 import type { AgentSessionType } from '../../shared/session-agents';
 
 /** Hard cap on bytes read from a transcript file. 1MB covers most real Claude
@@ -97,45 +98,12 @@ interface CodexJsonlLine {
 }
 
 /** Locate the codex rollout JSONL for a thread id under `<codexHome>/sessions`.
- *  Codex names files `rollout-<timestamp>-<threadId>.jsonl` inside a
- *  YYYY/MM/DD directory tree. Returns the newest matching path, or null. */
+ *  Codex names files `rollout-<timestamp>-<threadId>.jsonl`; the thread id is
+ *  globally unique, so the first newest-first match is the latest rollout. */
 async function findCodexRolloutFile(sessionsDir: string, threadId: string): Promise<string | null> {
   const suffix = `-${threadId}.jsonl`;
-  let yearDirs: string[];
-  try {
-    yearDirs = await readdir(sessionsDir);
-  } catch {
-    return null;
-  }
-  // Walk newest-first (descending) so the first hit is the latest rollout.
-  for (const year of yearDirs.sort().reverse()) {
-    const yearPath = join(sessionsDir, year);
-    let monthDirs: string[];
-    try {
-      monthDirs = await readdir(yearPath);
-    } catch {
-      continue;
-    }
-    for (const month of monthDirs.sort().reverse()) {
-      const monthPath = join(yearPath, month);
-      let dayDirs: string[];
-      try {
-        dayDirs = await readdir(monthPath);
-      } catch {
-        continue;
-      }
-      for (const day of dayDirs.sort().reverse()) {
-        const dayPath = join(monthPath, day);
-        let files: string[];
-        try {
-          files = await readdir(dayPath);
-        } catch {
-          continue;
-        }
-        const match = files.find((f) => f.startsWith('rollout-') && f.endsWith(suffix));
-        if (match) return join(dayPath, match);
-      }
-    }
+  for await (const file of iterateCodexRolloutFiles(sessionsDir, { newestFirst: true })) {
+    if (file.endsWith(suffix)) return file;
   }
   return null;
 }
