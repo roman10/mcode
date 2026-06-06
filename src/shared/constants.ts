@@ -125,6 +125,10 @@ export const COPILOT_ICON = '\u2605';
 // Antigravity (agy) icon, U+2756, used as session label prefix for Antigravity CLI sessions
 export const AGY_ICON = '\u2756';
 
+// Max length for an auto-derived session label (truncated first prompt / carried
+// fork label). Shared so the launch, first-prompt-hook, and fork paths can't drift.
+export const SESSION_LABEL_MAX_LEN = 50;
+
 // Hook system
 export const HOOK_PORT_DEFAULT = 7777;
 export const HOOK_PORT_MAX = 7799;

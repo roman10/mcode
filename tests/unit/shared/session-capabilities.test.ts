@@ -80,6 +80,22 @@ describe('session-capabilities', () => {
     expect(getAgentDefinition('agy')?.supportsTaskQueue).toBe(true);
   });
 
+  it('exposes correct autoLabelFromFirstPrompt flags per agent', () => {
+    // Claude self-titles via OSC terminal title, so it opts OUT of the
+    // first-prompt hook label path; every other launchable agent opts in.
+    expect(getAgentDefinition('claude')?.autoLabelFromFirstPrompt).toBe(false);
+    expect(getAgentDefinition('codex')?.autoLabelFromFirstPrompt).toBe(true);
+    expect(getAgentDefinition('copilot')?.autoLabelFromFirstPrompt).toBe(true);
+    expect(getAgentDefinition('agy')?.autoLabelFromFirstPrompt).toBe(true);
+  });
+
+  it('opts only Claude out of first-prompt auto-labeling (capability invariant)', () => {
+    for (const type of AGENT_SESSION_TYPES) {
+      const optsOut = getAgentDefinition(type)?.autoLabelFromFirstPrompt === false;
+      expect(optsOut, `${type} autoLabelFromFirstPrompt opt-out`).toBe(type === 'claude');
+    }
+  });
+
   it('registers agy as an agent session type with an Antigravity install URL', () => {
     expect(isAgentSessionType('agy')).toBe(true);
     expect(getAgentDefinition('agy')?.displayName).toBe('Antigravity CLI');

@@ -10,6 +10,7 @@ describe('session-launch helpers', () => {
   it('prefixes agent labels while leaving terminal labels unchanged', () => {
     expect(prefixSessionLabel('My Session', 'claude')).toBe('\u2733 My Session');
     expect(prefixSessionLabel('My Session', 'codex')).toBe('\u2742 My Session');
+    expect(prefixSessionLabel('My Session', 'copilot')).toBe('\u2605 My Session');
     expect(prefixSessionLabel('My Session', 'agy')).toBe('\u2756 My Session');
     expect(prefixSessionLabel('shell', 'terminal')).toBe('shell');
   });

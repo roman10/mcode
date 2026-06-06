@@ -1,4 +1,5 @@
 import { getAgentDefinition } from '../../shared/session-agents';
+import { SESSION_LABEL_MAX_LEN } from '../../shared/constants';
 import type { SessionType } from '../../shared/types';
 
 export function truncatePromptToLabel(prompt: string, maxLen: number): string {
@@ -29,7 +30,7 @@ export function buildSessionLabel(input: {
   nextDisambiguatedLabel(): string;
   promptMaxLength?: number;
 }): { label: string; labelSource: 'user' | 'auto' } {
-  const { sessionType, userLabel, initialPrompt, nextDisambiguatedLabel, promptMaxLength = 50 } = input;
+  const { sessionType, userLabel, initialPrompt, nextDisambiguatedLabel, promptMaxLength = SESSION_LABEL_MAX_LEN } = input;
   if (userLabel) {
     return {
       label: prefixSessionLabel(userLabel, sessionType),

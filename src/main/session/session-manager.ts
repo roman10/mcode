@@ -82,6 +82,7 @@ import {
   HANDOFF_SEED_MAX_CHARS,
   HOOK_TOOL_INPUT_MAX_BYTES,
   POLL_TAIL_BYTES,
+  SESSION_LABEL_MAX_LEN,
 } from '../../shared/constants';
 import { SessionEventStore } from './session-event-store';
 import { LayoutRepository } from './layout-repository';
@@ -570,7 +571,7 @@ export class SessionManager {
     // create()'s auto-label logic would derive the label from the seed text's
     // first line ("Continuing from a claude session…") and every fork would
     // look the same.
-    const carriedLabel = stripAgentIconPrefix(source.label).slice(0, 50);
+    const carriedLabel = stripAgentIconPrefix(source.label).slice(0, SESSION_LABEL_MAX_LEN);
 
     // Hand off via the existing create() path so all adapter wiring (account env,
     // hook bridge, label generation, afterCreate capture) runs identically to a
@@ -953,7 +954,7 @@ export class SessionManager {
         ? (event.payload as { prompt: string }).prompt
         : null;
       if (prompt) {
-        const truncated = truncatePromptToLabel(prompt, 50);
+        const truncated = truncatePromptToLabel(prompt, SESSION_LABEL_MAX_LEN);
         if (truncated) {
           this.promptLabelledSessions.add(sessionId);
           this.setAutoLabel(sessionId, prefixSessionLabel(truncated, row.session_type));
@@ -1359,8 +1360,9 @@ export class SessionManager {
         const restoreStatus = (pre_detach_status || 'active') as SessionStatus;
         this.updateStatus(session_id, restoreStatus);
         updateSession(session_id, { preDetachStatus: null });
-        // Restore prompt-labelled tracking for label-static agents (matches resume() behaviour)
-        if (session_type === 'copilot') {
+        // Restore prompt-labelled tracking for label-static agents (matches resume() behaviour):
+        // without this a reconnected Codex/Copilot session would relabel from a later prompt.
+        if (getAgentDefinition(session_type)?.autoLabelFromFirstPrompt === true) {
           this.promptLabelledSessions.add(session_id);
         }
         logger.info('session', 'Reconnected to running session', { sessionId: session_id, restoredStatus: restoreStatus });
