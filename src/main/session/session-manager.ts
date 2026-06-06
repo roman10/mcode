@@ -47,7 +47,7 @@ import { extractLatestModel } from '../trackers/jsonl-usage-parser';
 import { normalizeModelVersion, normalizeCopilotModel } from '../trackers/token-cost';
 import { isAgentSession, AGENT_SESSION_TYPES, getAgentDefinition, type AgentSessionType } from '../../shared/session-agents';
 import { getTranscriptPath } from './transcript-path';
-import { readSessionTranscript } from './transcript-reader';
+import { readSessionTranscript, codexSessionsDirFromEnv } from './transcript-reader';
 import { compact } from './compactor';
 import {
   buildSessionLabel,
@@ -526,11 +526,19 @@ export class SessionManager {
 
     const sourceCli = source.session_type as AgentSessionType;
 
+    // Resolve the source account env once; reused for codex transcript-dir
+    // resolution and (in compacted mode) the headless compaction call.
+    const sourceAccountEnv = this.accountManager.getSessionEnv(
+      source.account_id ?? undefined,
+      sourceCli,
+    );
     const ptyReplayBuffer = this.ptyManager.getReplayData(sourceSessionId) ?? '';
     const transcript = await readSessionTranscript({
       sessionType: sourceCli,
       cwd: source.cwd,
       claudeSessionId: source.claude_session_id,
+      codexThreadId: source.codex_thread_id,
+      codexSessionsDir: codexSessionsDirFromEnv(sourceAccountEnv),
       ptyReplayBuffer,
     });
 
@@ -548,10 +556,6 @@ export class SessionManager {
       // Prefer the source CLI for compaction: it knows the conversation style and
       // the user is already authenticated against it. Falls through to other
       // CLIs internally if source has no headless mode.
-      const sourceAccountEnv = this.accountManager.getSessionEnv(
-        source.account_id ?? undefined,
-        sourceCli,
-      );
       const result = await compact({
         transcript,
         preferCli: sourceCli,
@@ -598,21 +602,23 @@ export class SessionManager {
     }
     const sourceCli = source.session_type as AgentSessionType;
 
+    const sourceAccountEnv = this.accountManager.getSessionEnv(
+      source.account_id ?? undefined,
+      sourceCli,
+    );
     const ptyReplayBuffer = this.ptyManager.getReplayData(sourceSessionId) ?? '';
     const transcript = await readSessionTranscript({
       sessionType: sourceCli,
       cwd: source.cwd,
       claudeSessionId: source.claude_session_id,
+      codexThreadId: source.codex_thread_id,
+      codexSessionsDir: codexSessionsDirFromEnv(sourceAccountEnv),
       ptyReplayBuffer,
     });
     if (!transcript.trim()) {
       throw new Error('No transcript available to summarize.');
     }
 
-    const sourceAccountEnv = this.accountManager.getSessionEnv(
-      source.account_id ?? undefined,
-      sourceCli,
-    );
     return compact({ transcript, preferCli: sourceCli, env: sourceAccountEnv });
   }
 

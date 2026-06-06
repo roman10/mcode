@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readClaudeTranscript, readSessionTranscript } from '../../../src/main/session/transcript-reader';
+import {
+  readClaudeTranscript,
+  readCodexTranscript,
+  readSessionTranscript,
+} from '../../../src/main/session/transcript-reader';
 
 /**
  * readClaudeTranscript reads files from `<homedir>/.claude/projects/<encoded-cwd>/<id>.jsonl`.
@@ -66,6 +70,70 @@ describe('transcript-reader', () => {
     expect(out).toContain('Assistant: reply');
     expect(out).not.toContain('tool_use');
     expect(out).not.toContain('init');
+  });
+
+  async function writeCodexRollout(
+    sessionsDir: string,
+    ymd: [string, string, string],
+    threadId: string,
+    lines: object[],
+  ): Promise<void> {
+    const dir = join(sessionsDir, ...ymd);
+    await mkdir(dir, { recursive: true });
+    const file = join(dir, `rollout-2026-06-06T11-18-44-${threadId}.jsonl`);
+    await writeFile(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  }
+
+  it('reads codex rollout from disk, keeping user/agent turns', async () => {
+    const sessionsDir = join(sandbox, '.codex', 'sessions');
+    const threadId = '019e9af0-aa5d-7b53-85d2-f2b3f134d961';
+    await writeCodexRollout(sessionsDir, ['2026', '06', '06'], threadId, [
+      { type: 'session_meta', payload: { id: threadId, cwd: '/tmp/proj' } },
+      { type: 'event_msg', payload: { type: 'user_message', message: 'do the thing' } },
+      { type: 'response_item', payload: { type: 'reasoning', content: 'thinking…' } },
+      { type: 'event_msg', payload: { type: 'agent_message', message: 'done' } },
+      { type: 'event_msg', payload: { type: 'token_count', info: null } },
+    ]);
+
+    const out = await readCodexTranscript(sessionsDir, threadId);
+    expect(out).toBe('User: do the thing\n\nAssistant: done');
+  });
+
+  it('returns empty string when no codex rollout matches the thread id', async () => {
+    const sessionsDir = join(sandbox, '.codex', 'sessions');
+    expect(await readCodexTranscript(sessionsDir, 'no-such-thread')).toBe('');
+  });
+
+  it('prefers codex on-disk rollout over PTY scrollback in readSessionTranscript', async () => {
+    const sessionsDir = join(sandbox, '.codex', 'sessions');
+    const threadId = 'aaaa1111-bbbb-2222-cccc-333344445555';
+    await writeCodexRollout(sessionsDir, ['2026', '06', '06'], threadId, [
+      { type: 'session_meta', payload: { id: threadId, cwd: '/tmp/proj' } },
+      { type: 'event_msg', payload: { type: 'user_message', message: 'resumed prompt' } },
+      { type: 'event_msg', payload: { type: 'agent_message', message: 'resumed reply' } },
+    ]);
+
+    const out = await readSessionTranscript({
+      sessionType: 'codex',
+      cwd: '/tmp/proj',
+      claudeSessionId: null,
+      codexThreadId: threadId,
+      codexSessionsDir: sessionsDir,
+      ptyReplayBuffer: 'stale scrollback that should be ignored',
+    });
+    expect(out).toBe('User: resumed prompt\n\nAssistant: resumed reply');
+  });
+
+  it('falls back to PTY scrollback when codex rollout is missing', async () => {
+    const out = await readSessionTranscript({
+      sessionType: 'codex',
+      cwd: '/tmp/proj',
+      claudeSessionId: null,
+      codexThreadId: 'missing-thread',
+      codexSessionsDir: join(sandbox, '.codex', 'sessions'),
+      ptyReplayBuffer: 'live buffer fallback',
+    });
+    expect(out).toBe('live buffer fallback');
   });
 
   it('strips ANSI from PTY replay buffers when source is non-Claude', async () => {
