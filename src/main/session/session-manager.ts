@@ -440,8 +440,9 @@ export class SessionManager {
       updateSession(sessionId, { labelSource: 'user' });
     }
 
-    // Restore prompt-labelled tracking for label-static agents (Copilot)
-    if (row.session_type === 'copilot') {
+    // Restore prompt-labelled tracking for label-static agents (Codex, Copilot, …):
+    // a resumed session already has its first-prompt label, so don't relabel.
+    if (getAgentDefinition(row.session_type)?.autoLabelFromFirstPrompt === true) {
       this.promptLabelledSessions.add(sessionId);
     }
 
@@ -940,11 +941,12 @@ export class SessionManager {
       }
     }
 
-    // Auto-label from first user prompt for Copilot sessions (label-static agents).
-    // Claude sessions use OSC terminal title updates instead.
+    // Auto-label from first user prompt for label-static agents (Codex, Copilot,
+    // …). Claude self-titles via OSC terminal title updates instead, so it opts
+    // out via autoLabelFromFirstPrompt=false (see session-agents.ts).
     if (
       event.hookEventName === 'UserPromptSubmit' &&
-      row.session_type === 'copilot' &&
+      getAgentDefinition(row.session_type)?.autoLabelFromFirstPrompt === true &&
       !this.promptLabelledSessions.has(sessionId)
     ) {
       const prompt = typeof (event.payload as { prompt?: unknown }).prompt === 'string'

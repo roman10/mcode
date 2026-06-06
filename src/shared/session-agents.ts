@@ -32,6 +32,13 @@ export interface AgentDefinition {
   defaultCommand: string;
   supportsTaskQueue: boolean;
   supportsPlanMode: boolean;
+  /**
+   * true = derive the session's auto-label from the first UserPromptSubmit hook
+   * event (label-static agents that don't drive a meaningful terminal title).
+   * false = the CLI self-titles via OSC terminal-title escape sequences (Claude),
+   * so the OSC path owns auto-labeling and the hook path stays out of the way.
+   */
+  autoLabelFromFirstPrompt: boolean;
   /** true = CLI manages cursor via DECTCEM sequences; xterm cursor hidden initially. */
   hidesTerminalCursor: boolean;
   dialogMode: AgentDialogMode;
@@ -179,6 +186,7 @@ const AGENT_DEFINITIONS: Partial<Record<AgentSessionType, AgentDefinition>> = {
     defaultCommand: 'claude',
     supportsTaskQueue: true,
     supportsPlanMode: true,
+    autoLabelFromFirstPrompt: false, // Claude self-titles via OSC terminal title
     hidesTerminalCursor: true,
     dialogMode: 'full',
     supportsAccountProfiles: true,
@@ -204,6 +212,7 @@ const AGENT_DEFINITIONS: Partial<Record<AgentSessionType, AgentDefinition>> = {
     // `default_mode` is not a recognized config field as of codex 0.136.0).
     // Keep false: flipping it would wire UI that has no menu to drive.
     supportsPlanMode: false,
+    autoLabelFromFirstPrompt: true, // no OSC title; UserPromptSubmit carries `prompt`
     hidesTerminalCursor: true,
     dialogMode: 'minimal',
     supportsAccountProfiles: true,
@@ -221,6 +230,7 @@ const AGENT_DEFINITIONS: Partial<Record<AgentSessionType, AgentDefinition>> = {
     defaultCommand: 'copilot',
     supportsTaskQueue: true,
     supportsPlanMode: false,
+    autoLabelFromFirstPrompt: true, // no OSC title; first-prompt hook drives the label
     hidesTerminalCursor: false, // Copilot CLI does not send DECTCEM \e[?25h
     dialogMode: 'minimal',
     supportsAccountProfiles: true,
@@ -239,6 +249,7 @@ const AGENT_DEFINITIONS: Partial<Record<AgentSessionType, AgentDefinition>> = {
     defaultCommand: 'agy',
     supportsTaskQueue: true,
     supportsPlanMode: false, // no plan flag in v1.0.1
+    autoLabelFromFirstPrompt: true, // no OSC title; harmless even without hooks (agy emits none)
     hidesTerminalCursor: true, // verified live: agy enters the alt screen and emits DECTCEM hide (\e[?25l)
     dialogMode: 'minimal',
     supportsAccountProfiles: false, // no agy account provider; agy auth is keyring/GUI-shared, so HOME-swap can't isolate it
