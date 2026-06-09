@@ -32,6 +32,7 @@ const GEMINI_CACHE: CacheMultipliers = { cacheWrite5mMult: 0, cacheWrite1hMult: 
 
 // Keyed by normalized model version (e.g. "opus-4.6")
 const MODEL_PRICING: Record<string, ModelPricing> = {
+  'fable-5':    { input: 10,   output: 50,   ...CLAUDE_CACHE },
   // Opus 4.8 fast mode is 2x base ($10/$50), cheaper than the legacy 6x fast tier.
   'opus-4.8':   { input: 5,    output: 25,   fastMult: 2, ...CLAUDE_CACHE },
   'opus-4.7':   { input: 5,    output: 25,   ...CLAUDE_CACHE },
@@ -133,9 +134,10 @@ export function normalizeCopilotModel(model: string): string {
   return model;
 }
 
-/** Normalize to family name: "opus", "sonnet", "haiku", "gpt", or "unknown". */
+/** Normalize to family name: "fable", "opus", "sonnet", "haiku", "gpt", or "unknown". */
 export function normalizeModelFamily(model: string): string {
   const lower = model.toLowerCase();
+  if (lower.includes('fable')) return 'fable';
   if (lower.includes('opus')) return 'opus';
   if (lower.includes('sonnet')) return 'sonnet';
   if (lower.includes('haiku')) return 'haiku';

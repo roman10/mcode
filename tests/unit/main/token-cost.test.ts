@@ -38,6 +38,10 @@ describe('normalizeModelVersion', () => {
 });
 
 describe('normalizeModelFamily', () => {
+  it('detects fable', () => {
+    expect(normalizeModelFamily('claude-fable-5')).toBe('fable');
+  });
+
   it('detects opus', () => {
     expect(normalizeModelFamily('claude-opus-4-6')).toBe('opus');
     expect(normalizeModelFamily('Claude-Opus-4')).toBe('opus');
@@ -125,6 +129,11 @@ describe('normalizeCopilotModel', () => {
 });
 
 describe('estimateCostUsd', () => {
+  it('calculates fable-5 cost ($10/$50 per MTok)', () => {
+    const cost = estimateCostUsd('claude-fable-5', 1_000_000, 1_000_000, 0, 0, 0, false);
+    expect(cost).toBe(60); // $10 + $50
+  });
+
   it('calculates basic input/output cost', () => {
     // opus-4.6: input $5/MTok, output $25/MTok
     const cost = estimateCostUsd('claude-opus-4-6', 1_000_000, 1_000_000, 0, 0, 0, false);
