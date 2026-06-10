@@ -3,7 +3,7 @@ import { useSessionContextStore } from '../../stores/session-context-store';
 import Tooltip from '../shared/Tooltip';
 
 interface ContextUsagePillProps {
-  claudeSessionId: string | null;
+  agentSessionId: string | null;
 }
 
 function formatTokens(n: number): string {
@@ -19,26 +19,26 @@ function colorFor(percent: number | null): string {
   return 'bg-bg-primary text-text-muted';
 }
 
-function ContextUsagePill({ claudeSessionId }: ContextUsagePillProps): React.JSX.Element | null {
+function ContextUsagePill({ agentSessionId }: ContextUsagePillProps): React.JSX.Element | null {
   const usage = useSessionContextStore((s) =>
-    claudeSessionId ? s.byId[claudeSessionId] ?? null : null,
+    agentSessionId ? s.byId[agentSessionId] ?? null : null,
   );
   const fetch = useSessionContextStore((s) => s.fetch);
 
-  // Re-fetch on mount and whenever claudeSessionId rotates (e.g. /clear).
+  // Re-fetch on mount and whenever the provider-native id rotates (e.g. /clear).
   useEffect(() => {
-    if (!claudeSessionId) return;
-    void fetch(claudeSessionId);
-  }, [claudeSessionId, fetch]);
+    if (!agentSessionId) return;
+    void fetch(agentSessionId);
+  }, [agentSessionId, fetch]);
 
   // Refetch on token-scan push events while mounted.
   useEffect(() => {
-    if (!claudeSessionId) return;
+    if (!agentSessionId) return;
     const unsub = window.mcode.tokens.onUpdated(() => {
-      void fetch(claudeSessionId);
+      void fetch(agentSessionId);
     });
     return unsub;
-  }, [claudeSessionId, fetch]);
+  }, [agentSessionId, fetch]);
 
   if (!usage) return null;
 

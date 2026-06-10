@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { CodexScanner } from '../../../src/main/trackers/codex-scanner';
@@ -139,6 +139,50 @@ describe('CodexScanner — account enumeration', () => {
     const row = getDb().prepare(
       `SELECT context_window FROM token_usage WHERE agent_session_id = 'codex-session-window'`,
     ).get() as { context_window: number | null };
+    expect(row.context_window).toBe(258400);
+  });
+
+  it('repairs missing context windows after the Codex watermark reset migration', async () => {
+    const sessionsDir = join(root, 'default', '.codex', 'sessions');
+    const fileDir = join(sessionsDir, '2026', '04', '22');
+    const sessionId = 'codex-session-backfill';
+    const timestamp = '2026-04-22T00:00:00.000Z';
+    const filePath = join(fileDir, `rollout-${sessionId}.jsonl`);
+    mkdirSync(fileDir, { recursive: true });
+    writeFileSync(
+      filePath,
+      makeTranscriptJsonl({
+        sessionId,
+        cwd: '/fake/default',
+        model: 'gpt-5.4-codex',
+        timestamp,
+        inputTokens: 1000,
+        outputTokens: 200,
+        contextWindow: 258400,
+      }),
+    );
+
+    getDb().prepare(`
+      INSERT INTO token_usage
+        (message_id, agent_session_id, project_dir, model,
+         input_tokens, output_tokens, cache_write_5m_tokens, cache_write_1h_tokens,
+         cache_read_tokens, is_fast_mode, message_timestamp, date, provider, context_window)
+      VALUES (?, ?, 'default', 'gpt-5.4-codex', 1000, 200, 0, 0, 0, 0, ?, '2026-04-22', 'codex', NULL)
+    `).run(`codex:${sessionId}:${timestamp}`, sessionId, timestamp);
+    const fileSize = statSync(filePath).size;
+    getDb().prepare(`
+      INSERT INTO tracked_jsonl_files
+        (file_path, agent_session_id, project_dir, last_scanned_offset, file_size, last_scanned_at, provider)
+      VALUES (?, ?, 'default', ?, ?, '2026-04-22T00:00:01.000Z', 'codex')
+    `).run(filePath, sessionId, 0, fileSize);
+
+    const scanner = new CodexScanner(() => [sessionsDir]);
+    const count = await scanner.scanAll(inputTracker);
+
+    expect(count).toBe(1);
+    const row = getDb().prepare(
+      `SELECT context_window FROM token_usage WHERE agent_session_id = ?`,
+    ).get(sessionId) as { context_window: number | null };
     expect(row.context_window).toBe(258400);
   });
 

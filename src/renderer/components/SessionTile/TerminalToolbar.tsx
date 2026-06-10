@@ -6,6 +6,7 @@ import { useAccountsStore } from '../../stores/accounts-store';
 import { useDialogStore } from '../../stores/dialog-store';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { splitLabelIcon } from '../../utils/label-utils';
+import { getContextUsageAgentSessionId } from '../../utils/context-usage-session-id';
 import AgentIcon from '../shared/AgentIcon';
 import Tooltip from '../shared/Tooltip';
 import ModelPill from './ModelPill';
@@ -49,6 +50,7 @@ function TerminalToolbar({
   onRefit,
 }: TerminalToolbarProps): React.JSX.Element {
   const session = useSessionStore((s) => s.sessions[sessionId]);
+  const contextUsageAgentSessionId = getContextUsageAgentSessionId(session);
   const label = session?.label ?? 'Unknown';
   const [labelIcon, labelText] = splitLabelIcon(label);
   const status = session?.status ?? 'ended';
@@ -180,7 +182,7 @@ function TerminalToolbar({
           </span>
         </Tooltip>
       )}
-      <ContextUsagePill claudeSessionId={session?.claudeSessionId ?? null} />
+      <ContextUsagePill agentSessionId={contextUsageAgentSessionId} />
 
       {/* Actions */}
       <div className="flex items-center gap-1 ml-2">

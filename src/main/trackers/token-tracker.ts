@@ -154,34 +154,34 @@ export class TokenTracker {
     this.scanning = true;
 
     try {
-      let totalNew = 0;
+      let totalChanged = 0;
 
       try {
-        totalNew += await this.claudeScanner.scanAll(this.inputTracker);
+        totalChanged += await this.claudeScanner.scanAll(this.inputTracker);
       } catch (err) {
         logger.warn('tokens', 'Claude scan failed', { error: String(err) });
       }
 
       try {
-        totalNew += await this.copilotScanner.scanAll(this.inputTracker);
+        totalChanged += await this.copilotScanner.scanAll(this.inputTracker);
       } catch (err) {
         logger.warn('tokens', 'Copilot scan failed', { error: String(err) });
       }
 
       try {
-        totalNew += await this.geminiScanner.scanAll(this.inputTracker);
+        totalChanged += await this.geminiScanner.scanAll(this.inputTracker);
       } catch (err) {
         logger.warn('tokens', 'Gemini scan failed', { error: String(err) });
       }
 
       try {
-        totalNew += await this.codexScanner.scanAll(this.inputTracker);
+        totalChanged += await this.codexScanner.scanAll(this.inputTracker);
       } catch (err) {
         logger.warn('tokens', 'Codex scan failed', { error: String(err) });
       }
 
-      if (totalNew > 0) {
-        logger.info('tokens', `Scan complete, ${totalNew} new entries`);
+      if (totalChanged > 0) {
+        logger.info('tokens', `Scan complete, ${totalChanged} token rows inserted or repaired`);
         this.broadcastUpdate();
       }
     } finally {

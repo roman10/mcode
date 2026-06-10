@@ -5,8 +5,9 @@
  * per-API-call token usage and human input data. Uses the same watermark
  * table as other scanners.
  *
- * Like Gemini (full-file reads with watermark), but uses INSERT OR IGNORE
- * because per-API-call entries are immutable once written.
+ * Like Gemini (full-file reads with watermark), but uses INSERT OR IGNORE for
+ * immutable per-call entries and repairs nullable metadata such as
+ * context_window when newer parser support can fill it in.
  */
 
 import { stat, readFile } from 'node:fs/promises';
@@ -27,38 +28,38 @@ export class CodexScanner {
 
   /**
    * Scan all Codex transcript directories for session JSONL files.
-   * Returns total number of new token_usage entries inserted.
+   * Returns total number of token_usage rows inserted or repaired.
    */
   async scanAll(inputTracker: InputTracker): Promise<number> {
     const sessionsDirs = this.resolveSessionsDirs();
 
-    let totalNew = 0;
+    let totalChanged = 0;
     for (const sessionsDir of sessionsDirs) {
-      totalNew += await this.scanSessionsDir(sessionsDir, inputTracker);
+      totalChanged += await this.scanSessionsDir(sessionsDir, inputTracker);
     }
 
-    if (totalNew > 0) {
-      logger.info('codex-scanner', `Scan complete, ${totalNew} new entries`);
+    if (totalChanged > 0) {
+      logger.info('codex-scanner', `Scan complete, ${totalChanged} rows inserted or repaired`);
     }
 
-    return totalNew;
+    return totalChanged;
   }
 
   private async scanSessionsDir(sessionsDir: string, inputTracker: InputTracker): Promise<number> {
-    let newCount = 0;
+    let changedCount = 0;
     for await (const filePath of iterateCodexRolloutFiles(sessionsDir)) {
       try {
-        newCount += await this.scanFile(filePath, inputTracker);
+        changedCount += await this.scanFile(filePath, inputTracker);
       } catch {
         // Skip individual file errors
       }
     }
-    return newCount;
+    return changedCount;
   }
 
   /**
    * Scan a single Codex transcript JSONL file.
-   * Returns number of new token_usage entries inserted.
+   * Returns number of token_usage rows inserted or repaired.
    */
   async scanFile(filePath: string, inputTracker: InputTracker): Promise<number> {
     const db = getDb();
@@ -97,7 +98,15 @@ export class CodexScanner {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'codex')
     `);
 
-    let newCount = 0;
+    const backfillContextStmt = db.prepare(`
+      UPDATE token_usage
+         SET context_window = ?
+       WHERE message_id = ?
+         AND provider = 'codex'
+         AND context_window IS NULL
+    `);
+
+    let changedCount = 0;
     const insertAll = db.transaction(() => {
       for (const entry of tokenEntries) {
         const date = localDateStr(new Date(entry.timestamp));
@@ -116,7 +125,12 @@ export class CodexScanner {
           date,
           entry.contextWindow ?? null,
         );
-        if (result.changes > 0) newCount++;
+        if (result.changes > 0) {
+          changedCount++;
+        } else if (entry.contextWindow != null) {
+          const update = backfillContextStmt.run(entry.contextWindow, entry.messageId);
+          if (update.changes > 0) changedCount++;
+        }
       }
     });
     insertAll();
@@ -127,7 +141,7 @@ export class CodexScanner {
     // Update watermark
     this.updateWatermark(filePath, fileSize, sessionId, projectDir);
 
-    return newCount;
+    return changedCount;
   }
 
   private updateWatermark(

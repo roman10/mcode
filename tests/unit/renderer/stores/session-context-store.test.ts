@@ -36,7 +36,7 @@ describe('useSessionContextStore', () => {
     vi.restoreAllMocks();
   });
 
-  it('caches currentContext by claudeSessionId', async () => {
+  it('caches currentContext by agentSessionId', async () => {
     setupMcodeMock({
       tokens: {
         getSessionUsage: vi.fn().mockResolvedValue({
@@ -52,7 +52,7 @@ describe('useSessionContextStore', () => {
     expect(useSessionContextStore.getState().byId['sess-A']).toEqual(sampleContext);
   });
 
-  it('is a no-op when claudeSessionId is null', async () => {
+  it('is a no-op when agentSessionId is null', async () => {
     const getSessionUsage = vi.fn().mockResolvedValue({ ...baseUsage });
     setupMcodeMock({ tokens: { getSessionUsage } });
     const { useSessionContextStore } = await import('../../../../src/renderer/stores/session-context-store');
