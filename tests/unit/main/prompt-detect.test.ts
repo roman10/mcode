@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  hasCodexPermissionPrompt,
   hasPermissionPrompt,
   isAtClaudePrompt,
   isAtUserChoice,
@@ -118,6 +119,32 @@ describe('hasPermissionPrompt', () => {
 
   it('returns false for unrelated output', () => {
     expect(hasPermissionPrompt('regular model output\nno permission prompt here')).toBe(false);
+  });
+});
+
+describe('hasCodexPermissionPrompt', () => {
+  it('detects the Codex approval menu header', () => {
+    expect(hasCodexPermissionPrompt('Allow Codex to run `npm test`?\n')).toBe(true);
+  });
+
+  it('detects the "Yes, proceed" option label', () => {
+    expect(hasCodexPermissionPrompt('❯ 1. Yes, proceed\n  2. No, and tell Codex what to do differently')).toBe(true);
+  });
+
+  it('detects the distinctive "No, and tell Codex" option', () => {
+    expect(hasCodexPermissionPrompt('3. No, and tell Codex what to do differently\n')).toBe(true);
+  });
+
+  it('handles ANSI sequences in the prompt', () => {
+    expect(hasCodexPermissionPrompt('\x1b[1mAllow Codex to run\x1b[0m `ls`?')).toBe(true);
+  });
+
+  it('does not match Claude permission wording', () => {
+    expect(hasCodexPermissionPrompt('Allow once\nDeny once\nAllow always\n')).toBe(false);
+  });
+
+  it('returns false for unrelated output', () => {
+    expect(hasCodexPermissionPrompt('regular codex output, no approval menu here')).toBe(false);
   });
 });
 

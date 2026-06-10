@@ -2,7 +2,7 @@ import { basename } from 'node:path';
 import { getSessionRecord, getClaimedAgentIds, setAgentIdIfNull } from '../session-repository';
 import { logger } from '../../logger';
 import { findCodexThreadMatch } from '../codex-session-store';
-import { hasPermissionPrompt } from '../prompt-detect';
+import { hasCodexPermissionPrompt } from '../prompt-detect';
 import type {
   AgentCreateContext,
   AgentPostCreateContext,
@@ -83,9 +83,16 @@ export function buildCodexCreatePlan(ctx: AgentCreateContext): PreparedCreate {
   const hookMode = bridgeReady && hookRuntime.state === 'ready' ? 'live' : 'fallback';
 
   const args: string[] = [];
-  if (bridgeReady) args.push('--enable', 'hooks');
+  // The `hooks` feature is stable + on by default (codex 0.136.0), so no
+  // `--enable` is needed. But codex gates hook execution behind persisted
+  // per-hook trust (`[hooks.state]` hashes in config.toml); whenever mcode
+  // rewrites .codex/hooks.json the hash changes and the bridge silently
+  // stops firing. mcode authored the bridge, so bypass trust for our runs.
+  if (bridgeReady) args.push('--dangerously-bypass-hook-trust');
   // codex 0.128.0 dropped the `--full-auto` shortcut; expand it explicitly.
-  if (input.permissionMode === 'fullAuto') args.push('--sandbox', 'workspace-write', '--ask-for-approval', 'on-failure');
+  // `on-failure` was deprecated in 0.136.0 — `on-request` is the recommended
+  // approval policy for interactive runs.
+  if (input.permissionMode === 'fullAuto') args.push('--sandbox', 'workspace-write', '--ask-for-approval', 'on-request');
   if (input.permissionMode === 'bypassAll') args.push('--dangerously-bypass-approvals-and-sandbox');
   if (input.initialPrompt) args.push(input.initialPrompt);
 
@@ -106,8 +113,10 @@ export function buildCodexResumePlan(ctx: AgentPrepareResumeContext): PreparedRe
   const hookMode = codexBridgeReady ? 'live' : 'fallback';
 
   const args: string[] = [];
-  if (codexBridgeReady) args.push('--enable', 'hooks');
-  if (ctx.row.permissionMode === 'fullAuto') args.push('--sandbox', 'workspace-write', '--ask-for-approval', 'on-failure');
+  // Bypass codex's persisted hook-trust gate for mcode-authored bridge hooks
+  // (see buildCodexCreatePlan). Global flags must precede the `resume` subcommand.
+  if (codexBridgeReady) args.push('--dangerously-bypass-hook-trust');
+  if (ctx.row.permissionMode === 'fullAuto') args.push('--sandbox', 'workspace-write', '--ask-for-approval', 'on-request');
   if (ctx.row.permissionMode === 'bypassAll') args.push('--dangerously-bypass-approvals-and-sandbox');
   args.push('resume', ctx.row.codexThreadId);
 
@@ -139,7 +148,7 @@ export function codexPollState(ctx: PtyPollContext): StateUpdate | null {
     (ctx.status === 'active' || ctx.status === 'idle') &&
     ctx.attentionLevel !== 'action' &&
     ctx.isQuiescent &&
-    hasPermissionPrompt(ctx.buffer)
+    hasCodexPermissionPrompt(ctx.buffer)
   ) {
     return {
       status: 'waiting',

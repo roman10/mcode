@@ -37,6 +37,33 @@ export function hasPermissionPrompt(rawBufferTail: string): boolean {
 }
 
 /**
+ * Codex's TUI approval menu uses different wording from Claude's (no
+ * "Allow once / Deny once"), so the generic `hasPermissionPrompt` never
+ * matches a Codex prompt. These anchor on the menu header and the two
+ * fixed option labels Codex renders for every command-approval request:
+ *
+ *   Allow Codex to run `…`?
+ *   ❯ 1. Yes, proceed
+ *     2. Yes, and don't ask again for this command in this session
+ *     3. No, and tell Codex what to do differently
+ */
+const CODEX_PERMISSION_PATTERNS = [
+  /No,\s+and\s+tell\s+Codex/i,
+  /Yes,\s+proceed/i,
+  /Allow\s+Codex\s+to\s+run/i,
+] as const;
+
+/**
+ * Check whether the terminal buffer tail contains a Codex command-approval
+ * prompt. Used by the Codex PTY-polling fallback when hook transport is
+ * unavailable (the live-hook path reports approvals directly).
+ */
+export function hasCodexPermissionPrompt(rawBufferTail: string): boolean {
+  const clean = stripAnsi(rawBufferTail.slice(-2000));
+  return CODEX_PERMISSION_PATTERNS.some((re) => re.test(clean));
+}
+
+/**
  * Check if the terminal buffer tail shows a Claude Code user-choice menu
  * (e.g. ExitPlanMode or AskUserQuestion).  These menus use ❯ as a cursor
  * next to numbered options like:
