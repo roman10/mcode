@@ -116,6 +116,14 @@ const CODEX_SLASH_COMMANDS: SlashCommandSupport = {
     ['debug-config', 'Print config layer diagnostics'],
     ['statusline', 'Configure footer status-line fields'],
   ]),
+  // Codex loads custom prompts from $CODEX_HOME/prompts/*.md (user-level only;
+  // it has no project-scoped prompt directory). The filename becomes the slash
+  // command name.
+  userCommandFiles: {
+    dirSegments: ['.codex', 'prompts'],
+    extension: '.md',
+    descriptionFormat: 'markdown-first-line',
+  },
 };
 
 const COPILOT_SLASH_COMMANDS: SlashCommandSupport = {

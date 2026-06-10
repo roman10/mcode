@@ -48,6 +48,64 @@ describe('slash-command-scanner', () => {
     expect(commands.find((cmd) => cmd.name === 'compact')?.source).toBe('builtin');
   });
 
+  it('loads Codex custom prompts from ~/.codex/prompts and ignores project scope', async () => {
+    const cwd = join(tempRoot, 'workspace');
+    await mkdir(join(tempRoot, '.codex', 'prompts'), { recursive: true });
+    // A project-level dir must NOT be scanned — Codex has no project prompts.
+    await mkdir(join(cwd, '.codex', 'prompts'), { recursive: true });
+
+    await writeFile(
+      join(tempRoot, '.codex', 'prompts', 'triage.md'),
+      '# Triage failing CI\n\nWalk the latest CI failure.',
+    );
+    await writeFile(
+      join(cwd, '.codex', 'prompts', 'project-only.md'),
+      '# Should not appear',
+    );
+
+    const commands = await scanSlashCommands('codex', cwd);
+
+    expect(commands.find((cmd) => cmd.name === 'triage')).toEqual({
+      name: 'triage',
+      description: 'Triage failing CI',
+      source: 'user',
+    });
+    expect(commands.some((cmd) => cmd.name === 'project-only')).toBe(false);
+    expect(commands.find((cmd) => cmd.name === 'model')?.source).toBe('builtin');
+  });
+
+  it('prefers the frontmatter description for Codex prompts', async () => {
+    const cwd = join(tempRoot, 'workspace');
+    await mkdir(join(tempRoot, '.codex', 'prompts'), { recursive: true });
+
+    await writeFile(
+      join(tempRoot, '.codex', 'prompts', 'release.md'),
+      '---\ndescription: Cut a release\nargument-hint: <version>\n---\n\nRun the release checklist for $1.',
+    );
+
+    const commands = await scanSlashCommands('codex', cwd);
+
+    expect(commands.find((cmd) => cmd.name === 'release')).toEqual({
+      name: 'release',
+      description: 'Cut a release',
+      source: 'user',
+    });
+  });
+
+  it('skips frontmatter when no description field is present', async () => {
+    const cwd = join(tempRoot, 'workspace');
+    await mkdir(join(tempRoot, '.codex', 'prompts'), { recursive: true });
+
+    await writeFile(
+      join(tempRoot, '.codex', 'prompts', 'audit.md'),
+      '---\nargument-hint: <path>\n---\n# Audit a path\n',
+    );
+
+    const commands = await scanSlashCommands('codex', cwd);
+
+    expect(commands.find((cmd) => cmd.name === 'audit')?.description).toBe('Audit a path');
+  });
+
   it('uses agent-specific sources so Claude custom commands do not leak into Copilot', async () => {
     const cwd = join(tempRoot, 'workspace');
     await mkdir(join(tempRoot, '.claude', 'commands'), { recursive: true });
