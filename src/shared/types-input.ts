@@ -39,4 +39,9 @@ export interface PromptHistoryEntry {
   messageTimestamp: string;
   provider: string;
   isPinned: boolean;
+  useCount: number;
+  firstUsedAt: string;
+  lastUsedAt: string;
+  projectCount: number;
+  providerCount: number;
 }

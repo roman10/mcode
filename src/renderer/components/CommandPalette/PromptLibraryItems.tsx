@@ -684,11 +684,16 @@ export default function PromptLibraryItems({
         <span className="truncate min-w-0 flex-1 font-mono text-xs">
           {truncate(entry.promptText.replace(/\n/g, ' '), 120)}
         </span>
+        {entry.useCount > 1 && (
+          <span className="shrink-0 text-xs text-text-muted">
+            used {entry.useCount}x
+          </span>
+        )}
         <span className="shrink-0 text-xs text-text-muted">
-          {basename(entry.projectDir)}
+          {basename(entry.projectDir)}{entry.projectCount > 1 ? ` +${entry.projectCount - 1}` : ''}
         </span>
         <span className="shrink-0 text-xs text-text-muted">
-          {relativeTime(entry.messageTimestamp)}
+          {relativeTime(entry.lastUsedAt)}
         </span>
         {/* Pin / Unpin */}
         <ActionButton title={isPinned ? 'Unpin' : 'Pin'} onClick={(e) => handleTogglePin(entry, e)}>

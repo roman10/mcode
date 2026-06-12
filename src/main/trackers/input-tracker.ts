@@ -45,6 +45,11 @@ interface PromptHistoryRow {
   message_timestamp: string;
   provider: string;
   is_pinned: number;
+  use_count: number;
+  first_used_at: string;
+  last_used_at: string;
+  project_count: number;
+  provider_count: number;
 }
 
 function toPromptHistoryEntry(row: PromptHistoryRow): PromptHistoryEntry {
@@ -57,8 +62,19 @@ function toPromptHistoryEntry(row: PromptHistoryRow): PromptHistoryEntry {
     messageTimestamp: row.message_timestamp,
     provider: row.provider,
     isPinned: row.is_pinned === 1,
+    useCount: row.use_count,
+    firstUsedAt: row.first_used_at,
+    lastUsedAt: row.last_used_at,
+    projectCount: row.project_count,
+    providerCount: row.provider_count,
   };
 }
+
+function normalizePromptText(prompt: string): string {
+  return prompt.replace(/[\n\r\t]/g, ' ').trim().toLowerCase();
+}
+
+const SQL_NORMALIZED_PROMPT = "lower(trim(replace(replace(replace(prompt_text, char(10), ' '), char(13), ' '), char(9), ' ')))";
 
 export class InputTracker {
   /** Batch-insert parsed human entries. Called by TokenTracker during JSONL scan. */
@@ -202,12 +218,47 @@ export class InputTracker {
     // Escape LIKE wildcards in user input
     const escaped = query.replace(/[%_\\]/g, '\\$&');
     const rows = db.prepare(`
+      WITH source AS (
+        SELECT id, prompt_text, agent_session_id, project_dir,
+               word_count, message_timestamp, provider, is_pinned,
+               ${SQL_NORMALIZED_PROMPT} AS normalized_prompt
+        FROM human_input
+        WHERE prompt_text IS NOT NULL
+          AND trim(prompt_text) <> ''
+      ),
+      matches AS (
+        SELECT DISTINCT normalized_prompt
+        FROM source
+        WHERE prompt_text LIKE ? ESCAPE '\\'
+      ),
+      grouped AS (
+        SELECT source.normalized_prompt,
+               COUNT(*) AS use_count,
+               MIN(message_timestamp) AS first_used_at,
+               MAX(message_timestamp) AS last_used_at,
+               COUNT(DISTINCT project_dir) AS project_count,
+               COUNT(DISTINCT provider) AS provider_count,
+               MAX(is_pinned) AS is_pinned
+        FROM source
+        JOIN matches ON matches.normalized_prompt = source.normalized_prompt
+        GROUP BY source.normalized_prompt
+      ),
+      ranked AS (
+        SELECT source.*, grouped.use_count, grouped.first_used_at, grouped.last_used_at,
+               grouped.project_count, grouped.provider_count, grouped.is_pinned AS group_is_pinned,
+               ROW_NUMBER() OVER (
+                 PARTITION BY source.normalized_prompt
+                 ORDER BY source.is_pinned DESC, source.message_timestamp DESC, source.id DESC
+               ) AS rn
+        FROM source
+        JOIN grouped ON grouped.normalized_prompt = source.normalized_prompt
+      )
       SELECT id, prompt_text, agent_session_id, project_dir,
-             word_count, message_timestamp, provider, is_pinned
-      FROM human_input
-      WHERE prompt_text IS NOT NULL
-        AND prompt_text LIKE ? ESCAPE '\\'
-      ORDER BY is_pinned DESC, message_timestamp DESC
+             word_count, message_timestamp, provider, group_is_pinned AS is_pinned,
+             use_count, first_used_at, last_used_at, project_count, provider_count
+      FROM ranked
+      WHERE rn = 1
+      ORDER BY group_is_pinned DESC, last_used_at DESC
       LIMIT ?
     `).all(`%${escaped}%`, limit) as PromptHistoryRow[];
 
@@ -217,11 +268,41 @@ export class InputTracker {
   recentPrompts(limit = 50): PromptHistoryEntry[] {
     const db = getDb();
     const rows = db.prepare(`
+      WITH source AS (
+        SELECT id, prompt_text, agent_session_id, project_dir,
+               word_count, message_timestamp, provider, is_pinned,
+               ${SQL_NORMALIZED_PROMPT} AS normalized_prompt
+        FROM human_input
+        WHERE prompt_text IS NOT NULL
+          AND trim(prompt_text) <> ''
+      ),
+      grouped AS (
+        SELECT normalized_prompt,
+               COUNT(*) AS use_count,
+               MIN(message_timestamp) AS first_used_at,
+               MAX(message_timestamp) AS last_used_at,
+               COUNT(DISTINCT project_dir) AS project_count,
+               COUNT(DISTINCT provider) AS provider_count,
+               MAX(is_pinned) AS is_pinned
+        FROM source
+        GROUP BY normalized_prompt
+      ),
+      ranked AS (
+        SELECT source.*, grouped.use_count, grouped.first_used_at, grouped.last_used_at,
+               grouped.project_count, grouped.provider_count, grouped.is_pinned AS group_is_pinned,
+               ROW_NUMBER() OVER (
+                 PARTITION BY source.normalized_prompt
+                 ORDER BY source.is_pinned DESC, source.message_timestamp DESC, source.id DESC
+               ) AS rn
+        FROM source
+        JOIN grouped ON grouped.normalized_prompt = source.normalized_prompt
+      )
       SELECT id, prompt_text, agent_session_id, project_dir,
-             word_count, message_timestamp, provider, is_pinned
-      FROM human_input
-      WHERE prompt_text IS NOT NULL
-      ORDER BY is_pinned DESC, message_timestamp DESC
+             word_count, message_timestamp, provider, group_is_pinned AS is_pinned,
+             use_count, first_used_at, last_used_at, project_count, provider_count
+      FROM ranked
+      WHERE rn = 1
+      ORDER BY group_is_pinned DESC, last_used_at DESC
       LIMIT ?
     `).all(limit) as PromptHistoryRow[];
 
@@ -230,13 +311,45 @@ export class InputTracker {
 
   togglePin(id: number): void {
     const db = getDb();
-    db.prepare('UPDATE human_input SET is_pinned = CASE WHEN is_pinned = 1 THEN 0 ELSE 1 END WHERE id = ?').run(id);
+    const row = db.prepare('SELECT prompt_text FROM human_input WHERE id = ? AND prompt_text IS NOT NULL')
+      .get(id) as { prompt_text: string } | undefined;
+    if (!row) return;
+
+    const normalizedPrompt = normalizePromptText(row.prompt_text);
+    const pinned = db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM human_input
+      WHERE prompt_text IS NOT NULL
+        AND ${SQL_NORMALIZED_PROMPT} = ?
+        AND is_pinned = 1
+    `).get(normalizedPrompt) as { count: number } | undefined;
+
+    if ((pinned?.count ?? 0) > 0) {
+      db.prepare(`
+        UPDATE human_input
+        SET is_pinned = 0
+        WHERE prompt_text IS NOT NULL
+          AND ${SQL_NORMALIZED_PROMPT} = ?
+      `).run(normalizedPrompt);
+      return;
+    }
+
+    db.prepare('UPDATE human_input SET is_pinned = 1 WHERE id = ?').run(id);
   }
 
   deletePrompt(id: number): void {
     const db = getDb();
     // Null out the text rather than deleting the row — the row still feeds input stats.
-    db.prepare('UPDATE human_input SET prompt_text = NULL, is_pinned = 0 WHERE id = ?').run(id);
+    const row = db.prepare('SELECT prompt_text FROM human_input WHERE id = ? AND prompt_text IS NOT NULL')
+      .get(id) as { prompt_text: string } | undefined;
+    if (!row) return;
+
+    db.prepare(`
+      UPDATE human_input
+      SET prompt_text = NULL, is_pinned = 0
+      WHERE prompt_text IS NOT NULL
+        AND ${SQL_NORMALIZED_PROMPT} = ?
+    `).run(normalizePromptText(row.prompt_text));
   }
 
   getInputCadence(date?: string, provider?: string): InputCadenceInfo {
