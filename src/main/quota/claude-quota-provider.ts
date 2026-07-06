@@ -21,11 +21,13 @@ export class ClaudeQuotaProvider implements QuotaProviderAdapter {
           return this.buildSnapshot(account.accountId, account.name, identity, null, []);
         }
 
-        const windows: QuotaWindow[] = [
-          usage.fiveHour ? { id: 'five-hour', label: '5-hour', utilization: usage.fiveHour.utilization, resetsAt: usage.fiveHour.resetsAt } : null,
-          usage.sevenDay ? { id: 'seven-day', label: '7-day', utilization: usage.sevenDay.utilization, resetsAt: usage.sevenDay.resetsAt } : null,
-          usage.sevenDayOpus ? { id: 'seven-day-opus', label: 'Opus', utilization: usage.sevenDayOpus.utilization, resetsAt: usage.sevenDayOpus.resetsAt } : null,
-        ].filter((value): value is QuotaWindow => !!value);
+        const windows: QuotaWindow[] = usage.windows.map((w) => ({
+          id: w.id,
+          label: w.label,
+          utilization: w.utilization,
+          resetsAt: w.resetsAt,
+          limitId: w.kind,
+        }));
 
         return this.buildSnapshot(account.accountId, account.name, identity, usage.fetchedAt, windows);
       }),

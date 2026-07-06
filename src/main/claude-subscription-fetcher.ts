@@ -12,7 +12,7 @@ import { homedir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
-import type { AccountProfile, SubscriptionUsage } from '../shared/types';
+import type { AccountProfile, SubscriptionUsage, SubscriptionUsageWindow } from '../shared/types';
 
 const execFileAsync = promisify(execFile);
 
@@ -119,15 +119,8 @@ async function doFetch(account: AccountProfile): Promise<SubscriptionUsage | nul
 
     if (!res.ok) return null;
 
-    const data = await res.json() as Record<string, { utilization: number; resets_at: string | null } | null>;
-
-    const toWindow = (w: { utilization: number; resets_at: string | null } | null | undefined) =>
-      w ? { utilization: w.utilization, resetsAt: w.resets_at } : null;
-
     const usage: SubscriptionUsage = {
-      fiveHour: toWindow(data['five_hour']),
-      sevenDay: toWindow(data['seven_day']),
-      sevenDayOpus: toWindow(data['seven_day_opus']),
+      windows: parseUsageResponse(await res.json()),
       fetchedAt: new Date().toISOString(),
     };
 
@@ -137,4 +130,83 @@ async function doFetch(account: AccountProfile): Promise<SubscriptionUsage | nul
   } catch {
     return null;
   }
+}
+
+// --- Response parsing (pure, exported for tests) ---
+
+interface RawWindow {
+  utilization?: number | null;
+  resets_at?: string | null;
+}
+
+interface RawLimit {
+  kind?: string | null;
+  percent?: number | null;
+  resets_at?: string | null;
+  scope?: { model?: { display_name?: string | null } | null } | null;
+}
+
+function slug(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Maps the OAuth usage endpoint response into a flat list of rate-limit windows.
+ *
+ * Prefers the newer `limits[]` array, which is the general shape carrying per-model
+ * scoped weekly limits (e.g. Fable, Opus, Sonnet) with human display names. Falls back
+ * to the legacy flat keys (five_hour / seven_day / seven_day_opus) when `limits[]` is
+ * absent or empty (older tokens).
+ */
+export function parseUsageResponse(raw: unknown): SubscriptionUsageWindow[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const data = raw as Record<string, unknown>;
+
+  const limits = data['limits'];
+  if (Array.isArray(limits) && limits.length > 0) {
+    const windows = limits
+      .map((entry) => toWindowFromLimit(entry as RawLimit))
+      .filter((w): w is SubscriptionUsageWindow => w !== null);
+    if (windows.length > 0) return windows;
+  }
+
+  // Legacy fallback: fixed flat keys.
+  return [
+    toWindowFromLegacy(data['five_hour'], 'five-hour', '5-hour'),
+    toWindowFromLegacy(data['seven_day'], 'seven-day', '7-day'),
+    toWindowFromLegacy(data['seven_day_opus'], 'seven-day-opus', 'Opus'),
+  ].filter((w): w is SubscriptionUsageWindow => w !== null);
+}
+
+function toWindowFromLimit(limit: RawLimit): SubscriptionUsageWindow | null {
+  if (!limit || typeof limit.percent !== 'number') return null;
+  const kind = typeof limit.kind === 'string' ? limit.kind : null;
+  const resetsAt = typeof limit.resets_at === 'string' ? limit.resets_at : null;
+
+  if (kind === 'session') {
+    return { id: 'five-hour', label: '5-hour', utilization: limit.percent, resetsAt, kind };
+  }
+  if (kind === 'weekly_all') {
+    return { id: 'seven-day', label: '7-day', utilization: limit.percent, resetsAt, kind };
+  }
+  if (kind === 'weekly_scoped') {
+    const name = limit.scope?.model?.display_name;
+    const label = typeof name === 'string' && name.length > 0 ? name : 'Weekly (scoped)';
+    const id = typeof name === 'string' && name.length > 0 ? `seven-day-${slug(name)}` : 'seven-day-scoped';
+    return { id, label, utilization: limit.percent, resetsAt, kind };
+  }
+  return null; // unknown kind — skip rather than mislabel
+}
+
+function toWindowFromLegacy(raw: unknown, id: string, label: string): SubscriptionUsageWindow | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const w = raw as RawWindow;
+  if (typeof w.utilization !== 'number') return null;
+  return {
+    id,
+    label,
+    utilization: w.utilization,
+    resetsAt: typeof w.resets_at === 'string' ? w.resets_at : null,
+    kind: null,
+  };
 }
