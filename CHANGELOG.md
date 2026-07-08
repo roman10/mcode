@@ -2,6 +2,27 @@
 
 All notable changes to mcode are documented here.
 
+## [0.2.9] — 2026-07-08
+
+### New Features
+
+- **Codex custom prompts as slash commands** — Codex custom prompts are surfaced as slash commands in the palette
+- **Auto-label Codex sessions** — sessions are automatically labeled from their first prompt
+- **Context-window usage for Codex** — Codex tiles now show live context-window usage, including a dedicated badge
+- **Per-model weekly quota limits** — the usage endpoint now surfaces per-model weekly limits (Fable)
+- **Claude Fable 5 support** — added claude-fable-5 pricing, family detection, and context window
+- **Opus 4.8 support** — added Opus 4.8 pricing, context window, and fast-mode multiplier
+
+### Bug Fixes
+
+- Capture the Codex thread id from the hook for reliable session resume, and project `codex_thread_id` in `getSessionHookState`
+- Read the on-disk rollout for Codex session fork/handoff, and restore first-prompt label tracking on reconnect
+- Detect Codex approval prompts in the PTY fallback
+- Bypass the hook-trust gate for Codex and switch to the stable `hooks` feature flag
+- Show Antigravity (agy) in the command palette
+- Add pricing for Codex gpt-5.5, gpt-5.2-codex, and gpt-5.1-codex-max
+- Deduplicate prompt history entries
+
 ## [0.2.8] — 2026-05-24
 
 ### New Features
